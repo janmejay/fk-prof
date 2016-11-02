@@ -27,6 +27,7 @@ typedef struct {
 } JVMPI_CallTrace;
 
 typedef void (*ASGCTType)(JVMPI_CallTrace *, jint, void *);
+typedef int (*IsGCActiveType)();
 
 const int kNumCallTraceErrors = 10;
 
@@ -62,13 +63,22 @@ public:
         asgct_ = asgct;
     }
 
+    static void SetIsGCActive(IsGCActiveType is_gc_active) {
+        is_gc_active_ = is_gc_active;
+    }
+
     // AsyncGetCallTrace function, to be dlsym'd.
     static ASGCTType GetAsgct() {
         return asgct_;
     }
 
+    static IsGCActiveType GetIsGCActive() {
+        return is_gc_active_;
+    }
+
 private:
     static ASGCTType asgct_;
+    static IsGCActiveType is_gc_active_;
 
     DISALLOW_IMPLICIT_CONSTRUCTORS(Asgct);
 };

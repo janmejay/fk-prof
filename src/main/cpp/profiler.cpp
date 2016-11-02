@@ -1,6 +1,7 @@
 #include "profiler.h"
 
 ASGCTType Asgct::asgct_;
+IsGCActiveType Asgct::is_gc_active_;
 
 TRACE_DEFINE_BEGIN(Profiler, kTraceProfilerTotal)
     TRACE_DEFINE("start failed")
@@ -81,7 +82,9 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     trace.frames = frames;
     JNIEnv *jniEnv = getJNIEnv(jvm_);
     if (jniEnv == NULL) {
-        trace.num_frames = -3; // ticks_unknown_not_Java
+        IsGCActiveType is_gc_active = Asgct::GetIsGCActive();
+        trace.num_frames = ((is_gc_active != NULL) &&
+                            ((*is_gc_active)() == 1)) ? -2 : -3; // ticks_unknown_not_Java or GC
         threadInfo = nullptr;
     } else {
         trace.env_id = jniEnv;
