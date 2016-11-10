@@ -1,0 +1,3 @@
+libproto.a
+recorder.pb.cc
+recorder.pb.h

@@ -154,6 +154,7 @@ TEST_FIXTURE(ProfilerControl, ProfilerConcurrentStartStop) {
 
 	for (int it = 0; it < 100; it++) {
 		int prev = Trace_Processor[kTraceProcessorStart].count.load();
+        (void)prev;
 		for (int i = 0; i < tsize; i++)
 			threads[i] = std::thread(&threadStartFunction, std::ref(profiler));
 		for (int i = 0; i < tsize; i++)

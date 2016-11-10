@@ -20,6 +20,9 @@ set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(OUTPUT "lagent")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN})
+#protobuf idl setup
+add_subdirectory(src/idl)
+include_directories(src/idl)
 
 ##########################################################
 # Libraries & Code
@@ -125,9 +128,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthr
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} dl)
 endif()
 
 add_executable(unitTests ${TEST_FILES})
