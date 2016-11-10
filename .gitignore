@@ -39,3 +39,6 @@ Testing
 /.project
 .settings
 
+.attach_pid*
+TAGS
+cscope.*
