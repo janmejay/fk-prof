@@ -46,8 +46,8 @@ message WorkAssignment {
   required uint64 work_id = 1;
   required Work work = 2;
   required string issue_time = 3; //controller local time
-  required uint32 duration = 4;
-  required uint32 delay = 5;
+  required uint32 duration = 4; //seconds, how long to collect data
+  required uint32 delay = 5; //seconds, how long to wait before start
 }
 
 enum WorkType {
@@ -106,7 +106,7 @@ message StackSample {
 message Frame {
   required int64 method_id = 1;
   required int32 bci = 2;
-  repeated int32 line_no = 3;
+  required int32 line_no = 3;
 }
 
 message MethodInfo {

@@ -33,6 +33,8 @@ find_package(JNI REQUIRED)
 include_directories(${JAVA_INCLUDE_PATH})
 include_directories(${JAVA_INCLUDE_PATH2})
 
+pkg_check_modules(ZLIB REQUIRED zlib)
+
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
     message("User has configured " $ENV{UNITTEST_INCLUDE_DIRS} " as the unit test include directory")
     include_directories($ENV{UNITTEST_INCLUDE_DIRS})
@@ -43,6 +45,11 @@ else()
         pkg_check_modules (unittest++ REQUIRED unittest++)
     endif()
     include_directories(${unittest++_INCLUDE_DIRS})
+  endif()
+
+find_package(Boost)
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
 # include of gcc 4.8 headers specifically to work around
@@ -52,6 +59,8 @@ include_directories("/usr/include/i386-linux-gnu/c++/4.8/")
 
 set(SOURCE_FILES
     ${SRC}/agent.cpp
+    ${SRC}/checksum.cpp
+    ${SRC}/checksum.h
     ${SRC}/circular_queue.cpp
     ${SRC}/circular_queue.h
     ${SRC}/common.cpp
@@ -73,7 +82,9 @@ set(SOURCE_FILES
     ${SRC}/thread_map.h
     ${SRC}/thread_map.cpp
     ${SRC}/concurrent_map.h
-    ${SRC}/concurrent_map.cpp)
+    ${SRC}/concurrent_map.cpp
+    ${SRC}/profile_writer.cpp
+    ${SRC}/profile_writer.h)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.h
@@ -83,6 +94,8 @@ set(TEST_FILES
     ${SRC_TEST}/test_agent.cpp
     ${SRC_TEST}/test.h
     ${SRC_TEST}/test_profiler_config.cpp
+    ${SRC_TEST}/test_recording_serde.cpp
+    ${SRC_TEST}/test_checksum.cpp
     ${SRC_TEST}/test_maps.cpp)
 
 
@@ -119,6 +132,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
+set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb")
 # to enable tracing add: -DENABLE_TRACING
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 
@@ -128,9 +142,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthr
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} dl)
 endif()
 
 add_executable(unitTests ${TEST_FILES})
