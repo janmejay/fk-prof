@@ -30,24 +30,24 @@ public:
     void write_header(const recording::RecordingHeader& rh) {
         assert(! header_written);
         header_written = true;
-        //assert header has never been written before
         os->WriteVarint32(Version);
         auto sz = rh.ByteSize();
         os->WriteVarint32(sz);
         rh.SerializeToCodedStream(os);
-        auto csum = chksum.chksum(reinterpret_cast<const uint8_t*>(data.c_str()), data.size());
+        auto csum = chksum.chksum(reinterpret_cast<const uint8_t*>(data.c_str()), os->ByteCount());
         os->WriteVarint32(csum);
-        _w.write(data);
+        _w.write(data, os->ByteCount(), 0);
     }
     
     void append_wse(const recording::Wse& e) {
-        data.clear();
+        auto old_byte_count = os->ByteCount();
         auto sz = e.ByteSize();
         os->WriteVarint32(sz);
         e.SerializeToCodedStream(os);
         chksum.reset();
-        auto csum = chksum.chksum(reinterpret_cast<const uint8_t*>(data.c_str()), data.size());
+        auto data_sz = os->ByteCount() - old_byte_count;
+        auto csum = chksum.chksum(reinterpret_cast<const uint8_t*>(data.c_str()), data_sz);
         os->WriteVarint32(csum);
-        _w.write(data);
+        _w.write(data, os->ByteCount() - old_byte_count, old_byte_count);
     }
 };

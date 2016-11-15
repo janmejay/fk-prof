@@ -43,8 +43,8 @@ public:
     }
     ~TestRecordingWriter() {}
 
-    void write(const std::string& data) {
-        ofs << data;
+    void write(const std::string& data, std::uint32_t sz, std::uint32_t offset) {
+        ofs.write(data.c_str() + offset, sz);
     }
 };
 

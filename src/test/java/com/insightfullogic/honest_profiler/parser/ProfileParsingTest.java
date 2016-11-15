@@ -87,7 +87,7 @@ public class ProfileParsingTest {
                 expectedFunctions.add("D");
                 expectedFunctions.add("E");
                 expectedFunctions.add("F");
-                expect.that(methodIdToName.values()).is(expectedFunctions);
+                expect.that(new HashSet<String>(methodIdToName.values())).is(expectedFunctions);
 
             });
         });
