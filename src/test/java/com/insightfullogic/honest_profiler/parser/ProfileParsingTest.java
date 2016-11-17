@@ -85,7 +85,7 @@ public class ProfileParsingTest {
                 Recorder.Wse e2 = wseBuilder.build();
                 testWseContents(expect, e2, methodIdToName, new int[]{25002}, new long[]{201l}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")}, 1);
 
-                //// E1 len and chksum
+                //// E2 len and chksum
                 int byteCountE2 = is.getTotalBytesRead() - bytesOffsetAfterE1Chksum;
                 int e2Chksum = is.readUInt32();
                 ///////////////////////
