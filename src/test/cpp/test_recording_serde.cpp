@@ -43,13 +43,15 @@ public:
     }
     ~TestRecordingWriter() {}
 
-    void write(const std::string& data, std::uint32_t sz, std::uint32_t offset) {
-        ofs.write(data.c_str() + offset, sz);
+    void write_unbuffered(const std::uint8_t* data, std::uint32_t sz, std::uint32_t offset) {
+        ofs.write(reinterpret_cast<const char*>(data) + offset, sz);
     }
 };
 
+const std::string PROFILE_DATA_FILE = "/tmp/profile.data";
+
 void write_to_file(const recording::RecordingHeader& rh, const std::initializer_list<const recording::Wse*> entries) {
-    TestRecordingWriter w("/tmp/profile.data");
+    TestRecordingWriter w(PROFILE_DATA_FILE);
     ProfileWriter<1, TestRecordingWriter> rec_w(w);
     rec_w.write_header(rh);
     for (auto e : entries) {
@@ -98,6 +100,19 @@ TEST(WriteAndReadBack_CPUSampleRecording) {
 
     write_to_file(rh, {&e1, &e2});
 
-    //CHECK_EQUAL(10, 20);
+    std::ifstream profile_data_input(PROFILE_DATA_FILE, std::ios_base::in | std::ios_base::binary);
+
+    const uint32_t buff_sz = 2048;
+
+    std::uint8_t buff[buff_sz];
+
+    profile_data_input.read(reinterpret_cast<char*>(buff), buff_sz);
+
+    int len = profile_data_input.gcount();
+
+    Checksum csum;
+    auto actual_chksum = csum.chksum(buff, len);
+
+    CHECK_EQUAL(1792366, actual_chksum);
 }
 
