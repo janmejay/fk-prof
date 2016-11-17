@@ -89,7 +89,6 @@ set(SOURCE_FILES
 set(TEST_FILES
     ${SRC_TEST}/fixtures.h
     ${SRC_TEST}/test_circular_queue.cpp
-    ${SRC_TEST}/test.cpp
     ${SRC_TEST}/test_log_writer.cpp
     ${SRC_TEST}/test_agent.cpp
     ${SRC_TEST}/test.h
@@ -98,6 +97,13 @@ set(TEST_FILES
     ${SRC_TEST}/test_checksum.cpp
     ${SRC_TEST}/test_maps.cpp)
 
+set(TEST_UTIL_FILES
+    ${SRC_TEST}/test_profile.h
+    ${SRC_TEST}/test_profile.cpp)
+
+set(TEST_JNI_FILES
+    ${SRC_TEST}/test_jni.h
+    ${SRC_TEST}/test_jni.cpp)
 
 ##########################################################
 # Compiler Options
@@ -147,13 +153,17 @@ else()
     target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} dl)
 endif()
 
-add_executable(unitTests ${TEST_FILES})
+add_library(testutil SHARED ${TEST_UTIL_FILES})
+add_executable(unitTests ${TEST_FILES} ${SRC_TEST}/test.cpp)
+add_library(testjni SHARED ${TEST_JNI_FILES})
 
 if (DEFINED ENV{UNITTEST_LIBRARIES})
-    message("User has configured " $ENV{UNITTEST_LIBRARIES} " as the unit test libraries")
-    target_link_libraries(unitTests ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
+  message("User has configured " $ENV{UNITTEST_LIBRARIES} " as the unit test libraries")
+  target_link_libraries(unitTests testutil ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
+  target_link_libraries(testjni testutil ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
 else()
-    target_link_libraries(unitTests ${OUTPUT} ${unittest++_LIBRARIES})
+  target_link_libraries(unitTests testutil ${OUTPUT} ${unittest++_LIBRARIES})
+  target_link_libraries(testjni testutil ${OUTPUT} ${unittest++_LIBRARIES})
 endif()
 
 # make test

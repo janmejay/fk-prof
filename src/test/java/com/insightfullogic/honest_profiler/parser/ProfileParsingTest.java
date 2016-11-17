@@ -1,17 +1,15 @@
 package com.insightfullogic.honest_profiler.parser;
 
 import com.google.protobuf.CodedInputStream;
-import com.insightfullogic.honest_profiler.ports.sources.FileLogSource;
+import com.insightfullogic.honest_profiler.testing_utilities.TestJni;
 import com.insightfullogic.lambdabehave.JunitSuiteRunner;
 import com.insightfullogic.lambdabehave.expectations.Expect;
 import org.junit.runner.RunWith;
 import recording.Recorder;
 
-import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.zip.Adler32;
 
 import static com.insightfullogic.lambdabehave.Suite.describe;
 
@@ -20,11 +18,16 @@ import static com.insightfullogic.lambdabehave.Suite.describe;
  */
 @RunWith(JunitSuiteRunner.class)
 public class ProfileParsingTest {
+    private static final String TMP_PROFILE_DATA = "/tmp/profile1.data";
+
     {
         describe("Encoded profile", it -> {
 
             it.should("be readable with checksum verification", expect -> {
-                CodedInputStream is = CodedInputStream.newInstance(new FileInputStream("/tmp/profile.data"));
+                TestJni.loadJniLib();
+                new TestJni().generateCpusampleSimpleProfile(TMP_PROFILE_DATA);
+                FileInputStream fis = new FileInputStream(TMP_PROFILE_DATA);
+                CodedInputStream is = CodedInputStream.newInstance(fis);
                 expect.that(is.readUInt32()).is(1);
 
                 int headerLen = is.readUInt32();
@@ -60,12 +63,12 @@ public class ProfileParsingTest {
                 int wse1Lim = is.pushLimit(wse1Len);
                 Recorder.Wse.Builder wseBuilder = Recorder.Wse.newBuilder();
                 wseBuilder.mergeFrom(is);
-                Recorder.Wse e1 = wseBuilder.build();
                 is.popLimit(wse1Lim);
 
+                Recorder.Wse e1 = wseBuilder.build();
                 Map<Long, String> methodIdToName = new HashMap<>();
                 testWseContents(expect, e1, methodIdToName, new int[]{15000, 15050}, new long[]{200l, 200l}, new List[]{Arrays.asList("Y", "C", "D", "C", "D"), Arrays.asList("Y", "C", "D", "E", "C", "D")}, 4);
-                wseBuilder.clear();
+
 
                 //// E1 len and chksum
                 int byteCountE1 = is.getTotalBytesRead() - bytesOffsetAfterHdrChksum;
@@ -75,11 +78,18 @@ public class ProfileParsingTest {
 
                 int wse2Len = is.readUInt32();
                 int wse2Lim = is.pushLimit(wse2Len);
+                wseBuilder.clear();
                 wseBuilder.mergeFrom(is);
                 is.popLimit(wse2Lim);
 
                 Recorder.Wse e2 = wseBuilder.build();
                 testWseContents(expect, e2, methodIdToName, new int[]{25002}, new long[]{201l}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")}, 1);
+
+                //// E1 len and chksum
+                int byteCountE2 = is.getTotalBytesRead() - bytesOffsetAfterE1Chksum;
+                int e2Chksum = is.readUInt32();
+                ///////////////////////
+
 
                 Set<String> expectedFunctions = new HashSet<>();
                 expectedFunctions.add("Y");
@@ -89,6 +99,31 @@ public class ProfileParsingTest {
                 expectedFunctions.add("F");
                 expect.that(new HashSet<String>(methodIdToName.values())).is(expectedFunctions);
 
+                //////// now verify checksums
+                fis.close();
+                fis = new FileInputStream(TMP_PROFILE_DATA);
+                is = CodedInputStream.newInstance(fis);
+
+                byte[] bytes = is.readRawBytes(bytesBeforeHdrChksum);
+                Adler32 csum = new Adler32();
+                csum.reset();
+                csum.update(bytes);
+                expect.that((int) csum.getValue()).is(headerChksum);
+                expect.that(is.readUInt32()).is(headerChksum);
+
+                bytes = is.readRawBytes(byteCountE1);
+                csum.reset();
+                csum.update(bytes);
+                expect.that((int) csum.getValue()).is(e1Chksum);
+                expect.that(is.readUInt32()).is(e1Chksum);
+
+                bytes = is.readRawBytes(byteCountE2);
+                csum.reset();
+                csum.update(bytes);
+                expect.that((int) csum.getValue()).is(e2Chksum);
+                expect.that(is.readUInt32()).is(e2Chksum);
+                expect.that(is.isAtEnd()).is(true);
+                fis.close();
             });
         });
     }
