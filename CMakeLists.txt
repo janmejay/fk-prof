@@ -27,6 +27,11 @@ include_directories(src/idl)
 ##########################################################
 # Libraries & Code
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+
+find_package(LibCuckoo REQUIRED)
+include_directories(${LIBCUCKOO_INCLUDE_DIRS})
+
 find_package(PkgConfig REQUIRED)
 
 find_package(JNI REQUIRED)
@@ -83,6 +88,8 @@ set(SOURCE_FILES
     ${SRC}/thread_map.cpp
     ${SRC}/concurrent_map.h
     ${SRC}/concurrent_map.cpp
+    ${SRC}/loaded_classes.h
+    ${SRC}/loaded_classes.cpp
     ${SRC}/profile_writer.cpp
     ${SRC}/profile_writer.h)
 
@@ -148,9 +155,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthr
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
