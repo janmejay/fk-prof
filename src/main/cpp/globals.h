@@ -155,6 +155,11 @@ public:
         ref_ = NULL;
     }
 
+    void move(T** ref) {
+        *ref = ref_;
+        ref_ = NULL;
+    }
+
 private:
     jvmtiEnv *jvmti_;
     T *ref_;

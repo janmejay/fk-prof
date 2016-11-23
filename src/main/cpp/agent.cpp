@@ -8,6 +8,7 @@
 #include "thread_map.h"
 #include "profiler.h"
 #include "controller.h"
+#include "loaded_classes.h"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -17,6 +18,7 @@ static ConfigurationOptions* CONFIGURATION;
 static Profiler* prof;
 static Controller* controller;
 static ThreadMap threadMap;
+static LoadedClasses loaded_classes;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -53,6 +55,13 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
     }
 }
 
+void process_prepared_class(jvmtiEnv *jvmti, jclass klass) {
+    CreateJMethodIDsForClass(jvmti, klass);
+    loaded_classes.xlate(jvmti, klass, [](LoadedClasses::ClassSigPtr ptr) {
+            std::cout << "Loaded-class: " << ptr->first << " " << ptr->second << "\n";
+        });
+}
+
 void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     IMPLICITLY_USE(thread);
     // Forces the creation of jmethodIDs of the classes that had already
@@ -64,7 +73,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     jclass *classList = classes.Get();
     for (int i = 0; i < class_count; ++i) {
         jclass klass = classList[i];
-        CreateJMethodIDsForClass(jvmti, klass);
+        process_prepared_class(jvmti, klass);
     }
 
 #ifndef GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -82,7 +91,7 @@ void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
     // that all of the methodIDs have been initialized internally, for
     // AsyncGetCallTrace.  I imagine it slows down class loading a mite,
     // but honestly, how fast does class loading have to be?
-    CreateJMethodIDsForClass(jvmti_env, klass);
+    process_prepared_class(jvmti_env, klass);
 }
 
 void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
