@@ -90,6 +90,8 @@ set(SOURCE_FILES
     ${SRC}/concurrent_map.cpp
     ${SRC}/loaded_classes.h
     ${SRC}/loaded_classes.cpp
+    ${SRC}/util.h
+    ${SRC}/util.cpp
     ${SRC}/profile_writer.cpp
     ${SRC}/profile_writer.h)
 

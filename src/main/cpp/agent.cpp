@@ -9,6 +9,7 @@
 #include "profiler.h"
 #include "controller.h"
 #include "loaded_classes.h"
+#include "util.h"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -19,6 +20,10 @@ static Profiler* prof;
 static Controller* controller;
 static ThreadMap threadMap;
 static LoadedClasses loaded_classes;
+
+static void* bci_library;
+static void* fn_do_bci = nullptr;
+static void* fn_get_class_name_from_file = nullptr;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -359,6 +364,20 @@ static void parseArguments(char *options, ConfigurationOptions &configuration) {
     }
 }
 
+void wireup_bci_helpers(jvmtiEnv* jvmti) {
+    bci_library = load_sun_boot_lib(jvmti, "libjava_crw_demo.so");
+    
+    if (bci_library != nullptr) {
+        fn_do_bci = lib_symbol(bci_library, "java_crw_demo");
+        fn_get_class_name_from_file = lib_symbol(bci_library, "java_crw_demo_classname");
+        std::cout << "Fn: DoBci = " << fn_do_bci  << " GetClassName = " << fn_get_class_name_from_file << "\n";
+    }
+}
+
+void destruct_bci_helpers() {
+    unload_lib(bci_library);
+}
+
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;
@@ -393,6 +412,8 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
         // inconsistent state.
         return 1;
     }
+
+    wireup_bci_helpers(jvmti);
 
     Asgct::SetAsgct(Accessors::GetJvmFunction<ASGCTType>("AsyncGetCallTrace"));
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
