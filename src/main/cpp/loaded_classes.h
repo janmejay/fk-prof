@@ -13,27 +13,28 @@
 class LoadedClasses {
 public:
     typedef std::uint32_t ClassId;
-    typedef std::pair<std::string, std::string> ClassSig;
+    struct ClassSig {
+        jclass klass;
+        std::string ksig;
+        std::string gsig;
+    };
     typedef std::shared_ptr<ClassSig> ClassSigPtr;
     typedef std::function<void(ClassSigPtr)> NewSigHandler;
     
 private:
-    typedef cuckoohash_map<jclass, ClassId, CityHasher<jclass> > LoadedIds;
     typedef cuckoohash_map<ClassId, ClassSigPtr, CityHasher<ClassId> > IdSignatures;
     
-    LoadedIds ids;
     IdSignatures signatures;
-    std::atomic<ClassId> new_class_id;
+    std::atomic<ClassId> new_class_id{1};
     
 public:
     LoadedClasses() {
-        ids.reserve(100000);
         signatures.reserve(100000);
     }
     ~LoadedClasses() {}
 
     const ClassId xlate(jvmtiEnv *jvmti, jclass klass, NewSigHandler new_sig_handler);
-    void remove(jclass klass);
+    void remove(jvmtiEnv *jvmti, jclass klass);
 };
 
 #endif

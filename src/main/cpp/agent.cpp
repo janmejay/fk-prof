@@ -58,7 +58,7 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
 void process_prepared_class(jvmtiEnv *jvmti, jclass klass) {
     CreateJMethodIDsForClass(jvmti, klass);
     loaded_classes.xlate(jvmti, klass, [](LoadedClasses::ClassSigPtr ptr) {
-            std::cout << "Loaded-class: " << ptr->first << " " << ptr->second << "\n";
+            std::cout << "Loaded-class: " << ptr->ksig << " " << ptr->gsig << "\n";
         });
 }
 
@@ -91,6 +91,7 @@ void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
     // that all of the methodIDs have been initialized internally, for
     // AsyncGetCallTrace.  I imagine it slows down class loading a mite,
     // but honestly, how fast does class loading have to be?
+    std::cout << "Prep on thd "<< thread << "\n";
     process_prepared_class(jvmti_env, klass);
 }
 
@@ -115,6 +116,8 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
     caps.can_get_bytecodes = 1;
     caps.can_get_constant_pool = 1;
     caps.can_generate_compiled_method_load_events = 1;
+    caps.can_tag_objects = 1;
+    caps.can_generate_object_free_events = 1;
 #ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
     caps.can_generate_native_method_bind_events = 1;
 #endif
@@ -219,6 +222,14 @@ void JNICALL OnThreadEnd(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread) {
     threadMap.remove(jni_env);
 }
 
+void JNICALL OnObjectFree(jvmtiEnv *jvmti_env, jlong tag) {
+    std::cout << "Free tag: " << tag << "\n";
+}
+
+void JNICALL OnClassUnload(jvmtiEnv* jvmti_env, jthread thd, jclass klass, ...) {
+    loaded_classes.remove(jvmti_env, klass);
+}
+
 static bool RegisterJvmti(jvmtiEnv *jvmti) {
     sigemptyset(&prof_signal_mask);
     sigaddset(&prof_signal_mask, SIGPROF);
@@ -238,12 +249,14 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     callbacks->ThreadStart = &OnThreadStart;
     callbacks->ThreadEnd = &OnThreadEnd;
 
+    callbacks->ObjectFree = &OnObjectFree;
+
     JVMTI_ERROR_RET(
             (jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))),
             false);
 
     jvmtiEvent events[] = {JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE,
-            JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD
+                           JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD, JVMTI_EVENT_OBJECT_FREE
 #ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
         ,JVMTI_EVENT_THREAD_START,
         JVMTI_EVENT_THREAD_END,
@@ -260,6 +273,38 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
                 (jvmti->SetEventNotificationMode(JVMTI_ENABLE, events[i], NULL)),
                 false);
     }
+    
+    jint ext_event_count;
+    jvmtiExtensionEventInfo* ext_infos;
+
+    JVMTI_ERROR_RET((jvmti->GetExtensionEvents(&ext_event_count, &ext_infos)), false);
+
+    for (jint i = 0; i < ext_event_count; i++) {
+        auto ext_info = (ext_infos + i);
+        std::string id = ext_info->id;
+        if (id == "com.sun.hotspot.events.ClassUnload") {
+            auto param = ext_info->params;
+            assert(std::string(param->name) == "JNI Environment");
+            assert(param->base_type == JVMTI_TYPE_JNIENV);
+
+            param++;
+            assert(std::string(param->name) == "Thread");
+            assert(param->base_type == JVMTI_TYPE_JTHREAD);
+
+            param++;
+            assert(std::string(param->name) == "Class");
+            assert(param->base_type == JVMTI_TYPE_JCLASS);
+
+            auto e = jvmti->SetExtensionEventCallback(ext_info->extension_event_index, reinterpret_cast<jvmtiExtensionEvent>(OnClassUnload));
+            if (e != JVMTI_ERROR_NONE) {
+                std::cerr << "Couldn't set up class-unload event listener\n";
+            }
+        }
+        jvmti->Deallocate(reinterpret_cast<unsigned char*>(ext_info->id));
+        jvmti->Deallocate(reinterpret_cast<unsigned char*>(ext_info->short_description));
+        jvmti->Deallocate(reinterpret_cast<unsigned char*>(ext_info->params));
+    }
+    jvmti->Deallocate(reinterpret_cast<unsigned char*>(ext_infos));
 
     return true;
 }
