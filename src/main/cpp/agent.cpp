@@ -3,18 +3,22 @@
 
 #include <string>
 #include <jvmti.h>
+#include <cstdlib>
+#include <set>
 
 #include "globals.h"
 #include "thread_map.h"
 #include "profiler.h"
 #include "controller.h"
 #include "loaded_classes.h"
+#include "hprof_tracker.h"
 #include "util.h"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
 #endif
 
+jvmtiEnv *ti_env = nullptr;
 static ConfigurationOptions* CONFIGURATION;
 static Profiler* prof;
 static Controller* controller;
@@ -22,8 +26,39 @@ static ThreadMap threadMap;
 static LoadedClasses loaded_classes;
 
 static void* bci_library;
-static void* fn_do_bci = nullptr;
-static void* fn_get_class_name_from_file = nullptr;
+
+typedef void (*FatalErrorHandler)(const char*message, const char*file, int line);
+
+typedef void (*MethodNumberRegister)(unsigned, const char**, const char**, int);
+
+typedef void (JNICALL *Fn_DoBci)(
+    unsigned class_number,
+    const char *name,
+    const unsigned char *file_image,
+    long file_len,
+    int system_class,
+    char* tclass_name,
+    char* tclass_sig,
+    char* call_name,
+    char* call_sig,
+    char* return_name,
+    char* return_sig,
+    char* obj_init_name,
+    char* obj_init_sig,
+    char* newarray_name,
+    char* newarray_sig,
+    unsigned char **pnew_file_image,
+    long *pnew_file_len,
+    FatalErrorHandler fatal_error_handler,
+    MethodNumberRegister mnum_callback);
+
+typedef char * (JNICALL *Fn_GetClassNameFromFile)(
+    const unsigned char *file_image,
+    long file_len,
+    FatalErrorHandler fatal_error_handler);
+
+static Fn_DoBci fn_do_bci = nullptr;
+static Fn_GetClassNameFromFile fn_get_class_name_from_file = nullptr;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -63,12 +98,19 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
 void process_prepared_class(jvmtiEnv *jvmti, jclass klass) {
     CreateJMethodIDsForClass(jvmti, klass);
     loaded_classes.xlate(jvmti, klass, [](LoadedClasses::ClassSigPtr ptr) {
-            std::cout << "Loaded-class: " << ptr->ksig << " " << ptr->gsig << "\n";
+            std::cout << "Class ID: ( " << ptr->class_id << " ) => " << ptr->ksig << " " << ptr->gsig << "\n";
         });
 }
 
+enum class VmInitState : std::uint8_t {
+    PRE_INIT = 0, INITIALIZING = 1, INITIALIZED = 2
+};
+
+std::atomic<VmInitState> init_state{VmInitState::PRE_INIT};
+
 void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     IMPLICITLY_USE(thread);
+    init_state.store(VmInitState::INITIALIZING, std::memory_order_relaxed);
     // Forces the creation of jmethodIDs of the classes that had already
     // been loaded (eg java.lang.Object, java.lang.ClassLoader) and
     // OnClassPrepare() misses.
@@ -86,6 +128,10 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
         controller->start();
     }
 #endif
+
+    set_tracking(jniEnv, true);
+
+    init_state.store(VmInitState::INITIALIZED, std::memory_order_relaxed);
 }
 
 void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
@@ -103,6 +149,8 @@ void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
 void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
+
+    set_tracking(jni_env, false);
 
     if (prof->isRunning())
         prof->stop();
@@ -235,6 +283,76 @@ void JNICALL OnClassUnload(jvmtiEnv* jvmti_env, jthread thd, jclass klass, ...) 
     loaded_classes.remove(jvmti_env, klass);
 }
 
+static void crw_error_handler(const char * msg, const char *file, int line) {
+    std::cerr << "CRW-op failed: " << msg << "(file: " << file << ", line: " << line << "\n";
+}
+
+const std::set<std::string> system_classes = {
+    "java/lang/Object",
+    "java/io/Serializable",
+    "java/lang/String",
+    "java/lang/Class",
+    "java/lang/ClassLoader",
+    "java/lang/System",
+    "java/lang/Thread",
+    "java/lang/ThreadGroup"
+};
+
+const char* jvmti_tracker_class_name = TRACKER_CLASS_NAME;
+const char* jvmti_tracker_class_signature = "L" TRACKER_CLASS_NAME ";";
+
+std::atomic<std::uint32_t> first_few_bci_instances{0};
+
+void JNICALL OnClassFileLoadHook(jvmtiEnv *jvmti_env, JNIEnv* env,
+                                        jclass class_being_redefined, jobject loader,
+                                        const char* name, jobject protection_domain,
+                                        jint class_data_len, const unsigned char* class_data,
+                                        jint* new_class_data_len, unsigned char** new_class_data) {
+    std::cout << "FILE_LOAD for Class " << name << " LOADER: " << loader << "\n";
+
+    auto total_instances_bci_ed = first_few_bci_instances.fetch_add(1, std::memory_order_relaxed);
+    
+    char* classname = (name == nullptr) ? fn_get_class_name_from_file(class_data, class_data_len, &crw_error_handler) : strdup(name);
+
+    if (strcmp(classname, jvmti_tracker_class_name) != 0) {
+        int system_class =
+            (init_state.load(std::memory_order_relaxed) == VmInitState::PRE_INIT) &&
+            ((system_classes.find(classname) != system_classes.end()) ||
+             (total_instances_bci_ed < 8));
+        unsigned char* new_image = nullptr;
+        long new_length = 0;
+
+        fn_do_bci(0, classname, class_data, class_data_len, system_class,
+                  const_cast<char*>(jvmti_tracker_class_name), const_cast<char*>(jvmti_tracker_class_signature),
+                  NULL, NULL, NULL, NULL,
+                  const_cast<char*>(TRACKER_OBJECT_INIT_NAME), const_cast<char*>(TRACKER_OBJECT_INIT_SIG),
+                  const_cast<char*>(TRACKER_NEWARRAY_NAME), const_cast<char*>(TRACKER_NEWARRAY_SIG),
+                  &new_image, &new_length, &crw_error_handler, NULL);
+
+        auto new_class_data_prep_failed = false;
+        if (new_length > 0) {
+            unsigned char* jvmti_klass_data;
+            auto e = jvmti_env->Allocate(static_cast<jlong>(new_length), &jvmti_klass_data);
+            if (e == JVMTI_ERROR_NONE) {
+                memcpy(jvmti_klass_data, new_image, new_length);
+                *new_class_data_len = static_cast<jint>(new_length);
+                *new_class_data     = jvmti_klass_data;
+            } else {
+                std::cerr << "Couldn't allocate memory for class-rewrite\n";
+                new_class_data_prep_failed = true;
+            }
+        }
+        if (new_class_data_prep_failed) {
+            *new_class_data_len = 0;
+            *new_class_data     = nullptr;
+        }
+        if (new_image != nullptr) {
+            free(new_image);
+        }
+    }
+    free(classname);
+}
+
 static bool RegisterJvmti(jvmtiEnv *jvmti) {
     sigemptyset(&prof_signal_mask);
     sigaddset(&prof_signal_mask, SIGPROF);
@@ -254,6 +372,7 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     callbacks->ThreadStart = &OnThreadStart;
     callbacks->ThreadEnd = &OnThreadEnd;
 
+    callbacks->ClassFileLoadHook = &OnClassFileLoadHook;
     callbacks->ObjectFree = &OnObjectFree;
 
     JVMTI_ERROR_RET(
@@ -261,7 +380,8 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
             false);
 
     jvmtiEvent events[] = {JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE,
-                           JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD, JVMTI_EVENT_OBJECT_FREE
+                           JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD,
+                           JVMTI_EVENT_OBJECT_FREE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK
 #ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
         ,JVMTI_EVENT_THREAD_START,
         JVMTI_EVENT_THREAD_END,
@@ -368,8 +488,8 @@ void wireup_bci_helpers(jvmtiEnv* jvmti) {
     bci_library = load_sun_boot_lib(jvmti, "libjava_crw_demo.so");
     
     if (bci_library != nullptr) {
-        fn_do_bci = lib_symbol(bci_library, "java_crw_demo");
-        fn_get_class_name_from_file = lib_symbol(bci_library, "java_crw_demo_classname");
+        fn_do_bci = reinterpret_cast<Fn_DoBci>(lib_symbol(bci_library, "java_crw_demo"));
+        fn_get_class_name_from_file = reinterpret_cast<Fn_GetClassNameFromFile>(lib_symbol(bci_library, "java_crw_demo_classname"));
         std::cout << "Fn: DoBci = " << fn_do_bci  << " GetClassName = " << fn_get_class_name_from_file << "\n";
     }
 }
@@ -391,6 +511,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
         return 1;
     }
 
+    ti_env = jvmti;
     /*
       JNIEnv *jniEnv;
       if ((err = (vm->GetEnv(reinterpret_cast<void **>(&jniEnv),
@@ -398,7 +519,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
         logError("JNI Error %d\n", err);
         return 1;
       }
-      */
+    */
 
     if (!PrepareJvmti(jvmti)) {
         logError("ERROR: Failed to initialize JVMTI. Continuing...\n");

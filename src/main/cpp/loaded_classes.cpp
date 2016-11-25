@@ -12,22 +12,22 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
     }
 
     if (tag < 0) {
-        std::cout << "load event: " << klass << " tag: " << tag << "\n";
         return tag * -1;
     }
     
     ClassId class_id = new_class_id.fetch_add(1, std::memory_order_relaxed);
     ClassSigPtr sig(new ClassSig);
+    sig->klass = klass;
+    sig->class_id = class_id;
     JvmtiScopedPtr<char> ksig(jvmti);
     JvmtiScopedPtr<char> gsig(jvmti);
     e = jvmti->GetClassSignature(klass, ksig.GetRef(), gsig.GetRef());
     if (e != JVMTI_ERROR_NONE && e != JVMTI_ERROR_CLASS_NOT_PREPARED) {
         std::cerr << "Failed to resolve class-signature, error: " << e << "\n";
+        sig->class_id = 0;
     } else {
         if (ksig.Get() != NULL) sig->ksig = ksig.Get();
         if (gsig.Get() != NULL) sig->gsig = gsig.Get();
-        sig->klass = klass;
-        std::cout << "Found class sig: " << sig->ksig << "\n";
     }
     if (signatures.insert(class_id, sig)) {
         if (new_sig_handler != nullptr) {

@@ -92,6 +92,8 @@ set(SOURCE_FILES
     ${SRC}/loaded_classes.cpp
     ${SRC}/util.h
     ${SRC}/util.cpp
+    ${SRC}/hprof_tracker.h
+    ${SRC}/hprof_tracker.cpp
     ${SRC}/profile_writer.cpp
     ${SRC}/profile_writer.h)
 
