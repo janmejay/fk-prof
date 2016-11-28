@@ -8,6 +8,8 @@
 
 extern jvmtiEnv *ti_env;
 
+AllocRecorder ar("/tmp/ALLOC.out");
+
 static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject obj) {
     jlong tag;
     if (obj != NULL) {
@@ -25,7 +27,7 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
     if (e != JVMTI_ERROR_NONE) {
         std::cerr << type << " obj-size query failed for instance of class_id: " << tag << "\n";
     }
-    std::cout << type << " Sz: " << sz << " ClassId: " << tag << "\n";
+    ar.out << sz << " " << tag << "\n";
 }
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
@@ -60,7 +62,6 @@ template <typename V> struct Releasable {
 };
 
 struct LocalFrameTracker : Releasable<int> {
-    
     LocalFrameTracker(JNIEnv *jni, int num) : Releasable([jni, num]() {
             if (jni->PushLocalFrame(num) != 0) {
                 std::cerr << "Couldn't push local-frame " << num << "\n";
@@ -83,7 +84,11 @@ bool check_for_exception(JNIEnv* jni, const char* msg, bool do_clear = false) {
 }
 
 void set_tracking(JNIEnv *jni, bool on) {
-    std::cout << "CALLED set_tracking\n";
+    if (on) {
+        ar.open();
+    } else {
+        ar.close();
+    }
     LocalFrameTracker lft(jni, 10);
     check_for_exception(jni, "Won't try to enable tracking");
 
@@ -101,6 +106,13 @@ void set_tracking(JNIEnv *jni, bool on) {
 
     jni->SetStaticIntField(tracker_klass, field_id, on ? 1 : 0);
     check_for_exception(jni, "Couldn't set tracker field " TRACKER_ENGAGED_NAME, true);
+}
 
-    std::cout << "TRACKING ENABLED\n";
+void AllocRecorder::close() {
+    out.close();
+}
+
+
+void AllocRecorder::open() {
+    out.open(file, std::ios_base::out | std::ios_base::app);
 }

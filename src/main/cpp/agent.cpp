@@ -97,9 +97,7 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
 
 void process_prepared_class(jvmtiEnv *jvmti, jclass klass) {
     CreateJMethodIDsForClass(jvmti, klass);
-    loaded_classes.xlate(jvmti, klass, [](LoadedClasses::ClassSigPtr ptr) {
-            std::cout << "Class ID: ( " << ptr->class_id << " ) => " << ptr->ksig << " " << ptr->gsig << "\n";
-        });
+    loaded_classes.xlate(jvmti, klass, nullptr);
 }
 
 enum class VmInitState : std::uint8_t {
@@ -151,6 +149,7 @@ void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jni_env);
 
     set_tracking(jni_env, false);
+    loaded_classes.stop_reporting();
 
     if (prof->isRunning())
         prof->stop();
@@ -488,7 +487,6 @@ void wireup_bci_helpers(jvmtiEnv* jvmti) {
     if (bci_library != nullptr) {
         fn_do_bci = reinterpret_cast<Fn_DoBci>(lib_symbol(bci_library, "java_crw_demo"));
         fn_get_class_name_from_file = reinterpret_cast<Fn_GetClassNameFromFile>(lib_symbol(bci_library, "java_crw_demo_classname"));
-        std::cout << "Fn: DoBci = " << fn_do_bci  << " GetClassName = " << fn_get_class_name_from_file << "\n";
     }
 }
 

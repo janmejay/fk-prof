@@ -30,6 +30,9 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
         if (gsig.Get() != NULL) sig->gsig = gsig.Get();
     }
     if (signatures.insert(class_id, sig)) {
+        if (do_report.load(std::memory_order_acquire)) {
+            out << class_id << " " << sig->ksig << "\n";
+        }
         if (new_sig_handler != nullptr) {
             new_sig_handler(sig);
         }
@@ -53,4 +56,9 @@ void LoadedClasses::remove(jvmtiEnv *jvmti, const jclass klass) { //implement me
     }
     ClassId class_id = static_cast<ClassId>(tag);
     signatures.erase(class_id);
+}
+
+void LoadedClasses::stop_reporting() {
+    do_report.store(false, std::memory_order_release);
+    out.close();
 }

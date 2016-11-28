@@ -9,6 +9,7 @@
 #include <string>
 #include <memory>
 #include <jvmti.h>
+#include <fstream>
 
 class LoadedClasses {
 public:
@@ -28,11 +29,19 @@ private:
     IdSignatures signatures;
     std::atomic<ClassId> new_class_id{1};
     
+    std::ofstream out;
+    std::atomic<bool> do_report;
+    
 public:
     LoadedClasses() {
         signatures.reserve(100000);
+        out.open("/tmp/CLASSES.out", std::ios_base::out | std::ios_base::trunc);
+        out << "cid sig\n";
+        do_report.store(true, std::memory_order_release);
     }
     ~LoadedClasses() {}
+
+    void stop_reporting();
 
     const ClassId xlate(jvmtiEnv *jvmti, jclass klass, NewSigHandler new_sig_handler);
     void remove(jvmtiEnv *jvmti, jclass klass);
