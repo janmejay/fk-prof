@@ -308,8 +308,6 @@ void JNICALL OnClassFileLoadHook(jvmtiEnv *jvmti_env, JNIEnv* env,
                                         const char* name, jobject protection_domain,
                                         jint class_data_len, const unsigned char* class_data,
                                         jint* new_class_data_len, unsigned char** new_class_data) {
-    std::cout << "FILE_LOAD for Class " << name << " LOADER: " << loader << "\n";
-
     auto total_instances_bci_ed = first_few_bci_instances.fetch_add(1, std::memory_order_relaxed);
     
     char* classname = (name == nullptr) ? fn_get_class_name_from_file(class_data, class_data_len, &crw_error_handler) : strdup(name);

@@ -93,6 +93,7 @@ set(SOURCE_FILES
     ${SRC}/util.h
     ${SRC}/util.cpp
     ${SRC}/hprof_tracker.h
+    ${SRC}/hprof_tracker_jni.h
     ${SRC}/hprof_tracker.cpp
     ${SRC}/profile_writer.cpp
     ${SRC}/profile_writer.h)

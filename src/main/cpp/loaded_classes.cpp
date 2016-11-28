@@ -12,7 +12,7 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
     }
 
     if (tag < 0) {
-        return tag * -1;
+        return tag;
     }
     
     ClassId class_id = new_class_id.fetch_add(1, std::memory_order_relaxed);
@@ -33,7 +33,7 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
         if (new_sig_handler != nullptr) {
             new_sig_handler(sig);
         }
-        tag = -1 * class_id;
+        tag = class_id;
         e = jvmti->SetTag(klass, tag);
         if (e != JVMTI_ERROR_NONE) {
             std::cerr << "Couldn't tag class (error: " << e << ")\n";
@@ -51,7 +51,6 @@ void LoadedClasses::remove(jvmtiEnv *jvmti, const jclass klass) { //implement me
         std::cerr << "Couldn't get tag of a class (error: " << e << ")\n";
         return;
     }
-    assert(tag < 0);
-    ClassId class_id = static_cast<ClassId>(-1 * tag);
+    ClassId class_id = static_cast<ClassId>(tag);
     signatures.erase(class_id);
 }

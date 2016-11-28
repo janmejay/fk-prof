@@ -4,6 +4,10 @@
 #include <jni.h>
 
 #define TRACKER_CLASS_NAME "com/sun/demo/jvmti/hprof/Tracker"
+#define TRACKER_CLASS_SIG "L" TRACKER_CLASS_NAME ";"
+
+#define TRACKER_ENGAGED_NAME               "engaged"
+#define TRACKER_ENGAGED_SIG                "I"
 
 #define TRACKER_NEWARRAY_NAME        "NewArray"
 #define TRACKER_NEWARRAY_SIG         "(Ljava/lang/Object;)V"
