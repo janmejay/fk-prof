@@ -27,7 +27,7 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
     if (e != JVMTI_ERROR_NONE) {
         std::cerr << type << " obj-size query failed for instance of class_id: " << tag << "\n";
     }
-    ar.out << sz << " " << tag << "\n";
+    ar.out << sz << "\t" << tag << "\n";
 }
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {

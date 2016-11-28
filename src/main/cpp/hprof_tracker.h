@@ -29,7 +29,7 @@ struct AllocRecorder {
     
     AllocRecorder(const char* _file) : file(_file) {
         out.open(file, std::ios_base::out | std::ios_base::trunc);
-        out << "sz cid\n";
+        out << "sz\tcid\n";
         out.close();
     }
     ~AllocRecorder() {}

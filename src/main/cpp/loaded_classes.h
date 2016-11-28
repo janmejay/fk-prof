@@ -36,7 +36,7 @@ public:
     LoadedClasses() {
         signatures.reserve(100000);
         out.open("/tmp/CLASSES.out", std::ios_base::out | std::ios_base::trunc);
-        out << "cid sig\n";
+        out << "cid\tsig\n";
         do_report.store(true, std::memory_order_release);
     }
     ~LoadedClasses() {}

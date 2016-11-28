@@ -9,12 +9,10 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
     if (e != JVMTI_ERROR_NONE) {
         std::cerr << "Couldn't get tag of a class (error: " << e << ")\n";
         tag = 0;
-    }
-
-    if (tag < 0) {
+    } else if (tag != 0) {
         return tag;
     }
-    
+
     ClassId class_id = new_class_id.fetch_add(1, std::memory_order_relaxed);
     ClassSigPtr sig(new ClassSig);
     sig->klass = klass;
@@ -31,7 +29,7 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
     }
     if (signatures.insert(class_id, sig)) {
         if (do_report.load(std::memory_order_acquire)) {
-            out << class_id << " " << sig->ksig << "\n";
+            out << class_id << "\t" << sig->ksig << "\n";
         }
         if (new_sig_handler != nullptr) {
             new_sig_handler(sig);
