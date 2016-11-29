@@ -31,9 +31,12 @@ private:
     
     std::ofstream out;
     std::atomic<bool> do_report;
+
+    std::atomic_flag emit_lock = ATOMIC_FLAG_INIT;
     
 public:
     LoadedClasses() {
+        assert(sizeof(jlong) == sizeof(std::uint64_t));//we encode tag in a way that uses 64 bits
         signatures.reserve(100000);
         out.open("/tmp/CLASSES.out", std::ios_base::out | std::ios_base::trunc);
         out << "cid\tsig\n";

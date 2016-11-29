@@ -5,6 +5,7 @@
 #include <fstream>
 #include <atomic>
 #include "data_writer.h"
+#include "loaded_classes.h"
 
 #define TRACKER_CLASS_NAME "com/sun/demo/jvmti/hprof/Tracker"
 #define TRACKER_CLASS_SIG "L" TRACKER_CLASS_NAME ";"
@@ -25,8 +26,8 @@
 void set_tracking(JNIEnv *jni, bool on);
 
 struct Alloc {
-    std::uint32_t sz;
-    std::uint64_t cid;
+    std::int64_t sz;
+    std::uint32_t cid;
 };
 
 std::ostream& operator<<(std::ostream& os, const Alloc& a);

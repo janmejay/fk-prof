@@ -18,19 +18,27 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
     }
     if (sz < 24) return;
     jlong tag;
+    LoadedClasses::ClassId class_id;
     if (obj != NULL) {
         auto obj_klass = env->GetObjectClass(obj);
-        auto e = ti_env->GetTag(obj_klass, &tag);
-        if (e != JVMTI_ERROR_NONE) {
+        e = ti_env->GetTag(obj_klass, &tag);
+        if (e == JVMTI_ERROR_NONE) {
+            class_id = tag & class_id_mask;
+        } else {
             std::cerr << type << " class-tag-resolution failed\n";
-            tag = 0;
+            class_id = 0;
         }
     } else {
-        tag = 0;
+        class_id = 0;
+    }
+    jlong obj_tag = (sz << size_lshift) | class_id;
+    e = ti_env->SetTag(obj, obj_tag);
+    if (e != JVMTI_ERROR_NONE) {
+        std::cerr << "Object-tagging failed for an instance of class-id: " << class_id << " and sz " << sz << "\n";
     }
     Alloc a;
     a.sz = sz;
-    a.cid = tag;
+    a.cid = class_id;
     ar->dw->enq(a);
 }
 

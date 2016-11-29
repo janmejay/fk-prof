@@ -6,14 +6,18 @@
 const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass, NewSigHandler new_sig_handler) {
     jlong tag;
     auto e = jvmti->GetTag(klass, &tag);
+    ClassId class_id = tag & class_id_mask;
     if (e != JVMTI_ERROR_NONE) {
         std::cerr << "Couldn't get tag of a class (error: " << e << ")\n";
-        tag = 0;
-    } else if (tag != 0) {
-        return tag;
+    } else if (class_id != 0) {
+        return class_id;
     }
 
-    ClassId class_id = new_class_id.fetch_add(1, std::memory_order_relaxed);
+    class_id = new_class_id.fetch_add(1, std::memory_order_relaxed);
+    if (class_id > class_id_mask) {
+        std::cerr << "Exceeded class-id limit, HELP!!!\n";
+        return 0;
+    }
     ClassSigPtr sig(new ClassSig);
     sig->klass = klass;
     sig->class_id = class_id;
@@ -29,12 +33,14 @@ const LoadedClasses::ClassId LoadedClasses::xlate(jvmtiEnv *jvmti, jclass klass,
     }
     if (signatures.insert(class_id, sig)) {
         if (do_report.load(std::memory_order_acquire)) {
+            while (emit_lock.test_and_set());
             out << class_id << "\t" << sig->ksig << "\n";
+            emit_lock.clear();
         }
         if (new_sig_handler != nullptr) {
             new_sig_handler(sig);
         }
-        tag = class_id;
+        tag |= class_id;
         e = jvmti->SetTag(klass, tag);
         if (e != JVMTI_ERROR_NONE) {
             std::cerr << "Couldn't tag class (error: " << e << ")\n";
@@ -52,7 +58,7 @@ void LoadedClasses::remove(jvmtiEnv *jvmti, const jclass klass) { //implement me
         std::cerr << "Couldn't get tag of a class (error: " << e << ")\n";
         return;
     }
-    ClassId class_id = static_cast<ClassId>(tag);
+    ClassId class_id = static_cast<ClassId>(tag & class_id_mask);
     signatures.erase(class_id);
 }
 

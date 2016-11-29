@@ -2,12 +2,21 @@
 #include <dlfcn.h>
 #include <jvmti.h>
 #include <jni.h>
-#include <stdint.h>
+#include <cstdint>
 #include <signal.h>
 
 
 #ifndef GLOBALS_H
 #define GLOBALS_H
+
+const std::uint64_t class_id_mask = 0xFFFFF;
+const std::uint64_t size_mask = 0xFFFFFFFFFF000000;
+const std::uint64_t size_lshift = 24;
+const std::uint64_t function_flags_mask = 0x00F00000;
+const std::uint64_t unused_1 = 0x00100000;
+const std::uint64_t unused_2 = 0x00200000;
+const std::uint64_t unused_3 = 0x00400000;
+const std::uint64_t unused_4 = 0x00800000;
 
 class Profiler;
 
