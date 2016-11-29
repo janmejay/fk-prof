@@ -19,6 +19,8 @@
 #endif
 
 jvmtiEnv *ti_env = nullptr;
+AllocRecorder* ar = nullptr;
+
 static ConfigurationOptions* CONFIGURATION;
 static Profiler* prof;
 static Controller* controller;
@@ -538,6 +540,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     prof = new Profiler(jvm, jvmti, CONFIGURATION, threadMap);
     controller = new Controller(jvm, jvmti, prof, CONFIGURATION);
 
+    ar = new AllocRecorder(jvm, jvmti, "/tmp/ALLOC.out");
     return 0;
 }
 

@@ -16,6 +16,7 @@ include(CheckFunctionExists)
 ##########################################################
 # Paths
 set(SRC "src/main/cpp")
+set(INCLUDE_VENDOR_CONCQUEUE "vendor/concurrentqueue")
 set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(OUTPUT "lagent")
@@ -96,7 +97,8 @@ set(SOURCE_FILES
     ${SRC}/hprof_tracker_jni.h
     ${SRC}/hprof_tracker.cpp
     ${SRC}/profile_writer.cpp
-    ${SRC}/profile_writer.h)
+    ${SRC}/profile_writer.h
+    ${SRC}/data_writer.h)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.h
@@ -124,7 +126,7 @@ set(GLOBAL_WARNINGS "-Wall -Wformat-security -Wno-char-subscripts")
 set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wno-sign-compare -Wno-strict-overflow -Wwrite-strings")
 set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wnon-virtual-dtor -Woverloaded-virtual")
 
-set(GLOBAL_COPTS "-fdiagnostics-show-option -fno-omit-frame-pointer -fno-strict-aliasing")
+set(GLOBAL_COPTS "-fdiagnostics-show-option -fno-omit-frame-pointer -fno-strict-aliasing -fstack-protector")
 set(GLOBAL_COPTS "${GLOBAL_COPTS} -funsigned-char -fno-asynchronous-unwind-tables -msse2 -g -D__STDC_FORMAT_MACROS -O2")
 
 # Platform Specific
@@ -152,7 +154,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb")
 # to enable tracing add: -DENABLE_TRACING
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
+set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 
 ##########################################################
 # Build

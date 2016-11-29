@@ -8,9 +8,15 @@
 
 extern jvmtiEnv *ti_env;
 
-AllocRecorder ar("/tmp/ALLOC.out");
+extern AllocRecorder *ar;
 
 static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject obj) {
+    jlong sz;
+    auto e = ti_env->GetObjectSize(obj, &sz);
+    if (e != JVMTI_ERROR_NONE) {
+        std::cerr << type << " obj-size query failed for instance\n";
+    }
+    if (sz < 24) return;
     jlong tag;
     if (obj != NULL) {
         auto obj_klass = env->GetObjectClass(obj);
@@ -22,12 +28,10 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
     } else {
         tag = 0;
     }
-    jlong sz;
-    auto e = ti_env->GetObjectSize(obj, &sz);
-    if (e != JVMTI_ERROR_NONE) {
-        std::cerr << type << " obj-size query failed for instance of class_id: " << tag << "\n";
-    }
-    ar.out << sz << "\t" << tag << "\n";
+    Alloc a;
+    a.sz = sz;
+    a.cid = tag;
+    ar->dw->enq(a);
 }
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
@@ -85,9 +89,9 @@ bool check_for_exception(JNIEnv* jni, const char* msg, bool do_clear = false) {
 
 void set_tracking(JNIEnv *jni, bool on) {
     if (on) {
-        ar.open();
+        ar->open();
     } else {
-        ar.close();
+        ar->close();
     }
     LocalFrameTracker lft(jni, 10);
     check_for_exception(jni, "Won't try to enable tracking");
@@ -110,9 +114,18 @@ void set_tracking(JNIEnv *jni, bool on) {
 
 void AllocRecorder::close() {
     out.close();
+    delete dw;
 }
 
 
 void AllocRecorder::open() {
     out.open(file, std::ios_base::out | std::ios_base::app);
+    auto jni = getJNIEnv(vm);
+    assert(jni != nullptr);
+    dw = new DataWriter<Alloc>(ti, jni, 1024 * 1024, "ALLOC", out);
 }
+
+std::ostream& operator<<(std::ostream& os, const Alloc& a) {  
+    os << a.sz << '\t' << a.cid << '\n';
+    return os;  
+}  
