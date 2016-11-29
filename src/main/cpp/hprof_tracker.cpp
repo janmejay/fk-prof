@@ -44,6 +44,14 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
     print_allocation_trace("Alloc-NewArr", env, obj);
+    jvmtiFrameInfo frames[20];
+    jint count;
+    auto err = ti_env->GetStackTrace(thread, 0, 5, frames, &count);
+    if ((err == JVMTI_ERROR_NONE) && (count > 0)) {
+        //good
+    } else {
+        std::cerr << "Couldn't get stack-trace\n";
+    }
 }
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeObjectInit(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
