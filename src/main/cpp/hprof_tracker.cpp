@@ -42,8 +42,7 @@ static void print_allocation_trace(const std::string& type, JNIEnv* env, jobject
     ar->dw->enq(a);
 }
 
-extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
-    print_allocation_trace("Alloc-NewArr", env, obj);
+static void load_stacktrace(jthread thread) {
     jvmtiFrameInfo frames[20];
     jint count;
     auto err = ti_env->GetStackTrace(thread, 0, 5, frames, &count);
@@ -54,8 +53,14 @@ extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNI
     }
 }
 
+extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeNewArray(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
+    print_allocation_trace("Alloc-NewArr", env, obj);
+    load_stacktrace(thread);
+}
+
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeObjectInit(JNIEnv *env, jclass klass, jobject thread, jobject obj) {
     print_allocation_trace("Alloc-NewObj", env, obj);
+    load_stacktrace(thread);
 }
 
 extern "C" void JNICALL Java_com_sun_demo_jvmti_hprof_Tracker_nativeCallSite(JNIEnv *env, jclass klass, jobject thread, jint cnum, jint mnum) {
