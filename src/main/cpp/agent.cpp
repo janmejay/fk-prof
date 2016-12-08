@@ -129,7 +129,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     }
 #endif
 
-    set_tracking(jniEnv, true);
+    //set_tracking(jniEnv, true);
 
     init_state.store(VmInitState::INITIALIZED, std::memory_order_relaxed);
 }
@@ -150,7 +150,7 @@ void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
 
-    set_tracking(jni_env, false);
+    //set_tracking(jni_env, false);
     loaded_classes.stop_reporting();
 
     if (prof->isRunning())
@@ -281,7 +281,7 @@ void JNICALL OnObjectFree(jvmtiEnv *jvmti_env, jlong tag) {
     Alloc a;
     a.sz = -1 * (utag >> size_lshift);
     a.cid = (utag & class_id_mask);
-    ar->dw->enq(a);
+    if (ar->dw != nullptr) ar->dw->enq(a);
 }
 
 void JNICALL OnClassUnload(jvmtiEnv* jvmti_env, jthread thd, jclass klass, ...) {

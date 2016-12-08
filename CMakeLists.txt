@@ -98,11 +98,14 @@ set(SOURCE_FILES
     ${SRC}/hprof_tracker.cpp
     ${SRC}/profile_writer.cpp
     ${SRC}/profile_writer.h
+    ${SRC}/ftrace_feed_handler.h
+    ${SRC}/ftrace_feed_handler.cpp
     ${SRC}/data_writer.h)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.h
     ${SRC_TEST}/test_circular_queue.cpp
+    ${SRC_TEST}/ftrace_feed_handler_test.cpp
     ${SRC_TEST}/test_log_writer.cpp
     ${SRC_TEST}/test_agent.cpp
     ${SRC_TEST}/test.h

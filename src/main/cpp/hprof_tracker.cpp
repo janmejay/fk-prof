@@ -136,6 +136,7 @@ void set_tracking(JNIEnv *jni, bool on) {
 void AllocRecorder::close() {
     out.close();
     delete dw;
+    dw = nullptr;
 }
 
 
@@ -148,5 +149,5 @@ void AllocRecorder::open() {
 
 std::ostream& operator<<(std::ostream& os, const Alloc& a) {  
     os << a.sz << '\t' << a.cid << '\n';
-    return os;  
+    return os;
 }  

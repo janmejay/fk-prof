@@ -39,7 +39,7 @@ struct AllocRecorder {
     JavaVM *vm;
     jvmtiEnv *ti;
     
-    AllocRecorder(JavaVM *_vm, jvmtiEnv *jvm_ti, const char* _file) : file(_file), vm(_vm) {
+    AllocRecorder(JavaVM *_vm, jvmtiEnv *jvm_ti, const char* _file) : file(_file), dw(nullptr), vm(_vm) {
         assert(vm != nullptr);
         ti = jvm_ti;
         assert(ti != nullptr);
