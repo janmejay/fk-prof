@@ -53,7 +53,7 @@ else()
     include_directories(${unittest++_INCLUDE_DIRS})
   endif()
 
-find_package(Boost)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
@@ -100,6 +100,8 @@ set(SOURCE_FILES
     ${SRC}/profile_writer.h
     ${SRC}/ftrace_feed_handler.h
     ${SRC}/ftrace_feed_handler.cpp
+    ${SRC}/sched_tracer.cpp
+    ${SRC}/sched_tracer.h
     ${SRC}/data_writer.h)
 
 set(TEST_FILES
@@ -165,9 +167,9 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_W
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})

@@ -7,6 +7,7 @@
 #include <set>
 
 #include "globals.h"
+#include "sched_tracer.h"
 #include "thread_map.h"
 #include "profiler.h"
 #include "controller.h"
@@ -24,7 +25,8 @@ AllocRecorder* ar = nullptr;
 static ConfigurationOptions* CONFIGURATION;
 static Profiler* prof;
 static Controller* controller;
-static ThreadMap threadMap;
+static SchedTracer sched_tracer{};
+static ThreadMap threadMap(sched_tracer);
 static LoadedClasses loaded_classes;
 
 static void* bci_library;
@@ -129,7 +131,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     }
 #endif
 
-    //set_tracking(jniEnv, true);
+    set_tracking(jniEnv, true);
 
     init_state.store(VmInitState::INITIALIZED, std::memory_order_relaxed);
 }
@@ -150,7 +152,7 @@ void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
 
-    //set_tracking(jni_env, false);
+    set_tracking(jni_env, false);
     loaded_classes.stop_reporting();
 
     if (prof->isRunning())
@@ -266,7 +268,9 @@ void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread)
                 }
             }
         }
-        threadMap.put(jni_env, thread_info.name);
+        auto glbl_thd = jni_env->NewGlobalRef(thread);
+        threadMap.put(jni_env, thread_info.name, glbl_thd);
+        jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(thread_info.name));
     }
     pthread_sigmask(SIG_UNBLOCK, &prof_signal_mask, NULL);
 }

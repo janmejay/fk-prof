@@ -5,7 +5,9 @@
 #include <jni.h>
 #include <string.h>
 #include "concurrent_map.h"
+#include "sched_tracer.h"
 
+extern jvmtiEnv *ti_env;
 
 int gettid();
 
@@ -56,10 +58,12 @@ public:
 struct ThreadBucket {
 	const int tid;
 	char *name;
+    jthread jthd;
+    JNIEnv *jni;
 	std::atomic_int refs;
 	map::GC::EpochType localEpoch;
 
-	ThreadBucket(int id, const char *n) : tid(id), refs(1), localEpoch(GCHelper::attach()) {
+    ThreadBucket(int id, const char *n, jthread _jthd, JNIEnv *_jni) : tid(id), jthd(_jthd), jni(_jni), refs(1), localEpoch(GCHelper::attach()) {
 		int len = strlen(n) + 1;
 		name = new char[len];
 		std::copy(n, n + len, name);
@@ -73,6 +77,7 @@ struct ThreadBucket {
 
 	~ThreadBucket() {
 		delete[] name;
+        jni->DeleteGlobalRef(jthd);
 	}
 };
 
@@ -81,6 +86,7 @@ template <typename MapProvider>
 class ThreadMapBase {
 private:
 	MapProvider map;
+    SchedTracer& sched_tracer;
 
 	static ThreadBucket *acq_bucket(ThreadBucket *tb) {
 		if (tb != nullptr) {
@@ -95,19 +101,20 @@ private:
 
 public:
 
-	ThreadMapBase(int capacity = kInitialMapSize) : map(capacity) {}
+	ThreadMapBase(SchedTracer& _sched_tracer, int capacity = kInitialMapSize) : map(capacity), sched_tracer(_sched_tracer) {}
 
-	void put(JNIEnv *jni_env, const char *name) {
-		put(jni_env, name, gettid());
+	void put(JNIEnv *jni_env, const char *name, jthread jthd) {
+		put(jni_env, name, jthd, gettid());
 	}
 
-	void put(JNIEnv *jni_env, const char *name, int tid) {
+	void put(JNIEnv *jni_env, const char *name, jthread jthd, int tid) {
 		// constructor == call to acquire
-		ThreadBucket *info = new ThreadBucket(tid, name);
+		ThreadBucket *info = new ThreadBucket(tid, name, jthd, jni_env);
 		ThreadBucket *old = (ThreadBucket*)map.put((map::KeyType)jni_env, (map::ValueType)info);
 		if (old != nullptr)
 			old->release();
 		GCHelper::safepoint(info->localEpoch); // each thread inserts once
+        sched_tracer.start(tid, jthd);
 	}
 
 	ThreadBucket *get(JNIEnv *jni_env) {
@@ -119,6 +126,7 @@ public:
 
 	void remove(JNIEnv *jni_env) {
 		ThreadBucket *info = (ThreadBucket*)map.remove((map::KeyType)jni_env);
+        sched_tracer.stop(info->tid);
 		if (info != nullptr) {
 			GCHelper::detach(info->localEpoch);
 			info->release();

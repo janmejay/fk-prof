@@ -7,7 +7,8 @@
 static JavaVM *jvm = NULL;
 static JNIEnv *env = NULL;
 static jvmtiEnv *jvmti = NULL;
-static ThreadMap threadMap; // empty map
+static SchedTracer sched_tracer("/tmp", false);
+static ThreadMap threadMap(sched_tracer); // empty map
 
 static void init() {
 	if (jvm) return;
