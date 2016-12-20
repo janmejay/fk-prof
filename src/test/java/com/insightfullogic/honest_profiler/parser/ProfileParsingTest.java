@@ -47,7 +47,8 @@ public class ProfileParsingTest {
                 expect.that(wa.getIssueTime()).is("2016-11-10T14:35:09.372");
                 expect.that(wa.getDuration()).is(60);
                 expect.that(wa.getDelay()).is(17);
-                Recorder.Work w = wa.getWork();
+                expect.that(wa.getWorkCount()).is(1);
+                Recorder.Work w = wa.getWork(0);
                 expect.that(w.getWType()).is(Recorder.WorkType.cpu_sample_work);
                 Recorder.CpuSampleWork csw = w.getCpuSample();
                 expect.that(csw.getFrequency()).is(49);
@@ -66,8 +67,11 @@ public class ProfileParsingTest {
                 is.popLimit(wse1Lim);
 
                 Recorder.Wse e1 = wseBuilder.build();
+                expect.that(e1.hasIndexedData()).is(true);
+                Recorder.IndexedData idxData = e1.getIndexedData();
                 Map<Long, String> methodIdToName = new HashMap<>();
-                testWseContents(expect, e1, methodIdToName, new int[]{15000, 15050}, new long[]{200l, 200l}, new List[]{Arrays.asList("Y", "C", "D", "C", "D"), Arrays.asList("Y", "C", "D", "E", "C", "D")}, 4);
+                assertMethodInfoContents(expect, methodIdToName, idxData, 4);
+                testWseContents(expect, e1, methodIdToName, new int[]{15000, 15050}, new long[]{200l, 200l}, new List[]{Arrays.asList("Y", "C", "D", "C", "D"), Arrays.asList("Y", "C", "D", "E", "C", "D")});
 
 
                 //// E1 len and chksum
@@ -83,7 +87,9 @@ public class ProfileParsingTest {
                 is.popLimit(wse2Lim);
 
                 Recorder.Wse e2 = wseBuilder.build();
-                testWseContents(expect, e2, methodIdToName, new int[]{25002}, new long[]{201l}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")}, 1);
+                idxData = e2.getIndexedData();
+                assertMethodInfoContents(expect, methodIdToName, idxData, 1);
+                testWseContents(expect, e2, methodIdToName, new int[]{25002}, new long[]{201l}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")});
 
                 //// E2 len and chksum
                 int byteCountE2 = is.getTotalBytesRead() - bytesOffsetAfterE1Chksum;
@@ -128,9 +134,7 @@ public class ProfileParsingTest {
         });
     }
 
-    private void testWseContents(Expect expect, Recorder.Wse e, Map<Long, String> methodIdToName, final int[] startOffsets, final long[] threadIds, final List[] frames, final int methodInfoCount) {
-        expect.that(e.getWType()).is(Recorder.WorkType.cpu_sample_work);
-        Recorder.StackSampleWse cse = e.getCpuSampleEntry();
+    private void assertMethodInfoContents(Expect expect, Map<Long, String> methodIdToName, Recorder.IndexedData cse, int methodInfoCount) {
         expect.that(cse.getMethodInfoCount()).is(methodInfoCount);
         for (Recorder.MethodInfo methodInfo : cse.getMethodInfoList()) {
             long methodId = methodInfo.getMethodId();
@@ -141,8 +145,12 @@ public class ProfileParsingTest {
             expect.that(methodInfo.getClassFqdn()).is("foo.Bar");
             expect.that(methodInfo.getSignature()).is("([I)I");
         }
-        expect.that(cse.getStackSampleCount()).is(frames.length);
+    }
 
+    private void testWseContents(Expect expect, Recorder.Wse e, Map<Long, String> methodIdToName, final int[] startOffsets, final long[] threadIds, final List[] frames) {
+        expect.that(e.getWType()).is(Recorder.WorkType.cpu_sample_work);
+        Recorder.StackSampleWse cse = e.getCpuSampleEntry();
+        expect.that(cse.getStackSampleCount()).is(frames.length);
         for (int i = 0; i < frames.length; i++) {
             Recorder.StackSample ss1 = cse.getStackSample(i);
             expect.that(ss1.getStartOffsetMicros()).is(startOffsets[i]);

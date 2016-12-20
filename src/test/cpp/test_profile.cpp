@@ -6,14 +6,15 @@
 void add_frames_for(const std::initializer_list<const std::string>& frame_fn_names,
                     std::unordered_map<std::string, int>& method_ids,
                     recording::StackSampleWse& ss_wse,
-                    recording::StackSample* ss) {
+                    recording::StackSample* ss,
+                    recording::IndexedData* idx_data) {
     for (auto fn_name : frame_fn_names) {
         recording::Frame* f = ss->add_frame();
         auto itr = method_ids.find(fn_name);
         std::uint64_t method_id;
         if (itr == method_ids.end()) {
             method_id = method_ids[fn_name] = method_ids.size();
-            recording::MethodInfo* mi = ss_wse.add_method_info();
+            recording::MethodInfo* mi = idx_data->add_method_info();
             mi->set_method_id(method_id);
             mi->set_file_name("foo/Bar.java");
             mi->set_class_fqdn("foo.Bar");
@@ -62,7 +63,7 @@ void generate_cpusample_simple_profile(const std::string& profile_data_file) {
     wa->set_issue_time("2016-11-10T14:35:09.372");
     wa->set_duration(60);
     wa->set_delay(17);
-    recording::Work* w = wa->mutable_work();
+    recording::Work* w = wa->add_work();
     w->Clear();
     w->set_w_type(recording::WorkType::cpu_sample_work);
     recording::CpuSampleWork* csw = w->mutable_cpu_sample();
@@ -71,24 +72,26 @@ void generate_cpusample_simple_profile(const std::string& profile_data_file) {
 
     recording::Wse e1;
     e1.set_w_type(recording::WorkType::cpu_sample_work);
+    recording::IndexedData* idx_data = e1.mutable_indexed_data();
     recording::StackSampleWse* wse_1 = e1.mutable_cpu_sample_entry();
     recording::StackSample* ss = wse_1->add_stack_sample();
     ss->set_start_offset_micros(15000);
     ss->set_thread_id(200);
     std::unordered_map<std::string, int> method_tracker;
-    add_frames_for({"Y", "C", "D", "C", "D"}, method_tracker, *wse_1, ss);
+    add_frames_for({"Y", "C", "D", "C", "D"}, method_tracker, *wse_1, ss, idx_data);
     ss = wse_1->add_stack_sample();
     ss->set_start_offset_micros(15050);
     ss->set_thread_id(200);
-    add_frames_for({"Y", "C", "D", "E", "C", "D"}, method_tracker, *wse_1, ss);
+    add_frames_for({"Y", "C", "D", "E", "C", "D"}, method_tracker, *wse_1, ss, idx_data);
 
     recording::Wse e2;
     e2.set_w_type(recording::WorkType::cpu_sample_work);
+    idx_data = e2.mutable_indexed_data();
     recording::StackSampleWse* wse_2 = e2.mutable_cpu_sample_entry();
     ss = wse_2->add_stack_sample();
     ss->set_start_offset_micros(25002);
     ss->set_thread_id(201);
-    add_frames_for({"Y", "C", "D", "E", "F", "C"}, method_tracker, *wse_2, ss);
+    add_frames_for({"Y", "C", "D", "E", "F", "C"}, method_tracker, *wse_2, ss, idx_data);
 
     write_to_file(rh, {&e1, &e2}, profile_data_file);
 }
