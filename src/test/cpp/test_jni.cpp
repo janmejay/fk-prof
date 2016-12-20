@@ -3,7 +3,7 @@
 #include <jni.h>
 #include <iostream>
 
-JNIEXPORT jboolean JNICALL Java_com_insightfullogic_honest_1profiler_testing_1utilities_TestJni_generateCpusampleSimpleProfile(JNIEnv *env, jobject self, jstring path) {
+JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile(JNIEnv *env, jobject self, jstring path) {
     try {
         auto file_path = env->GetStringUTFChars(path, 0);
         if (file_path != NULL) {
