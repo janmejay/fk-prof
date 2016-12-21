@@ -6,7 +6,7 @@
     <parent>
         <artifactId>prof</artifactId>
         <groupId>fk</groupId>
-        <version>1.0.0</version>
+        <version>1.0-SNAPSHOT</version>
     </parent>
     <groupId>fk.prof</groupId>
     <artifactId>recorder</artifactId>
@@ -39,7 +39,7 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>honest-profiler</finalName>
+                    <finalName>fkprof-recorder</finalName>
                     <appendAssemblyId>false</appendAssemblyId>
                 </configuration>
                 <executions>
