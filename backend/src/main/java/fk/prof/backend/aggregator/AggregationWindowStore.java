@@ -8,19 +8,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class AggregationWindowStore {
 
-    private ConcurrentHashMap<Long, AggregationWindow> windowLookup = new ConcurrentHashMap<>();
+  private ConcurrentHashMap<Long, AggregationWindow> windowLookup = new ConcurrentHashMap<>();
 
-    public void add(long workId, AggregationWindow window) {
-        this.windowLookup.putIfAbsent(workId, window);
-    }
+  public void add(long workId, AggregationWindow window) {
+    this.windowLookup.putIfAbsent(workId, window);
+  }
 
-    public AggregationWindow get(long workId) {
-        return this.windowLookup.get(workId);
-    }
+  public AggregationWindow get(long workId) {
+    return this.windowLookup.get(workId);
+  }
 
-    public void removeWorkIds(long[] workIds) {
-        for(int i = 0;i<workIds.length;i++) {
-            this.windowLookup.remove(workIds[i]);
-        }
+  public void removeWorkIds(long[] workIds) {
+    for (int i = 0; i < workIds.length; i++) {
+      this.windowLookup.remove(workIds[i]);
     }
+  }
 }
