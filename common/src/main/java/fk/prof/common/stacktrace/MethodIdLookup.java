@@ -1,17 +1,14 @@
 package fk.prof.common.stacktrace;
 
-import com.google.common.base.Charsets;
-import fk.prof.common.Utils;
-
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MethodIdLookup {
 
-    private ConcurrentHashMap<String, Integer> lookup = new ConcurrentHashMap<>();
+    private AtomicLong counter = new AtomicLong(0);
+    private ConcurrentHashMap<String, Long> lookup = new ConcurrentHashMap<>();
 
-    public Integer getOrAdd(String methodSignature) {
-        return lookup.computeIfAbsent(methodSignature, (key ->
-                Utils.getHashFunctionForMurmur3_32().newHasher().putString(key, Charsets.UTF_8).hash().asInt()
-        ));
+    public Long getOrAdd(String methodSignature) {
+        return lookup.computeIfAbsent(methodSignature, (key -> counter.incrementAndGet()));
     }
 }
