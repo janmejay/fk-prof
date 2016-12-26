@@ -42,3 +42,6 @@ Testing
 .attach_pid*
 TAGS
 cscope.*
+
+#Ignore proto generated recorder class
+backend/src/main/java/recording/Recorder.java
