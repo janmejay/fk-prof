@@ -1,6 +1,7 @@
 package fk.prof.backend.http;
 
-import fk.prof.backend.model.request.ProfilePayload;
+import fk.prof.backend.model.request.RecordedProfileParser;
+import fk.prof.backend.model.request.RecordedProfileRequestHandler;
 import fk.prof.backend.model.response.HttpFailure;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
@@ -51,12 +52,18 @@ public class MainVerticle extends AbstractVerticle {
   }
 
   private void handlePostProfile(RoutingContext context) {
-    ProfilePayload payload = new ProfilePayload();
+    RecordedProfileParser parser = new RecordedProfileParser();
+    RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, parser);
     context.request()
-        .handler(payload.handler(context))
+        .handler(requestHandler)
         .endHandler((v) -> {
           if (!context.response().ended()) {
-            context.response().end(payload.toString());
+            if(!parser.isParsed()) {
+              HttpHelper.handleFailure(context, new HttpFailure("Invalid or incomplete payload received", 400));
+            } else {
+              //TODO: Remove
+              context.response().end(parser.get().toString());
+            }
           }
         });
   }
