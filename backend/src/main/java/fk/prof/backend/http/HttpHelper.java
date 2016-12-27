@@ -1,6 +1,6 @@
 package fk.prof.backend.http;
 
-import fk.prof.backend.model.response.HttpFailure;
+import fk.prof.backend.exception.HttpFailure;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;

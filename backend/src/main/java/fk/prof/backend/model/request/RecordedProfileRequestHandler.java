@@ -2,7 +2,7 @@ package fk.prof.backend.model.request;
 
 import fk.prof.backend.BufferUtil;
 import fk.prof.backend.http.HttpHelper;
-import fk.prof.backend.model.response.HttpFailure;
+import fk.prof.backend.exception.HttpFailure;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;

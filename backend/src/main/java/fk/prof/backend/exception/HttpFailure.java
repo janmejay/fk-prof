@@ -1,4 +1,4 @@
-package fk.prof.backend.model.response;
+package fk.prof.backend.exception;
 
 public class HttpFailure extends RuntimeException {
   private int statusCode;
@@ -50,6 +50,10 @@ public class HttpFailure extends RuntimeException {
   public static HttpFailure failure(Throwable throwable) {
     if (throwable instanceof HttpFailure) {
       return (HttpFailure) throwable;
+    }
+    if (throwable instanceof AggregationFailure) {
+      AggregationFailure exception = (AggregationFailure) throwable;
+      return new HttpFailure(throwable, exception.isServerFailure() ? 500 : 400);
     }
     if (throwable.getMessage() == null) {
       return new HttpFailure("No message provided", throwable.getCause());

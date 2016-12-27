@@ -2,7 +2,9 @@ package fk.prof.backend.http;
 
 import fk.prof.backend.model.request.RecordedProfileParser;
 import fk.prof.backend.model.request.RecordedProfileRequestHandler;
-import fk.prof.backend.model.response.HttpFailure;
+import fk.prof.backend.exception.HttpFailure;
+import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.service.ProfileWorkService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -12,6 +14,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.StaticHandler;
 
 public class MainVerticle extends AbstractVerticle {
+
+  private IProfileWorkService profileWorkService = new ProfileWorkService();
 
   @Override
   public void start(Future<Void> fut) {
@@ -52,7 +56,7 @@ public class MainVerticle extends AbstractVerticle {
   }
 
   private void handlePostProfile(RoutingContext context) {
-    RecordedProfileParser parser = new RecordedProfileParser();
+    RecordedProfileParser parser = new RecordedProfileParser(profileWorkService);
     RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, parser);
     context.request()
         .handler(requestHandler)
@@ -61,8 +65,7 @@ public class MainVerticle extends AbstractVerticle {
             if(!parser.isParsed()) {
               HttpHelper.handleFailure(context, new HttpFailure("Invalid or incomplete payload received", 400));
             } else {
-              //TODO: Remove
-              context.response().end(parser.get().toString());
+              context.response().end();
             }
           }
         });

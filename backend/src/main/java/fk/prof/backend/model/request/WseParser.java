@@ -1,7 +1,7 @@
 package fk.prof.backend.model.request;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import fk.prof.backend.model.response.HttpFailure;
+import fk.prof.backend.exception.HttpFailure;
 import io.vertx.core.buffer.Buffer;
 import recording.Recorder;
 
