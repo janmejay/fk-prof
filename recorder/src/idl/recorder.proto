@@ -48,7 +48,6 @@ message WorkResponse {
     failure = 2;
   }
   required WorkResult work_result = 3;
-  required string data_payload_key = 4;
   required uint32 elapsed_time = 5;
 }
 
