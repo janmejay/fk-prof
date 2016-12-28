@@ -15,7 +15,11 @@ import io.vertx.ext.web.handler.StaticHandler;
 
 public class MainVerticle extends AbstractVerticle {
 
-  private IProfileWorkService profileWorkService = new ProfileWorkService();
+  private IProfileWorkService profileWorkService;
+
+  public MainVerticle(IProfileWorkService profileWorkService) {
+    this.profileWorkService = profileWorkService;
+  }
 
   @Override
   public void start(Future<Void> fut) {

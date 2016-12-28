@@ -1,20 +1,24 @@
 package fk.prof.backend.model.request;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
+import fk.prof.backend.Utils;
 import fk.prof.backend.exception.HttpFailure;
 import io.vertx.core.buffer.Buffer;
 import recording.Recorder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 public class RecordedProfileHeaderParser {
-  private Long encodedVersion = null;
-  private Long headerLength = null;
+  private Integer encodedVersion = null;
+  private Integer headerLength = null;
   private Recorder.RecordingHeader recordingHeader = null;
-  private Long checksumValue = null;
+  private Integer checksumValue = null;
 
-  private Checksum headerChecksum = new Adler32();
   private boolean headerParsed = false;
 
   /**
@@ -41,99 +45,51 @@ public class RecordedProfileHeaderParser {
   /**
    * Reads buffer and updates internal state with parsed fields
    *
-   * @param buffer
-   * @param currentPos
+   * @param codedInputStream
    * @return starting unread position in buffer
    */
-  public int parse(Buffer buffer, int currentPos) throws HttpFailure {
+  public void parse(CodedInputStream codedInputStream) throws IOException, HttpFailure {
     if (!headerParsed) {
       if (encodedVersion == null) {
-        int newPos = readEncodedVersion(buffer, currentPos);
-        if (newPos == currentPos) {
-          return currentPos;
-        } else {
-          currentPos = newPos;
-        }
+        encodedVersion = codedInputStream.readUInt32();
       }
 
       if (headerLength == null) {
-        int newPos = readHeaderLength(buffer, currentPos);
-        if (newPos == currentPos) {
-          return currentPos;
-        } else {
-          currentPos = newPos;
-        }
+        headerLength = codedInputStream.readUInt32();
       }
 
       if (recordingHeader == null) {
-        int newPos = readRecordingHeader(buffer, currentPos);
-        if (newPos == currentPos) {
-          return currentPos;
-        } else {
-          currentPos = newPos;
-        }
+        int oldLimit = codedInputStream.pushLimit(headerLength);
+        recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
+        codedInputStream.popLimit(oldLimit);
       }
 
       if (checksumValue == null) {
-        int newPos = readChecksumValue(buffer, currentPos);
-        if (newPos == currentPos) {
-          return currentPos;
-        } else {
-          if (!validate()) {
-            throw new HttpFailure("Checksum of header does not match", 400);
-          }
-          this.headerParsed = true;
-          currentPos = newPos;
+        checksumValue = codedInputStream.readUInt32();
+        if (!validate()) {
+          throw new HttpFailure("Checksum of header does not match", 400);
         }
+        headerParsed = true;
       }
     }
-
-    return currentPos;
   }
 
   private boolean validate() {
-    headerChecksum.reset();
-    headerChecksum.update(encodedVersion.intValue());
-    headerChecksum.update(headerLength.intValue());
-    byte[] recordingHeaderByteArr = recordingHeader.toByteArray();
-    headerChecksum.update(recordingHeaderByteArr, 0, recordingHeaderByteArr.length);
-    return headerChecksum.getValue() == checksumValue;
+    try {
+      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      CodedOutputStream codedOutputStream = CodedOutputStream.newInstance(outputStream);
+      codedOutputStream.writeUInt32NoTag(encodedVersion);
+      codedOutputStream.writeUInt32NoTag(headerLength);
+      recordingHeader.writeTo(codedOutputStream);
+      codedOutputStream.flush();
+      byte[] bytesWritten = outputStream.toByteArray();
+
+      Checksum headerChecksum = new Adler32();
+      headerChecksum.update(bytesWritten, 0, bytesWritten.length);
+      return headerChecksum.getValue() == checksumValue;
+    } catch (IOException ex) {
+      return false;
+    }
   }
 
-  private int readEncodedVersion(Buffer buffer, int currentPos) {
-    if (buffer.length() >= (4 + currentPos)) {
-      this.encodedVersion = buffer.getUnsignedInt(currentPos);
-      currentPos += 4;
-    }
-    return currentPos;
-  }
-
-  private int readHeaderLength(Buffer buffer, int currentPos) {
-    if (buffer.length() >= (4 + currentPos)) {
-      this.headerLength = buffer.getUnsignedInt(currentPos);
-      currentPos += 4;
-    }
-    return currentPos;
-  }
-
-  private int readRecordingHeader(Buffer buffer, int currentPos) throws HttpFailure {
-    if (buffer.length() >= (this.headerLength + currentPos)) {
-      try {
-        this.recordingHeader = Recorder.RecordingHeader.parseFrom(
-            buffer.getBytes(currentPos, currentPos + this.headerLength.intValue()));
-        currentPos += this.headerLength.intValue();
-      } catch (InvalidProtocolBufferException ex) {
-        throw new HttpFailure("Invalid recording header in request", 400);
-      }
-    }
-    return currentPos;
-  }
-
-  private int readChecksumValue(Buffer buffer, int currentPos) {
-    if (buffer.length() >= (4 + currentPos)) {
-      this.checksumValue = buffer.getUnsignedInt(currentPos);
-      currentPos += 4;
-    }
-    return currentPos;
-  }
 }

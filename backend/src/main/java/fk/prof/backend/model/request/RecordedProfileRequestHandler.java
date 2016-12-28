@@ -1,33 +1,44 @@
 package fk.prof.backend.model.request;
 
-import fk.prof.backend.BufferUtil;
+import com.google.protobuf.CodedInputStream;
 import fk.prof.backend.http.HttpHelper;
 import fk.prof.backend.exception.HttpFailure;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 
+import java.io.IOException;
+
 public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   private Buffer runningBuffer = Buffer.buffer();
   private RoutingContext context = null;
-  private RecordedProfileParser parser = null;
+  private RecordedProfileParser profileParser = null;
 
-  public RecordedProfileRequestHandler(RoutingContext context, RecordedProfileParser parser) {
+  public RecordedProfileRequestHandler(RoutingContext context, RecordedProfileParser profileParser) {
     this.context = context;
-    this.parser = parser;
+    this.profileParser = profileParser;
   }
 
   @Override
   public void handle(Buffer requestBuffer) {
     if (!context.response().ended()) {
+      runningBuffer.appendBuffer(requestBuffer);
+      CodedInputStream codedInputStream = CodedInputStream.newInstance(runningBuffer.getByteBuf().nioBuffer());
       try {
-        runningBuffer.appendBuffer(requestBuffer);
-        int readTillPos = parser.parse(runningBuffer, 0);
-        runningBuffer = BufferUtil.resetRunningBuffer(runningBuffer, readTillPos);
+        profileParser.parse(codedInputStream);
+        runningBuffer = resetRunningBuffer(runningBuffer, codedInputStream.getTotalBytesRead());
+      } catch (IOException ex) {
+        //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+        runningBuffer = resetRunningBuffer(runningBuffer, codedInputStream.getTotalBytesRead());
       } catch (HttpFailure ex) {
         HttpHelper.handleFailure(context, ex);
       }
     }
   }
+
+  private static Buffer resetRunningBuffer(Buffer buffer, int startPos) {
+    return buffer.getBuffer(startPos, buffer.length());
+  }
+
 }

@@ -6,7 +6,7 @@ import recording.Recorder;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AggregationWindow {
+public class AggregationWindow implements IAggregationWindow {
   private final ConcurrentHashMap<Long, AggregationStatus> workStatusLookup = new ConcurrentHashMap<>();
   private LocalDateTime start = null, endWithTolerance = null;
 

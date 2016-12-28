@@ -2,10 +2,12 @@ package fk.prof.backend.service;
 
 import fk.prof.backend.aggregator.AggregationWindow;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
 //TODO: Liable for refactoring. For now, placeholder to enable functional completion of /profile api
-public class ProfileWorkService implements IProfileWorkService<AggregationWindow> {
+public class DummyProfileWorkService implements IProfileWorkService<AggregationWindow> {
   private AggregationWindowStore aggregationWindowStore = new AggregationWindowStore();
 
   public void associateAggregationWindow(Long workId, AggregationWindow aggregationWindow) {
@@ -23,6 +25,16 @@ public class ProfileWorkService implements IProfileWorkService<AggregationWindow
   public static class AggregationWindowStore {
 
     private ConcurrentHashMap<Long, AggregationWindow> windowLookup = new ConcurrentHashMap<>();
+
+    public AggregationWindowStore() {
+      AggregationWindow w1 = new AggregationWindow(LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{1, 2});
+      AggregationWindow w2 = new AggregationWindow(LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{3, 4});
+
+      this.add(1l, w1);
+      this.add(2l, w1);
+      this.add(3l, w2);
+      this.add(4l, w2);
+    }
 
     public void add(long workId, AggregationWindow window) {
       this.windowLookup.putIfAbsent(workId, window);

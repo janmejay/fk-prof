@@ -4,15 +4,15 @@ import recording.Recorder;
 
 public class RecordedProfileHeader {
 
-  private final long encodedVersion;
+  private final int encodedVersion;
   private final Recorder.RecordingHeader recordingHeader;
 
-  public RecordedProfileHeader(long encodedVersion, Recorder.RecordingHeader recordingHeader) {
+  public RecordedProfileHeader(int encodedVersion, Recorder.RecordingHeader recordingHeader) {
     this.encodedVersion = encodedVersion;
     this.recordingHeader = recordingHeader;
   }
 
-  public long getEncodedVersion() {
+  public int getEncodedVersion() {
     return encodedVersion;
   }
 

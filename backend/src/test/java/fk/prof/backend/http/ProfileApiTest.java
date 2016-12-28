@@ -1,6 +1,12 @@
 package fk.prof.backend.http;
 
-import com.google.common.primitives.Longs;
+import com.google.common.primitives.UnsignedInts;
+import com.google.protobuf.CodedOutputStream;
+import fk.prof.backend.Utils;
+import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.service.DummyProfileWorkService;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
@@ -14,6 +20,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import recording.Recorder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
@@ -22,11 +30,15 @@ public class ProfileApiTest {
 
     private Vertx vertx;
     private Integer port = 9300;
+    private IProfileWorkService profileWorkService;
 
     @Before
     public void setUp(TestContext context) {
         vertx = Vertx.vertx();
-        vertx.deployVerticle(MainVerticle.class.getName(), context.asyncAssertSuccess());
+        profileWorkService = new DummyProfileWorkService();
+        Verticle mainVerticle = new MainVerticle(profileWorkService);
+        DeploymentOptions deploymentOptions = new DeploymentOptions().setInstances(1);
+        vertx.deployVerticle(mainVerticle, deploymentOptions, context.asyncAssertSuccess());
     }
 
     @After
@@ -35,31 +47,19 @@ public class ProfileApiTest {
     }
 
     @Test
-    public void scratch() {
-        int max = Integer.MAX_VALUE;
-        long umax1 = 1l + Integer.MAX_VALUE;
-        long umax = 4294967295l;
-        System.out.println("Yo");
-    }
-
-    @Test
-    public void testWithOnlyHeader(TestContext context) {
+    public void testWithOnlyHeader(TestContext context) throws IOException {
         final Async async = context.async();
         HttpClientRequest request = vertx.createHttpClient().post(port, "localhost", "/profile")
                 .handler(response -> {
-//                    context.assertEquals(response.statusCode(), 200);
                     response.bodyHandler(body -> {
                         System.out.println(body.toString());
+                        context.assertEquals(response.statusCode(), 200);
                         async.complete();
                     });
                 });
         request.setChunked(true);
 
-        Long encodedVersion = 1l;
-        Buffer buffer = Buffer.buffer();
-        buffer.appendUnsignedInt(encodedVersion);
-        request.write(buffer);
-
+        int encodedVersion = 1;
         Recorder.WorkAssignment workAssignment = Recorder.WorkAssignment.newBuilder()
                 .addWork(
                         Recorder.Work.newBuilder()
@@ -69,12 +69,11 @@ public class ProfileApiTest {
                                         .setMaxFrames(64)
                                 )
                 )
-                .setWorkId(100l)
+                .setWorkId(1l)
                 .setIssueTime(LocalDateTime.now().toString())
                 .setDelay(180)
                 .setDuration(60)
                 .build();
-
         Recorder.RecordingHeader recordingHeader = Recorder.RecordingHeader.newBuilder()
                 .setRecorderVersion(1)
                 .setControllerVersion(2)
@@ -84,25 +83,22 @@ public class ProfileApiTest {
                 .build();
 
         byte[] recordingHeaderBytes = recordingHeader.toByteArray();
-
-        buffer = Buffer.buffer();
-        buffer.appendUnsignedInt(recordingHeaderBytes.length);
-        request.write(buffer);
-
-        buffer = Buffer.buffer();
-        buffer.appendBytes(recordingHeaderBytes);
-        request.write(buffer);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        CodedOutputStream codedOutputStream = CodedOutputStream.newInstance(outputStream);
+        codedOutputStream.writeUInt32NoTag(encodedVersion);
+        codedOutputStream.writeUInt32NoTag(recordingHeaderBytes.length);
+        recordingHeader.writeTo(codedOutputStream);
+        codedOutputStream.flush();
+        byte[] bytesWritten = outputStream.toByteArray();
 
         Checksum recordingHeaderChecksum = new Adler32();
-        recordingHeaderChecksum.update(encodedVersion.intValue());
-        recordingHeaderChecksum.update(recordingHeaderBytes.length);
-        recordingHeaderChecksum.update(recordingHeaderBytes, 0, recordingHeaderBytes.length);
-        System.out.println("Checksum sent = " + recordingHeaderChecksum.getValue());
+        recordingHeaderChecksum.update(bytesWritten, 0, bytesWritten.length);
+        long checksumValue = recordingHeaderChecksum.getValue();
+        codedOutputStream.writeUInt32NoTag((int)checksumValue);
+        codedOutputStream.flush();
+        bytesWritten = outputStream.toByteArray();
 
-        buffer = Buffer.buffer();
-        buffer.appendUnsignedInt(recordingHeaderChecksum.getValue());
-        request.write(buffer);
-
+        request.write(Buffer.buffer(bytesWritten));
         request.end();
     }
 }
