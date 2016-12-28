@@ -1,0 +1,89 @@
+syntax = "proto2";
+option java_package = "fk.prof.aggregation.proto";
+option java_outer_classname = "AggregatedProfileModel";
+
+message ProfileSourceInfo {
+	optional string ip = 1;
+	optional string hostname = 2;
+	optional string processName = 3;
+	optional string zone = 4;
+	optional string instanceType = 5;
+}
+
+enum ProfileStatus {
+	Completed = 0;	// got all the samples
+	Partial = 1;	// got only few of the samples.
+	Retried = 2;	// may have duplicated samples because of retries 
+	Aborted = 3;    // {see if its required}.
+}
+
+message ProfileSummary {
+	optional string startTime = 1;				// HH:mm:ss
+	optional string endTime = 2;				// HH:mm:ss
+	optional uint32 recorderVersion = 3;
+	optional ProfileSourceInfo sourceInfo = 4;
+	optional ProfileStatus status = 5;
+}
+
+message ProfileList {
+	repeated ProfileSummary info = 1;
+}
+
+
+// Additional properties computed for the context
+message ContextProps {
+	optional uint32 sampleCount = 1;
+}
+
+// context containing metadata. For each context we have 2 stackStrace tree: 
+//  - called by Thread.run()
+//  - others are unclassifiable
+message Context {
+	required string name = 1;
+	optional ContextProps props = 2;
+}
+
+// represents list of contexts. 
+message ContextList {
+	repeated Context context = 1;
+}
+message MethodLookUp {
+	repeated string fqdn = 1;
+}
+
+// Represents the node of the stackTrace tree. Each node has methodId, line no.
+// childCount and the associated data.
+message FrameNode {
+	required uint32 methodId = 1;
+	required uint32 childCount = 2;
+	optional uint32 lineNo = 3;
+	optional CPUSamplingNodeProps cpuSamplingProps = 4;	
+}
+
+// List of node representing a tree. List is populated in dfs manner.
+message FrameTree {
+	repeated FrameNode threadRunNodes = 1;
+	repeated FrameNode unclassifiableNodes = 2;
+}
+
+message CPUSamplingNodeProps {
+	optional uint32 onCpuSamples = 1;
+	optional uint32 onStackSamples = 2;
+}
+
+enum WorkType {
+	cpu_sample_work = 0;
+	thread_sample_work = 1;
+	monitor_contention_work = 2;
+	monitor_wait_work = 3;
+}
+
+message Header {
+	required uint32 formatVersion = 1;
+	optional string appId = 2;
+	optional string clusterId = 3;
+	optional string procId = 4;
+	optional string profileStartTime = 5;
+	optional string profileEndTime = 6;
+	optional WorkType workType = 7;
+}

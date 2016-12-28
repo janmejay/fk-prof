@@ -14,10 +14,13 @@
         <module>backend</module>
         <module>userapi</module>
         <module>e2etest</module>
+        <module>storage</module>
+        <module>aggregation</module>
     </modules>
 
     <properties>
         <vertx.version>3.3.3</vertx.version>
+        <maven.compiler.version>3.3</maven.compiler.version>
     </properties>
 
     <dependencies>
@@ -27,9 +30,9 @@
             <version>1.7.22</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.7</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.22</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -50,4 +53,19 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven.compiler.version}</version>
+                    <configuration>
+                        <source>1.8</source>
+                        <target>1.8</target>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>
