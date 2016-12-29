@@ -1,22 +1,15 @@
 package fk.prof.common.stacktrace.cpusampling;
 
+import fk.prof.common.stacktrace.MethodIdLookup;
+
 public class CpuSamplingContextDetail {
-    private CpuSamplingFrameNode threadRunRoot = null;
-    private CpuSamplingFrameNode unclassifiableRoot = null;
+    private CpuSamplingFrameNode root = null;
 
-    public CpuSamplingFrameNode getThreadRunRoot() {
-        return this.threadRunRoot;
+    public CpuSamplingContextDetail() {
+        this.root = new CpuSamplingFrameNode(MethodIdLookup.GLOBAL_ROOT_METHOD_ID, 0);
     }
 
-    public void setThreadRunRoot(CpuSamplingFrameNode threadRunRoot) {
-        this.threadRunRoot = threadRunRoot;
-    }
-
-    public CpuSamplingFrameNode getUnclassifiableRoot() {
-        return this.unclassifiableRoot;
-    }
-
-    public void setUnclassifiableRoot(CpuSamplingFrameNode unclassifiableRoot) {
-        this.unclassifiableRoot = unclassifiableRoot;
+    public CpuSamplingFrameNode getRoot() {
+        return this.root;
     }
 }

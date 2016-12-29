@@ -6,14 +6,14 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CpuSamplingFrameNode {
-    private final int methodId;
+    private final long methodId;
     private final int lineNumber;
     private final List<CpuSamplingFrameNode> children = new ArrayList<>();
 
     private final AtomicInteger onStackSamples = new AtomicInteger(0);
     private final AtomicInteger onCpuSamples = new AtomicInteger(0);
 
-    public CpuSamplingFrameNode(int methodId, int lineNumber) {
+    public CpuSamplingFrameNode(long methodId, int lineNumber) {
         this.methodId = methodId;
         this.lineNumber = lineNumber;
     }
@@ -27,7 +27,7 @@ public class CpuSamplingFrameNode {
         return this.children;
     }
 
-    public CpuSamplingFrameNode getOrAddChild(int childMethodId, int childLineNumber) {
+    public CpuSamplingFrameNode getOrAddChild(long childMethodId, int childLineNumber) {
         synchronized (children) {
             CpuSamplingFrameNode result = null;
             Iterator<CpuSamplingFrameNode> i = children.iterator();
@@ -48,7 +48,7 @@ public class CpuSamplingFrameNode {
         }
     }
 
-    public int getMethodId() {
+    public long getMethodId() {
         return this.methodId;
     }
 

@@ -19,6 +19,7 @@ public class RecordedProfileHeaderParser {
   private Recorder.RecordingHeader recordingHeader = null;
   private Integer checksumValue = null;
 
+  private Checksum headerChecksum = new Adler32();
   private boolean headerParsed = false;
 
   /**
@@ -43,53 +44,54 @@ public class RecordedProfileHeaderParser {
   }
 
   /**
-   * Reads buffer and updates internal state with parsed fields
+   * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
    *
    * @param codedInputStream
    * @return starting unread position in buffer
    */
-  public void parse(CodedInputStream codedInputStream) throws IOException, HttpFailure {
-    if (!headerParsed) {
-      if (encodedVersion == null) {
-        encodedVersion = codedInputStream.readUInt32();
-      }
-
-      if (headerLength == null) {
-        headerLength = codedInputStream.readUInt32();
-      }
-
-      if (recordingHeader == null) {
-        int oldLimit = codedInputStream.pushLimit(headerLength);
-        recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
-        codedInputStream.popLimit(oldLimit);
-      }
-
-      if (checksumValue == null) {
-        checksumValue = codedInputStream.readUInt32();
-        if (!validate()) {
-          throw new HttpFailure("Checksum of header does not match", 400);
+  public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure {
+    try {
+      if (!headerParsed) {
+        if (encodedVersion == null) {
+          encodedVersion = codedInputStream.readUInt32();
+          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
-        headerParsed = true;
+
+        if (headerLength == null) {
+          headerLength = codedInputStream.readUInt32();
+          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+        }
+
+        if (recordingHeader == null) {
+          if(headerLength > (underlyingBuffer.length() - currentPos)) {
+            return currentPos;
+          }
+
+          int oldLimit = codedInputStream.pushLimit(headerLength);
+          recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
+          codedInputStream.popLimit(oldLimit);
+          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+        }
+
+        if (checksumValue == null) {
+          checksumValue = codedInputStream.readUInt32();
+          currentPos = codedInputStream.getTotalBytesRead();
+          if (headerChecksum.getValue() != checksumValue) {
+            throw new HttpFailure("Checksum of header does not match", 400);
+          }
+          headerParsed = true;
+        }
       }
+    } catch (IOException ex) {
+      //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
     }
+    return currentPos;
   }
 
-  private boolean validate() {
-    try {
-      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-      CodedOutputStream codedOutputStream = CodedOutputStream.newInstance(outputStream);
-      codedOutputStream.writeUInt32NoTag(encodedVersion);
-      codedOutputStream.writeUInt32NoTag(headerLength);
-      recordingHeader.writeTo(codedOutputStream);
-      codedOutputStream.flush();
-      byte[] bytesWritten = outputStream.toByteArray();
-
-      Checksum headerChecksum = new Adler32();
-      headerChecksum.update(bytesWritten, 0, bytesWritten.length);
-      return headerChecksum.getValue() == checksumValue;
-    } catch (IOException ex) {
-      return false;
-    }
+  private int updateChecksumAndGetNewPos(Buffer underlyingBuffer, CodedInputStream codedInputStream, int oldPos) {
+    int newPos = codedInputStream.getTotalBytesRead();
+    headerChecksum.update(underlyingBuffer.getByteBuf().array(), oldPos, (newPos - oldPos));
+    return newPos;
   }
 
 }

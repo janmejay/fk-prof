@@ -27,8 +27,8 @@ public class DummyProfileWorkService implements IProfileWorkService<AggregationW
     private ConcurrentHashMap<Long, AggregationWindow> windowLookup = new ConcurrentHashMap<>();
 
     public AggregationWindowStore() {
-      AggregationWindow w1 = new AggregationWindow(LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{1, 2});
-      AggregationWindow w2 = new AggregationWindow(LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{3, 4});
+      AggregationWindow w1 = new AggregationWindow("a", "c", "p1", LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{1, 2});
+      AggregationWindow w2 = new AggregationWindow("a", "c", "p2", LocalDateTime.now(Clock.systemUTC()), 30, 60, new long[]{3, 4});
 
       this.add(1l, w1);
       this.add(2l, w1);

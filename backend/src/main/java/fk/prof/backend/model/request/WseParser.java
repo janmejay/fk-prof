@@ -18,6 +18,7 @@ public class WseParser {
   private Recorder.Wse wse = null;
   private Integer checksumValue = null;
 
+  private Checksum wseChecksum = new Adler32();
   private boolean wseParsed = false;
 
   /**
@@ -50,48 +51,48 @@ public class WseParser {
   }
 
   /**
-   * Reads buffer and updates internal state with parsed fields
+   * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
    *
    * @param codedInputStream
    * @return starting unread position in buffer
    */
-  public void parse(CodedInputStream codedInputStream) throws IOException, HttpFailure {
-    if (!wseParsed) {
-      if (wseLength == null) {
-        wseLength = codedInputStream.readUInt32();
-      }
-
-      if (wse == null) {
-        int oldLimit = codedInputStream.pushLimit(wseLength);
-        wse = Recorder.Wse.parseFrom(codedInputStream);
-        codedInputStream.popLimit(oldLimit);
-      }
-
-      if (checksumValue == null) {
-        checksumValue = codedInputStream.readUInt32();
-        if (!validate()) {
-          throw new HttpFailure("Checksum of recorded data entry log does not match", 400);
+  public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure {
+    try {
+      if (!wseParsed) {
+        if (wseLength == null) {
+          wseLength = codedInputStream.readUInt32();
+          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
-        wseParsed = true;
-      }
-    }
 
+        if (wse == null) {
+          if(wseLength > (underlyingBuffer.length() - currentPos)) {
+            return currentPos;
+          }
+
+          int oldLimit = codedInputStream.pushLimit(wseLength);
+          wse = Recorder.Wse.parseFrom(codedInputStream);
+          codedInputStream.popLimit(oldLimit);
+          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+        }
+
+        if (checksumValue == null) {
+          checksumValue = codedInputStream.readUInt32();
+          currentPos = codedInputStream.getTotalBytesRead();
+          if (wseChecksum.getValue() != checksumValue) {
+            throw new HttpFailure("Checksum of recorded data entry log does not match", 400);
+          }
+          wseParsed = true;
+        }
+      }
+    } catch (IOException ex) {
+      //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+    }
+    return currentPos;
   }
 
-  private boolean validate() {
-    try {
-      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-      CodedOutputStream codedOutputStream = CodedOutputStream.newInstance(outputStream);
-      codedOutputStream.writeUInt32NoTag(wseLength);
-      wse.writeTo(codedOutputStream);
-      codedOutputStream.flush();
-      byte[] bytesWritten = outputStream.toByteArray();
-
-      Checksum wseChecksum = new Adler32();
-      wseChecksum.update(bytesWritten, 0, bytesWritten.length);
-      return wseChecksum.getValue() == checksumValue;
-    } catch (IOException ex) {
-      return false;
-    }
+  private int updateChecksumAndGetNewPos(Buffer underlyingBuffer, CodedInputStream codedInputStream, int oldPos) {
+    int newPos = codedInputStream.getTotalBytesRead();
+    wseChecksum.update(underlyingBuffer.getByteBuf().array(), oldPos, (newPos - oldPos));
+    return newPos;
   }
 }

@@ -1,6 +1,7 @@
 package fk.prof.backend.aggregator;
 
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.model.request.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.time.LocalDateTime;
@@ -8,11 +9,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public interface IAggregationWindow {
   /**
-   * Gets status associated with workId
+   * Gets profile work info associated with workId
    * @param workId
-   * @return aggregation status of workId
+   * @return ProfileWorkInfo instance
    */
-   AggregationStatus getStatus(long workId);
+   ProfileWorkInfo getWorkInfo(long workId);
 
   /**
    * Updates status of workId to indicate it is receiving profile data
@@ -27,9 +28,18 @@ public interface IAggregationWindow {
   void abortOngoingProfiles();
 
   /**
-   * Aggregates wse in the associated work type bucket. Throws {@link AggregationFailure} if aggregation fails
+   * Aggregates wse in the associated work type bucket. Uses provided indexes to resolve id values.
+   * Throws {@link AggregationFailure} if aggregation fails
    * Example: if work type = cpu_sample_work, then the profile data is aggregated in corresponding aggregation bucket
    * @param wse
+   * @param indexes
    */
-  void aggregate(Recorder.Wse wse) throws AggregationFailure;
+  void aggregate(Recorder.Wse wse, RecordedProfileIndexes indexes) throws AggregationFailure;
+
+  /**
+   * Updates work info associated with a workId using the provided wse
+   * @param workId
+   * @param wse
+   */
+  void updateWorkInfo(long workId, Recorder.Wse wse);
 }

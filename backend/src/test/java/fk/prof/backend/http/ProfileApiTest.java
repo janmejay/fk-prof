@@ -22,6 +22,7 @@ import recording.Recorder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
@@ -98,7 +99,15 @@ public class ProfileApiTest {
         codedOutputStream.flush();
         bytesWritten = outputStream.toByteArray();
 
-        request.write(Buffer.buffer(bytesWritten));
+        request.write(Buffer.buffer(Arrays.copyOfRange(bytesWritten, 0, 10)));
+        try { Thread.sleep(50); } catch (Exception ex) {}
+        request.write(Buffer.buffer(Arrays.copyOfRange(bytesWritten, 10, 40)));
+        try { Thread.sleep(50); } catch (Exception ex) {}
+        request.write(Buffer.buffer(Arrays.copyOfRange(bytesWritten, 40, 65)));
+        try { Thread.sleep(50); } catch (Exception ex) {}
+        request.write(Buffer.buffer(Arrays.copyOfRange(bytesWritten, 65, bytesWritten.length)));
+        try { Thread.sleep(50); } catch (Exception ex) {}
+
         request.end();
     }
 }
