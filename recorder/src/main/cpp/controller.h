@@ -14,41 +14,43 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <jvmti.h>
+#include <atomic>
+#include "profile_writer.h"
 
 #define MAX_DATA_SIZE 100
 
 class Controller {
 public:
-    explicit Controller(JavaVM *jvm, jvmtiEnv *jvmti, Profiler *profiler, ConfigurationOptions *configuration) :
-            jvm_(jvm), jvmti_(jvmti), profiler_(profiler), configuration_(configuration), isRunning_(false) {
-
+    explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
+        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), running(false) {
+        
     }
 
     void start();
 
     void stop();
 
-    void run();
+    bool is_running() const;
 
-    bool isRunning() const;
+    friend void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 
 private:
-    JavaVM *jvm_;
-    jvmtiEnv *jvmti_;
-    Profiler *profiler_;
-    ConfigurationOptions *configuration_;
-    std::atomic_bool isRunning_;
-
+    JavaVM *jvm;
+    jvmtiEnv *jvmti;
+    ThreadMap& thread_map;
+    ConfigurationOptions& cfg;
+    Profiler *profiler;
+    std::atomic_bool running;
+    Buff buff;
+    ProfileWriter *writer;
 
     void startSampling();
 
     void stopSampling();
 
-    void reportStatus(int clientConnection);
-
-    void getProfilerParam(int clientConnection, char *param);
-
-    void setProfilerParam(char *paramDesc);
+    void run();
+    
+    void run_with_associate(const Buff& response_buff);
 };
 
 #endif

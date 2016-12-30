@@ -68,23 +68,10 @@ public:
 
 class Profiler {
 public:
-    explicit Profiler(JavaVM *jvm, jvmtiEnv *jvmti, ConfigurationOptions *configuration, ThreadMap &tMap)
-        : jvm_(jvm), jvmti_(jvmti), tMap_(tMap), liveConfiguration(configuration),
-          logFile(NULL), writer(NULL), buffer(NULL), processor(NULL), handler_(NULL),
-          ongoingConf(false) {
-        // main object graph instantiated here
-        // these objects all live for the lifecycle of the program
-
-        // main object graph instantiated here
-        // these objects all live for the lifecycle of the program
-        configuration_ = new ConfigurationOptions();
-        pid = (long) getpid();
-
-        // explicitly call setters to validate input params
-        setSamplingInterval(liveConfiguration->samplingIntervalMin,
-                            liveConfiguration->samplingIntervalMax);
-        setMaxFramesToCapture(liveConfiguration->maxFramesToCapture);
-
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileWriter& _writer, std::uint16_t _max_stack_depth, std::uint16_t _sampling_freq)
+        : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), writer(_writer), ongoing_conf(false) {
+        set_max_stack_depth(_max_stack_depth);
+        set_sampling_freq(_sampling_freq);
         configure();
     }
 
@@ -94,59 +81,43 @@ public:
 
     void handle(int signum, siginfo_t *info, void *context);
 
-    bool isRunning();
-
-    /* Several getters and setters for externals APIs */
-
-    std::string getFilePath();
-
-    int getSamplingIntervalMin();
-
-    int getSamplingIntervalMax();
-
-    int getMaxFramesToCapture();
-
-    void setFilePath(char *newFilePath);
-
-    void setSamplingInterval(int intervalMin, int intervalMax);
-
-    void setMaxFramesToCapture(int maxFramesToCapture);
-
     ~Profiler();
 
 private:
-    JavaVM *jvm_;
+    JavaVM *jvm;
 
-    jvmtiEnv *jvmti_;
+    jvmtiEnv *jvmti;
 
-    ThreadMap &tMap_;
+    ThreadMap &thread_map;
 
-    ConfigurationOptions *configuration_;
+    std::uint32_t max_stack_depth;
 
-    ConfigurationOptions *liveConfiguration;
+    std::uint32_t itvl_min, itvl_max;
 
-    ostream *logFile;
-
-    LogWriter *writer;
+    ProfileWriter& writer;
 
     CircularQueue *buffer;
 
     Processor *processor;
 
-    SignalHandler* handler_;
-
-    bool reloadConfig;
-
-    long pid;
+    SignalHandler* handler;
 
     // indicates change of internal state
-    std::atomic<bool> ongoingConf;
+    std::atomic<bool> ongoing_conf;
 
-    static bool lookupFrameInformation(const JVMPI_CallFrame &frame,
+    static bool lookup_frame_information(const JVMPI_CallFrame &frame,
                                        jvmtiEnv *jvmti,
                                        MethodListener &logWriter);
 
+    void set_sampling_freq(std::uint32_t sampling_freq);
+
+    void set_max_stack_depth(int maxFramesToCapture);
+
     void configure();
+
+    inline std::uint32_t capture_stack_depth() {
+        return max_stack_depth + 1;
+    }
 
     bool __is_running();
 

@@ -32,7 +32,7 @@ public:
 
     bool updateSigprofInterval(int);
 
-    bool stopSigprof() { return updateSigprofInterval(0); }
+    bool stopSigprof();
 
     ~SignalHandler() {
         delete[] timingIntervals;

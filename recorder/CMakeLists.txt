@@ -16,6 +16,7 @@ include(CheckFunctionExists)
 ##########################################################
 # Paths
 set(SRC "src/main/cpp")
+set(INCLUDE_VENDOR_SPDLOG "vendor/spdlog/include")
 set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(OUTPUT "lagent")
@@ -34,6 +35,7 @@ include_directories(${JAVA_INCLUDE_PATH})
 include_directories(${JAVA_INCLUDE_PATH2})
 
 pkg_check_modules(ZLIB REQUIRED zlib)
+pkg_check_modules(CURL REQUIRED libcurl)
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
     message("User has configured " $ENV{UNITTEST_INCLUDE_DIRS} " as the unit test include directory")
@@ -65,7 +67,6 @@ set(SOURCE_FILES
     ${SRC}/circular_queue.h
     ${SRC}/common.cpp
     ${SRC}/common.h
-    ${SRC}/control.cpp
     ${SRC}/controller.cpp
     ${SRC}/controller.h
     ${SRC}/globals.h
@@ -140,7 +141,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb")
 # to enable tracing add: -DENABLE_TRACING
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
+set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 
 ##########################################################
 # Build
@@ -148,9 +149,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthr
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} ${CURL_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} ${CURL_LIBRARY} dl)
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})

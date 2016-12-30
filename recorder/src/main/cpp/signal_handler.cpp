@@ -26,6 +26,11 @@ bool SignalHandler::updateSigprofInterval() {
     return res;
 }
 
+bool SignalHandler::stopSigprof() {
+    signal(SIGPROF, SIG_IGN);
+    return updateSigprofInterval(0);
+}
+
 bool SignalHandler::updateSigprofInterval(const int timingInterval) {
     if (timingInterval == currentInterval)
         return true;

@@ -5,11 +5,38 @@
 #include <stdint.h>
 #include <signal.h>
 
+#define SPDLOG_ENABLE_SYSLOG
+#include <spdlog/spdlog.h>
 
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#define RECORDER_VERION 1
+#define DATA_ENCODING_VERSION 1
+
+#include "profile_writer.h"
+
+typedef std::shared_ptr<spdlog::logger> LoggerP;
+
+extern LoggerP logger;//TODO: stick me in GlobalCtx???
+
 class Profiler;
+
+namespace GlobalCtx {
+    struct {
+        std::atomic<bool> on;
+        Profiler* profiler;
+    } recording;
+
+    struct {
+        std::atomic<bool> known;
+        struct {
+            std::string host;
+            std::uint32_t port;
+        } remote;
+    } associate;
+    
+}
 
 void logError(const char *__restrict format, ...);
 
@@ -32,30 +59,88 @@ char *safe_copy_string(const char *value, const char *next);
 void safe_free_string(char *&value);
 
 struct ConfigurationOptions {
-    /** Interval in microseconds */
-    int samplingIntervalMin, samplingIntervalMax;
-    char* logFilePath;
+    char* service_endpoint;
+    
+    /*self-info*/
+    char* ip;
     char* host;
-    char* port;
-    bool start;
-    int maxFramesToCapture;
+    char* app_id;
+    char* inst_grp;
+    char* inst_id;
+    char* cluster;
+    char* proc;
+    char* vm_id;
+    char* zone;
+    char* inst_typ;
 
     ConfigurationOptions() :
-            samplingIntervalMin(DEFAULT_SAMPLING_INTERVAL),
-            samplingIntervalMax(DEFAULT_SAMPLING_INTERVAL),
-            logFilePath(NULL),
-            host(NULL),
-            port(NULL),
-            start(true),
-            maxFramesToCapture(DEFAULT_MAX_FRAMES_TO_CAPTURE) {
+            service_endpoint(nullptr),
+            ip(nullptr),
+            app_id(nullptr),
+            inst_grp(nullptr),
+            inst_id(nullptr),
+            cluster(nullptr),
+            proc(nullptr),
+            vm_id(nullptr),
+            zone(nullptr),
+            inst_typ(nullptr) {
+    }
+
+    ConfigurationOptions(const char* options) {
+        const char* next = options;
+        for (const char *key = options; next != NULL; key = next + 1) {
+            const char *value = strchr(key, '=');
+            next = strchr(key, ',');
+            if (value == NULL) {
+                logError("WARN: No value for key %s\n", key);
+                continue;
+            } else {
+                value++;
+                if (strstr(key, "service_endpoint") == key) {
+                    service_endpoint = safe_copy_string(value, next);
+                } else if (strstr(key, "ip") == key) {
+                    ip = safe_copy_string(value, next);
+                } else if (strstr(key, "host") == key) {
+                    host = safe_copy_string(value, next);
+                } else if (strstr(key, "appid") == key) {
+                    app_id = safe_copy_string(value, next);
+                } else if (strstr(key, "igrp") == key) {
+                    inst_grp = safe_copy_string(value, next);
+                } else if (strstr(key, "cluster") == key) {
+                    cluster = safe_copy_string(value, next);
+                } else if (strstr(key, "instid") == key) {
+                    inst_id = safe_copy_string(value, next);
+                } else if (strstr(key, "proc") == key) {
+                    proc = safe_copy_string(value, next);
+                } else if (strstr(key, "vmid") == key) {
+                    vm_id = safe_copy_string(value, next);
+                } else if (strstr(key, "zone") == key) {
+                    zone = safe_copy_string(value, next);
+                } else if (strstr(key, "ityp") == key) {
+                    inst_typ = safe_copy_string(value, next);
+                } else {
+                    logError("WARN: Unknown configuration option: %s\n", key);
+                }
+            }
+        }
     }
 
     virtual ~ConfigurationOptions() {
-      if (logFilePath) safe_free_string(logFilePath);
-      if (host) safe_free_string(host);
-      if (port) safe_free_string(port);
+        safe_free_string(service_endpoint);
+        safe_free_string(ip);
+        safe_free_string(app_id);
+        safe_free_string(inst_grp);
+        safe_free_string(cluster);
+        safe_free_string(proc);
+        safe_free_string(vm_id);
+        safe_free_string(zone);
+        safe_free_string(inst_typ);
     }
 };
+
+template <typename T> const T& min(const T& first, const T& second) {
+    return first > second ? second : first;
+}
 
 #define AGENTEXPORT __attribute__((visibility("default"))) JNIEXPORT
 

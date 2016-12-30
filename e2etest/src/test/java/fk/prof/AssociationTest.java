@@ -41,16 +41,18 @@ public class AssociationTest {
         associateServer = new TestBackendServer(8090);
         assocAction = server.register("/association", association);
         pollAction = associateServer.register("/poll", poll);
-        runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=127.0.0.1:8080," + 
+        runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," + 
                 "ip=10.20.30.40," +
                 "host=foo-host," +
                 "appid=bar-app," +
                 "igrp=baz-grp," +
                 "cluster=quux-cluster," +
-                "proc=corge-proc," +
-                "vmid=grault-vmid," +
-                "zone=garply-zone," +
-                "ityp=c0.small");
+                "instid=corge-iid," +
+                "proc=grault-proc," +
+                "vmid=garply-vmid," +
+                "zone=waldo-zone," +
+                "ityp=c0.small"
+        );
     }
 
     @After
