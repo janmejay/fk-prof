@@ -5,6 +5,7 @@ import fk.prof.backend.aggregator.AggregationStatus;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.aggregator.CpuSamplingAggregationBucket;
 import fk.prof.backend.aggregator.ProfileWorkInfo;
+import fk.prof.backend.mock.MockProfileComponents;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.common.stacktrace.cpusampling.CpuSamplingContextDetail;
@@ -28,8 +29,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
-
-import fk.prof.backend.mock.MockProfileComponents;
 
 @RunWith(VertxUnitRunner.class)
 public class ProfileApiTest {
@@ -65,7 +64,7 @@ public class ProfileApiTest {
     final Async async = context.async();
     Future<Buffer> future = makeProfileRequest(context, workId, getMockWseEntriesForSingleProfile());
     future.setHandler(ar -> {
-      if(ar.failed()) {
+      if (ar.failed()) {
         context.fail(ar.cause());
       } else {
         //Validate aggregation
@@ -96,7 +95,7 @@ public class ProfileApiTest {
     Future<Buffer> f2 = makeProfileRequest(context, workId2, Arrays.asList(wseList.get(1)));
     Future<Buffer> f3 = makeProfileRequest(context, workId3, Arrays.asList(wseList.get(2)));
     CompositeFuture.all(Arrays.asList(f1, f2, f3)).setHandler(ar -> {
-      if(ar.failed()) {
+      if (ar.failed()) {
         context.fail(ar.cause());
       } else {
         AggregationWindow aggregationWindow = profileWorkService.getAssociatedAggregationWindow(workId1);
@@ -166,13 +165,13 @@ public class ProfileApiTest {
     List<CpuSamplingFrameNode> leaves = new ArrayList<>();
     Queue<CpuSamplingFrameNode> toVisit = new ArrayDeque<>();
     toVisit.add(logicalRoot);
-    while(toVisit.size() > 0) {
+    while (toVisit.size() > 0) {
       CpuSamplingFrameNode visiting = toVisit.poll();
       List<CpuSamplingFrameNode> children = visiting.getChildrenUnsafe();
-      if(children.size() == 0) {
+      if (children.size() == 0) {
         leaves.add(visiting);
       } else {
-        for(CpuSamplingFrameNode child: children) {
+        for (CpuSamplingFrameNode child : children) {
           toVisit.offer(child);
         }
       }
@@ -180,12 +179,12 @@ public class ProfileApiTest {
     context.assertEquals(leaves.size(), 3);
 
     int dMethodLeaves = 0, cMethodLeaves = 0;
-    for(CpuSamplingFrameNode leaf: leaves) {
+    for (CpuSamplingFrameNode leaf : leaves) {
       context.assertEquals(leaf.getOnStackSamples(), 1);
       context.assertEquals(leaf.getOnCpuSamples(), 1);
-      if(methodNameLookup.get(leaf.getMethodId()).equals(".C()")) {
+      if (methodNameLookup.get(leaf.getMethodId()).equals(".C()")) {
         cMethodLeaves++;
-      } else if(methodNameLookup.get(leaf.getMethodId()).equals(".D()")) {
+      } else if (methodNameLookup.get(leaf.getMethodId()).equals(".D()")) {
         dMethodLeaves++;
       }
     }
@@ -204,7 +203,7 @@ public class ProfileApiTest {
 
   private static void chunkAndWriteToRequest(HttpClientRequest request, byte[] requestBytes, int chunkSizeInBytes) {
     int i = 0;
-    for(;(i + chunkSizeInBytes) <= requestBytes.length; i += chunkSizeInBytes) {
+    for (; (i + chunkSizeInBytes) <= requestBytes.length; i += chunkSizeInBytes) {
       writeChunkToRequest(request, requestBytes, i, i + chunkSizeInBytes);
     }
     writeChunkToRequest(request, requestBytes, i, requestBytes.length);
@@ -243,7 +242,7 @@ public class ProfileApiTest {
   }
 
   private static void writeMockWseEntriesToRequest(List<Recorder.Wse> wseList, ByteArrayOutputStream requestStream) throws IOException {
-    for(Recorder.Wse wse: wseList) {
+    for (Recorder.Wse wse : wseList) {
       writeWseToRequest(wse, requestStream);
     }
   }

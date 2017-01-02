@@ -95,7 +95,7 @@ public class MockProfileComponents {
         .map(mId -> Recorder.MethodInfo.newBuilder()
             .setFileName("").setClassFqdn("").setSignature("()")
             .setMethodId(mId)
-            .setMethodName(String.valueOf((char)mId.intValue()))
+            .setMethodName(String.valueOf((char) mId.intValue()))
             .build())
         .collect(Collectors.toList());
   }
@@ -119,9 +119,9 @@ public class MockProfileComponents {
   //returned frames are in the same order as method names in input array
   private static List<Recorder.Frame> getMockFrames(char[] dummyMethods) {
     List<Recorder.Frame> frames = new ArrayList<>();
-    for(char dummyMethod: dummyMethods) {
+    for (char dummyMethod : dummyMethods) {
       frames.add(Recorder.Frame.newBuilder()
-          .setMethodId((int)(dummyMethod))
+          .setMethodId((int) (dummyMethod))
           .setBci(1).setLineNo(10)
           .build());
     }
@@ -137,7 +137,9 @@ public class MockProfileComponents {
   }
 
   private static Set<Long> uniqueMethodIdsInWse(Recorder.StackSampleWse stackSampleWse) {
-    if(stackSampleWse == null) { return new HashSet<>(); }
+    if (stackSampleWse == null) {
+      return new HashSet<>();
+    }
     return stackSampleWse.getStackSampleList().stream()
         .flatMap(stackSample -> stackSample.getFrameList().stream())
         .map(frame -> frame.getMethodId())

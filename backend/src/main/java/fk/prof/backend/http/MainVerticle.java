@@ -1,10 +1,9 @@
 package fk.prof.backend.http;
 
+import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.request.RecordedProfileParser;
 import fk.prof.backend.model.request.RecordedProfileRequestHandler;
-import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.service.IProfileWorkService;
-import fk.prof.backend.service.ProfileWorkService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;

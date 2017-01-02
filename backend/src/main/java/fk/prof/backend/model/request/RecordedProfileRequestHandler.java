@@ -1,14 +1,11 @@
 package fk.prof.backend.model.request;
 
 import com.google.protobuf.CodedInputStream;
-import fk.prof.backend.http.HttpHelper;
 import fk.prof.backend.exception.HttpFailure;
-import io.netty.buffer.ByteBuf;
+import fk.prof.backend.http.HttpHelper;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
-
-import java.io.IOException;
 
 public class RecordedProfileRequestHandler implements Handler<Buffer> {
 

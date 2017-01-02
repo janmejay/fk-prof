@@ -7,6 +7,7 @@ public interface IProfileWorkService {
 
   /**
    * Associates a workId with given aggregation window
+   *
    * @param workId
    * @param aggregationWindow
    */
@@ -14,6 +15,7 @@ public interface IProfileWorkService {
 
   /**
    * Returns the aggregation window associated with given work id, null if no such workId exists
+   *
    * @param workId
    * @return associated aggregation window
    */

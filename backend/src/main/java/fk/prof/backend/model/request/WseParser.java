@@ -1,14 +1,10 @@
 package fk.prof.backend.model.request;
 
 import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-import com.google.protobuf.InvalidProtocolBufferException;
-import fk.prof.backend.Utils;
 import fk.prof.backend.exception.HttpFailure;
 import io.vertx.core.buffer.Buffer;
 import recording.Recorder;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
@@ -66,7 +62,7 @@ public class WseParser {
         }
 
         if (wse == null) {
-          if(wseLength > (underlyingBuffer.length() - currentPos)) {
+          if (wseLength > (underlyingBuffer.length() - currentPos)) {
             return currentPos;
           }
 
@@ -79,7 +75,7 @@ public class WseParser {
         if (checksumValue == null) {
           checksumValue = codedInputStream.readUInt32();
           currentPos = codedInputStream.getTotalBytesRead();
-          if ((int)wseChecksum.getValue() != checksumValue) {
+          if ((int) wseChecksum.getValue() != checksumValue) {
             throw new HttpFailure("Checksum of wse entry log does not match", 400);
           }
           wseParsed = true;

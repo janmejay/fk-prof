@@ -55,7 +55,7 @@ public class RecordedProfileParser {
    * @return starting unread position in buffer
    */
   public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure, AggregationFailure {
-    if(startedAt == null) {
+    if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
 
@@ -104,6 +104,7 @@ public class RecordedProfileParser {
 
   /**
    * If parsing was successful, marks the profile as completed/retried, partial otherwise
+   *
    * @throws HttpFailure
    */
   public void close() throws HttpFailure {

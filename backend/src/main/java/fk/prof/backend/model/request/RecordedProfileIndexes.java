@@ -26,8 +26,8 @@ public class RecordedProfileIndexes {
   }
 
   private void updateMethodIndex(List<Recorder.MethodInfo> methods) {
-    if(methods != null) {
-      for(Recorder.MethodInfo methodInfo: methods) {
+    if (methods != null) {
+      for (Recorder.MethodInfo methodInfo : methods) {
         methodLookup.put(methodInfo.getMethodId(), String.format("%s.%s%s",
             methodInfo.getClassFqdn(), methodInfo.getMethodName(), methodInfo.getSignature()));
       }
@@ -35,8 +35,8 @@ public class RecordedProfileIndexes {
   }
 
   private void updateTraceIndex(List<Recorder.TraceContext> traces) {
-    if(traces != null) {
-      for(Recorder.TraceContext traceContext: traces) {
+    if (traces != null) {
+      for (Recorder.TraceContext traceContext : traces) {
         traceLookup.put(traceContext.getTraceId(), traceContext.getTraceName());
       }
     }

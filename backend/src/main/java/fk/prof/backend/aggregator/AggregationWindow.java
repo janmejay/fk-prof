@@ -6,7 +6,6 @@ import recording.Recorder;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AggregationWindow {
@@ -58,7 +57,7 @@ public class AggregationWindow {
       updated = false;
     }
 
-    if(updated) {
+    if (updated) {
       workInfo.setStartedAt(startedAt);
     }
 
@@ -76,7 +75,7 @@ public class AggregationWindow {
       updated = false;
     }
 
-    if(updated) {
+    if (updated) {
       workInfo.setEndedAt(LocalDateTime.now(Clock.systemUTC()));
     }
     return updated;
@@ -91,7 +90,7 @@ public class AggregationWindow {
       updated = false;
     }
 
-    if(updated) {
+    if (updated) {
       workInfo.setEndedAt(LocalDateTime.now(Clock.systemUTC()));
     }
     return updated;
@@ -107,10 +106,10 @@ public class AggregationWindow {
   }
 
   public void aggregate(Recorder.Wse wse, RecordedProfileIndexes indexes) throws AggregationFailure {
-    switch(wse.getWType()) {
+    switch (wse.getWType()) {
       case cpu_sample_work:
         Recorder.StackSampleWse stackSampleWse = wse.getCpuSampleEntry();
-        if(stackSampleWse == null) {
+        if (stackSampleWse == null) {
           throw new AggregationFailure(String.format("work type=%s did not have associated samples", wse.getWType()));
         }
         cpuSamplingAggregationBucket.aggregate(stackSampleWse, indexes);
@@ -122,7 +121,7 @@ public class AggregationWindow {
 
   public void updateWorkInfo(long workId, Recorder.Wse wse) {
     ProfileWorkInfo workInfo = getWorkInfo(workId);
-    for(Recorder.TraceContext trace: wse.getIndexedData().getTraceCtxList()) {
+    for (Recorder.TraceContext trace : wse.getIndexedData().getTraceCtxList()) {
       workInfo.addTrace(trace.getTraceName(), trace.getCoveragePct());
     }
     workInfo.incrementSamplesBy(getSampleCount(wse));
@@ -142,7 +141,7 @@ public class AggregationWindow {
   }
 
   private static int getSampleCount(Recorder.Wse wse) {
-    switch(wse.getWType()) {
+    switch (wse.getWType()) {
       case cpu_sample_work:
         return wse.getCpuSampleEntry().getStackSampleCount();
       default:

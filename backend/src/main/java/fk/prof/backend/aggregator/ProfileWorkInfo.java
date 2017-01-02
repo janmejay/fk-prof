@@ -25,6 +25,7 @@ public class ProfileWorkInfo {
    * Returns the underlying map used to store trace name -> trace coverage data associated with a work id
    * The returned map implementation is not guaranteed to be thread-safe
    * Ideally, should be called when the aggregation window with which this instance is associated, expires.
+   *
    * @return lookup map for trace coverage using trace name
    */
   public Map<String, Integer> getTraceCoverages() {
