@@ -46,7 +46,7 @@ public:
 void write_to_file(const recording::RecordingHeader& rh, const std::initializer_list<const recording::Wse*> entries, const std::string& profile_data_file) {
     TestRecordingWriter w(profile_data_file);
     Buff buff;
-    ProfileWriter<1, TestRecordingWriter> rec_w(w, buff);
+    ProfileWriter rec_w(w, buff);
     rec_w.write_header(rh);
     for (auto e : entries) {
         rec_w.append_wse(*e);

@@ -5,6 +5,8 @@ import fk.prof.utils.AgentRunner;
 import fk.prof.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.joda.time.DateTime;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,11 +19,14 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
 
@@ -62,7 +67,7 @@ public class AssociationTest {
     }
 
     @Test
-    public void should_DiscoverAssociate_and_SayHelloToIt() throws ExecutionException, InterruptedException, IOException {
+    public void should_DiscoverAssociate_and_SayHelloToIt() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
         association[0] = (req) -> {
             try {
@@ -77,6 +82,7 @@ public class AssociationTest {
                 assignedBackend.writeTo(os);
                 return os.toByteArray();
             } catch (Exception e) {
+                e.printStackTrace();
                 throw new RuntimeException(e);
             }
         };
@@ -85,9 +91,8 @@ public class AssociationTest {
             try {
                 Recorder.PollReq.Builder pollReqBuilder = Recorder.PollReq.newBuilder();
                 pollReq.setValue(pollReqBuilder.mergeFrom(req).build());
-
-                LocalDateTime now = LocalDateTime.now();
-                String nowString = DateTimeFormatter.ISO_INSTANT.format(now);
+                DateTime now = DateTime.now();
+                String nowString = ISODateTimeFormat.dateTime().print(now);
                 Recorder.PollRes.Builder builder = Recorder.PollRes.newBuilder()
                         .setLocalTime(nowString)
                         .setWorkDescription("no work for ya!")
@@ -103,6 +108,7 @@ public class AssociationTest {
                 pollRes.writeTo(os);
                 return os.toByteArray();
             } catch (Exception e) {
+                e.printStackTrace();
                 throw new RuntimeException(e);
             }
         };
@@ -115,17 +121,17 @@ public class AssociationTest {
         //start process here
         runner.start();
         
-        assocAction[0].get();
+        assocAction[0].get(12, TimeUnit.SECONDS);
 
         assertThat(assocAction[0].isDone(), is(true));
         assertRecorderInfoAllGood(recInfo.getValue());
 
-        pollAction[0].get();
+        pollAction[0].get(12, TimeUnit.SECONDS);
 
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1));
+        assertThat(workLastIssued.getWorkId(), is(-1l));
         assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
         assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
         assertThat(workLastIssued.getElapsedTime(), is(0));
@@ -142,15 +148,15 @@ public class AssociationTest {
         assertThat(recorderInfo.getAppId(), is("bar-app"));
         assertThat(recorderInfo.getInstanceGrp(), is("baz-grp"));
         assertThat(recorderInfo.getCluster(), is("quux-cluster"));
-        assertThat(recorderInfo.getProcName(), is("corge-proc"));
-        assertThat(recorderInfo.getVmId(), is("grault-vmid"));
-        assertThat(recorderInfo.getZone(), is("garply-zone"));
+        assertThat(recorderInfo.getInstanceId(), is("corge-iid"));
+        assertThat(recorderInfo.getProcName(), is("grault-proc"));
+        assertThat(recorderInfo.getVmId(), is("garply-vmid"));
+        assertThat(recorderInfo.getZone(), is("waldo-zone"));
         assertThat(recorderInfo.getInstanceType(), is("c0.small"));
-        TemporalAccessor localTime = DateTimeFormatter.ISO_INSTANT.parse(recorderInfo.getLocalTime());
-        LocalDateTime recorderTime = LocalDateTime.from(localTime);
-        LocalDateTime now = LocalDateTime.now();
-        assertThat(recorderTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
+        DateTime dateTime = ISODateTimeFormat.dateTimeParser().parseDateTime(recorderInfo.getLocalTime());
+        DateTime now = DateTime.now();
+        assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
         assertThat(recorderInfo.getRecorderVersion(), is(1));
-        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThan(0), lessThan(60)));
+        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThan(10)));
     }
 }

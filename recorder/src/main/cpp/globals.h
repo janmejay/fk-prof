@@ -73,20 +73,17 @@ struct ConfigurationOptions {
     char* zone;
     char* inst_typ;
 
-    ConfigurationOptions() :
-            service_endpoint(nullptr),
-            ip(nullptr),
-            app_id(nullptr),
-            inst_grp(nullptr),
-            inst_id(nullptr),
-            cluster(nullptr),
-            proc(nullptr),
-            vm_id(nullptr),
-            zone(nullptr),
-            inst_typ(nullptr) {
-    }
-
-    ConfigurationOptions(const char* options) {
+    ConfigurationOptions(const char* options) :
+        service_endpoint(nullptr),
+        ip(nullptr),
+        app_id(nullptr),
+        inst_grp(nullptr),
+        inst_id(nullptr),
+        cluster(nullptr),
+        proc(nullptr),
+        vm_id(nullptr),
+        zone(nullptr),
+        inst_typ(nullptr) {
         const char* next = options;
         for (const char *key = options; next != NULL; key = next + 1) {
             const char *value = strchr(key, '=');
@@ -135,6 +132,10 @@ struct ConfigurationOptions {
         safe_free_string(vm_id);
         safe_free_string(zone);
         safe_free_string(inst_typ);
+    }
+
+    bool valid() {//TODO: ensure we check for valid config (implement defaulting before validity-check)
+        return true;
     }
 };
 

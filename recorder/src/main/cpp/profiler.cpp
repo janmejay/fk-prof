@@ -156,18 +156,20 @@ void Profiler::set_max_stack_depth(int max_stack_depth) {
 }
 
 void Profiler::configure() {
-    buffer = new CircularQueue(writer, capture_stack_depth());
+    serializer = new ProfileSerializer(writer);
+    
+    buffer = new CircularQueue(*serializer, capture_stack_depth());
 
-    handler_ = new SignalHandler(itvl_min, itvl_max);
+    handler = new SignalHandler(itvl_min, itvl_max);
     int processor_interval = Size * itvl_min / 1000 / 2;
-    processor_ = new Processor(jvmti, *writer, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
+    processor = new Processor(jvmti, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
 }
 
 Profiler::~Profiler() {
-    SimpleSpinLockGuard<false> guard(ongoingConf); // nonblocking
+    SimpleSpinLockGuard<false> guard(ongoing_conf); // nonblocking
     if (__is_running()) stop();
-    delete processor_;
-    delete handler_;
-    delete buffer_;
-    delete writer_;
+    delete processor;
+    delete handler;
+    delete buffer;
+    delete serializer;
 }

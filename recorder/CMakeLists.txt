@@ -93,7 +93,6 @@ set(TEST_FILES
     ${SRC_TEST}/test_log_writer.cpp
     ${SRC_TEST}/test_agent.cpp
     ${SRC_TEST}/test.h
-    ${SRC_TEST}/test_profiler_config.cpp
     ${SRC_TEST}/test_recording_serde.cpp
     ${SRC_TEST}/test_checksum.cpp
     ${SRC_TEST}/test_maps.cpp)
@@ -149,9 +148,9 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARN
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} ${CURL_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LIBRARY} ${CURL_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} dl)
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})

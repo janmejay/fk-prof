@@ -59,8 +59,8 @@ struct CurlInit {
 static void time_now_str(std::function<void(const char*)> fn) {
     std::time_t t = std::time(nullptr);
     std::tm tm = *std::localtime(&t);
-    char buffer[80];
-    strftime(buffer, sizeof(buffer),"%Y-%m-%dT%H:%M:%S%Z", &tm);
+    char buffer[120];
+    strftime(buffer, sizeof(buffer),"%Y-%m-%dT%H:%M:%S%z", &tm);
     fn(buffer);
 }
 
@@ -84,33 +84,15 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
     ri.set_recorder_uptime(uptime.count());
 }
 
+static void populate_issued_work_status(recording::WorkResponse& w_res) {
+    w_res.set_work_id(-1);
+    w_res.set_work_state(recording::WorkResponse::complete);
+    w_res.set_work_result(recording::WorkResponse::success);
+    w_res.set_elapsed_time(0);
+}
+
 typedef std::unique_ptr<CURL, void(*)(CURL*)> Curl;
 typedef std::unique_ptr<struct curl_slist, void(*)(curl_slist*)> CurlHeader;
-
-void Controller::run_with_associate(const Buff& response_buff) {
-    recording::AssignedBackend assigned;
-    assigned.ParseFromArray(response_buff.buff + response_buff.read_end, response_buff.write_end - response_buff.read_end);
-    const std::string& host = assigned.host();
-    std::uint32_t port = assigned.port();
-    std::stringstream ss;
-    ss << "http://" << host << ":" << port << "/poll";
-    const std::string url = ss.str();
-
-    Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(curl_slist_append(nullptr, "Content-type: application/octet-stream"), curl_slist_free_all);
-    if (curl.get() == nullptr || header_list == nullptr) {
-        logger->error("Controller couldn't talk to assigned backend failed because cURL init failed");
-        return;
-    }
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
-
-    while (running.load(std::memory_order_relaxed)) {
-        std::this_thread::sleep_for(std::chrono::duration<int>(1));
-    }
-}
 
 const std::uint32_t STARTING_BACKOFF_SEC_VALUE = 5;
 const std::uint32_t MAX_BACKOFF_SEC_VALUE = 60 * 10;
@@ -120,11 +102,94 @@ static void backoff(std::uint32_t& seconds) {
     seconds = min(seconds * 2, MAX_BACKOFF_SEC_VALUE);
 }
 
+static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, void *send_buff) {
+    auto buff = static_cast<Buff*>(send_buff);
+    std::uint32_t out_capacity = size * nitems;
+    auto should_copy = min(out_capacity, buff->write_end - buff->read_end);
+    std::memcpy(out_buff, buff->buff + buff->read_end, should_copy);
+    buff->read_end += should_copy;
+    return should_copy;
+}
+
+static int read_from_curl_response(char *in_buff, size_t size, size_t nmemb, void *recv_buff) {
+    auto buff = static_cast<Buff*>(recv_buff);
+    auto available = size * nmemb;
+    buff->ensure_capacity(available);
+    memcpy(buff->buff + buff->write_end, in_buff, available);
+    buff->write_end += available;
+    return available;
+}
+
+CurlHeader make_header_list(const std::vector<const char*>& headers) {
+    CurlHeader header_list(nullptr, curl_slist_free_all);
+    for(auto hdr : headers) {
+        auto new_head = curl_slist_append(header_list.get(), hdr);
+        if (new_head != nullptr) {
+            header_list.release();
+            header_list.reset(new_head);
+        }
+    }
+    return header_list;
+}
+
+void Controller::run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
+    recording::AssignedBackend assigned;
+    assigned.ParseFromArray(response_buff.buff + response_buff.read_end, response_buff.write_end - response_buff.read_end);
+    const std::string& host = assigned.host();
+    std::uint32_t port = assigned.port();
+    std::stringstream ss;
+    ss << "http://" << host << ":" << port << "/poll";
+    const std::string url = ss.str();
+    logger->info("Connecting to associate: {}", url);
+
+    Curl curl(curl_easy_init(), curl_easy_cleanup);
+    CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
+    if (curl.get() == nullptr || header_list == nullptr) {
+        logger->error("Controller couldn't talk to assigned backend failed because cURL init failed");
+        return;
+    }
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+
+    Buff send(1024);
+    Buff recv(1024);
+
+    curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
+    curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
+    
+    std::this_thread::sleep_for(std::chrono::duration<int>(1));
+    while (running.load(std::memory_order_relaxed)) {
+        recording::PollReq p_req;
+        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time);
+        populate_issued_work_status(*p_req.mutable_work_last_issued());
+        
+        auto serialized_size = p_req.ByteSize();
+        send.ensure_capacity(serialized_size);
+        p_req.SerializeToArray(send.buff, send.capacity);
+        send.read_end = 0;
+        send.write_end = serialized_size;
+        curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
+        recv.read_end = recv.write_end = 0;
+
+        auto res = curl_easy_perform(curl.get());
+        if (res == CURLE_OK) {
+            std::this_thread::sleep_for(std::chrono::duration<int>(60));
+        } else {
+            logger->error("Couldn't talk to associate {0} (poll) (error: {1})", url, res);
+            return;
+        }
+    }
+}
+
 void Controller::run() {
     auto start_time = std::chrono::steady_clock::now();
     CurlInit _;
     Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(curl_slist_append(nullptr, "Content-type: application/octet-stream"), curl_slist_free_all);
+    CurlHeader header_list(make_header_list({ "Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
     Buff send(1024);
     Buff recv(1024);
     auto backoff_seconds = STARTING_BACKOFF_SEC_VALUE;
@@ -141,30 +206,19 @@ void Controller::run() {
     while (running.load(std::memory_order_relaxed)) {
         recording::RecorderInfo ri;
         populate_recorder_info(ri, cfg, start_time);
-        send.ensure_capacity(ri.ByteSize());
+        auto serialized_size = ri.ByteSize();
+        send.ensure_capacity(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);
+        send.write_end = serialized_size;
+        curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
-        curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, [](char *out_buff, size_t size, size_t nitems, void *send_buff) {
-                auto buff = static_cast<Buff*>(send_buff);
-                std::uint32_t out_capacity = size * nitems;
-                auto should_copy = min(out_capacity, buff->write_end - buff->read_end);
-                std::memcpy(out_buff, buff->buff + buff->read_end, should_copy);
-                buff->read_end += should_copy;
-                return should_copy;
-            });
+        curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
-        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, [](char *in_buff, size_t size, size_t nmemb, void *recv_buff) {
-                auto buff = static_cast<Buff*>(recv_buff);
-                auto available = size * nmemb;
-                buff->ensure_capacity(available);
-                memcpy(buff->buff + buff->write_end, in_buff, available);
-                buff->write_end += available;
-                return available;
-            });
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
         auto res = curl_easy_perform(curl.get());
         if (res == CURLE_OK) {
             backoff_seconds = STARTING_BACKOFF_SEC_VALUE;
-            run_with_associate(recv);
+            run_with_associate(recv, start_time);
         } else {
             logger->error("Couldn't talk to service-endpoint {0} (and discover associate) (error: {1}), will try again after {2} seconds", service_endpoint_url, res, backoff_seconds);
             backoff(backoff_seconds);

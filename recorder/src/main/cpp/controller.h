@@ -50,7 +50,7 @@ private:
 
     void run();
     
-    void run_with_associate(const Buff& response_buff);
+    void run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time);
 };
 
 #endif

@@ -16,6 +16,8 @@ traces.txt
 
 # IDE
 .idea
+*.ipr
+*.iws
 *.iml
 
 logs/*

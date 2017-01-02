@@ -80,17 +80,9 @@ public class AgentRunner {
         String agentArg = "-agentpath:../recorder/build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
         process = new ProcessBuilder()
-                .command(java, agentArg, "-cp", "../recorder/target/test-classes/", fqdn)
+                .command(java, agentArg, "-cp", "./target/test-classes/", fqdn)
                 .redirectError(new File("/tmp/error.log"))
                 .start();
-    }
-
-    private void readProcessId() throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line = reader.readLine();
-            System.out.println("[" + line + "]");
-            processId = parseInt(line);
-        }
     }
 
     public void stop() {

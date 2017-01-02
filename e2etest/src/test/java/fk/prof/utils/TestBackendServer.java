@@ -30,10 +30,12 @@ import java.util.function.Function;
 public class TestBackendServer {
     private static class HandlerStub {
         final CompletableFuture<Void> fut;
-        private final Function<byte[], byte[]> handler;
+        private final Function<byte[], byte[]>[] handlers;
+        private final int idx;
 
-        public HandlerStub(Function<byte[], byte[]> handler) {
-            this.handler = handler;
+        public HandlerStub(Function<byte[], byte[]>[] handlers, int idx) {
+            this.handlers = handlers;
+            this.idx = idx;
             this.fut = new CompletableFuture<Void>();
         }
 
@@ -42,7 +44,7 @@ public class TestBackendServer {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             IOUtils.copy(inputStream, os);
             byte[] reqBytes = os.toByteArray();
-            byte[] resBytes = handler.apply(reqBytes);
+            byte[] resBytes = handlers[idx].apply(reqBytes);
 
             resStrm.write(resBytes);
             fut.complete(null);
@@ -71,11 +73,13 @@ public class TestBackendServer {
     }
 
     private HandlerStub makeHelloWorldStub(Queue<HandlerStub> helloWorldQueue) {
-        return new HandlerStub((req) -> {
+        Function<byte[], byte[]> fn = (req) -> {
             helloWorldQueue.offer(makeHelloWorldStub(helloWorldQueue));
             System.out.println("req = [" + new String(req) + "]");
-            return "Hello World\n".getBytes(Charset.defaultCharset());
-        });
+            byte[] bytes = "Hello World\n".getBytes(Charset.defaultCharset());
+            return bytes;
+        };
+        return new HandlerStub(new Function[] {fn}, 0);
     }
 
     class StubCallingHandler extends AbstractHandler {
@@ -106,9 +110,8 @@ public class TestBackendServer {
             handlerStubs = actions.get(path);
         }
         Future[] arr = new Future[handler.length];
-        int i = 0;
-        for (Function<byte[], byte[]> h : handler) {
-            HandlerStub hStub = new HandlerStub(h);
+        for (int i = 0; i < handler.length; i++) {
+            HandlerStub hStub = new HandlerStub(handler, i);
             handlerStubs.offer(hStub);
             arr[i] = hStub.fut;
         }

@@ -274,6 +274,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     logger = spdlog::syslog_logger("syslog", "fk-prof-rec", LOG_PID);
     
     CONFIGURATION = new ConfigurationOptions(options);
+    if (! CONFIGURATION->valid()) return 1;
 
     if ((err = (jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION))) !=
             JNI_OK) {

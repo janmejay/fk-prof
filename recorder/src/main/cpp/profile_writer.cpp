@@ -1,15 +1,18 @@
 #include "profile_writer.h"
 #include "buff.h"
+#include "globals.h"
+
+//for buff, no one uses read-end here, so it is inconsistent
 
 void ProfileWriter::flush() {
     w.write_unbuffered(data.buff, data.write_end, 0); //TODO: err-check me!
-    data.offset = 0;
+    data.write_end = 0;
 }
 
 std::uint32_t ProfileWriter::ensure_freebuff(std::uint32_t min_reqired) {
-    if ((data.offset + min_reqired) > data.capacity) {
+    if ((data.write_end + min_reqired) > data.capacity) {
         flush();
-        buff.ensure_capacity(min_reqired);
+        data.ensure_capacity(min_reqired);
     }
     return data.capacity - data.write_end;
 }
@@ -37,7 +40,7 @@ void ProfileWriter::write_header(const recording::RecordingHeader& rh) {
     assert(! header_written);
     header_written = true;
     ensure_freebuff(rh);
-    write_unchecked(Version);
+    write_unchecked(DATA_ENCODING_VERSION);
     write_unchecked_obj(rh);
     auto csum = chksum.chksum(data.buff, data.write_end);
     write_unchecked(csum);

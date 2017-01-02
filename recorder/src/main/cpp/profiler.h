@@ -66,6 +66,18 @@ public:
     ~SimpleSpinLockGuard() {}
 };
 
+class ProfileSerializer : public QueueListener {
+private:
+    ProfileWriter& w;
+    
+public:
+    ProfileSerializer(ProfileWriter& _w) : w(_w) {}
+
+    ~ProfileSerializer() {}
+
+    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr) {}
+};
+
 class Profiler {
 public:
     explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileWriter& _writer, std::uint16_t _max_stack_depth, std::uint16_t _sampling_freq)
@@ -101,6 +113,8 @@ private:
     Processor *processor;
 
     SignalHandler* handler;
+
+    ProfileSerializer* serializer;
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
