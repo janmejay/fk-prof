@@ -76,7 +76,7 @@ public class RecordedProfileHeaderParser {
         if (checksumValue == null) {
           checksumValue = codedInputStream.readUInt32();
           currentPos = codedInputStream.getTotalBytesRead();
-          if (headerChecksum.getValue() != checksumValue) {
+          if ((int)headerChecksum.getValue() != checksumValue) {
             throw new HttpFailure("Checksum of header does not match", 400);
           }
           headerParsed = true;

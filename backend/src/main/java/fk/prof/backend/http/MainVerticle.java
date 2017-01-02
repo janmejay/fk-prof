@@ -64,13 +64,13 @@ public class MainVerticle extends AbstractVerticle {
     RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, parser);
     context.request()
         .handler(requestHandler)
-        .endHandler((v) -> {
+        .endHandler(v -> {
           if (!context.response().ended()) {
-            if(!parser.isParsed()) {
-              HttpHelper.handleFailure(context, new HttpFailure("Invalid or incomplete payload received", 400));
-            } else {
-              context.response().end();
-            }
+            //Can safely attempt to close the parser here because endHandler is called once the entire body has been read
+            //and example in vertx docs also indicates that this handler will execute once all chunk handlers have completed execution
+            //http://vertx.io/docs/vertx-core/java/#_handling_requests
+            parser.close();
+            context.response().end();
           }
         });
   }

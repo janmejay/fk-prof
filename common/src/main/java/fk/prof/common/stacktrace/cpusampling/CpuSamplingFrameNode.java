@@ -20,7 +20,7 @@ public class CpuSamplingFrameNode {
 
     /**
      * Gets list of children of the node
-     * Any operation on the returned value is not thread-safe
+     * Any operation on the returned value is not thread-safe and modifies the children list of node instance
      * @return gets backing array list of children
      */
     public List<CpuSamplingFrameNode> getChildrenUnsafe() {

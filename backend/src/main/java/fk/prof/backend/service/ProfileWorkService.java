@@ -5,7 +5,7 @@ import fk.prof.backend.aggregator.AggregationWindow;
 import java.util.concurrent.ConcurrentHashMap;
 
 //TODO: Liable for refactoring. For now, placeholder to enable functional completion of /profile api
-public class ProfileWorkService implements IProfileWorkService<AggregationWindow> {
+public class ProfileWorkService implements IProfileWorkService {
   private AggregationWindowStore aggregationWindowStore = new AggregationWindowStore();
 
   public void associateAggregationWindow(Long workId, AggregationWindow aggregationWindow) {

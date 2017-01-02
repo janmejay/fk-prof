@@ -48,6 +48,7 @@ public class WseParser {
     this.wse = null;
     this.checksumValue = null;
     this.wseParsed = false;
+    this.wseChecksum.reset();
   }
 
   /**
@@ -78,8 +79,8 @@ public class WseParser {
         if (checksumValue == null) {
           checksumValue = codedInputStream.readUInt32();
           currentPos = codedInputStream.getTotalBytesRead();
-          if (wseChecksum.getValue() != checksumValue) {
-            throw new HttpFailure("Checksum of recorded data entry log does not match", 400);
+          if ((int)wseChecksum.getValue() != checksumValue) {
+            throw new HttpFailure("Checksum of wse entry log does not match", 400);
           }
           wseParsed = true;
         }

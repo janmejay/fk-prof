@@ -30,6 +30,17 @@
       <artifactId>aws-java-sdk-s3</artifactId>
       <version>1.9.4</version>
     </dependency>
+    <dependency>
+      <groupId>com.koloboke</groupId>
+      <artifactId>koloboke-api-jdk8</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.koloboke</groupId>
+      <artifactId>koloboke-impl-jdk8</artifactId>
+      <version>1.0.0</version>
+      <!--<scope>runtime</scope>-->
+    </dependency>
   </dependencies>
 
   <build>

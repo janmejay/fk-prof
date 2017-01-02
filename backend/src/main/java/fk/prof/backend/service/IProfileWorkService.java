@@ -1,22 +1,22 @@
 package fk.prof.backend.service;
 
-import fk.prof.backend.aggregator.IAggregationWindow;
+import fk.prof.backend.aggregator.AggregationWindow;
 
 //TODO: Liable for refactoring. For now, placeholder to enable functional completion of /profile apilati
-public interface IProfileWorkService<T extends IAggregationWindow> {
+public interface IProfileWorkService {
 
   /**
    * Associates a workId with given aggregation window
    * @param workId
    * @param aggregationWindow
    */
-  void associateAggregationWindow(Long workId, T aggregationWindow);
+  void associateAggregationWindow(Long workId, AggregationWindow aggregationWindow);
 
   /**
    * Returns the aggregation window associated with given work id, null if no such workId exists
    * @param workId
-   * @return
+   * @return associated aggregation window
    */
-  T getAssociatedAggregationWindow(Long workId);
+  AggregationWindow getAssociatedAggregationWindow(Long workId);
 
 }

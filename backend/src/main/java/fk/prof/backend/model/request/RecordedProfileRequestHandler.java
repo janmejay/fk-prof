@@ -23,6 +23,8 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   @Override
   public void handle(Buffer requestBuffer) {
+    //TODO: Remove
+//    System.err.println(String.format("buffer=%d, chunk=%d", runningBuffer.length(), requestBuffer.length()));
     if (!context.response().ended()) {
       runningBuffer.appendBuffer(requestBuffer);
       CodedInputStream codedInputStream = CodedInputStream.newInstance(runningBuffer.getByteBuf().nioBuffer());
@@ -32,6 +34,7 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
         //NOTE: Do not rely on CodedInputStream::getTotalBytesRead() to determine remaining bytes to be parsed
         //Example: CodedInputStream::readUInt32 can throw InvalidProtocolBufferEx if incomplete bytes have been received but it will update the totalBytesRead count
         //This will result in un-parsed bytes getting discarded and not accounted for when next chunk is received
+        //Maintaining own counter "currentPos" which serves as a checkpoint = last successfully read byte in the buffer + 1
         runningBuffer = resetRunningBuffer(runningBuffer, currentPos);
       } catch (HttpFailure ex) {
         HttpHelper.handleFailure(context, ex);

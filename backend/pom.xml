@@ -17,7 +17,6 @@
 
   <properties>
     <vertx.version>3.3.3</vertx.version>
-    <koloboke.version>1.0.0</koloboke.version>
   </properties>
 
   <dependencies>
@@ -40,17 +39,6 @@
       <groupId>io.vertx</groupId>
       <artifactId>vertx-unit</artifactId>
       <version>${vertx.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.koloboke</groupId>
-      <artifactId>koloboke-api-jdk8</artifactId>
-      <version>${koloboke.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.koloboke</groupId>
-      <artifactId>koloboke-impl-jdk8</artifactId>
-      <version>${koloboke.version}</version>
-      <scope>runtime</scope>
     </dependency>
   </dependencies>
 
