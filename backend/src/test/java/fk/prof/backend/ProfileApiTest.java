@@ -1,10 +1,11 @@
-package fk.prof.backend.http;
+package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
 import fk.prof.backend.aggregator.AggregationStatus;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.aggregator.CpuSamplingAggregationBucket;
 import fk.prof.backend.aggregator.ProfileWorkInfo;
+import fk.prof.backend.http.MainVerticle;
 import fk.prof.backend.mock.MockProfileComponents;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
