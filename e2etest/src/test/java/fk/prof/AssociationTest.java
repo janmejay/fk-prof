@@ -14,9 +14,6 @@ import recording.Recorder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -25,28 +22,31 @@ import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 public class AssociationTest {
 
     private TestBackendServer server;
-    private Function<byte[], byte[]>[] association = new Function[1];
-    private Function<byte[], byte[]>[] poll = new Function[2];
+    private Function<byte[], byte[]>[] association = new Function[10];
+    private Function<byte[], byte[]>[] poll = new Function[10];
+    private Function<byte[], byte[]>[] poll2 = new Function[10];
     private Future[] assocAction;
     private Future[] pollAction;
     private AgentRunner runner;
     private TestBackendServer associateServer;
+    private TestBackendServer associateServer2;
+    private Future[] pollAction2;
 
     @Before
     public void setUp() {
         server = new TestBackendServer(8080);
         associateServer = new TestBackendServer(8090);
+        associateServer2 = new TestBackendServer(8091);
         assocAction = server.register("/association", association);
         pollAction = associateServer.register("/poll", poll);
-        runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," + 
+        pollAction2 = associateServer2.register("/poll", poll2);
+        runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
                 "ip=10.20.30.40," +
                 "host=foo-host," +
                 "appid=bar-app," +
@@ -56,38 +56,162 @@ public class AssociationTest {
                 "proc=grault-proc," +
                 "vmid=garply-vmid," +
                 "zone=waldo-zone," +
-                "ityp=c0.small"
+                "ityp=c0.small," +
+                "backoffStart=2"
         );
     }
 
     @After
     public void tearDown() {
+        runner.stop();
         server.stop();
         associateServer.stop();
+        associateServer2.stop();
     }
 
     @Test
     public void should_DiscoverAssociate_and_SayHelloToIt() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
-        association[0] = (req) -> {
-            try {
-                Recorder.RecorderInfo.Builder recInfoBuilder = Recorder.RecorderInfo.newBuilder();
-                recInfo.setValue(recInfoBuilder.mergeFrom(req).build());
-                Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder()
-                        .setHost("127.0.0.15")
-                        .setPort(8090)
-                        .build();
-
-                ByteArrayOutputStream os = new ByteArrayOutputStream();
-                assignedBackend.writeTo(os);
-                return os.toByteArray();
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw new RuntimeException(e);
-            }
+        MutableBoolean assocCalledMoreThanOnce = new MutableBoolean(false);
+        association[0] = pointToAssociate(recInfo, 8090);
+        association[1] = (req) -> {
+            assocCalledMoreThanOnce.setValue(true);
+            throw new IllegalStateException("Unexpected move by recorder... Time to chicken out!");
         };
         MutableObject<Recorder.PollReq> pollReq = new MutableObject<>();
+        poll[0] = tellRecorderWeHaveNoWork(pollReq);
+        MutableBoolean pollCalledMoreThanOnce = new MutableBoolean(false);
+        poll[1] = (req) -> {
+            pollCalledMoreThanOnce.setValue(true);
+            return new byte[0];
+        };
+
+        //start process here
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+
+        assertThat(assocAction[0].isDone(), is(true));
+        assertRecorderInfoAllGood(recInfo.getValue());
+
+        pollAction[0].get(4, TimeUnit.SECONDS);
+
+        Recorder.PollReq pollRequest = pollReq.getValue();
+        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
+        assertThat(workLastIssued.getWorkId(), is(-1l));
+        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
+        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
+        assertThat(workLastIssued.getElapsedTime(), is(0));
+
+        assertThat(pollCalledMoreThanOnce.getValue(), is(false));
+        assertThat(assocCalledMoreThanOnce.getValue(), is(false));
+    }
+
+    @Test
+    public void should_RetryPoll_WhenAssociateHasInternalProblems() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        association[0] = pointToAssociate(recInfo, 8090);
+        MutableBoolean assocCalledMoreThanOnce = new MutableBoolean(false);
+        association[1] = (req) -> {
+            assocCalledMoreThanOnce.setValue(true);
+            throw new IllegalStateException("Unexpected move by recorder... Time to chicken out!");
+        };
+        MutableObject<Recorder.PollReq> pollReq = new MutableObject<>();
+        long[] pollCalledAt = {0l, 0l, 0l};
         poll[0] = (req) -> {
+            pollCalledAt[0] = System.currentTimeMillis();
+            throw new IllegalStateException("Something is temporarily wrong!");
+        };
+        poll[1] = (req) -> {
+            pollCalledAt[1] = System.currentTimeMillis();
+            throw new IllegalStateException("Something is still wrong (temporarily, of-course)!");
+        };
+        poll[2] = (req) -> {
+            pollCalledAt[2] = System.currentTimeMillis();
+            return tellRecorderWeHaveNoWork(pollReq).apply(req);
+        };
+
+        //start process here
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+
+        assertThat(assocAction[0].isDone(), is(true));
+        assertRecorderInfoAllGood(recInfo.getValue());
+
+        pollAction[2].get(8, TimeUnit.SECONDS);
+
+        Recorder.PollReq pollRequest = pollReq.getValue();
+        assertThat(pollRequest, is(notNullValue()));
+        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
+        assertThat(workLastIssued.getWorkId(), is(-1l));
+        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
+        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
+        assertThat(workLastIssued.getElapsedTime(), is(0));
+
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(assocCalledMoreThanOnce.getValue(), is(false));
+    }
+
+    @Test
+    public void should_RequestNewAssociate_WhenAssignedOneRefusesToWork() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        association[0] = pointToAssociate(recInfo, 8090);
+        association[1] = pointToAssociate(recInfo, 8091);
+        MutableBoolean assocCalledMoreThanTwice = new MutableBoolean(false);
+        association[2] = (req) -> {
+            assocCalledMoreThanTwice.setValue(true);
+            throw new IllegalStateException("Unexpected move by recorder... Time to chicken out!");
+        };
+        MutableObject<Recorder.PollReq> pollReq = new MutableObject<>();
+        long[] pollCalledAt = {0l, 0l, 0l, 0l};
+        poll[0] = (req) -> {
+            pollCalledAt[0] = System.currentTimeMillis();
+            throw new IllegalStateException("Something is temporarily wrong!");
+        };
+        poll[1] = (req) -> {
+            pollCalledAt[1] = System.currentTimeMillis();
+            throw new IllegalStateException("Something is still wrong (temporarily, of-course)!");
+        };
+        poll[2] = (req) -> {
+            pollCalledAt[2] = System.currentTimeMillis();
+            throw new IllegalStateException("Something is still wrong (temporarily, of-course)!");
+        };
+
+        poll2[0] = (req) -> {
+            pollCalledAt[3] = System.currentTimeMillis();
+            return tellRecorderWeHaveNoWork(pollReq).apply(req);
+        };
+
+        //start process here
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+
+        assertThat(assocAction[0].isDone(), is(true));
+        assertRecorderInfoAllGood(recInfo.getValue());
+
+        pollAction2[0].get(120, TimeUnit.SECONDS);
+
+        Recorder.PollReq pollRequest = pollReq.getValue();
+        assertThat(pollRequest, is(notNullValue()));
+        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
+        assertThat(workLastIssued.getWorkId(), is(-1l));
+        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
+        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
+        assertThat(workLastIssued.getElapsedTime(), is(0));
+
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(assocCalledMoreThanTwice.getValue(), is(false));
+    }
+
+    private Function<byte[], byte[]> tellRecorderWeHaveNoWork(MutableObject<Recorder.PollReq> pollReq) {
+        return (req) -> {
             try {
                 Recorder.PollReq.Builder pollReqBuilder = Recorder.PollReq.newBuilder();
                 pollReq.setValue(pollReqBuilder.mergeFrom(req).build());
@@ -112,34 +236,26 @@ public class AssociationTest {
                 throw new RuntimeException(e);
             }
         };
-        MutableBoolean pollCalledTwice = new MutableBoolean(false);
-        poll[1] = (req) -> {
-            pollCalledTwice.setValue(true);
-            return new byte[0];
+    }
+
+    private Function<byte[], byte[]> pointToAssociate(MutableObject<Recorder.RecorderInfo> recInfo, final int associatePort) {
+        return (req) -> {
+            try {
+                Recorder.RecorderInfo.Builder recInfoBuilder = Recorder.RecorderInfo.newBuilder();
+                recInfo.setValue(recInfoBuilder.mergeFrom(req).build());
+                Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder()
+                        .setHost("127.0.0.15")
+                        .setPort(associatePort)
+                        .build();
+
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                assignedBackend.writeTo(os);
+                return os.toByteArray();
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
         };
-
-        //start process here
-        runner.start();
-        
-        assocAction[0].get(12, TimeUnit.SECONDS);
-
-        assertThat(assocAction[0].isDone(), is(true));
-        assertRecorderInfoAllGood(recInfo.getValue());
-
-        pollAction[0].get(12, TimeUnit.SECONDS);
-
-        Recorder.PollReq pollRequest = pollReq.getValue();
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
-        Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
-        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
-        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
-        assertThat(workLastIssued.getElapsedTime(), is(0));
-        
-        //stop process here
-        runner.stop();
-        
-        assertThat(pollCalledTwice.getValue(), is(false));
     }
 
     private void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
@@ -157,6 +273,6 @@ public class AssociationTest {
         DateTime now = DateTime.now();
         assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
         assertThat(recorderInfo.getRecorderVersion(), is(1));
-        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThan(10)));
+        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThan(60)));
     }
 }

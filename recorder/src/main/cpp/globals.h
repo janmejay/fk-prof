@@ -58,6 +58,10 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
 char *safe_copy_string(const char *value, const char *next);
 void safe_free_string(char *&value);
 
+static const std::uint32_t MIN_BACKOFF_START = 5;
+static const std::uint32_t DEFAULT_BACKOFF_MULTIPLIER = 2;
+static const std::uint32_t DEFAULT_MAX_RETRIES = 3;
+    
 struct ConfigurationOptions {
     char* service_endpoint;
     
@@ -73,6 +77,10 @@ struct ConfigurationOptions {
     char* zone;
     char* inst_typ;
 
+    std::uint32_t backoff_start;
+    std::uint32_t backoff_multiplier;
+    std::uint32_t max_retries;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -83,7 +91,8 @@ struct ConfigurationOptions {
         proc(nullptr),
         vm_id(nullptr),
         zone(nullptr),
-        inst_typ(nullptr) {
+        inst_typ(nullptr),
+        backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), max_retries(DEFAULT_MAX_RETRIES) {
         const char* next = options;
         for (const char *key = options; next != NULL; key = next + 1) {
             const char *value = strchr(key, '=');
@@ -115,6 +124,14 @@ struct ConfigurationOptions {
                     zone = safe_copy_string(value, next);
                 } else if (strstr(key, "ityp") == key) {
                     inst_typ = safe_copy_string(value, next);
+                } else if (strstr(key, "backoffStart") == key) {
+                    backoff_start = (std::uint32_t) atoi(value);
+                    if (backoff_start == 0) backoff_start = MIN_BACKOFF_START;
+                } else if (strstr(key, "backoffMultiplier") == key) {
+                    backoff_multiplier = (std::uint32_t) atoi(value);
+                    if (backoff_multiplier == 0) backoff_multiplier = DEFAULT_BACKOFF_MULTIPLIER;
+                } else if (strstr(key, "maxRetries") == key) {
+                    max_retries = (std::uint32_t) atoi(value);
                 } else {
                     logError("WARN: Unknown configuration option: %s\n", key);
                 }

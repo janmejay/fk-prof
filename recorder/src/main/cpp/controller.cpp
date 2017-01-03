@@ -94,12 +94,11 @@ static void populate_issued_work_status(recording::WorkResponse& w_res) {
 typedef std::unique_ptr<CURL, void(*)(CURL*)> Curl;
 typedef std::unique_ptr<struct curl_slist, void(*)(curl_slist*)> CurlHeader;
 
-const std::uint32_t STARTING_BACKOFF_SEC_VALUE = 5;
 const std::uint32_t MAX_BACKOFF_SEC_VALUE = 60 * 10;
 
-static void backoff(std::uint32_t& seconds) {
+static void backoff(std::uint32_t& seconds, std::uint32_t multiplier) {
     std::this_thread::sleep_for(std::chrono::duration<int>(seconds));
-    seconds = min(seconds * 2, MAX_BACKOFF_SEC_VALUE);
+    seconds = min(seconds * multiplier, MAX_BACKOFF_SEC_VALUE);
 }
 
 static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, void *send_buff) {
@@ -132,6 +131,12 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
     return header_list;
 }
 
+static inline bool http_success(Curl& curl) {
+    long http_code = 0;
+    curl_easy_getinfo (curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+    return http_code >= 200 && http_code < 300;
+}
+
 void Controller::run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
     recording::AssignedBackend assigned;
     assigned.ParseFromArray(response_buff.buff + response_buff.read_end, response_buff.write_end - response_buff.read_end);
@@ -141,6 +146,8 @@ void Controller::run_with_associate(const Buff& response_buff, const std::chrono
     ss << "http://" << host << ":" << port << "/poll";
     const std::string url = ss.str();
     logger->info("Connecting to associate: {}", url);
+    std::uint32_t backoff_seconds = cfg.backoff_start;
+    auto retries_used = 0;
 
     Curl curl(curl_easy_init(), curl_easy_cleanup);
     CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
@@ -177,11 +184,19 @@ void Controller::run_with_associate(const Buff& response_buff, const std::chrono
 
         auto res = curl_easy_perform(curl.get());
         if (res == CURLE_OK) {
-            std::this_thread::sleep_for(std::chrono::duration<int>(60));
-        } else {
-            logger->error("Couldn't talk to associate {0} (poll) (error: {1})", url, res);
-            return;
+            if (http_success(curl)) {
+                std::this_thread::sleep_for(std::chrono::duration<int>(60));
+                backoff_seconds = cfg.backoff_start;
+                retries_used = 0;
+                continue;
+            }
         }
+        logger->error("Couldn't talk to associate {0} (poll) (error: {1}, retries used: {2})", url, res, retries_used);
+        if (retries_used++ >= cfg.max_retries) {
+            logger->error("Giving up on the associate: {}", url);
+            break;
+        }
+        backoff(backoff_seconds, cfg.backoff_multiplier);
     }
 }
 
@@ -192,7 +207,7 @@ void Controller::run() {
     CurlHeader header_list(make_header_list({ "Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
     Buff send(1024);
     Buff recv(1024);
-    auto backoff_seconds = STARTING_BACKOFF_SEC_VALUE;
+    auto backoff_seconds = cfg.backoff_start;
     
     if (curl.get() == nullptr || header_list == nullptr) {
         logger->error("Controller initialization failed because cURL init failed");
@@ -204,25 +219,30 @@ void Controller::run() {
     curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
     
     while (running.load(std::memory_order_relaxed)) {
+        logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
         recording::RecorderInfo ri;
         populate_recorder_info(ri, cfg, start_time);
         auto serialized_size = ri.ByteSize();
         send.ensure_capacity(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);
         send.write_end = serialized_size;
+        send.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
+        recv.write_end = recv.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
         auto res = curl_easy_perform(curl.get());
         if (res == CURLE_OK) {
-            backoff_seconds = STARTING_BACKOFF_SEC_VALUE;
-            run_with_associate(recv, start_time);
-        } else {
-            logger->error("Couldn't talk to service-endpoint {0} (and discover associate) (error: {1}), will try again after {2} seconds", service_endpoint_url, res, backoff_seconds);
-            backoff(backoff_seconds);
+            if (http_success(curl)) {
+                backoff_seconds = cfg.backoff_start;
+                run_with_associate(recv, start_time);
+                continue;
+            }
         }
+        logger->error("Couldn't talk to service-endpoint {0} (and discover associate) (error: {1}), will try again after {2} seconds", service_endpoint_url, res, backoff_seconds);
+        backoff(backoff_seconds, cfg.backoff_multiplier);
     }
  
 

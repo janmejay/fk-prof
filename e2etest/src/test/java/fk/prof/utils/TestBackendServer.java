@@ -1,12 +1,14 @@
 package fk.prof.utils;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.HandlerList;
 
+import javax.servlet.DispatcherType;
 import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
 import javax.servlet.ServletOutputStream;
@@ -22,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
@@ -44,15 +47,18 @@ public class TestBackendServer {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             IOUtils.copy(inputStream, os);
             byte[] reqBytes = os.toByteArray();
-            byte[] resBytes = handlers[idx].apply(reqBytes);
-
-            resStrm.write(resBytes);
-            fut.complete(null);
+            try {
+                byte[] resBytes = handlers[idx].apply(reqBytes);
+                resStrm.write(resBytes);
+            } finally {
+                fut.complete(null);
+            }
         }
     }
 
     private final Map<String, Queue<HandlerStub>> actions;
     private Server server;
+    private MutableBoolean stopped = new MutableBoolean(true);
 
     public TestBackendServer(final int port) {
         server = new Server(port);
@@ -67,6 +73,7 @@ public class TestBackendServer {
 
         try {
             server.start();
+            stopped.setValue(false);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -85,6 +92,10 @@ public class TestBackendServer {
     class StubCallingHandler extends AbstractHandler {
         @Override
         public void handle(String path, Request request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IOException, ServletException {
+            if (request.getDispatcherType().equals(DispatcherType.ERROR)) {
+                request.setHandled(true);
+                return;
+            }
             Queue<HandlerStub> handlerStubs = actions.get(path);
             HandlerStub stub = handlerStubs.poll();
             ServletOutputStream os = httpServletResponse.getOutputStream();
@@ -94,9 +105,13 @@ public class TestBackendServer {
     }
 
     public void stop() {
+        if (stopped.getValue()) {
+            return;
+        }
         try {
             server.stop();
             server.join();
+            stopped.setValue(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
