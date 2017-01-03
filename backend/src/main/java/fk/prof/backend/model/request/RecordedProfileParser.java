@@ -65,8 +65,6 @@ public class RecordedProfileParser {
 
         if (headerParser.isParsed()) {
           header = headerParser.get();
-          //TODO: Remove
-          System.out.println(header);
 
           workId = header.getRecordingHeader().getWorkAssignment().getWorkId();
           aggregationWindow = profileWorkService.getAssociatedAggregationWindow(workId);
@@ -128,8 +126,6 @@ public class RecordedProfileParser {
     indexes.update(wse.getIndexedData());
     aggregationWindow.updateWorkInfo(workId, wse);
     aggregationWindow.aggregate(wse, indexes);
-    //TODO: Remove
-    System.out.println(wse);
   }
 
 }

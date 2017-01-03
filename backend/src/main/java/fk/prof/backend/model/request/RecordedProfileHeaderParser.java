@@ -17,6 +17,13 @@ public class RecordedProfileHeaderParser {
 
   private Checksum headerChecksum = new Adler32();
   private boolean headerParsed = false;
+  private int maxAllowedBytesForRecordingHeader = 1024;
+
+  public RecordedProfileHeaderParser() {}
+
+  public RecordedProfileHeaderParser(int maxAllowedBytesForRecordingHeader) {
+    this.maxAllowedBytesForRecordingHeader = maxAllowedBytesForRecordingHeader;
+  }
 
   /**
    * Returns true if all fields of header have been read and checksum validated, false otherwise
@@ -55,6 +62,9 @@ public class RecordedProfileHeaderParser {
 
         if (headerLength == null) {
           headerLength = codedInputStream.readUInt32();
+          if(headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
+            throw new HttpFailure("Allowed range for recording header length is 1B to " + maxAllowedBytesForRecordingHeader + "B", 400);
+          }
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
 
@@ -64,7 +74,12 @@ public class RecordedProfileHeaderParser {
           }
 
           int oldLimit = codedInputStream.pushLimit(headerLength);
-          recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
+          try {
+            recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
+          } catch (IOException ex) {
+            //Running buffer has sufficient bytes present for reading recording header. If exception is thrown while parsing, send error response
+            throw new HttpFailure("Error while parsing recording header", 400);
+          }
           codedInputStream.popLimit(oldLimit);
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }

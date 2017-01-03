@@ -46,6 +46,10 @@ public class AggregationWindow {
     return workStatusLookup.get(workId);
   }
 
+  public CpuSamplingAggregationBucket getCpuSamplingAggregationBucket() {
+    return this.cpuSamplingAggregationBucket;
+  }
+
   public boolean startProfile(long workId, LocalDateTime startedAt) {
     boolean updated = true;
     ProfileWorkInfo workInfo = this.workStatusLookup.get(workId);
@@ -96,6 +100,9 @@ public class AggregationWindow {
     return updated;
   }
 
+  /**
+   * Aborts all in-flight profiles. Should be called when aggregation window expires
+   */
   public void abortOngoingProfiles() {
     this.workStatusLookup.replaceAll((workId, workInfo) -> {
       if (workInfo.getStatus().equals(AggregationStatus.ONGOING) || workInfo.getStatus().equals(AggregationStatus.ONGOING_PARTIAL)) {
@@ -121,6 +128,10 @@ public class AggregationWindow {
 
   public void updateWorkInfo(long workId, Recorder.Wse wse) {
     ProfileWorkInfo workInfo = getWorkInfo(workId);
+    if(workInfo == null) {
+      throw new AggregationFailure(String.format("Cannot find work id=%d association in the aggregation window", workId), true);
+    }
+
     for (Recorder.TraceContext trace : wse.getIndexedData().getTraceCtxList()) {
       workInfo.addTrace(trace.getTraceName(), trace.getCoveragePct());
     }
@@ -130,14 +141,10 @@ public class AggregationWindow {
   public boolean hasProfileData(Recorder.WorkType workType) {
     switch (workType) {
       case cpu_sample_work:
-        return this.cpuSamplingAggregationBucket.getAvailableContexts().size() > 0;
+        return this.cpuSamplingAggregationBucket.getAvailableTraces().size() > 0;
       default:
         throw new AggregationFailure(String.format("Aggregation not supported for work type=%s", workType));
     }
-  }
-
-  public CpuSamplingAggregationBucket getCpuSamplingAggregationBucket() {
-    return this.cpuSamplingAggregationBucket;
   }
 
   private static int getSampleCount(Recorder.Wse wse) {

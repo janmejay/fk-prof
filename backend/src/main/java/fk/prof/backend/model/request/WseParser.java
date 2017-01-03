@@ -16,6 +16,13 @@ public class WseParser {
 
   private Checksum wseChecksum = new Adler32();
   private boolean wseParsed = false;
+  private int maxAllowedBytesForWse = 1024 * 1024;
+
+  public WseParser() {}
+
+  public WseParser(int maxAllowedBytesForWse) {
+    this.maxAllowedBytesForWse = maxAllowedBytesForWse;
+  }
 
   /**
    * Returns true if wse has been read and checksum validated, false otherwise
@@ -58,6 +65,9 @@ public class WseParser {
       if (!wseParsed) {
         if (wseLength == null) {
           wseLength = codedInputStream.readUInt32();
+          if(wseLength < 1 || wseLength > maxAllowedBytesForWse) {
+            throw new HttpFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B", 400);
+          }
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
 
@@ -67,7 +77,12 @@ public class WseParser {
           }
 
           int oldLimit = codedInputStream.pushLimit(wseLength);
-          wse = Recorder.Wse.parseFrom(codedInputStream);
+          try {
+            wse = Recorder.Wse.parseFrom(codedInputStream);
+          } catch (IOException ex) {
+            //Running buffer has sufficient bytes present for reading wse. If exception is thrown while parsing, send error response
+            throw new HttpFailure("Error while parsing work-specific entry log", 400);
+          }
           codedInputStream.popLimit(oldLimit);
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
@@ -76,7 +91,7 @@ public class WseParser {
           checksumValue = codedInputStream.readUInt32();
           currentPos = codedInputStream.getTotalBytesRead();
           if ((int) wseChecksum.getValue() != checksumValue) {
-            throw new HttpFailure("Checksum of wse entry log does not match", 400);
+            throw new HttpFailure("Checksum of work-specific entry log does not match", 400);
           }
           wseParsed = true;
         }

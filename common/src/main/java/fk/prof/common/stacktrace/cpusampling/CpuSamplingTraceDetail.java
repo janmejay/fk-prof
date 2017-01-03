@@ -2,11 +2,11 @@ package fk.prof.common.stacktrace.cpusampling;
 
 import fk.prof.common.stacktrace.MethodIdLookup;
 
-public class CpuSamplingContextDetail {
+public class CpuSamplingTraceDetail {
     private CpuSamplingFrameNode globalRoot = null;
     private CpuSamplingFrameNode unclassifiableRoot = null;
 
-    public CpuSamplingContextDetail() {
+    public CpuSamplingTraceDetail() {
         this.globalRoot = new CpuSamplingFrameNode(MethodIdLookup.GLOBAL_ROOT_METHOD_ID, 0);
         this.unclassifiableRoot = this.globalRoot.getOrAddChild(MethodIdLookup.UNCLASSIFIABLE_ROOT_METHOD_ID, 0);
     }

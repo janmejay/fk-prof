@@ -20,7 +20,6 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   @Override
   public void handle(Buffer requestBuffer) {
-    //TODO: Remove
 //    System.err.println(String.format("buffer=%d, chunk=%d", runningBuffer.length(), requestBuffer.length()));
     if (!context.response().ended()) {
       runningBuffer.appendBuffer(requestBuffer);

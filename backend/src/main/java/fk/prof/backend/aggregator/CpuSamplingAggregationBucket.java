@@ -3,7 +3,7 @@ package fk.prof.backend.aggregator;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.request.RecordedProfileIndexes;
 import fk.prof.common.stacktrace.MethodIdLookup;
-import fk.prof.common.stacktrace.cpusampling.CpuSamplingContextDetail;
+import fk.prof.common.stacktrace.cpusampling.CpuSamplingTraceDetail;
 import fk.prof.common.stacktrace.cpusampling.CpuSamplingFrameNode;
 import recording.Recorder;
 
@@ -14,14 +14,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class CpuSamplingAggregationBucket {
   private final MethodIdLookup methodIdLookup = new MethodIdLookup();
-  private final ConcurrentHashMap<String, CpuSamplingContextDetail> contextLookup = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, CpuSamplingTraceDetail> traceDetailLookup = new ConcurrentHashMap<>();
 
-  public Set<String> getAvailableContexts() {
-    return contextLookup.keySet();
+  public Set<String> getAvailableTraces() {
+    return traceDetailLookup.keySet();
   }
 
-  public CpuSamplingContextDetail getContext(String traceName) {
-    return contextLookup.get(traceName);
+  public CpuSamplingTraceDetail getTraceDetail(String traceName) {
+    return traceDetailLookup.get(traceName);
   }
 
   /**
@@ -45,20 +45,23 @@ public class CpuSamplingAggregationBucket {
       throws AggregationFailure {
 
     for (Recorder.StackSample stackSample : stackSampleWse.getStackSampleList()) {
+      //NOTE: As of now, only those samples are aggregated which are associated with a trace id
       if (stackSample.hasTraceId()) {
         String trace = indexes.getTrace(stackSample.getTraceId());
-        CpuSamplingContextDetail contextDetail = contextLookup.computeIfAbsent(trace,
-            key -> new CpuSamplingContextDetail()
+        if (trace == null) {
+          throw new AggregationFailure("Unknown trace id encountered in stack sample, aborting aggregation of this profile");
+        }
+        CpuSamplingTraceDetail traceDetail = traceDetailLookup.computeIfAbsent(trace,
+            key -> new CpuSamplingTraceDetail()
         );
 
         List<Recorder.Frame> frames = stackSample.getFrameList();
         if (frames != null && frames.size() > 0) {
-
           //TODO: Read this flag from proto. Enhance proto to support this flag
           boolean framesSnipped = true;
-          CpuSamplingFrameNode currentNode = framesSnipped ? contextDetail.getUnclassifiableRoot() : contextDetail.getGlobalRoot();
+          CpuSamplingFrameNode currentNode = framesSnipped ? traceDetail.getUnclassifiableRoot() : traceDetail.getGlobalRoot();
 
-          //NOTE: callee -> caller ordering in frames, so iterating bottom up in the list
+          //callee -> caller ordering in frames, so iterating bottom up in the list to merge in existing tree in root->leaf fashion
           for (int i = frames.size() - 1; i >= 0; i--) {
             Recorder.Frame frame = frames.get(i);
             String method = indexes.getMethod(frame.getMethodId());
@@ -74,6 +77,7 @@ public class CpuSamplingAggregationBucket {
             }
           }
         }
+
       }
     }
   }
