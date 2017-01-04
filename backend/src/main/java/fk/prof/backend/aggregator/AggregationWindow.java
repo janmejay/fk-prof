@@ -128,7 +128,7 @@ public class AggregationWindow {
 
   public void updateWorkInfo(long workId, Recorder.Wse wse) {
     ProfileWorkInfo workInfo = getWorkInfo(workId);
-    if(workInfo == null) {
+    if (workInfo == null) {
       throw new AggregationFailure(String.format("Cannot find work id=%d association in the aggregation window", workId), true);
     }
 

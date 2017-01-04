@@ -18,7 +18,8 @@ public class WseParser {
   private boolean wseParsed = false;
   private int maxAllowedBytesForWse = 1024 * 1024;
 
-  public WseParser() {}
+  public WseParser() {
+  }
 
   public WseParser(int maxAllowedBytesForWse) {
     this.maxAllowedBytesForWse = maxAllowedBytesForWse;
@@ -65,7 +66,7 @@ public class WseParser {
       if (!wseParsed) {
         if (wseLength == null) {
           wseLength = codedInputStream.readUInt32();
-          if(wseLength < 1 || wseLength > maxAllowedBytesForWse) {
+          if (wseLength < 1 || wseLength > maxAllowedBytesForWse) {
             throw new HttpFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B", 400);
           }
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);

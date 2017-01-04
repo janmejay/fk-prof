@@ -19,7 +19,8 @@ public class RecordedProfileHeaderParser {
   private boolean headerParsed = false;
   private int maxAllowedBytesForRecordingHeader = 1024;
 
-  public RecordedProfileHeaderParser() {}
+  public RecordedProfileHeaderParser() {
+  }
 
   public RecordedProfileHeaderParser(int maxAllowedBytesForRecordingHeader) {
     this.maxAllowedBytesForRecordingHeader = maxAllowedBytesForRecordingHeader;
@@ -62,7 +63,7 @@ public class RecordedProfileHeaderParser {
 
         if (headerLength == null) {
           headerLength = codedInputStream.readUInt32();
-          if(headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
+          if (headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
             throw new HttpFailure("Allowed range for recording header length is 1B to " + maxAllowedBytesForRecordingHeader + "B", 400);
           }
           currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
