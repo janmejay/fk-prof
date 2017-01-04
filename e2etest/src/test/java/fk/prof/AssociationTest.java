@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 public class AssociationTest {
-
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[10];
     private Function<byte[], byte[]>[] poll = new Function[10];
@@ -103,10 +102,7 @@ public class AssociationTest {
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
-        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
-        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
-        assertThat(workLastIssued.getElapsedTime(), is(0));
+        assertReportedBootstrapWorkCompletion(workLastIssued);
 
         assertThat(pollCalledMoreThanOnce.getValue(), is(false));
         assertThat(assocCalledMoreThanOnce.getValue(), is(false));
@@ -150,10 +146,7 @@ public class AssociationTest {
         assertThat(pollRequest, is(notNullValue()));
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
-        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
-        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
-        assertThat(workLastIssued.getElapsedTime(), is(0));
+        assertReportedBootstrapWorkCompletion(workLastIssued);
 
         assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
         assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
@@ -204,10 +197,7 @@ public class AssociationTest {
         assertThat(pollRequest, is(notNullValue()));
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
-        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
-        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
-        assertThat(workLastIssued.getElapsedTime(), is(0));
+        assertReportedBootstrapWorkCompletion(workLastIssued);
 
         assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
         assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
@@ -248,10 +238,7 @@ public class AssociationTest {
         assertThat(pollRequest, is(notNullValue()));
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
-        assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
-        assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
-        assertThat(workLastIssued.getElapsedTime(), is(0));
+        assertReportedBootstrapWorkCompletion(workLastIssued);
 
         assertThat(associate2PolledAt.getValue() - startTime, is(greaterThan(14l)));
         assertThat(assocCalledMoreThanTwice.getValue(), is(false));
@@ -319,12 +306,16 @@ public class AssociationTest {
         assertThat(pollRequest, is(notNullValue()));
         assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
-        assertThat(workLastIssued.getWorkId(), is(-1l));
+        assertReportedBootstrapWorkCompletion(workLastIssued);
+
+        assertThat(assocCalledMoreThanThrice.getValue(), is(false));
+    }
+
+    private void assertReportedBootstrapWorkCompletion(Recorder.WorkResponse workLastIssued) {
+        assertThat(workLastIssued.getWorkId(), is(0l));
         assertThat(workLastIssued.getWorkState(), is(Recorder.WorkResponse.WorkState.complete));
         assertThat(workLastIssued.getWorkResult(), is(Recorder.WorkResponse.WorkResult.success));
         assertThat(workLastIssued.getElapsedTime(), is(0));
-
-        assertThat(assocCalledMoreThanThrice.getValue(), is(false));
     }
 
     private Function<byte[], byte[]> tellRecorderWeHaveNoWork(MutableObject<Recorder.PollReq> pollReq) {

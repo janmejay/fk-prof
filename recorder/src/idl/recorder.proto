@@ -38,7 +38,7 @@ message WorkResponse {
   required uint64 work_id = 1;
   enum WorkState {
     pre_start = 0;
-    start = 1;
+    running = 1;
     complete = 2;
   }
   required WorkState work_state = 2;

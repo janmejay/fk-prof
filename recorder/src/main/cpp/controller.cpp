@@ -84,11 +84,11 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
     ri.set_recorder_uptime(uptime.count());
 }
 
-static void populate_issued_work_status(recording::WorkResponse& w_res) {
-    w_res.set_work_id(-1);
-    w_res.set_work_state(recording::WorkResponse::complete);
-    w_res.set_work_result(recording::WorkResponse::success);
-    w_res.set_elapsed_time(0);
+static void populate_issued_work_status(recording::WorkResponse& w_res, std::uint64_t work_id, recording::WorkResponse::WorkState state, recording::WorkResponse::WorkResult result) {
+    w_res.set_work_id(work_id);
+    w_res.set_work_state(state);
+    w_res.set_work_result(result);
+    w_res.set_elapsed_time(0);//TODO: fix me
 }
 
 typedef std::unique_ptr<CURL, void(*)(CURL*)> Curl;
@@ -144,9 +144,9 @@ static inline bool do_call(Curl& curl, const char* url, const char* functional_a
     return false;
 }
 
-void Controller::run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
+void Controller::run_with_associate(const Buff& associate_response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
     recording::AssignedBackend assigned;
-    assigned.ParseFromArray(response_buff.buff + response_buff.read_end, response_buff.write_end - response_buff.read_end);
+    assigned.ParseFromArray(associate_response_buff.buff + associate_response_buff.read_end, associate_response_buff.write_end - associate_response_buff.read_end);
     const std::string& host = assigned.host();
     std::uint32_t port = assigned.port();
     std::stringstream ss;
@@ -179,7 +179,17 @@ void Controller::run_with_associate(const Buff& response_buff, const std::chrono
     while (running.load(std::memory_order_relaxed)) {
         recording::PollReq p_req;
         populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time);
-        populate_issued_work_status(*p_req.mutable_work_last_issued());
+        Controller::WSt state;
+        Controller::WRes result;
+        std::uint64_t work_id;
+
+        with_current_work([&state, &result, &work_id](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, std::string& desc) {
+                work_id = w.work_id();
+                state = wst;
+                result = wres;
+            });
+        
+        populate_issued_work_status(*p_req.mutable_work_last_issued(), work_id, state, result);
         
         auto serialized_size = p_req.ByteSize();
         send.ensure_capacity(serialized_size);
@@ -189,8 +199,11 @@ void Controller::run_with_associate(const Buff& response_buff, const std::chrono
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         recv.read_end = recv.write_end = 0;
 
+        logger->trace("Polling now");
+
         if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
-            std::this_thread::sleep_for(std::chrono::duration<int>(60));
+            accept_work(recv);
+            std::this_thread::sleep_for(std::chrono::duration<int>(cfg.poll_itvl));
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
         } else {
@@ -275,6 +288,44 @@ void Controller::run() {
     // }
 
     // close(clientConnection);
+}
+
+void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&, std::string&)> proc) {
+    std::lock_guard<std::mutex> current_work_guard(current_work_mtx);
+    proc(current_work, current_work_state, current_work_result, current_work_description);
+}
+
+void Controller::accept_work(Buff& poll_response_buff) {
+    recording::PollRes res;
+    auto parse_successful = res.ParseFromArray(poll_response_buff.buff + poll_response_buff.read_end, poll_response_buff.write_end - poll_response_buff.read_end);
+    if (! parse_successful) {
+        logger->error("Parse of poll-response failed, ignoring it");
+        return;
+    }
+    
+    with_current_work([&res](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, std::string& desc) {
+            auto new_work = res.mutable_assignment();
+            if (wst != recording::WorkResponse::complete) {
+                logger->critical("New work (id: {}, desc: {}, controller: {}/{}) issued while current-work (id: {}, desc: {}) is incomplete (state {})", 
+                                 new_work->work_id(), res.work_description(), res.controller_id(), res.controller_version(),
+                                 w.work_id(), wst, desc);
+                return;
+            }
+
+            logger->trace("New work (id: {}, desc: {}, controller: {}/{}) is being assigned",
+                          new_work->work_id(), res.work_description(), res.controller_id(), res.controller_version());
+
+            w.Swap(new_work);
+            desc = res.work_description();
+
+            if (w.work_size() > 0) {
+                wst = recording::WorkResponse::pre_start;
+                wres = recording::WorkResponse::unknown;
+            } else {
+                wst = recording::WorkResponse::complete;
+                wres = recording::WorkResponse::success;
+            }
+        });
 }
 
 void Controller::startSampling() {

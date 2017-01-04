@@ -70,9 +70,12 @@ void ConfigurationOptions::load(const char* options, LoggerP logger) {
             } else if (strstr(key, "backoffMax") == key) {
                 backoff_max = (std::uint32_t) atoi(value);
                 if (backoff_max == 0) backoff_max = DEFAULT_BACKOFF_MAX;
-            } else if (strstr(key, "logLevel") == key) {
+            } else if (strstr(key, "logLvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
                 set_log_level(logger, val);
+            } else if (strstr(key, "pollItvl") == key) {
+                poll_itvl = (std::uint32_t) atoi(value);
+                if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;
             } else {
                 logger->warn("Unknown configuration option: {}\n", key);
             }

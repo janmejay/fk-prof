@@ -4,10 +4,13 @@
 #include <cstdint>
 #include "globals.h"
 
-static const std::uint32_t MIN_BACKOFF_START = 5;
 static const std::uint32_t DEFAULT_BACKOFF_MULTIPLIER = 2;
 static const std::uint32_t DEFAULT_MAX_RETRIES = 3;
+
+// all of these are seconds
+static const std::uint32_t MIN_BACKOFF_START = 5;
 static const std::uint32_t DEFAULT_BACKOFF_MAX = 10 * 60;
+static const std::uint32_t DEFAULT_POLLING_INTERVAL = 60;
     
 struct ConfigurationOptions {
     char* service_endpoint;
@@ -28,6 +31,7 @@ struct ConfigurationOptions {
     std::uint32_t backoff_multiplier;
     std::uint32_t backoff_max;
     std::uint32_t max_retries;
+    std::uint32_t poll_itvl;
 
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
@@ -40,7 +44,8 @@ struct ConfigurationOptions {
         vm_id(nullptr),
         zone(nullptr),
         inst_typ(nullptr),
-        backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), backoff_max(DEFAULT_BACKOFF_MAX), max_retries(DEFAULT_MAX_RETRIES) {
+        backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), backoff_max(DEFAULT_BACKOFF_MAX), max_retries(DEFAULT_MAX_RETRIES),
+        poll_itvl(DEFAULT_POLLING_INTERVAL) {
         load(options, logger);
     }
 

@@ -17,6 +17,7 @@
 #include <atomic>
 #include "profile_writer.h"
 #include "config.hh"
+#include <functional>
 
 #define MAX_DATA_SIZE 100
 
@@ -24,7 +25,9 @@ class Controller {
 public:
     explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
         jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), running(false) {
-        
+        current_work.set_work_id(0);
+        current_work_state = recording::WorkResponse::complete;
+        current_work_result = recording::WorkResponse::success;
     }
 
     void start();
@@ -44,6 +47,15 @@ private:
     std::atomic_bool running;
     Buff buff;
     ProfileWriter *writer;
+    
+    std::mutex current_work_mtx;
+    typedef recording::WorkAssignment W;
+    typedef recording::WorkResponse::WorkState WSt;
+    typedef recording::WorkResponse::WorkResult WRes;
+    W current_work;
+    WSt current_work_state;
+    WRes current_work_result;
+    std::string current_work_description;
 
     void startSampling();
 
@@ -51,7 +63,11 @@ private:
 
     void run();
     
-    void run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time);
+    void run_with_associate(const Buff& associate_response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time);
+
+    void accept_work(Buff& poll_response_buff);
+
+    void with_current_work(std::function<void(W&, WSt&, WRes&, std::string&)> proc);
 };
 
 #endif
