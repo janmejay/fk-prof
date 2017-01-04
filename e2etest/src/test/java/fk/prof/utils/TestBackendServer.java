@@ -71,6 +71,10 @@ public class TestBackendServer {
         handlers.setHandlers(new Handler[]{new StubCallingHandler()});
         server.setHandler(handlers);
 
+        start();
+    }
+
+    public void start() {
         try {
             server.start();
             stopped.setValue(false);

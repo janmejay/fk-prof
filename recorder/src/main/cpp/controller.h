@@ -16,6 +16,7 @@
 #include <jvmti.h>
 #include <atomic>
 #include "profile_writer.h"
+#include "config.hh"
 
 #define MAX_DATA_SIZE 100
 

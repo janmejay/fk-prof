@@ -85,7 +85,9 @@ set(SOURCE_FILES
     ${SRC}/concurrent_map.h
     ${SRC}/concurrent_map.cpp
     ${SRC}/profile_writer.cpp
-    ${SRC}/profile_writer.h)
+    ${SRC}/profile_writer.h
+    ${SRC}/config.hh
+    ${SRC}/config.cc)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.h

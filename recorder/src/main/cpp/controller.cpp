@@ -94,11 +94,10 @@ static void populate_issued_work_status(recording::WorkResponse& w_res) {
 typedef std::unique_ptr<CURL, void(*)(CURL*)> Curl;
 typedef std::unique_ptr<struct curl_slist, void(*)(curl_slist*)> CurlHeader;
 
-const std::uint32_t MAX_BACKOFF_SEC_VALUE = 60 * 10;
-
-static void backoff(std::uint32_t& seconds, std::uint32_t multiplier) {
+static void backoff(std::uint32_t& seconds, std::uint32_t multiplier, std::uint32_t max_backoff_val) {
     std::this_thread::sleep_for(std::chrono::duration<int>(seconds));
-    seconds = min(seconds * multiplier, MAX_BACKOFF_SEC_VALUE);
+    logger->error("COMM failed, backed-off by {} seconds", seconds);
+    seconds = min(seconds * multiplier, max_backoff_val);
 }
 
 static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, void *send_buff) {
@@ -131,10 +130,18 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
     return header_list;
 }
 
-static inline bool http_success(Curl& curl) {
-    long http_code = 0;
-    curl_easy_getinfo (curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
-    return http_code >= 200 && http_code < 300;
+static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used) {
+    auto res = curl_easy_perform(curl.get());
+    long http_code = -1;
+    if (res == CURLE_OK) {
+        curl_easy_getinfo (curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+        if (http_code >= 200 && http_code < 300) {
+            return true;
+        }
+    }
+    auto curl_err_str = curl_easy_strerror(res);
+    logger->error("COMM Couldn't talk to {} (for {}) (error({}): {}, http-status: {}, retries-used: {})", url, functional_area, res, curl_err_str, http_code, retries_used);
+    return false;
 }
 
 void Controller::run_with_associate(const Buff& response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
@@ -182,21 +189,17 @@ void Controller::run_with_associate(const Buff& response_buff, const std::chrono
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         recv.read_end = recv.write_end = 0;
 
-        auto res = curl_easy_perform(curl.get());
-        if (res == CURLE_OK) {
-            if (http_success(curl)) {
-                std::this_thread::sleep_for(std::chrono::duration<int>(60));
-                backoff_seconds = cfg.backoff_start;
-                retries_used = 0;
-                continue;
+        if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
+            std::this_thread::sleep_for(std::chrono::duration<int>(60));
+            backoff_seconds = cfg.backoff_start;
+            retries_used = 0;
+        } else {
+            if (retries_used++ >= cfg.max_retries) {
+                logger->error("COMM failed too many times, giving up on the associate: {}", url);
+                break;
             }
+            backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max);
         }
-        logger->error("Couldn't talk to associate {0} (poll) (error: {1}, retries used: {2})", url, res, retries_used);
-        if (retries_used++ >= cfg.max_retries) {
-            logger->error("Giving up on the associate: {}", url);
-            break;
-        }
-        backoff(backoff_seconds, cfg.backoff_multiplier);
     }
 }
 
@@ -233,16 +236,12 @@ void Controller::run() {
         recv.write_end = recv.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
-        auto res = curl_easy_perform(curl.get());
-        if (res == CURLE_OK) {
-            if (http_success(curl)) {
-                backoff_seconds = cfg.backoff_start;
-                run_with_associate(recv, start_time);
-                continue;
-            }
+        if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0)) {
+            backoff_seconds = cfg.backoff_start;
+            run_with_associate(recv, start_time);
+        } else {
+            backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max);
         }
-        logger->error("Couldn't talk to service-endpoint {0} (and discover associate) (error: {1}), will try again after {2} seconds", service_endpoint_url, res, backoff_seconds);
-        backoff(backoff_seconds, cfg.backoff_multiplier);
     }
  
 
