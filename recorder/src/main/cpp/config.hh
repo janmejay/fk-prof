@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 #include <cstdint>
-#include "globals.h"
+#include "globals.hh"
 
 static const std::uint32_t DEFAULT_BACKOFF_MULTIPLIER = 2;
 static const std::uint32_t DEFAULT_MAX_RETRIES = 3;
