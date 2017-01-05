@@ -276,6 +276,8 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     
     CONFIGURATION = new ConfigurationOptions(options);
 
+    logger->set_level(CONFIGURATION->log_level);
+
     
     if (! CONFIGURATION->valid()) return 1;
 

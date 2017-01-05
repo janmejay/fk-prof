@@ -5,29 +5,29 @@ void safe_free_string(char *&value);
 
 typedef std::unique_ptr<char, void(*)(char*&)> ConfArg;
 
-bool matches(const char* expected, const ConfArg& val) {
+static bool matches(const char* expected, const ConfArg& val) {
     return std::strcmp(val.get(), expected) == 0;
 }
 
-void set_log_level(LoggerP logger, ConfArg& level) {
+static spdlog::level::level_enum resolv_log_level(ConfArg& level) {
     if (matches("off", level)) {
-        logger->set_level(spdlog::level::off);
+        return spdlog::level::off;
     } else if (matches("critical", level)) {
-        logger->set_level(spdlog::level::critical);
+        return spdlog::level::critical;
     } else if (matches("err", level)) {
-        logger->set_level(spdlog::level::err);
+        return spdlog::level::err;
     } else if (matches("warn", level)) {
-        logger->set_level(spdlog::level::warn);
+        return spdlog::level::warn;
     } else if (matches("debug", level)) {
-        logger->set_level(spdlog::level::debug);
+        return spdlog::level::debug;
     } else if (matches("trace", level)) {
-        logger->set_level(spdlog::level::trace);
+        return spdlog::level::trace;
     } else {
-        logger->set_level(spdlog::level::info);
+        return spdlog::level::info;
     }
 }
 
-void ConfigurationOptions::load(const char* options, LoggerP logger) {
+void ConfigurationOptions::load(const char* options) {
     const char* next = options;
     for (const char *key = options; next != NULL; key = next + 1) {
         const char *value = strchr(key, '=');
@@ -72,7 +72,7 @@ void ConfigurationOptions::load(const char* options, LoggerP logger) {
                 if (backoff_max == 0) backoff_max = DEFAULT_BACKOFF_MAX;
             } else if (strstr(key, "logLvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
-                set_log_level(logger, val);
+                log_level = resolv_log_level(val);
             } else if (strstr(key, "pollItvl") == key) {
                 poll_itvl = (std::uint32_t) atoi(value);
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;

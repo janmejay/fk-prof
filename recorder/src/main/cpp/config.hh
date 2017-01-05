@@ -32,6 +32,8 @@ struct ConfigurationOptions {
     std::uint32_t backoff_max;
     std::uint32_t max_retries;
     std::uint32_t poll_itvl;
+    
+    spdlog::level::level_enum log_level;
 
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
@@ -45,8 +47,9 @@ struct ConfigurationOptions {
         zone(nullptr),
         inst_typ(nullptr),
         backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), backoff_max(DEFAULT_BACKOFF_MAX), max_retries(DEFAULT_MAX_RETRIES),
-        poll_itvl(DEFAULT_POLLING_INTERVAL) {
-        load(options, logger);
+        poll_itvl(DEFAULT_POLLING_INTERVAL),
+        log_level(spdlog::level::info) {
+        load(options);
     }
 
     virtual ~ConfigurationOptions();
@@ -56,7 +59,7 @@ struct ConfigurationOptions {
     }
 
 private:
-    void load(const char* options, LoggerP logger);
+    void load(const char* options);
 };
 
 #endif
