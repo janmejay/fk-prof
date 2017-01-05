@@ -2,9 +2,9 @@ package fk.prof.backend.aggregator;
 
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.request.RecordedProfileIndexes;
-import fk.prof.common.stacktrace.MethodIdLookup;
-import fk.prof.common.stacktrace.cpusampling.CpuSamplingFrameNode;
-import fk.prof.common.stacktrace.cpusampling.CpuSamplingTraceDetail;
+import fk.prof.aggregation.stacktrace.MethodIdLookup;
+import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingFrameNode;
+import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingTraceDetail;
 import recording.Recorder;
 
 import java.util.List;
@@ -25,15 +25,14 @@ public class CpuSamplingAggregationBucket {
   }
 
   /**
-   * Generates a method id -> method name lookup map
-   * Thread safety of map implementation is not guaranteed
+   * Generates a unmodifiable view of method id -> method name lookup
    * This method should be called once the aggregation window, this map is member of, has expired.
    * Calling this method while window is in progress and receiving profiles for aggregation will result in incomplete method name lookup being generated
    *
    * @return returns methodId -> method name lookup map
    */
   public Map<Long, String> getMethodNameLookup() {
-    return this.methodIdLookup.getReverseLookup();
+    return this.methodIdLookup.generateReverseLookup();
   }
 
   /**
@@ -57,9 +56,9 @@ public class CpuSamplingAggregationBucket {
 
         List<Recorder.Frame> frames = stackSample.getFrameList();
         if (frames != null && frames.size() > 0) {
-          //TODO: Read this flag from proto. Enhance proto to support this flag
-          boolean framesSnipped = true;
+          boolean framesSnipped = stackSample.getSnipped();
           CpuSamplingFrameNode currentNode = framesSnipped ? traceDetail.getUnclassifiableRoot() : traceDetail.getGlobalRoot();
+          traceDetail.incrementSamples();
 
           //callee -> caller ordering in frames, so iterating bottom up in the list to merge in existing tree in root->leaf fashion
           for (int i = frames.size() - 1; i >= 0; i--) {

@@ -1,8 +1,11 @@
-package fk.prof.common.stacktrace.cpusampling;
+package fk.prof.aggregation.stacktrace.cpusampling;
 
-import fk.prof.common.stacktrace.MethodIdLookup;
+import fk.prof.aggregation.stacktrace.MethodIdLookup;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CpuSamplingTraceDetail {
+    private final AtomicInteger samples = new AtomicInteger(0);
     private CpuSamplingFrameNode globalRoot = null;
     private CpuSamplingFrameNode unclassifiableRoot = null;
 
@@ -17,5 +20,13 @@ public class CpuSamplingTraceDetail {
 
     public CpuSamplingFrameNode getUnclassifiableRoot() {
         return this.unclassifiableRoot;
+    }
+
+    public void incrementSamples() {
+        this.samples.incrementAndGet();
+    }
+
+    public int getSamples() {
+        return samples.get();
     }
 }

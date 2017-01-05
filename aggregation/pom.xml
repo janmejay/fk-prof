@@ -9,7 +9,7 @@
     <version>1.0-SNAPSHOT</version>
   </parent>
   <groupId>fk.prof</groupId>
-  <artifactId>common</artifactId>
+  <artifactId>aggregation</artifactId>
   <packaging>jar</packaging>
   <version>1.0-SNAPSHOT</version>
   <name>Common impl for fk-prof</name>
@@ -26,11 +26,6 @@
       <version>3.1.0</version>
     </dependency>
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <version>1.9.4</version>
-    </dependency>
-    <dependency>
       <groupId>com.koloboke</groupId>
       <artifactId>koloboke-api-jdk8</artifactId>
       <version>1.0.0</version>
@@ -39,7 +34,7 @@
       <groupId>com.koloboke</groupId>
       <artifactId>koloboke-impl-jdk8</artifactId>
       <version>1.0.0</version>
-      <!--<scope>runtime</scope>-->
+      <scope>runtime</scope>
     </dependency>
   </dependencies>
 

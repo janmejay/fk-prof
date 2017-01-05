@@ -17,10 +17,7 @@ public class RecordedProfileHeaderParser {
 
   private Checksum headerChecksum = new Adler32();
   private boolean headerParsed = false;
-  private int maxAllowedBytesForRecordingHeader = 1024;
-
-  public RecordedProfileHeaderParser() {
-  }
+  private int maxAllowedBytesForRecordingHeader;
 
   public RecordedProfileHeaderParser(int maxAllowedBytesForRecordingHeader) {
     this.maxAllowedBytesForRecordingHeader = maxAllowedBytesForRecordingHeader;

@@ -148,6 +148,7 @@ message StackSample {
   required int64 thread_id = 2;
   repeated Frame frame = 3;
   required uint32 trace_id = 4;
+  optional bool snipped = 5;
 }
 
 message Frame {

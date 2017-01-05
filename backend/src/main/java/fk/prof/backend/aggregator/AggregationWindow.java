@@ -135,6 +135,7 @@ public class AggregationWindow {
     for (Recorder.TraceContext trace : wse.getIndexedData().getTraceCtxList()) {
       workInfo.addTrace(trace.getTraceName(), trace.getCoveragePct());
     }
+    workInfo.associateWorkType(wse.getWType());
     workInfo.incrementSamplesBy(getSampleCount(wse));
   }
 

@@ -11,7 +11,7 @@
 
     <modules>
         <module>recorder</module>
-        <module>common</module>
+        <module>aggregation</module>
         <module>backend</module>
         <module>userapi</module>
         <module>e2etest</module>

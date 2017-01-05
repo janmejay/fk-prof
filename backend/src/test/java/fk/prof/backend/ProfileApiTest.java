@@ -5,21 +5,19 @@ import fk.prof.backend.aggregator.AggregationStatus;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.aggregator.CpuSamplingAggregationBucket;
 import fk.prof.backend.aggregator.ProfileWorkInfo;
-import fk.prof.backend.http.MainVerticle;
-import fk.prof.backend.mock.MockProfileComponents;
+import fk.prof.backend.mock.MockProfileObjects;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.common.stacktrace.cpusampling.CpuSamplingTraceDetail;
-import fk.prof.common.stacktrace.cpusampling.CpuSamplingFrameNode;
+import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingTraceDetail;
+import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingFrameNode;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import recording.Recorder;
 
@@ -34,26 +32,24 @@ import java.util.zip.Checksum;
 @RunWith(VertxUnitRunner.class)
 public class ProfileApiTest {
 
-  private Vertx vertx;
-  private Integer port = 9300;
-  private IProfileWorkService profileWorkService;
-  private AtomicLong workIdCounter = new AtomicLong(0);
+  private static Vertx vertx;
+  private static Integer port;
+  private static IProfileWorkService profileWorkService;
+  private static AtomicLong workIdCounter = new AtomicLong(0);
 
-  @Before
-  public void setUp(TestContext context) {
+  @BeforeClass
+  public static void setUp(TestContext context) {
     vertx = Vertx.vertx();
     profileWorkService = new ProfileWorkService();
-    //Deploying two verticles with shared profileworkservice instance
-    Verticle mainVerticle1 = new MainVerticle(profileWorkService);
-    Verticle mainVerticle2 = new MainVerticle(profileWorkService);
-    DeploymentOptions deploymentOptions = new DeploymentOptions();
-    vertx.deployVerticle(mainVerticle1, deploymentOptions, context.asyncAssertSuccess());
-    vertx.deployVerticle(mainVerticle2, deploymentOptions, context.asyncAssertSuccess());
+    JsonObject config = VertxManager.config(vertx, ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
+    port = config.getJsonObject("config").getInteger("http.port");
+    DeploymentOptions deploymentOptions = new DeploymentOptions(config);
+    VertxManager.deployHttpVerticles(vertx, deploymentOptions, 2, profileWorkService);
   }
 
-  @After
-  public void tearDown(TestContext context) {
-    vertx.close(context.asyncAssertSuccess());
+  @AfterClass
+  public static void tearDown(TestContext context) {
+    VertxManager.close(vertx);
   }
 
   @Test
@@ -63,7 +59,7 @@ public class ProfileApiTest {
         new AggregationWindow("a", "c", "p", LocalDateTime.now(), 20, 60, new long[]{workId}));
 
     final Async async = context.async();
-    Future<Buffer> future = makeProfileRequest(context, MockProfileComponents.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
+    Future<Buffer> future = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
     future.setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
@@ -92,9 +88,9 @@ public class ProfileApiTest {
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
     final Async async = context.async();
-    Future<Buffer> f1 = makeProfileRequest(context, MockProfileComponents.getRecordingHeader(workId1), Arrays.asList(wseList.get(0)));
-    Future<Buffer> f2 = makeProfileRequest(context, MockProfileComponents.getRecordingHeader(workId2), Arrays.asList(wseList.get(1)));
-    Future<Buffer> f3 = makeProfileRequest(context, MockProfileComponents.getRecordingHeader(workId3), Arrays.asList(wseList.get(2)));
+    Future<Buffer> f1 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId1), Arrays.asList(wseList.get(0)));
+    Future<Buffer> f2 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId2), Arrays.asList(wseList.get(1)));
+    Future<Buffer> f3 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId3), Arrays.asList(wseList.get(2)));
     CompositeFuture.all(Arrays.asList(f1, f2, f3)).setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
@@ -204,7 +200,7 @@ public class ProfileApiTest {
           .setChunked(true);
 
       ByteArrayOutputStream requestStream = new ByteArrayOutputStream();
-      writeMockHeaderToRequest(MockProfileComponents.getRecordingHeader(workId), requestStream, payloadStrategy);
+      writeMockHeaderToRequest(MockProfileObjects.getRecordingHeader(workId), requestStream, payloadStrategy);
       byte[] requestBytes = requestStream.toByteArray();
       chunkAndWriteToRequest(request, requestBytes, 32);
     } catch (IOException ex) {
@@ -234,7 +230,7 @@ public class ProfileApiTest {
           .setChunked(true);
 
       ByteArrayOutputStream requestStream = new ByteArrayOutputStream();
-      writeMockHeaderToRequest(MockProfileComponents.getRecordingHeader(workId), requestStream);
+      writeMockHeaderToRequest(MockProfileObjects.getRecordingHeader(workId), requestStream);
       writeMockWseEntriesToRequest(getMockWseEntriesForSingleProfile(), requestStream, payloadStrategy);
       byte[] requestBytes = requestStream.toByteArray();
       chunkAndWriteToRequest(request, requestBytes, 32);
@@ -248,24 +244,25 @@ public class ProfileApiTest {
     context.assertTrue(aggregationWindow.hasProfileData(Recorder.WorkType.cpu_sample_work));
 
     CpuSamplingAggregationBucket aggregationBucket = aggregationWindow.getCpuSamplingAggregationBucket();
-    context.assertEquals(aggregationBucket.getAvailableTraces(), new HashSet<>(Arrays.asList("1")));
+    context.assertEquals(new HashSet<>(Arrays.asList("1")), aggregationBucket.getAvailableTraces());
     Map<Long, String> methodNameLookup = aggregationBucket.getMethodNameLookup();
     //Subtracting method count by 2, because ROOT, UNCLASSIFIABLE are static names always present in the map
-    context.assertEquals(methodNameLookup.size() - 2, 5);
+    context.assertEquals(5, methodNameLookup.size() - 2);
     CpuSamplingTraceDetail traceDetail = aggregationBucket.getTraceDetail("1");
-    context.assertTrue(traceDetail.getUnclassifiableRoot().getChildrenUnsafe().size() == 1);
+    context.assertTrue(traceDetail.getUnclassifiableRoot().getChildren().size() == 1);
+    context.assertEquals(3, traceDetail.getSamples());
 
-    CpuSamplingFrameNode logicalRoot = traceDetail.getUnclassifiableRoot().getChildrenUnsafe().get(0);
-    context.assertEquals(methodNameLookup.get(logicalRoot.getMethodId()), ".Y()");
-    context.assertEquals(logicalRoot.getOnStackSamples(), 3);
-    context.assertEquals(logicalRoot.getOnCpuSamples(), 0);
+    CpuSamplingFrameNode logicalRoot = traceDetail.getUnclassifiableRoot().getChildren().get(0);
+    context.assertEquals(".Y()", methodNameLookup.get(logicalRoot.getMethodId()));
+    context.assertEquals(3, logicalRoot.getOnStackSamples());
+    context.assertEquals(0, logicalRoot.getOnCpuSamples());
 
     List<CpuSamplingFrameNode> leaves = new ArrayList<>();
     Queue<CpuSamplingFrameNode> toVisit = new ArrayDeque<>();
     toVisit.add(logicalRoot);
     while (toVisit.size() > 0) {
       CpuSamplingFrameNode visiting = toVisit.poll();
-      List<CpuSamplingFrameNode> children = visiting.getChildrenUnsafe();
+      List<CpuSamplingFrameNode> children = visiting.getChildren();
       if (children.size() == 0) {
         leaves.add(visiting);
       } else {
@@ -274,29 +271,30 @@ public class ProfileApiTest {
         }
       }
     }
-    context.assertEquals(leaves.size(), 3);
+    context.assertEquals(3, leaves.size());
 
     int dMethodLeaves = 0, cMethodLeaves = 0;
     for (CpuSamplingFrameNode leaf : leaves) {
-      context.assertEquals(leaf.getOnStackSamples(), 1);
-      context.assertEquals(leaf.getOnCpuSamples(), 1);
+      context.assertEquals(1, leaf.getOnStackSamples());
+      context.assertEquals(1, leaf.getOnCpuSamples());
       if (methodNameLookup.get(leaf.getMethodId()).equals(".C()")) {
         cMethodLeaves++;
       } else if (methodNameLookup.get(leaf.getMethodId()).equals(".D()")) {
         dMethodLeaves++;
       }
     }
-    context.assertEquals(cMethodLeaves, 1);
-    context.assertEquals(dMethodLeaves, 2);
+    context.assertEquals(1, cMethodLeaves);
+    context.assertEquals(2, dMethodLeaves);
   }
 
   private void validateWorkInfo(TestContext context, ProfileWorkInfo workInfo, int expectedSamples) {
-    context.assertEquals(workInfo.getStatus(), AggregationStatus.COMPLETED);
+    context.assertEquals(AggregationStatus.COMPLETED, workInfo.getStatus());
     context.assertNotNull(workInfo.getStartedAt());
     context.assertNotNull(workInfo.getEndedAt());
-    context.assertEquals(workInfo.getTraceCoverages().size(), 1);
-    context.assertEquals(workInfo.getTraceCoverages().get("1"), 5);
-    context.assertEquals(workInfo.getSamples(), expectedSamples);
+    context.assertEquals(1, workInfo.getTraceCoverages().size());
+    context.assertEquals(5, workInfo.getTraceCoverages().get("1"));
+    context.assertEquals(expectedSamples, workInfo.getSamples());
+    context.assertTrue(workInfo.getAssociatedWorkTypes().contains(Recorder.WorkType.cpu_sample_work));
   }
 
   private static void chunkAndWriteToRequest(HttpClientRequest request, byte[] requestBytes, int chunkSizeInBytes) {
@@ -398,7 +396,7 @@ public class ProfileApiTest {
   }
 
   private static List<Recorder.Wse> getMockWseEntriesForSingleProfile() {
-    List<Recorder.StackSample> samples = MockProfileComponents.getPredefinedStackSamples(1);
+    List<Recorder.StackSample> samples = MockProfileObjects.getPredefinedStackSamples(1);
     Recorder.StackSampleWse ssw1 = Recorder.StackSampleWse.newBuilder()
         .addStackSample(samples.get(0))
         .addStackSample(samples.get(1))
@@ -407,14 +405,14 @@ public class ProfileApiTest {
         .addStackSample(samples.get(2))
         .build();
 
-    Recorder.Wse wse1 = MockProfileComponents.getMockCpuWseWithStackSample(ssw1, null);
-    Recorder.Wse wse2 = MockProfileComponents.getMockCpuWseWithStackSample(ssw2, ssw1);
+    Recorder.Wse wse1 = MockProfileObjects.getMockCpuWseWithStackSample(ssw1, null);
+    Recorder.Wse wse2 = MockProfileObjects.getMockCpuWseWithStackSample(ssw2, ssw1);
 
     return Arrays.asList(wse1, wse2);
   }
 
   private static List<Recorder.Wse> getMockWseEntriesForMultipleProfiles() {
-    List<Recorder.StackSample> samples = MockProfileComponents.getPredefinedStackSamples(1);
+    List<Recorder.StackSample> samples = MockProfileObjects.getPredefinedStackSamples(1);
     Recorder.StackSampleWse ssw1 = Recorder.StackSampleWse.newBuilder()
         .addStackSample(samples.get(0))
         .build();
@@ -425,9 +423,9 @@ public class ProfileApiTest {
         .addStackSample(samples.get(2))
         .build();
 
-    Recorder.Wse wse1 = MockProfileComponents.getMockCpuWseWithStackSample(ssw1, null);
-    Recorder.Wse wse2 = MockProfileComponents.getMockCpuWseWithStackSample(ssw2, null);
-    Recorder.Wse wse3 = MockProfileComponents.getMockCpuWseWithStackSample(ssw3, null);
+    Recorder.Wse wse1 = MockProfileObjects.getMockCpuWseWithStackSample(ssw1, null);
+    Recorder.Wse wse2 = MockProfileObjects.getMockCpuWseWithStackSample(ssw2, null);
+    Recorder.Wse wse3 = MockProfileObjects.getMockCpuWseWithStackSample(ssw3, null);
 
     return Arrays.asList(wse1, wse2, wse3);
   }

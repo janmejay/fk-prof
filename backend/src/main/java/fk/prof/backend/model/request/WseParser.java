@@ -16,10 +16,7 @@ public class WseParser {
 
   private Checksum wseChecksum = new Adler32();
   private boolean wseParsed = false;
-  private int maxAllowedBytesForWse = 1024 * 1024;
-
-  public WseParser() {
-  }
+  private int maxAllowedBytesForWse;
 
   public WseParser(int maxAllowedBytesForWse) {
     this.maxAllowedBytesForWse = maxAllowedBytesForWse;

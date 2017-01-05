@@ -20,14 +20,16 @@ public class RecordedProfileParser {
   private long workId = 0;
   private LocalDateTime startedAt = null;
 
-  private RecordedProfileHeaderParser headerParser = new RecordedProfileHeaderParser();
-  private WseParser wseParser = new WseParser();
+  private RecordedProfileHeaderParser headerParser;
+  private WseParser wseParser;
   private RecordedProfileIndexes indexes = new RecordedProfileIndexes();
 
   private boolean intermediateWseEntry = false;
 
-  public RecordedProfileParser(IProfileWorkService profileWorkService) {
+  public RecordedProfileParser(IProfileWorkService profileWorkService, int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
     this.profileWorkService = profileWorkService;
+    this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader);
+    this.wseParser = new WseParser(maxAllowedBytesForWse);
   }
 
   /**

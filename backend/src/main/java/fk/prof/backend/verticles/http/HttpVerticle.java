@@ -1,4 +1,4 @@
-package fk.prof.backend.http;
+package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.request.RecordedProfileParser;
@@ -10,13 +10,12 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.StaticHandler;
 
-public class MainVerticle extends AbstractVerticle {
+public class HttpVerticle extends AbstractVerticle {
 
   private IProfileWorkService profileWorkService;
 
-  public MainVerticle(IProfileWorkService profileWorkService) {
+  public HttpVerticle(IProfileWorkService profileWorkService) {
     this.profileWorkService = profileWorkService;
   }
 
@@ -25,15 +24,13 @@ public class MainVerticle extends AbstractVerticle {
     Router router = setupRouting();
     vertx.createHttpServer()
         .requestHandler(router::accept)
-        .listen(config().getInteger("http.port", 9300),
+        .listen(config().getInteger("http.port"),
             http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {
     Router router = Router.router(vertx);
     setupFailureHandler(router);
-//        router.route().handler(BodyHandler.create());
-    router.route("/assets/*").handler(StaticHandler.create("assets"));
     router.post(ApiPathConstants.API_POST_PROFILE).handler(this::handlePostProfile);
     return router;
   }
@@ -59,7 +56,10 @@ public class MainVerticle extends AbstractVerticle {
   }
 
   private void handlePostProfile(RoutingContext context) {
-    RecordedProfileParser parser = new RecordedProfileParser(profileWorkService);
+    RecordedProfileParser parser = new RecordedProfileParser(profileWorkService,
+        config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
+        config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024*1024));
+
     RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, parser);
     context.request()
         .handler(requestHandler)

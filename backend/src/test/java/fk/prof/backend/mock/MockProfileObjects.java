@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class MockProfileComponents {
+public class MockProfileObjects {
   public static Recorder.RecordingHeader getRecordingHeader(long workId) {
     Recorder.WorkAssignment workAssignment = Recorder.WorkAssignment.newBuilder()
         .addWork(
@@ -130,7 +130,7 @@ public class MockProfileComponents {
 
   private static Recorder.StackSample getMockStackSample(int traceId, char[] dummyMethods) {
     return Recorder.StackSample.newBuilder()
-        .setStartOffsetMicros(1000).setThreadId(1)
+        .setStartOffsetMicros(1000).setThreadId(1).setSnipped(true)
         .setTraceId(traceId)
         .addAllFrame(getMockFrames(dummyMethods))
         .build();

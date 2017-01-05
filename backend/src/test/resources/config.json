@@ -1,0 +1,14 @@
+{
+  "http.instances": 4,
+  "config": {
+    "http.port": 9305,
+    "parser": {
+      "recordingheader.max.bytes": 1024,
+      "wse.max.bytes": 1048576
+    },
+    "aggregator": {
+      "window.duration.mins": 20,
+      "window.tolerance.secs": 60
+    }
+  }
+}

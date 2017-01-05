@@ -1,4 +1,4 @@
-package fk.prof.backend.http;
+package fk.prof.backend.verticles.http;
 
 public final class ApiPathConstants {
   private ApiPathConstants() {

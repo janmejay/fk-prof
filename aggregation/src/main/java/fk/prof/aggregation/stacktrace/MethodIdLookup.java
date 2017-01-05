@@ -1,7 +1,8 @@
-package fk.prof.common.stacktrace;
+package fk.prof.aggregation.stacktrace;
 
 import com.koloboke.collect.map.hash.HashLongObjMaps;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,7 +16,7 @@ public class MethodIdLookup {
   public final static String UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE = "~ UNCLASSIFIABLE ~.()";
 
   //Counter to generate method ids in auto increment fashion
-  //Starts with 0
+  //0 is reserved. No method is assigned 0. Counter starts with 1 during assignment
   private AtomicLong counter = new AtomicLong(0);
   private ConcurrentHashMap<String, Long> lookup = new ConcurrentHashMap<>();
 
@@ -29,14 +30,13 @@ public class MethodIdLookup {
   }
 
   /**
-   * Generates a reverse lookup map from methodId to method name
+   * Generates a reverse lookup map (unmodifiable view) from methodId to method name
    * Usually a reverse lookup is modelled as Map[V, List[K]] but because the put semantics in this map using atomic long counter,
    * we are assured of a 1:1 relationship between K and V. Therefore, reverse lookup is modelled as Map[V, K]
-   * Returned map uses a koloboke representation, not thread-safe
    *
    * @return lookup from methodId - method name
    */
-  public Map<Long, String> getReverseLookup() {
+  public Map<Long, String> generateReverseLookup() {
     Map<Long, String> reverseLookup = HashLongObjMaps.newUpdatableMap();
     for (Map.Entry<String, Long> entry: lookup.entrySet()) {
       if (entry.getValue() != null) {
@@ -44,6 +44,6 @@ public class MethodIdLookup {
       }
     }
 
-    return reverseLookup;
+    return Collections.unmodifiableMap(reverseLookup);
   }
 }

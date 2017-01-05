@@ -1,4 +1,4 @@
-package fk.prof.backend.http;
+package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
 import io.netty.handler.codec.http.HttpResponseStatus;
