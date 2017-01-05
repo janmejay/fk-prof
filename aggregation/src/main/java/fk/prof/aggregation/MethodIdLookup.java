@@ -1,4 +1,4 @@
-package fk.prof.aggregation.stacktrace;
+package fk.prof.aggregation;
 
 import com.koloboke.collect.map.hash.HashLongObjMaps;
 

@@ -1,5 +1,6 @@
-package fk.prof.aggregation.stacktrace.cpusampling;
+package fk.prof.aggregation.cpusampling;
 
+import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -2,9 +2,9 @@ package fk.prof.backend.aggregator;
 
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.request.RecordedProfileIndexes;
-import fk.prof.aggregation.stacktrace.MethodIdLookup;
-import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingFrameNode;
-import fk.prof.aggregation.stacktrace.cpusampling.CpuSamplingTraceDetail;
+import fk.prof.aggregation.MethodIdLookup;
+import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
+import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
 import recording.Recorder;
 
 import java.util.List;

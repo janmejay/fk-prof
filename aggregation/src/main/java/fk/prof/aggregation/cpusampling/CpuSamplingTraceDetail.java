@@ -1,6 +1,7 @@
-package fk.prof.aggregation.stacktrace.cpusampling;
+package fk.prof.aggregation.cpusampling;
 
-import fk.prof.aggregation.stacktrace.MethodIdLookup;
+import fk.prof.aggregation.MethodIdLookup;
+import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

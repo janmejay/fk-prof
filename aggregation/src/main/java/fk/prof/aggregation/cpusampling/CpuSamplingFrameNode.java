@@ -1,4 +1,4 @@
-package fk.prof.aggregation.stacktrace.cpusampling;
+package fk.prof.aggregation.cpusampling;
 
 import java.util.ArrayList;
 import java.util.Collections;

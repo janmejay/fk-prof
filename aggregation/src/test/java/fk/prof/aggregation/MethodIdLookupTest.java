@@ -1,5 +1,6 @@
-package fk.prof.aggregation.stacktrace;
+package fk.prof.aggregation;
 
+import fk.prof.aggregation.MethodIdLookup;
 import org.junit.Assert;
 import org.junit.Test;
 
