@@ -20,13 +20,4 @@ public class RecordedProfileHeader {
     return recordingHeader;
   }
 
-  //TODO: remove
-  @Override
-  public String toString() {
-    StringBuilder builder = new StringBuilder();
-    builder.append("encoding version=" + encodedVersion).append('\n');
-    builder.append("recording header=" + recordingHeader).append('\n');
-    return builder.toString();
-  }
-
 }
