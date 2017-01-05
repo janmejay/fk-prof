@@ -43,5 +43,6 @@ Testing
 TAGS
 cscope.*
 
-#Ignore proto generated recorder class
+#Ignore proto generated classes
 backend/src/main/java/recording/Recorder.java
+aggregation/src/main/java/fk/prof/common/proto/AggregatedProfileModel.java
