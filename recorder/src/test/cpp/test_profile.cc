@@ -58,12 +58,12 @@ void generate_cpusample_simple_profile(const std::string& profile_data_file) {
     rh.set_recorder_version(1);
     rh.set_controller_version(2);
     rh.set_controller_id(3);
-    rh.set_work_description("Test cpu-sampling work");
     recording::WorkAssignment* wa = rh.mutable_work_assignment();
     wa->set_work_id(10);
     wa->set_issue_time("2016-11-10T14:35:09.372");
     wa->set_duration(60);
     wa->set_delay(17);
+    wa->set_description("Test cpu-sampling work");
     recording::Work* w = wa->add_work();
     w->Clear();
     w->set_w_type(recording::WorkType::cpu_sample_work);

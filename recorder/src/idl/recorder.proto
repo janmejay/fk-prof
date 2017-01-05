@@ -28,8 +28,7 @@ message PollReq {
 
 message PollRes {
   required string local_time = 1;
-  required WorkAssignment assignment = 2;
-  required string work_description = 3;
+  optional WorkAssignment assignment = 2;
   required uint32 controller_id = 4;
   required uint32 controller_version = 5;
 }
@@ -54,9 +53,10 @@ message WorkResponse {
 message WorkAssignment {
   required uint64 work_id = 1;
   repeated Work work = 2;
-  required string issue_time = 3; //controller local time
-  required uint32 duration = 4; //seconds, how long to collect data
-  required uint32 delay = 5; //seconds, how long to wait before start
+  required string description = 3;
+  required string issue_time = 4; //controller local time
+  required uint32 duration = 5; //seconds, how long to collect data
+  required uint32 delay = 6; //seconds, how long to wait before start
 }
 
 enum WorkType {
@@ -79,7 +79,6 @@ message RecordingHeader {
   required uint32 controller_version = 2;
   required uint32 controller_id = 3;
   required WorkAssignment work_assignment = 4;
-  required string work_description = 5;
 }
 
 /* entry */

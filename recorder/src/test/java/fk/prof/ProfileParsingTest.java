@@ -37,10 +37,10 @@ public class ProfileParsingTest {
         assertThat(rh.getRecorderVersion(), is(1));
         assertThat(rh.getControllerVersion(), is(2));
         assertThat(rh.getControllerId(), is(3));
-        assertThat(rh.getWorkDescription(), is("Test cpu-sampling work"));
         Recorder.WorkAssignment wa = rh.getWorkAssignment();
         assertThat(wa.getWorkId(), is(10l));
         assertThat(wa.getIssueTime(), is("2016-11-10T14:35:09.372"));
+        assertThat(wa.getDescription(), is("Test cpu-sampling work"));
         assertThat(wa.getDuration(), is(60));
         assertThat(wa.getDelay(), is(17));
         assertThat(wa.getWorkCount(), is(1));

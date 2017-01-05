@@ -55,7 +55,6 @@ private:
     W current_work;
     WSt current_work_state;
     WRes current_work_result;
-    std::string current_work_description;
 
     void startSampling();
 
@@ -67,7 +66,7 @@ private:
 
     void accept_work(Buff& poll_response_buff);
 
-    void with_current_work(std::function<void(W&, WSt&, WRes&, std::string&)> proc);
+    void with_current_work(std::function<void(W&, WSt&, WRes&)> proc);
 };
 
 #endif

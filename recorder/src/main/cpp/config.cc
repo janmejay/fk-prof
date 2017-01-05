@@ -1,7 +1,21 @@
 #include "config.hh"
 
-char *safe_copy_string(const char *value, const char *next);
-void safe_free_string(char *&value);
+char *safe_copy_string(const char *value, const char *next) {
+    size_t size = (next == 0) ? strlen(value) : (size_t) (next - value);
+    char *dest = (char *) malloc((size + 1) * sizeof(char));
+
+    strncpy(dest, value, size);
+    dest[size] = '\0';
+
+    return dest;
+}
+
+void safe_free_string(char *&value) {
+    if (value != NULL) {
+        free(value);
+        value = NULL;
+    }
+}
 
 typedef std::unique_ptr<char, void(*)(char*&)> ConfArg;
 

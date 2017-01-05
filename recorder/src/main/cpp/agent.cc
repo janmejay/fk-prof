@@ -251,24 +251,6 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     return true;
 }
 
-
-char *safe_copy_string(const char *value, const char *next) {
-    size_t size = (next == 0) ? strlen(value) : (size_t) (next - value);
-    char *dest = (char *) malloc((size + 1) * sizeof(char));
-
-    strncpy(dest, value, size);
-    dest[size] = '\0';
-
-    return dest;
-}
-
-void safe_free_string(char *&value) {
-    if (value != NULL) {
-        free(value);
-        value = NULL;
-    }
-}
-
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;

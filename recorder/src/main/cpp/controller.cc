@@ -183,7 +183,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const s
         Controller::WRes result;
         std::uint64_t work_id;
 
-        with_current_work([&state, &result, &work_id](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, std::string& desc) {
+        with_current_work([&state, &result, &work_id](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres) {
                 work_id = w.work_id();
                 state = wst;
                 result = wres;
@@ -290,9 +290,9 @@ void Controller::run() {
     // close(clientConnection);
 }
 
-void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&, std::string&)> proc) {
+void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&)> proc) {
     std::lock_guard<std::mutex> current_work_guard(current_work_mtx);
-    proc(current_work, current_work_state, current_work_result, current_work_description);
+    proc(current_work, current_work_state, current_work_result);
 }
 
 void Controller::accept_work(Buff& poll_response_buff) {
@@ -303,20 +303,19 @@ void Controller::accept_work(Buff& poll_response_buff) {
         return;
     }
     
-    with_current_work([&res](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, std::string& desc) {
+    with_current_work([&res](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres) {
             auto new_work = res.mutable_assignment();
             if (wst != recording::WorkResponse::complete) {
                 logger->critical("New work (id: {}, desc: {}, controller: {}/{}) issued while current-work (id: {}, desc: {}) is incomplete (state {})", 
-                                 new_work->work_id(), res.work_description(), res.controller_id(), res.controller_version(),
-                                 w.work_id(), wst, desc);
+                                 new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version(),
+                                 w.work_id(), wst, w.description());
                 return;
             }
 
             logger->trace("New work (id: {}, desc: {}, controller: {}/{}) is being assigned",
-                          new_work->work_id(), res.work_description(), res.controller_id(), res.controller_version());
+                          new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version());
 
             w.Swap(new_work);
-            desc = res.work_description();
 
             if (w.work_size() > 0) {
                 wst = recording::WorkResponse::pre_start;

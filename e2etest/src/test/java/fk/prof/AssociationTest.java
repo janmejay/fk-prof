@@ -327,11 +327,11 @@ public class AssociationTest {
                 String nowString = ISODateTimeFormat.dateTime().print(now);
                 Recorder.PollRes.Builder builder = Recorder.PollRes.newBuilder()
                         .setLocalTime(nowString)
-                        .setWorkDescription("no work for ya!")
                         .setControllerId(2)
                         .setControllerVersion(1);
                 builder.getAssignmentBuilder()
                         .setWorkId(10)
+                        .setDescription("no work for ya!")
                         .setDelay(0)
                         .setDuration(0)
                         .setIssueTime(nowString);

@@ -93,7 +93,7 @@ set(TEST_FILES
     ${SRC_TEST}/fixtures.hh
     ${SRC_TEST}/test_circular_queue.cc
     ${SRC_TEST}/test_log_writer.cc
-    ${SRC_TEST}/test_agent.cc
+    ${SRC_TEST}/test_config.cc
     ${SRC_TEST}/test.hh
     ${SRC_TEST}/test_recording_serde.cc
     ${SRC_TEST}/test_checksum.cc
