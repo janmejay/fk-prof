@@ -30,7 +30,7 @@ public class ModelSerializationTest {
 
     @Test
     public void testWorkDetailsWithCpuSampleSerialize() throws Exception {
-        WorkDetails workDetails = new WorkDetails(WorkType.cpu_sample, new WorkDetails.CpuSamplingAttribs(100, 10));
+        WorkDetails workDetails = new WorkDetails(WorkType.cpu_sample, new WorkDetails.CpuSamplingAttributes(100, 10));
 
         String serialized = om.writeValueAsString(workDetails);
 
@@ -40,7 +40,7 @@ public class ModelSerializationTest {
 
     @Test
     public void testWorkDetailsWithMonitorContentionSerialize() throws Exception {
-        WorkDetails workDetails = new WorkDetails(WorkType.monitor_contention, new WorkDetails.MonitorContentionAttribs(100, 10));
+        WorkDetails workDetails = new WorkDetails(WorkType.monitor_contention, new WorkDetails.MonitorContentionAttributes(100, 10));
 
         String serialized = om.writeValueAsString(workDetails);
 
@@ -54,8 +54,8 @@ public class ModelSerializationTest {
                 "\"attributes\":{\"max_monitor_count\":100,\"max_stack_depth\":10}}", WorkDetails.class);
 
         assertEquals(WorkType.monitor_contention, workDetails.getType());
-        assertEquals(WorkDetails.MonitorContentionAttribs.class, workDetails.getAttributes().getClass());
-        WorkDetails.MonitorContentionAttribs attribs = (WorkDetails.MonitorContentionAttribs)workDetails.getAttributes();
+        assertEquals(WorkDetails.MonitorContentionAttributes.class, workDetails.getAttributes().getClass());
+        WorkDetails.MonitorContentionAttributes attribs = (WorkDetails.MonitorContentionAttributes)workDetails.getAttributes();
         assertEquals(100, attribs.getMaxMonitorCount());
         assertEquals(10, attribs.getMaxStackDepth());
     }
@@ -121,8 +121,8 @@ public class ModelSerializationTest {
         LocalDateTime someTime = LocalDateTime.of(2017, 1, 10, 10, 10, 10);
         WorkSchedule.Schedule schedule = new WorkSchedule.Schedule(60 ,300, someTime, 25.0f);
         List<WorkDetails> work = new ArrayList<>();
-        work.add(new WorkDetails(WorkType.cpu_sample, new WorkDetails.CpuSamplingAttribs(100, 10)));
-        work.add(new WorkDetails(WorkType.monitor_contention, new WorkDetails.MonitorContentionAttribs(100, 10)));
+        work.add(new WorkDetails(WorkType.cpu_sample, new WorkDetails.CpuSamplingAttributes(100, 10)));
+        work.add(new WorkDetails(WorkType.monitor_contention, new WorkDetails.MonitorContentionAttributes(100, 10)));
 
         WorkSchedule wsch = new WorkSchedule(schedule, work, 5, 10, 1, 3, 10.0f, someTime.plusMinutes(10));
 

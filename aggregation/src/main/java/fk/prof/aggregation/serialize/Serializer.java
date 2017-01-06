@@ -8,8 +8,7 @@ import java.util.zip.Adler32;
 
 /**
  * Base class for serializers.
- * Provided helper methods to serialize Integer and protobuf message.
- * Protobuf message will be serialized in the format [size][message][checksum].
+ * Provides helper methods to serialize uint32 and protobuf message.
  * @author gaurav.ashok
  */
 public abstract class Serializer<T> {
@@ -22,13 +21,13 @@ public abstract class Serializer<T> {
     }
 
     /**
-     * Write protobuf message with its size followed by a checksum.
-     * format: [size: 4 bytes][message: size bytes][checksum: 4 bytes]
+     * Writes a protobuf message to the provided {@link OutputStream}.
+     * Message will be serialized in the format [size: 4bytes][message: size bytes][checksum: 4bytes].
      * @param message
      * @param os
      * @throws IOException
      */
-    public static void writeFenced(Message message, OutputStream os) throws IOException {
+    public static void writeMessage(Message message, OutputStream os) throws IOException {
         byte[] bytes = message.toByteArray();
         int size = bytes.length;
 

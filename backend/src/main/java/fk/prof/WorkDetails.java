@@ -19,8 +19,8 @@ public class WorkDetails {
             property = "type"
     )
     @JsonSubTypes({
-            @JsonSubTypes.Type(value = CpuSamplingAttribs.class, name = "cpu_sample"),
-            @JsonSubTypes.Type(value = MonitorContentionAttribs.class, name = "monitor_contention")
+            @JsonSubTypes.Type(value = CpuSamplingAttributes.class, name = "cpu_sample"),
+            @JsonSubTypes.Type(value = MonitorContentionAttributes.class, name = "monitor_contention")
     })
     private Attributes attributes;
 
@@ -88,17 +88,17 @@ public class WorkDetails {
     public static interface Attributes {
     }
 
-    public static class CpuSamplingAttribs implements Attributes {
+    public static class CpuSamplingAttributes implements Attributes {
         private int frequency; // in Hz
         private int maxStackDepth;
 
         /**
          * Default constructor for jackson
          */
-        public CpuSamplingAttribs() {
+        public CpuSamplingAttributes() {
         }
 
-        public CpuSamplingAttribs(int frequency, int maxStackDepth) {
+        public CpuSamplingAttributes(int frequency, int maxStackDepth) {
             this.frequency = frequency;
             this.maxStackDepth = maxStackDepth;
         }
@@ -118,10 +118,10 @@ public class WorkDetails {
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null || !(obj instanceof CpuSamplingAttribs)) {
+            if(obj == null || !(obj instanceof CpuSamplingAttributes)) {
                 return false;
             }
-            CpuSamplingAttribs that = (CpuSamplingAttribs)obj;
+            CpuSamplingAttributes that = (CpuSamplingAttributes)obj;
             return maxStackDepth == that.maxStackDepth && frequency == that.frequency;
         }
 
@@ -135,17 +135,17 @@ public class WorkDetails {
         }
     }
 
-    public static class MonitorContentionAttribs implements Attributes {
+    public static class MonitorContentionAttributes implements Attributes {
         private int maxMonitorCount;
         private int maxStackDepth;
 
         /**
          * Default constructor for jackson
          */
-        public MonitorContentionAttribs() {
+        public MonitorContentionAttributes() {
         }
 
-        public MonitorContentionAttribs(int maxMonitorCount, int maxStackDepth) {
+        public MonitorContentionAttributes(int maxMonitorCount, int maxStackDepth) {
             this.maxMonitorCount = maxMonitorCount;
             this.maxStackDepth = maxStackDepth;
         }
@@ -165,10 +165,10 @@ public class WorkDetails {
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null || !(obj instanceof MonitorContentionAttribs)) {
+            if(obj == null || !(obj instanceof MonitorContentionAttributes)) {
                 return false;
             }
-            MonitorContentionAttribs that = (MonitorContentionAttribs)obj;
+            MonitorContentionAttributes that = (MonitorContentionAttributes)obj;
 
             return maxStackDepth == that.maxStackDepth && maxMonitorCount == that.maxMonitorCount;
         }

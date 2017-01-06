@@ -57,7 +57,7 @@ public abstract class Deserializer<T> {
         while (n < len) {
             int count = is.read(bytes, n, len - n);
             if (count < 0)
-                throw new EOFException();
+                throw new EOFException("EOF reached before reading " + n + " bytes");
             n += count;
         }
         return n;

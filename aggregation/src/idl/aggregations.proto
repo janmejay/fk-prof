@@ -2,6 +2,17 @@ syntax = "proto2";
 option java_package = "fk.prof.aggregation.proto";
 option java_outer_classname = "AggregatedProfileModel";
 
+// Additional properties computed for the context
+message TraceCtxDetail {
+	required string name = 1;
+	optional uint32 sampleCount = 2;
+}
+
+// List of all trace contexts. 
+message TraceCtxList {
+	repeated TraceCtxDetail traces = 1;
+}
+
 message ProfileSourceInfo {
 	optional string ip = 1;
 	optional string hostname = 2;
@@ -10,43 +21,38 @@ message ProfileSourceInfo {
 	optional string instanceType = 5;
 }
 
-enum ProfileStatus {
-	Completed = 0;	// got all the samples
-	Partial = 1;	// got only few of the samples.
-	Retried = 2;	// may have duplicated samples because of retries 
-	Aborted = 3;    // {see if its required}.
+// Status at the end of the aggregation window.
+enum AggregationStatus {
+	Completed = 0;	
+	Retried = 1;		// may have duplicated samples because of retries 
+	Aborted = 2; 		// may not have all samples because recorder sent them too late.
+	Scheduled = 3;   	// no samples
+	Partial = 4;     	// in case of the connection errors
 }
 
-message ProfileSummary {
-	optional string startTime = 1;				// HH:mm:ss
-	optional string endTime = 2;				// HH:mm:ss
+message TraceCtxToCoveragePctMap {
+	required uint32 traceCtxIdx = 1;
+	required float coveragePct = 2;
+}
+
+message ProfileWorkInfo {
+	required unit32 startOffset = 1;				//offset in seconds from the current header.aggregationStartTime
+	required uint32 duration = 2;
 	optional uint32 recorderVersion = 3;
-	optional ProfileSourceInfo sourceInfo = 4;
-	optional ProfileStatus status = 5;
+	optional uint32 sampleCount = 4;
+	optional AggregationStatus status = 5;
+	repeated TraceCtxToCoveragePctMap traceCoverageMap = 6;
 }
 
-message ProfileList {
-	repeated ProfileSummary info = 1;
+message PerSourceProfileSummary {
+	required ProfileSourceInfo sourceInfo = 1;
+	repeated ProfileWorkInfo profiles = 2;
 }
 
-
-// Additional properties computed for the context
-message ContextProps {
-	optional uint32 sampleCount = 1;
+message ProfilesSummary {
+	repeated PerSourceProfileSummary allProfiles = 1;
 }
 
-// context containing metadata. For each context we have 2 stackStrace tree: 
-//  - called by Thread.run()
-//  - others are unclassifiable
-message Context {
-	required string name = 1;
-	optional ContextProps props = 2;
-}
-
-// represents list of contexts. 
-message ContextList {
-	repeated Context context = 1;
-}
 message MethodLookUp {
 	repeated string fqdn = 1;
 }
@@ -60,10 +66,10 @@ message FrameNode {
 	optional CPUSamplingNodeProps cpuSamplingProps = 4;	
 }
 
-// List of node representing a tree. List is populated in dfs manner.
-message FrameTree {
-	repeated FrameNode threadRunNodes = 1;
-	repeated FrameNode unclassifiableNodes = 2;
+// StacktraceTree is traversed in dfs manner and serialized to a set of FrameNodeList
+message FrameNodeList {
+	required uint32 traceCtxIdx = 1
+	repeated FrameNode frameNodes = 2;
 }
 
 message CPUSamplingNodeProps {
@@ -83,7 +89,7 @@ message Header {
 	optional string appId = 2;
 	optional string clusterId = 3;
 	optional string procId = 4;
-	optional string profileStartTime = 5;
-	optional string profileEndTime = 6;
+	optional string aggregationStartTime = 5;				// iso8601 string
+	optional string aggregationEndTime = 6;					// iso8601 string
 	optional WorkType workType = 7;
 }
