@@ -38,12 +38,17 @@ public class ProfileApiTest {
   private static AtomicLong workIdCounter = new AtomicLong(0);
 
   @BeforeClass
-  public static void setUp(TestContext context) {
-    vertx = Vertx.vertx();
+  public static void setUp(TestContext context) throws IOException {
+    ConfigManager.setDefaultSystemProperties();
+    JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
+    JsonObject vertxConfig = config.getJsonObject("vertxOptions");
+    JsonObject deploymentConfig = config.getJsonObject("deploymentOptions");
+    assert deploymentConfig != null;
+
+    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     profileWorkService = new ProfileWorkService();
-    JsonObject config = VertxManager.config(vertx, ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
-    port = config.getJsonObject("config").getInteger("http.port");
-    DeploymentOptions deploymentOptions = new DeploymentOptions(config);
+    port = deploymentConfig.getJsonObject("config").getInteger("http.port");
+    DeploymentOptions deploymentOptions = new DeploymentOptions(deploymentConfig);
     VertxManager.deployHttpVerticles(vertx, deploymentOptions, 2, profileWorkService);
   }
 

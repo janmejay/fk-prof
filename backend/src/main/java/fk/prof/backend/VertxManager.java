@@ -1,5 +1,7 @@
 package fk.prof.backend;
 
+import com.codahale.metrics.SharedMetricRegistries;
+import com.google.common.io.Files;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.verticles.http.HttpVerticle;
 import fk.prof.backend.service.ProfileWorkService;
@@ -8,7 +10,16 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.core.metrics.MetricsOptions;
+import io.vertx.ext.dropwizard.DropwizardMetricsOptions;
+import io.vertx.ext.dropwizard.Match;
+import io.vertx.ext.dropwizard.MatchType;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,10 +30,9 @@ import java.util.List;
 public class VertxManager {
   private static Logger logger = LoggerFactory.getLogger(VertxManager.class);
 
-  public static Future<Void> launch(Vertx vertx, String confPath) {
+  public static Future<Void> launch(Vertx vertx, JsonObject confJson) {
     Future future = Future.future();
 
-    JsonObject confJson = config(vertx, confPath);
     DeploymentOptions deploymentOptions = new DeploymentOptions(confJson);
     ProfileWorkService profileWorkService = new ProfileWorkService();
 
@@ -34,11 +44,6 @@ public class VertxManager {
     deploymentFuture.setHandler(future.completer());
 
     return future;
-  }
-
-  public static JsonObject config(Vertx vertx, String confPath) {
-    Buffer buff = vertx.fileSystem().readFileBlocking(confPath);
-    return new JsonObject(buff.toString());
   }
 
   public static Future<Void> close(Vertx vertx) {
@@ -75,6 +80,19 @@ public class VertxManager {
     }
 
     return CompositeFuture.all(deployFutures);
+  }
+
+  public static Vertx setup(JsonObject vertxConfig) throws IOException {
+    VertxOptions vertxOptions = vertxConfig != null
+        ? new VertxOptions(vertxConfig)
+        : new VertxOptions();
+
+    vertxOptions.setMetricsOptions(new DropwizardMetricsOptions()
+        .setEnabled(true)
+        .setJmxEnabled(true)
+        .setRegistryName(ConfigManager.METRIC_REGISTRY)
+        .addMonitoredHttpServerUri(new Match().setValue("/.*").setType(MatchType.REGEX)));
+    return Vertx.vertx(vertxOptions);
   }
 
 }

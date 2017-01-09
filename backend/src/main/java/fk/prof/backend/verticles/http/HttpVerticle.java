@@ -10,6 +10,7 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.LoggerHandler;
 
 public class HttpVerticle extends AbstractVerticle {
 
@@ -22,6 +23,7 @@ public class HttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
+
     vertx.createHttpServer()
         .requestHandler(router::accept)
         .listen(config().getInteger("http.port"),
@@ -31,6 +33,7 @@ public class HttpVerticle extends AbstractVerticle {
   private Router setupRouting() {
     Router router = Router.router(vertx);
     setupFailureHandler(router);
+    router.route().handler(LoggerHandler.create());
     router.post(ApiPathConstants.API_POST_PROFILE).handler(this::handlePostProfile);
     return router;
   }
