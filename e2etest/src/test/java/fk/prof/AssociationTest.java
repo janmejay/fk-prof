@@ -2,8 +2,8 @@ package fk.prof;
 
 import fk.prof.nodep.SleepForever;
 import fk.prof.utils.AgentRunner;
+import fk.prof.utils.Matchers;
 import fk.prof.utils.TestBackendServer;
-import org.apache.commons.lang3.SystemUtils;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -60,7 +60,8 @@ public class AssociationTest {
                 "zone=waldo-zone," +
                 "ityp=c0.small," +
                 "backoffStart=2," +
-                "backoffMax=5"
+                "backoffMax=5" +
+                "logLvl=trace"
         );
     }
 
@@ -89,7 +90,6 @@ public class AssociationTest {
             return new byte[0];
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -132,7 +132,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -148,8 +147,8 @@ public class AssociationTest {
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
-        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
-        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(Matchers.approximately(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(Matchers.approximately(4000l)));
         assertThat(assocCalledMoreThanOnce.getValue(), is(false));
     }
 
@@ -183,7 +182,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -199,8 +197,8 @@ public class AssociationTest {
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
-        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
-        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(Matchers.approximately(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(Matchers.approximately(4000l)));
         assertThat(assocCalledMoreThanTwice.getValue(), is(false));
     }
 
@@ -223,7 +221,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         long startTime = currentTimeMillis();
         runner.start();
 
@@ -279,7 +276,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         long startTime = currentTimeMillis();
         runner.start();
         

@@ -18,6 +18,8 @@
 #include "profile_writer.hh"
 #include "config.hh"
 #include <functional>
+#include <queue>
+#include "scheduler.hh"
 
 #define MAX_DATA_SIZE 100
 
@@ -47,6 +49,8 @@ private:
     std::atomic_bool running;
     Buff buff;
     ProfileWriter *writer;
+
+    Scheduler scheduler;
     
     std::mutex current_work_mtx;
     typedef recording::WorkAssignment W;
@@ -55,6 +59,7 @@ private:
     W current_work;
     WSt current_work_state;
     WRes current_work_result;
+    Time::Pt work_start, work_end;
 
     void startSampling();
 
@@ -66,7 +71,11 @@ private:
 
     void accept_work(Buff& poll_response_buff);
 
-    void with_current_work(std::function<void(W&, WSt&, WRes&)> proc);
+    void with_current_work(std::function<void(W&, WSt&, WRes&, Time::Pt&, Time::Pt&)> proc);
+
+    void issueWork();
+
+    void retireWork();
 };
 
 #endif

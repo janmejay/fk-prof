@@ -84,20 +84,34 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
     ri.set_recorder_uptime(uptime.count());
 }
 
-static void populate_issued_work_status(recording::WorkResponse& w_res, std::uint64_t work_id, recording::WorkResponse::WorkState state, recording::WorkResponse::WorkResult result) {
+static void populate_issued_work_status(recording::WorkResponse& w_res, std::uint64_t work_id, recording::WorkResponse::WorkState state, recording::WorkResponse::WorkResult result, Time::Pt& start_tm, Time::Pt& end_tm) {
     w_res.set_work_id(work_id);
     w_res.set_work_state(state);
     w_res.set_work_result(result);
-    w_res.set_elapsed_time(0);//TODO: fix me
+    std::uint32_t elapsed_time = 0;
+    switch(state) {
+    case recording::WorkResponse::running:
+        elapsed_time = Time::elapsed_seconds(Time::now(), start_tm);
+        break;
+    case recording::WorkResponse::complete:
+        elapsed_time = Time::elapsed_seconds(end_tm, start_tm);
+        break;
+    case recording::WorkResponse::pre_start:
+        break; //already initialized
+    default:
+        logger->error("Unexpected work-state {} found", state);
+    }
+    w_res.set_elapsed_time(elapsed_time);
 }
 
 typedef std::unique_ptr<CURL, void(*)(CURL*)> Curl;
 typedef std::unique_ptr<struct curl_slist, void(*)(curl_slist*)> CurlHeader;
 
-static void backoff(std::uint32_t& seconds, std::uint32_t multiplier, std::uint32_t max_backoff_val) {
-    std::this_thread::sleep_for(std::chrono::duration<int>(seconds));
-    logger->error("COMM failed, backed-off by {} seconds", seconds);
+static std::uint32_t backoff(std::uint32_t& seconds, std::uint32_t multiplier, std::uint32_t max_backoff_val) {
+    auto current_backoff = seconds;
+    logger->error("COMM failed, backing-off by {} seconds", seconds);
     seconds = min(seconds * multiplier, max_backoff_val);
+    return current_backoff;
 }
 
 static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, void *send_buff) {
@@ -175,22 +189,16 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const s
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
     
-    std::this_thread::sleep_for(std::chrono::duration<int>(1));
-    while (running.load(std::memory_order_relaxed)) {
+    std::function<void()> poll_cb;
+
+    poll_cb = [&]() {
         recording::PollReq p_req;
         populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time);
-        Controller::WSt state;
-        Controller::WRes result;
-        std::uint64_t work_id;
 
-        with_current_work([&state, &result, &work_id](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres) {
-                work_id = w.work_id();
-                state = wst;
-                result = wres;
+        with_current_work([&p_req](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
+                populate_issued_work_status(*p_req.mutable_work_last_issued(), w.work_id(), wst, wres, start_tm, end_tm);
             });
-        
-        populate_issued_work_status(*p_req.mutable_work_last_issued(), work_id, state, result);
-        
+
         auto serialized_size = p_req.ByteSize();
         send.ensure_capacity(serialized_size);
         p_req.SerializeToArray(send.buff, send.capacity);
@@ -201,19 +209,25 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const s
 
         logger->trace("Polling now");
 
+        auto next_tick = std::chrono::steady_clock::now();
         if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
             accept_work(recv);
-            std::this_thread::sleep_for(std::chrono::duration<int>(cfg.poll_itvl));
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
+            next_tick += std::chrono::seconds(cfg.poll_itvl);
         } else {
             if (retries_used++ >= cfg.max_retries) {
                 logger->error("COMM failed too many times, giving up on the associate: {}", url);
-                break;
+                return;
             }
-            backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max);
+            next_tick += std::chrono::seconds(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max));
         }
-    }
+        scheduler.schedule(next_tick, poll_cb);
+    };
+
+    scheduler.schedule(std::chrono::steady_clock::now(), poll_cb);
+    
+    while (running.load(std::memory_order_relaxed) && scheduler.poll());
 }
 
 void Controller::run() {
@@ -233,6 +247,11 @@ void Controller::run() {
     std::string service_endpoint_url = cfg.service_endpoint + std::string("/association");
     curl_easy_setopt(curl.get(), CURLOPT_URL, service_endpoint_url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+
+    curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
+    curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
     
     while (running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
@@ -244,16 +263,12 @@ void Controller::run() {
         send.write_end = serialized_size;
         send.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
-        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
-        curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
         recv.write_end = recv.read_end = 0;
-        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
-        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
         if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0)) {
             backoff_seconds = cfg.backoff_start;
             run_with_associate(recv, start_time);
         } else {
-            backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max);
+            std::this_thread::sleep_for(std::chrono::seconds(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max)));
         }
     }
  
@@ -290,9 +305,9 @@ void Controller::run() {
     // close(clientConnection);
 }
 
-void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&)> proc) {
+void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&, Time::Pt&, Time::Pt&)> proc) {
     std::lock_guard<std::mutex> current_work_guard(current_work_mtx);
-    proc(current_work, current_work_state, current_work_result);
+    proc(current_work, current_work_state, current_work_result, work_start, work_end);
 }
 
 void Controller::accept_work(Buff& poll_response_buff) {
@@ -302,28 +317,65 @@ void Controller::accept_work(Buff& poll_response_buff) {
         logger->error("Parse of poll-response failed, ignoring it");
         return;
     }
-    
-    with_current_work([&res](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres) {
-            auto new_work = res.mutable_assignment();
-            if (wst != recording::WorkResponse::complete) {
-                logger->critical("New work (id: {}, desc: {}, controller: {}/{}) issued while current-work (id: {}, desc: {}) is incomplete (state {})", 
-                                 new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version(),
-                                 w.work_id(), wst, w.description());
-                return;
-            }
+    if (res.has_assignment()) {
+        with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
+                auto new_work = res.mutable_assignment();
 
-            logger->trace("New work (id: {}, desc: {}, controller: {}/{}) is being assigned",
-                          new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version());
+                if (wst != recording::WorkResponse::complete) {
+                    logger->critical("New work (id: {}, desc: {}, controller: {}/{}) issued while current-work (id: {}, desc: {}) is incomplete (state {})", 
+                                     new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version(),
+                                     w.work_id(), wst, w.description());
+                    return;
+                }
 
-            w.Swap(new_work);
+                logger->trace("New work (id: {}, desc: {}, controller: {}/{}) is being assigned",
+                              new_work->work_id(), new_work->description(), res.controller_id(), res.controller_version());
 
-            if (w.work_size() > 0) {
-                wst = recording::WorkResponse::pre_start;
-                wres = recording::WorkResponse::unknown;
-            } else {
-                wst = recording::WorkResponse::complete;
+                w.Swap(new_work);
+
+                const auto delay = w.delay();
+
+                start_tm = end_tm = Time::now();
+
+                if ((delay + w.duration()) > 0) {
+                    wst = recording::WorkResponse::pre_start;
+                    wres = recording::WorkResponse::unknown;
+                    issueWork();
+                } else {
+                    wst = recording::WorkResponse::complete;
+                    wres = recording::WorkResponse::success;
+                }
+            });
+    } else {
+        logger->debug("Controller {}/{} issued no-work", res.controller_id(), res.controller_version());
+    }
+}
+
+void Controller::issueWork() {
+    auto at = std::chrono::steady_clock::now() + std::chrono::seconds(current_work.delay());
+    scheduler.schedule(at, [&]() {
+            with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
+                    start_tm = Time::now();
+                    auto stop_at = start_tm + std::chrono::seconds(w.duration());
+                    scheduler.schedule(stop_at, [&]() {
+                            retireWork();
+                        });
+                    logger->info("Issuing work-id {}, it is slated for retire in {} seconds", w.work_id(), w.duration());
+                    wst = recording::WorkResponse::running;
+                    //do something to actually start work here                    
+                });
+        });
+}
+
+void Controller::retireWork() {
+    with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
+            //TODO: check actual status here and stop it and make sure it is stopped
+            logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);
+            wst = recording::WorkResponse::complete;
+            if ( wres == recording::WorkResponse::unknown) {
                 wres = recording::WorkResponse::success;
             }
+            end_tm = Time::now();
         });
 }
 

@@ -4,6 +4,7 @@
 #include <jni.h>
 #include <stdint.h>
 #include <signal.h>
+#include <chrono>
 
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
@@ -17,6 +18,17 @@
 #include "profile_writer.hh"
 
 typedef std::shared_ptr<spdlog::logger> LoggerP;
+
+namespace Time {
+    typedef std::chrono::steady_clock Clk;
+    typedef std::chrono::time_point<Clk> Pt;
+    typedef std::chrono::seconds sec;
+    typedef std::chrono::milliseconds msec;
+
+    Pt now();
+
+    std::uint32_t elapsed_seconds(const Pt& later, const Pt& earlier);
+};
 
 extern LoggerP logger;//TODO: stick me in GlobalCtx???
 

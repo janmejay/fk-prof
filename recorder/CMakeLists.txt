@@ -70,6 +70,7 @@ set(SOURCE_FILES
     ${SRC}/controller.cc
     ${SRC}/controller.hh
     ${SRC}/globals.hh
+    ${SRC}/globals.cc
     ${SRC}/log_writer.cc
     ${SRC}/log_writer.hh
     ${SRC}/signal_handler.cc
@@ -87,7 +88,9 @@ set(SOURCE_FILES
     ${SRC}/profile_writer.cc
     ${SRC}/profile_writer.hh
     ${SRC}/config.hh
-    ${SRC}/config.cc)
+    ${SRC}/config.cc
+    ${SRC}/scheduler.hh
+    ${SRC}/scheduler.cc)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.hh
@@ -97,7 +100,8 @@ set(TEST_FILES
     ${SRC_TEST}/test.hh
     ${SRC_TEST}/test_recording_serde.cc
     ${SRC_TEST}/test_checksum.cc
-    ${SRC_TEST}/test_maps.cc)
+    ${SRC_TEST}/test_maps.cc
+    ${SRC_TEST}/test_scheduler.cc)
 
 set(TEST_UTIL_FILES
     ${SRC_TEST}/test_profile.hh
