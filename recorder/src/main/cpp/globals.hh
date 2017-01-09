@@ -24,6 +24,7 @@ namespace Time {
     typedef std::chrono::time_point<Clk> Pt;
     typedef std::chrono::seconds sec;
     typedef std::chrono::milliseconds msec;
+    typedef std::chrono::microseconds usec;
 
     Pt now();
 

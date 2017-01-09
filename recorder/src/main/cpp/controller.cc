@@ -64,7 +64,7 @@ static void time_now_str(std::function<void(const char*)> fn) {
     fn(buffer);
 }
 
-static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
+static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time) {
     ri.set_ip(cfg.ip);
     ri.set_hostname(cfg.host);
     ri.set_app_id(cfg.app_id);
@@ -79,7 +79,7 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
             ri.set_local_time(now);
         });
     ri.set_recorder_version(RECORDER_VERION);
-    auto now = std::chrono::steady_clock::now();
+    auto now = Time::now();
     std::chrono::duration<double> uptime = now - start_time;
     ri.set_recorder_uptime(uptime.count());
 }
@@ -158,7 +158,7 @@ static inline bool do_call(Curl& curl, const char* url, const char* functional_a
     return false;
 }
 
-void Controller::run_with_associate(const Buff& associate_response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time) {
+void Controller::run_with_associate(const Buff& associate_response_buff, const Time::Pt& start_time) {
     recording::AssignedBackend assigned;
     assigned.ParseFromArray(associate_response_buff.buff + associate_response_buff.read_end, associate_response_buff.write_end - associate_response_buff.read_end);
     const std::string& host = assigned.host();
@@ -209,29 +209,29 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const s
 
         logger->trace("Polling now");
 
-        auto next_tick = std::chrono::steady_clock::now();
+        auto next_tick = Time::now();
         if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
             accept_work(recv);
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
-            next_tick += std::chrono::seconds(cfg.poll_itvl);
+            next_tick += Time::sec(cfg.poll_itvl);
         } else {
             if (retries_used++ >= cfg.max_retries) {
                 logger->error("COMM failed too many times, giving up on the associate: {}", url);
                 return;
             }
-            next_tick += std::chrono::seconds(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max));
+            next_tick += Time::sec(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max));
         }
         scheduler.schedule(next_tick, poll_cb);
     };
 
-    scheduler.schedule(std::chrono::steady_clock::now(), poll_cb);
+    scheduler.schedule(Time::now(), poll_cb);
     
     while (running.load(std::memory_order_relaxed) && scheduler.poll());
 }
 
 void Controller::run() {
-    auto start_time = std::chrono::steady_clock::now();
+    auto start_time = Time::now();
     CurlInit _;
     Curl curl(curl_easy_init(), curl_easy_cleanup);
     CurlHeader header_list(make_header_list({ "Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
@@ -268,7 +268,7 @@ void Controller::run() {
             backoff_seconds = cfg.backoff_start;
             run_with_associate(recv, start_time);
         } else {
-            std::this_thread::sleep_for(std::chrono::seconds(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max)));
+            std::this_thread::sleep_for(Time::sec(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max)));
         }
     }
  
@@ -352,11 +352,11 @@ void Controller::accept_work(Buff& poll_response_buff) {
 }
 
 void Controller::issueWork() {
-    auto at = std::chrono::steady_clock::now() + std::chrono::seconds(current_work.delay());
+    auto at = Time::now() + Time::sec(current_work.delay());
     scheduler.schedule(at, [&]() {
             with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                     start_tm = Time::now();
-                    auto stop_at = start_tm + std::chrono::seconds(w.duration());
+                    auto stop_at = start_tm + Time::sec(w.duration());
                     scheduler.schedule(stop_at, [&]() {
                             retireWork();
                         });

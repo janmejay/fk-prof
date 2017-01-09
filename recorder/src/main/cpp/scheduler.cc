@@ -1,22 +1,24 @@
 #include "scheduler.hh"
-#include "globals.hh"
 #include <thread>
 #include <iostream>
 
-void Scheduler::schedule(Scheduler::Tm time, Scheduler::Cb task) {
-    auto sec_in_future = std::chrono::duration_cast<std::chrono::seconds>(time - std::chrono::steady_clock::now());
+void Scheduler::schedule(Time::Pt time, Scheduler::Cb task) {
+    auto sec_in_future = std::chrono::duration_cast<Time::sec>(time - Time::now());
     logger->debug("Scheduling {} {}s in future", typeid(task).name(), sec_in_future.count());//TODO: handle me better
     q.push({time, task});
 }
 
-bool is_expired(const Scheduler::Tm& tm) {
-    std::chrono::microseconds far_usec = std::chrono::duration_cast<std::chrono::microseconds>(tm - std::chrono::steady_clock::now());
-    return far_usec.count() <= 0;
+Time::usec usec_to_expiry(const Time::Pt& tm) {
+    return std::chrono::duration_cast<Time::usec>(tm - Time::now());
 }
 
-void block_for_expiry(const Scheduler::Tm& tm) {
+bool is_expired(const Time::Pt& tm) {
+    return usec_to_expiry(tm).count() <= 0;
+}
+
+void block_for_expiry(const Time::Pt& tm) {
     while (true) {
-        std::chrono::microseconds far_usec = std::chrono::duration_cast<std::chrono::microseconds>(tm - std::chrono::steady_clock::now());
+        auto far_usec = usec_to_expiry(tm);
         if (far_usec.count() > 0) {
             std::this_thread::sleep_for(far_usec);
         } else {

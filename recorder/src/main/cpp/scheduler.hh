@@ -5,13 +5,12 @@
 #include <chrono>
 #include <queue>
 #include <exception>
+#include "globals.hh"
 
 class Scheduler {
 public:
-    typedef std::chrono::steady_clock Clk;
-    typedef std::chrono::time_point<Clk> Tm;
     typedef std::function<void()> Cb;
-    typedef std::pair<Tm, Cb> Ent;
+    typedef std::pair<Time::Pt, Cb> Ent;
     struct Cmp {
         bool operator() (const Ent& left, const Ent& right) {
             return left.first > right.first;
@@ -23,7 +22,7 @@ public:
 
     ~Scheduler() {}
 
-    void schedule(Tm time, Cb task);
+    void schedule(Time::Pt time, Cb task);
 
     bool poll();
 

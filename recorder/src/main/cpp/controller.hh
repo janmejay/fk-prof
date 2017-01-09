@@ -67,7 +67,7 @@ private:
 
     void run();
     
-    void run_with_associate(const Buff& associate_response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time);
+    void run_with_associate(const Buff& associate_response_buff, const Time::Pt& start_time);
 
     void accept_work(Buff& poll_response_buff);
 

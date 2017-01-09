@@ -17,9 +17,9 @@ void init_logger() {
 }
 
 std::uint32_t elapsed_time(std::function<void()> proc) {
-    auto start = std::chrono::steady_clock::now();
+    auto start = Time::now();
     proc();
-    auto end = std::chrono::steady_clock::now();
+    auto end = Time::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
@@ -32,7 +32,7 @@ TEST(Scheduler___one_at_a_time___just_expired) {
     int order_tracker = 0;
     Scheduler s;
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = Time::now();
     
     s.schedule(start, [&]() { order_tracker = 1; });
     CHECK_EQUAL(0, order_tracker);
@@ -50,12 +50,12 @@ TEST(Scheduler___one_at_a_time___pre_expired) {
     int order_tracker = 0;
     Scheduler s;
 
-    s.schedule(std::chrono::steady_clock::now() - std::chrono::seconds(10), [&]() { order_tracker = 1; });
+    s.schedule(Time::now() - Time::sec(10), [&]() { order_tracker = 1; });
     CHECK_EQUAL(0, order_tracker);
     CHECK_CLOSE(1, time_poll(s), 1);
     CHECK_EQUAL(1, order_tracker);
 
-    s.schedule(std::chrono::steady_clock::now() - std::chrono::seconds(5), [&]() { order_tracker = 2; });
+    s.schedule(Time::now() - Time::sec(5), [&]() { order_tracker = 2; });
     CHECK_EQUAL(1, order_tracker);
     CHECK_CLOSE(1, time_poll(s), 1);
     CHECK_EQUAL(2, order_tracker);
@@ -66,8 +66,8 @@ TEST(Scheduler___several___pre_expired) {
     int order_tracker[] = {0, 0};
     Scheduler s;
 
-    s.schedule(std::chrono::steady_clock::now() - std::chrono::seconds(5), [&]() { order_tracker[1] = 5; });
-    s.schedule(std::chrono::steady_clock::now() - std::chrono::seconds(10), [&]() { order_tracker[0] = 10; });
+    s.schedule(Time::now() - Time::sec(5), [&]() { order_tracker[1] = 5; });
+    s.schedule(Time::now() - Time::sec(10), [&]() { order_tracker[0] = 10; });
 
     CHECK_EQUAL(0, order_tracker[0]);
     CHECK_EQUAL(0, order_tracker[1]);
@@ -85,8 +85,8 @@ TEST(Scheduler___several___future) {
     int order_tracker = 0;
     Scheduler s;
 
-    auto now = std::chrono::steady_clock::now();
-    s.schedule(now + std::chrono::seconds(1), [&]() { order_tracker = 1000; });
+    auto now = Time::now();
+    s.schedule(now + Time::sec(1), [&]() { order_tracker = 1000; });
     s.schedule(now + std::chrono::milliseconds(200), [&]() { order_tracker = 200; });
     s.schedule(now + std::chrono::milliseconds(70), [&]() { order_tracker = 70; });
     s.schedule(now + std::chrono::milliseconds(900), [&]() { order_tracker = 900; });
@@ -115,7 +115,7 @@ TEST(Scheduler___too_many_pops) {
     int order_tracker = 0;
     Scheduler s;
 
-    s.schedule(std::chrono::steady_clock::now() - std::chrono::seconds(5), [&]() { order_tracker = 1; });
+    s.schedule(Time::now() - Time::sec(5), [&]() { order_tracker = 1; });
     CHECK(s.poll());
     CHECK(! s.poll());
 }
