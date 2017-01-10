@@ -10,15 +10,16 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 /**
- * AsyncStorage impl backed by S3 Object store. Uses an executorService to offload the task.
+ * AsyncStorage impl backed by S3 Object storeAsync. It uses an executorService to offload the task.
  * @author gaurav.ashok
  */
 public class D42AsyncStorage implements AsyncStorage {
 
-    Logger logger = LoggerFactory.getLogger(D42AsyncStorage.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(D42AsyncStorage.class);
+    private static String NO_SUCH_KEY = "NoSuchKey";
+    private static String NO_SUCH_BUKCET = "NoSuchBucket";
 
     private AmazonS3 client;
     private String bucket;
@@ -35,20 +36,51 @@ public class D42AsyncStorage implements AsyncStorage {
     }
 
     @Override
-    public void store(String path, InputStream content) {
+    public void storeAsync(String path, InputStream content) {
         CompletableFuture.runAsync(() -> {
             try {
                 client.putObject(bucket, path, content, new ObjectMetadata());
             }
             catch(AmazonClientException e) {
-                logger.error("S3 PutObject failed: {}", path, e);
+                LOGGER.error("S3 PutObject failed: {}", path, e);
                 //TODO expose metric
             }
         }, executorService);
     }
 
     @Override
-    public Future<InputStream> fetch(String path) {
-        return CompletableFuture.supplyAsync(() -> client.getObject(bucket, path).getObjectContent(), executorService);
+    public InputStream fetch(String path) throws StorageException {
+        try {
+            return client.getObject(bucket, path).getObjectContent();
+        }
+        catch (AmazonServiceException svcEx) {
+            LOGGER.error("S3 getObject failed: {}/{}", bucket, path, svcEx);
+            throw mapServiceException(svcEx);
+        }
+        catch (AmazonClientException clientEx) {
+            LOGGER.error("S3 getObject failed: {}/{}", bucket, path, clientEx);
+            throw mapClientException(clientEx);
+        }
+    }
+
+    @Override
+    public CompletableFuture<InputStream> fetchAsync(String path) {
+        return CompletableFuture.supplyAsync(() -> fetch(path), executorService);
+    }
+
+    private StorageException mapClientException(AmazonClientException ex) {
+        return new StorageException(ex.getMessage(), ex, ex.isRetryable());
+    }
+
+    private StorageException mapServiceException(AmazonServiceException ex) {
+        // map non existent bucket and non existent path to PathNotFound exception specifically
+        if(NO_SUCH_BUKCET.equals(ex.getErrorCode())) {
+            return new ObjectNotFoundException(NO_SUCH_BUKCET + ": " + ex.getMessage(), ex);
+        }
+        else if(NO_SUCH_KEY.equals(ex.getErrorCode())) {
+            return new ObjectNotFoundException(NO_SUCH_KEY + ": " + ex.getMessage(), ex);
+        }
+
+        return mapClientException(ex);
     }
 }

@@ -21,38 +21,19 @@ public abstract class Deserializer<T> {
         return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
     }
 
-    /**
-     * Read a series of bytes that was serialized in the format of [size][message][checksum].
-     * @param in
-     * @return
-     * @throws IOException
-     */
-    public static byte[] readFenced(InputStream in) throws IOException {
-        // read size
-        int size = readInt32(in);
-        // read size bytes
-        byte[] bytes = new byte[size];
-        readFully(in, bytes);
-
-        int checksum = readInt32(in);
-
+    public static boolean verifyChecksum(byte[] buffer, int off, int len, long checksum) throws IOException {
         Adler32 adler32 = new Adler32();
-        adler32.update(size >> 24);
-        adler32.update(size >> 16);
-        adler32.update(size >> 8);
-        adler32.update(size);
+        adler32.update(len >> 24);
+        adler32.update(len >> 16);
+        adler32.update(len >> 8);
+        adler32.update(len);
 
-        adler32.update(bytes);
+        adler32.update(buffer, off, len);
 
-        if(((int)adler32.getValue()) != checksum) {
-            throw new IOException("Checksum failed");
-        }
-
-        return bytes;
+        return adler32.getValue() != checksum;
     }
 
-    private static int readFully(InputStream is, byte[] bytes) throws IOException {
-        int len = bytes.length;
+    private static int readFully(InputStream is, byte[] bytes, int len) throws IOException {
         int n = 0;
         while (n < len) {
             int count = is.read(bytes, n, len - n);
