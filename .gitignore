@@ -42,3 +42,7 @@ Testing
 .attach_pid*
 TAGS
 cscope.*
+
+# ui
+npm-debug.log
+ui/public/*
