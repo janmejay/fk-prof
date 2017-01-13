@@ -87,6 +87,8 @@ set(SOURCE_FILES
     ${SRC}/concurrent_map.cc
     ${SRC}/profile_writer.cc
     ${SRC}/profile_writer.hh
+    ${SRC}/blocking_ring_buffer.cc
+    ${SRC}/blocking_ring_buffer.hh
     ${SRC}/config.hh
     ${SRC}/config.cc
     ${SRC}/scheduler.hh
@@ -101,7 +103,8 @@ set(TEST_FILES
     ${SRC_TEST}/test_recording_serde.cc
     ${SRC_TEST}/test_checksum.cc
     ${SRC_TEST}/test_maps.cc
-    ${SRC_TEST}/test_scheduler.cc)
+    ${SRC_TEST}/test_scheduler.cc
+    ${SRC_TEST}/test_blocking_ring_buffer.cc)
 
 set(TEST_UTIL_FILES
     ${SRC_TEST}/test_profile.hh
@@ -144,7 +147,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb")
+set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
 # to enable tracing add: -DENABLE_TRACING
 set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 

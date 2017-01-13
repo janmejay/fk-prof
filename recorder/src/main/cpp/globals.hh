@@ -72,6 +72,10 @@ template <typename T> const T& min(const T& first, const T& second) {
     return first > second ? second : first;
 }
 
+template <typename T> const T& max(const T& first, const T& second) {
+    return first < second ? second : first;
+}
+
 #define AGENTEXPORT __attribute__((visibility("default"))) JNIEXPORT
 
 // Gets us around -Wunused-parameter

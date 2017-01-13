@@ -2,24 +2,22 @@
 #include <chrono>
 #include <curl/curl.h>
 #include "buff.hh"
+#include "blocking_ring_buffer.hh"
 
-void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
+static void prep_new_thread(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
-    Controller *control = (Controller *) arg;
     sigset_t mask;
 
     sigemptyset(&mask);
     sigaddset(&mask, SIGPROF);
 
     if (pthread_sigmask(SIG_BLOCK, &mask, NULL) < 0) {
-        logError("ERROR: unable to set controller thread signal mask\n");
+        logger->error("Unable to set controller thread signal mask");
     }
-
-    control->run();
 }
 
-void Controller::start() {
+static void start_new_thread(JavaVM *jvm, jvmtiEnv *jvmti, std::atomic_bool& running, const char* thd_name, jvmtiStartFunction run_fn, void *arg) {
     JNIEnv *env = getJNIEnv(jvm);
     jvmtiError result;
 
@@ -30,13 +28,22 @@ void Controller::start() {
 
     running.store(true, std::memory_order_relaxed);
 
-    jthread thread = newThread(env, "Honest Profiler Controller Thread");
-    jvmtiStartFunction callback = controllerRunnable;
-    result = jvmti->RunAgentThread(thread, callback, this, JVMTI_THREAD_NORM_PRIORITY);
+    jthread thread = newThread(env, thd_name);
+    result = jvmti->RunAgentThread(thread, run_fn, arg, JVMTI_THREAD_NORM_PRIORITY);
 
     if (result != JVMTI_ERROR_NONE) {
-        logError("ERROR: Running controller thread failed with: %d\n", result);
+        logger->error("Starting thread named {} failed with: {}", thd_name, result);
     }
+}
+
+void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
+    prep_new_thread(jvmti_env, jni_env);
+    Controller *control = (Controller *) arg;
+    control->run();
+}
+
+void Controller::start() {
+    start_new_thread(jvm, jvmti, running, "Fk-Prof Controller Thread", controllerRunnable, this);
 }
 
 void Controller::stop() {
@@ -211,7 +218,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
 
         auto next_tick = Time::now();
         if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
-            accept_work(recv);
+            accept_work(recv, host, port);
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
             next_tick += Time::sec(cfg.poll_itvl);
@@ -310,7 +317,7 @@ void Controller::with_current_work(std::function<void(Controller::W&, Controller
     proc(current_work, current_work_state, current_work_result, work_start, work_end);
 }
 
-void Controller::accept_work(Buff& poll_response_buff) {
+void Controller::accept_work(Buff& poll_response_buff, const std::string& host, const std::uint32_t port) {
     recording::PollRes res;
     auto parse_successful = res.ParseFromArray(poll_response_buff.buff + poll_response_buff.read_end, poll_response_buff.write_end - poll_response_buff.read_end);
     if (! parse_successful) {
@@ -340,7 +347,7 @@ void Controller::accept_work(Buff& poll_response_buff) {
                 if ((delay + w.duration()) > 0) {
                     wst = recording::WorkResponse::pre_start;
                     wres = recording::WorkResponse::unknown;
-                    issueWork();
+                    issueWork(host, port);
                 } else {
                     wst = recording::WorkResponse::complete;
                     wres = recording::WorkResponse::success;
@@ -351,25 +358,118 @@ void Controller::accept_work(Buff& poll_response_buff) {
     }
 }
 
-void Controller::issueWork() {
+void httpRawWriterRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
+
+static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ring) {
+    auto ring = static_cast<BlockingRingBuffer*>(_ring);
+    return ring->read(reinterpret_cast<std::uint8_t*>(out_buff), 0, size * nitems, false);
+}
+
+class HttpRawProfileWriter : public RawWriter {
+private:
+    std::string host;
+    std::uint32_t port;
+    //This ring is a 1 copy approach. But this is needed (and acceptable), because alternatives aren't very lucrative.
+    //
+    //The problem is, we have atomicity boundry across 3 writes (length, object itself and its checksum, check ProfileWriter)
+    //  which means, critical section for write to ring-buffer will have to extend around the 3 writes (one being heavy serialization op).
+    //  Ideally, serialization, being heavy operation it is, should happen outside critical section to keep contention low, but then variable-length encoding
+    //  of integers (length, checksum) prevents us from accurately predicting the space necessary. We can over-provision and later jump over empty space
+    //  in the ring-buffer, but if that is to become a pointer chase, it kinda looses the point.
+    //
+    //So the solution is to have a 1 copy approach, which has additional-copy overhead, but also has some advantages. Eg. now the extra copy step
+    //  can be used for other desirable things like compression.
+    BlockingRingBuffer& ring;
+
+    std::atomic_bool running;
+
+    std::function<void()> cancellation_fn;
+    
+public:
+    HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port, BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) : RawWriter(), host(_host), port(_port), ring(_ring), running(false), cancellation_fn(_cancellation_fn) {
+        ring.clear();
+        start_new_thread(jvm, jvmti, running, "Fk-Prof Profiler Writer Thread", httpRawWriterRunnable, this);
+    }
+    virtual ~HttpRawProfileWriter() {}
+
+    void write_unbuffered(const std::uint8_t* data, std::uint32_t sz, std::uint32_t offset) {
+        ring.write(data, offset, sz);
+    }
+
+    void run() {
+        std::stringstream ss;
+        ss << "http://" << host << ":" << port << "/profile";
+        const std::string url = ss.str();
+        logger->info("Will now post profile to associate: {}", url);
+
+        Curl curl(curl_easy_init(), curl_easy_cleanup);
+        CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding: chunked"}));
+        if (curl.get() == nullptr || header_list == nullptr) {
+            logger->error("Controller couldn't post profile because cURL init failed");
+            return;
+        }
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+
+        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &ring);
+        curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
+
+        if (do_call(curl, url.c_str(), "send-profile", 0)) {
+            logger->info("Profile posted successfully!");
+        } else {
+            logger->error("Couldn't post profile, http request failed, cancelling work.");
+            cancellation_fn();
+        }
+    }
+};
+
+void httpRawWriterRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
+    prep_new_thread(jvmti_env, jni_env);
+    HttpRawProfileWriter* rpw = (HttpRawProfileWriter*) arg;
+    rpw->run();
+}
+
+void Controller::issueWork(const std::string& host, const std::uint32_t port) {
     auto at = Time::now() + Time::sec(current_work.delay());
     scheduler.schedule(at, [&]() {
             with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
+                    auto work_id = w.work_id();
+                    std::function<void()> cancellation_cb = [&, work_id]() {
+                        retireWork(work_id);
+                    };
+                    raw_writer.reset(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb)));
+                    writer.reset(new ProfileWriter(*raw_writer.get(), buff));
+                    
+                    for (auto i = 0; i < w.work_size(); i++) {
+                        auto work = w.work(i);
+                        issue(work);
+                    }
                     start_tm = Time::now();
                     auto stop_at = start_tm + Time::sec(w.duration());
                     scheduler.schedule(stop_at, [&]() {
-                            retireWork();
+                            retireWork(work_id);
                         });
                     logger->info("Issuing work-id {}, it is slated for retire in {} seconds", w.work_id(), w.duration());
                     wst = recording::WorkResponse::running;
-                    //do something to actually start work here                    
                 });
         });
 }
 
-void Controller::retireWork() {
+void Controller::retireWork(const std::uint64_t work_id) {
     with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
-            //TODO: check actual status here and stop it and make sure it is stopped
+            if (w.work_id() != work_id) {
+                logger->warn("Stale work-retire call (target work_id was {}, current work_id is {}), ignoring", work_id, w.work_id());
+                return;//TODO: test me!
+            }
+            for (auto i = 0; i < w.work_size(); i++) {
+                auto work = w.work(i);
+                retire(work);
+            }
+            writer.reset(nullptr);
+            raw_writer.reset(nullptr);
+            
             logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);
             wst = recording::WorkResponse::complete;
             if ( wres == recording::WorkResponse::unknown) {
@@ -377,6 +477,55 @@ void Controller::retireWork() {
             }
             end_tm = Time::now();
         });
+}
+
+bool has_cpu_sample_work_p(const recording::Work& work) {
+    if (work.has_cpu_sample()) return true;
+    logger->error("Work of CPU-sampling-type {} doesn't have a definition", work.w_type());
+    return false;
+}
+
+void Controller::issue(const recording::Work& work) {
+    auto w_type = work.w_type();
+    switch(w_type) {
+    case recording::WorkType::cpu_sample_work:
+        if (has_cpu_sample_work_p(work))
+            issue(work.cpu_sample());
+        return;
+    default:
+        logger->error("Encountered unknown work type {}", w_type);
+    }
+}
+
+void Controller::retire(const recording::Work& work) {
+    auto w_type = work.w_type();
+    switch(w_type) {
+    case recording::WorkType::cpu_sample_work:
+        if (has_cpu_sample_work_p(work))
+            retire(work.cpu_sample());
+        return;
+    default:
+        logger->error("Encountered unknown work type {}", w_type);
+    }
+}
+
+void Controller::issue(const recording::CpuSampleWork& csw) {
+    auto freq = csw.frequency();
+    auto max_stack_depth = csw.max_frames();
+    logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
+    
+    profiler.reset(new Profiler(jvm, jvmti, thread_map, *writer.get(), 10, 20));
+    JNIEnv *env = getJNIEnv(jvm);
+    profiler->start(env);
+}
+
+void Controller::retire(const recording::CpuSampleWork& csw) {
+    auto freq = csw.frequency();
+    auto max_stack_depth = csw.max_frames();
+    logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
+
+    profiler->stop();
+    profiler.reset(nullptr);
 }
 
 void Controller::startSampling() {
@@ -393,4 +542,3 @@ void Controller::startSampling() {
 void Controller::stopSampling() {
     profiler->stop();
 }
-
