@@ -389,3 +389,82 @@ TEST(BlockingRingBuffer_should_reset_and_drop_data____when_clered) {
     
     ASSERT_IS_SEQUENCE(read_buff, 0, 100, 0);
 }
+
+void try_to_sum_up(BlockingRingBuffer& ring, std::atomic<std::uint32_t>& sum, std::atomic<bool>& do_stop) {
+    std::uint8_t buff[70] __attribute__((aligned(0x40)));
+    while (! do_stop.load(std::memory_order_relaxed)) {
+        auto read = ring.read(buff, 59, 11);
+        for (int i = 0; i < read; i++) {
+            sum += buff[i + 59];
+            std::cerr << "Sum = " << sum.load() << "\n";
+        }
+    }
+
+}
+
+void write_to_ring(BlockingRingBuffer& ring, std::uint8_t *buff, std::uint32_t buff_len, std::uint32_t batch_sz, std::uint32_t times, std::atomic<bool>& do_start) {
+    while (! do_start.load(std::memory_order_relaxed));
+    for (auto i = 0; i < times; i++) {
+        for (auto offset = 0; offset < buff_len; ) {
+            auto len = min(batch_sz, buff_len - offset);
+            ring.write(buff, offset, len);
+            offset += len;
+        }
+    }
+}
+
+void do_keep_clearing(BlockingRingBuffer& ring, std::atomic<bool>& keep_clearing) {
+    while (keep_clearing.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        ring.clear();
+    }
+}
+
+TEST(BlockingRingBuffer_should_have_no_data_loss____in_the_face_of_concurrent_reads_and_writes) {
+    std::uint8_t write_buff[1024];
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i % 256;
+    }
+    std::atomic<std::uint32_t> sum(0);
+    std::atomic<bool> do_start(false), do_stop(false), keep_clearing(true);
+
+    std::vector<std::thread> summing_thds, writing_thds;
+
+    BlockingRingBuffer ring(100);
+
+    for (auto i = 0; i < 10; i++) {
+        std::thread t(try_to_sum_up, std::ref(ring), std::ref(sum), std::ref(do_stop));
+        summing_thds.emplace_back(std::move(t));
+    }
+
+    for (auto i = 0; i < 10; i++) {
+        std::thread t(write_to_ring, std::ref(ring), write_buff, 1024, (i + 1) * 13, 5, std::ref(do_start));
+        writing_thds.emplace_back(std::move(t));
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    do_start.store(true, std::memory_order_relaxed);
+
+    for (auto& t : writing_thds) t.join();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    do_stop.store(true, std::memory_order_relaxed);
+
+    std::memset(write_buff, 0, sizeof(write_buff));
+
+    std::thread t(write_to_ring, std::ref(ring), write_buff, 1024, 1, 1, std::ref(do_start));
+    for (auto& t : summing_thds) {
+        t.join();
+    }
+    for (auto i = 0; i < 11; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));    
+        ring.clear();
+    }
+    std::thread t_cleanup(do_keep_clearing, std::ref(ring), std::ref(keep_clearing));
+    t.join();
+    keep_clearing.store(false, std::memory_order_relaxed);
+    t_cleanup.join();
+    
+    CHECK_EQUAL(255*(256/2) * 4 * 5 * 10, sum.load());                    
+}

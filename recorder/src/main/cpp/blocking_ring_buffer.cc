@@ -108,7 +108,11 @@ std::uint32_t BlockingRingBuffer::read_noblock(std::uint8_t *to, std::uint32_t& 
 }
 
 std::uint32_t BlockingRingBuffer::clear() {
+    std::unique_lock<std::mutex> lock(m);
+    
     auto old_available = available;
     read_idx = write_idx = available = 0;
+    writable.notify_all();
+    
     return old_available;
 }
