@@ -15,7 +15,7 @@ public interface AsyncStorage {
      * @param path
      * @param content
      */
-    void storeAsync(String path, InputStream content);
+    void storeAsync(String path, InputStream content, long length);
 
     /**
      * Synchronous method to fetch content from the specified path.

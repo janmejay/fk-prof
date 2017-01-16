@@ -36,15 +36,19 @@ public class D42AsyncStorage implements AsyncStorage {
     }
 
     @Override
-    public void storeAsync(String path, InputStream content) {
+    public void storeAsync(String path, InputStream content, long length) {
         CompletableFuture.runAsync(() -> {
             try {
-                client.putObject(bucket, path, content, new ObjectMetadata());
+                ObjectMetadata meta = new ObjectMetadata();
+                meta.setContentLength(length);
+                client.putObject(bucket, path, content, meta);
+                // TODO expose metric for size written
             }
             catch(AmazonClientException e) {
                 LOGGER.error("S3 PutObject failed: {}", path, e);
                 //TODO expose metric
             }
+            // content InputStream is by default closed by the S3Client, so need to close it.
         }, executorService);
     }
 

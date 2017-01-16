@@ -3,13 +3,14 @@ package fk.prof.storage.test;
 import com.amazonaws.util.IOUtils;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.FileNamingStrategy;
+import fk.prof.storage.ObjectNotFoundException;
+import fk.prof.storage.StorageException;
 
 
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 
 /**
  * @author gaurav.ashok
@@ -29,24 +30,34 @@ public class Util {
 
         // sync impl
         @Override
-        public void store(String path, InputStream content) {
+        public void storeAsync(String path, InputStream content, long length) {
             try {
                 writtenContent.put(path, IOUtils.toString(content));
             }
             catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+            finally {
+                try {
+                    content.close();
+                }
+                catch (Exception e) {
+                }
+            }
         }
 
         @Override
-        public Future<InputStream> fetch(String path) {
-            return CompletableFuture.supplyAsync(() -> {
-                if(writtenContent.containsKey(path)) {
-                    return new ByteArrayInputStream(writtenContent.get(path).getBytes());
-                }
-                // simulate FileNotFound case
-                throw new UncheckedIOException(new FileNotFoundException());
-            });
+        public InputStream fetch(String path) throws StorageException {
+            if(writtenContent.containsKey(path)) {
+                return new ByteArrayInputStream(writtenContent.get(path).getBytes());
+            }
+            // simulate ObjectNotFound case
+            throw new ObjectNotFoundException("object not found");
+        }
+
+        @Override
+        public CompletableFuture<InputStream> fetchAsync(String path) {
+            return CompletableFuture.supplyAsync(() -> fetch(path));
         }
     }
 }
