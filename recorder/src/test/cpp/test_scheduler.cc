@@ -7,15 +7,6 @@
 #include "../../main/cpp/globals.hh"
 #include "../../main/cpp/scheduler.hh"
 
-LoggerP logger(nullptr);
-
-void init_logger() {
-    if (logger == nullptr) {
-        logger = spdlog::stdout_color_mt("console");
-        logger->set_level(spdlog::level::trace);
-    }
-}
-
 std::uint32_t elapsed_time(std::function<void()> proc) {
     auto start = Time::now();
     proc();

@@ -5,7 +5,6 @@
 #include <chrono>
 #include "fixtures.hh"
 #include "test.hh"
-#include "../../main/cpp/globals.hh"
 #include "../../main/cpp/blocking_ring_buffer.hh"
 
 #define ASSERT_IS_SEQUENCE(buff, offset, len, init)            \
@@ -18,6 +17,7 @@
     }
 
 TEST(BlockingRingBuffer_should_RW_____when_read_ptr_before_write_ptr) {
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -38,6 +38,7 @@ TEST(BlockingRingBuffer_should_RW_____when_read_ptr_before_write_ptr) {
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____one_shot) {
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -54,6 +55,7 @@ TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____one_shot) {
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____across_2_writes) {
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -71,6 +73,7 @@ TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____across_2_writ
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_read_ptr_wraps_over____across_2_reads) { //one shot case is already tested
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -89,6 +92,7 @@ TEST(BlockingRingBuffer_should_RW_____when_read_ptr_wraps_over____across_2_reads
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_write) { 
+    init_logger();
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -100,6 +104,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_write) {
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_write____but_needs_wrapping_over) {
+    init_logger();
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -113,6 +118,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_write____but_needs_wrapping_ov
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_read) {
+    init_logger();
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -125,6 +131,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_read) {
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_read____but_needs_wrapping_over) {
+    init_logger();
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -139,6 +146,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_read____but_needs_wrapping_ove
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_not_read____but_is_a_non_blocking_read_call) {
+    init_logger();
     std::uint8_t buff[100];
     BlockingRingBuffer ring(100);
     auto start = std::chrono::steady_clock::now();
@@ -147,6 +155,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_not_read____but_is_a_non_block
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_not_write____but_is_a_non_blocking_write_call) {
+    init_logger();
     std::uint8_t buff[100];
     BlockingRingBuffer ring(100);
     CHECK_EQUAL(100, ring.write(buff, 0, 100));
@@ -156,6 +165,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_not_write____but_is_a_non_bloc
 }
 
 TEST(BlockingRingBuffer_should_not_write____more_than_available_capacity) {
+    init_logger();
     std::uint8_t buff[100];
     for (int i = 0; i < sizeof(buff); i++) {
         buff[i] = i % 256;
@@ -169,6 +179,7 @@ TEST(BlockingRingBuffer_should_not_write____more_than_available_capacity) {
 }
 
 TEST(BlockingRingBuffer_should_not_read____more_than_available_content) {
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
@@ -193,6 +204,7 @@ void write_after_sleep(std::uint32_t ms, BlockingRingBuffer& ring, std::uint8_t*
 }
 
 TEST(BlockingRingBuffer_should_block_write____if_it_became_full_midway_of_a_write) {
+    init_logger();
     std::uint32_t bytes_read_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -218,6 +230,7 @@ TEST(BlockingRingBuffer_should_block_write____if_it_became_full_midway_of_a_writ
 }
 
 TEST(BlockingRingBuffer_should_block_read____if_it_became_empty_midway_of_a_read) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -245,6 +258,7 @@ TEST(BlockingRingBuffer_should_block_read____if_it_became_empty_midway_of_a_read
 }
 
 TEST(BlockingRingBuffer_should_block_read____if_no_data_has_ever_been_written_to_ring) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -265,6 +279,7 @@ TEST(BlockingRingBuffer_should_block_read____if_no_data_has_ever_been_written_to
 }
 
 TEST(BlockingRingBuffer_should_block_write____if_ring_is_full___and_no_data_has_ever_been_read) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -287,6 +302,7 @@ TEST(BlockingRingBuffer_should_block_write____if_ring_is_full___and_no_data_has_
 }
 
 TEST(BlockingRingBuffer_should_block_read____when_ring_is_empty___but_has_seen_some_io_before_becoming_empty) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -309,6 +325,7 @@ TEST(BlockingRingBuffer_should_block_read____when_ring_is_empty___but_has_seen_s
 }
 
 TEST(BlockingRingBuffer_should_block_write____when_ring_is_full___but_has_seen_reads_too_before_becoming_full) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -337,6 +354,7 @@ TEST(BlockingRingBuffer_should_block_write____when_ring_is_full___but_has_seen_r
 }
 
 TEST(BlockingRingBuffer_should_not_block_on_read____if_0_byte_read_is_requested) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -355,6 +373,7 @@ TEST(BlockingRingBuffer_should_not_block_on_read____if_0_byte_read_is_requested)
 }
 
 TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requested) {
+    init_logger();
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -375,6 +394,7 @@ TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requeste
 }
 
 TEST(BlockingRingBuffer_should_reset_and_drop_data____when_clered) {
+    init_logger();
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
@@ -396,37 +416,37 @@ void try_to_sum_up(BlockingRingBuffer& ring, std::atomic<std::uint32_t>& sum, st
         auto read = ring.read(buff, 59, 11);
         for (int i = 0; i < read; i++) {
             sum += buff[i + 59];
-            std::cerr << "Sum = " << sum.load() << "\n";
         }
     }
 
 }
 
-void write_to_ring(BlockingRingBuffer& ring, std::uint8_t *buff, std::uint32_t buff_len, std::uint32_t batch_sz, std::uint32_t times, std::atomic<bool>& do_start) {
+void write_to_ring_conditionally(BlockingRingBuffer& ring, std::uint8_t *buff, std::uint32_t buff_len, std::uint32_t batch_sz, std::uint32_t times, std::atomic<bool>& do_start, std::atomic<bool>& do_continue) {
     while (! do_start.load(std::memory_order_relaxed));
     for (auto i = 0; i < times; i++) {
         for (auto offset = 0; offset < buff_len; ) {
             auto len = min(batch_sz, buff_len - offset);
+            if (! do_continue.load(std::memory_order_relaxed)) return;
             ring.write(buff, offset, len);
             offset += len;
         }
     }
 }
 
-void do_keep_clearing(BlockingRingBuffer& ring, std::atomic<bool>& keep_clearing) {
-    while (keep_clearing.load(std::memory_order_relaxed)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        ring.clear();
-    }
+void write_to_ring(BlockingRingBuffer& ring, std::uint8_t *buff, std::uint32_t buff_len, std::uint32_t batch_sz, std::uint32_t times, std::atomic<bool>& do_start) {
+    std::atomic<bool> continue_forever(true);
+    write_to_ring_conditionally(ring, buff, buff_len, batch_sz, times, do_start, continue_forever);
 }
 
 TEST(BlockingRingBuffer_should_have_no_data_loss____in_the_face_of_concurrent_reads_and_writes) {
+    init_logger();
     std::uint8_t write_buff[1024];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
     }
+    
     std::atomic<std::uint32_t> sum(0);
-    std::atomic<bool> do_start(false), do_stop(false), keep_clearing(true);
+    std::atomic<bool> do_start(false), do_stop(false), keep_pumping_zeros(true);
 
     std::vector<std::thread> summing_thds, writing_thds;
 
@@ -451,20 +471,17 @@ TEST(BlockingRingBuffer_should_have_no_data_loss____in_the_face_of_concurrent_re
 
     do_stop.store(true, std::memory_order_relaxed);
 
-    std::memset(write_buff, 0, sizeof(write_buff));
+    std::uint8_t zero_buff[1024];
+    std::memset(zero_buff, 0, sizeof(zero_buff));
 
-    std::thread t(write_to_ring, std::ref(ring), write_buff, 1024, 1, 1, std::ref(do_start));
+    std::thread t(write_to_ring_conditionally, std::ref(ring), zero_buff, sizeof(zero_buff), 1, 1, std::ref(do_start), std::ref(keep_pumping_zeros));
     for (auto& t : summing_thds) {
         t.join();
     }
-    for (auto i = 0; i < 11; i++) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));    
-        ring.clear();
-    }
-    std::thread t_cleanup(do_keep_clearing, std::ref(ring), std::ref(keep_clearing));
+    keep_pumping_zeros.store(false, std::memory_order_relaxed);
+    std::uint8_t read_buff[1024];
+    while (ring.read(read_buff, 0, sizeof(read_buff), false) > 0);
     t.join();
-    keep_clearing.store(false, std::memory_order_relaxed);
-    t_cleanup.join();
     
     CHECK_EQUAL(255*(256/2) * 4 * 5 * 10, sum.load());                    
 }

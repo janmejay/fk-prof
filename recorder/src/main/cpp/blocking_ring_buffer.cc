@@ -5,16 +5,18 @@ std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t 
     std::unique_lock<std::mutex> lock(m);
 
     std::uint32_t total_written = 0;
-    while (sz > 0) {
-        auto written = write_noblock(from, offset, sz);
-        total_written += written;
-        if ((! do_block) || (sz == 0)) {
-            if (total_written > 0) {
-                readable.notify_all();
-            }
-            return total_written;
+    while (true) {
+        auto written_now = write_noblock(from, offset, sz);
+        total_written += written_now;
+        logger->trace("Wrote {} bytes (hence a total of {} bytes)", written_now, total_written);
+        if (written_now > 0) {
+            logger->trace("Notifying readers");
+            readable.notify_all();
         }
-        writable.wait(lock, [&] { return available < capacity; });
+        if (do_block && (sz > 0)) {
+            logger->trace("Waiting on ring being writable (available: {}, capacity: {})", available, capacity);
+            writable.wait(lock, [&] { return available < capacity; });
+        } else break;
     }
     return total_written;
 }
@@ -23,16 +25,18 @@ std::uint32_t BlockingRingBuffer::read(std::uint8_t *to, std::uint32_t offset, s
     std::unique_lock<std::mutex> lock(m);
 
     std::uint32_t total_read = 0;
-    while (sz > 0) {
-        auto read = read_noblock(to, offset, sz);
-        total_read += read;
-        if ((! do_block) || (sz == 0)) {
-            if (total_read > 0) {
-                writable.notify_all();
-            }
-            return total_read;
+    while (true) {
+        auto read_now = read_noblock(to, offset, sz);
+        total_read += read_now;
+        logger->trace("Read {} bytes (hence a total of {} bytes)", read_now, total_read);
+        if (read_now > 0) {
+            logger->trace("Notifying writers");
+            writable.notify_all();
         }
-        readable.wait(lock, [&] { return available > 0; });
+        if (do_block && (sz > 0)) {
+            logger->trace("Waiting on ring being readable (available: {}, capacity: {})", available, capacity);
+            readable.wait(lock, [&] { return available > 0; });            
+        } else break;
     }
     return total_read;
 }
@@ -48,6 +52,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
         auto copy_bytes = min(sz, capacity - write_idx);
         std::memcpy(buff + write_idx, from + offset, copy_bytes);
         available += copy_bytes;
+        logger->trace("Added {} available bytes", copy_bytes);
         offset += copy_bytes;
         sz -= copy_bytes;
         write_idx += copy_bytes;
@@ -65,6 +70,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
         if (write_idx == capacity) write_idx = 0;
         bytes_copied += copy_bytes;
         available += copy_bytes;
+        logger->trace("Added {} available bytes", copy_bytes);
         offset += copy_bytes;
         sz -= copy_bytes;
     }
