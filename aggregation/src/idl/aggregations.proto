@@ -36,7 +36,7 @@ message TraceCtxToCoveragePctMap {
 }
 
 message ProfileWorkInfo {
-	required unit32 startOffset = 1;				//offset in seconds from the current header.aggregationStartTime
+	required uint32 startOffset = 1;				//offset in seconds from the current header.aggregationStartTime
 	required uint32 duration = 2;
 	optional uint32 recorderVersion = 3;
 	optional uint32 sampleCount = 4;
@@ -68,7 +68,7 @@ message FrameNode {
 
 // StacktraceTree is traversed in dfs manner and serialized to a set of FrameNodeList
 message FrameNodeList {
-	required uint32 traceCtxIdx = 1
+	required uint32 traceCtxIdx = 1;
 	repeated FrameNode frameNodes = 2;
 }
 
