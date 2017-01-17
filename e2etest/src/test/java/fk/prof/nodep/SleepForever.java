@@ -1,7 +1,7 @@
 package fk.prof.nodep;
 
 public class SleepForever {
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         while (true) {
             try {
                 Thread.sleep(1000);

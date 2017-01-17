@@ -13,6 +13,7 @@
 #include "stacktraces.h"
 #include "processor.h"
 #include "log_writer.h"
+#include "profile_writer.h"
 
 using namespace std::chrono;
 using std::ofstream;

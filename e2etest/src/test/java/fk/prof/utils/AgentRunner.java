@@ -42,7 +42,7 @@ public class AgentRunner {
 
     public AgentRunner(final String fqdn, final String args) {
         if (! fqdn.contains(".nodep.")) {
-            throw new IllegalArgumentException("Agent JVM can only launch with nodep classes, its classpath setup doesn't understand dependencies yet.");
+            throw new IllegalArgumentException("Agent JVM can only launch with classes in 'nodep' package, its classpath setup doesn't understand dependencies yet.");
         }
         this.fqdn = fqdn;
         this.args = args;

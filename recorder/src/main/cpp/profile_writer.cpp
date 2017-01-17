@@ -12,7 +12,7 @@ void ProfileWriter::flush() {
 std::uint32_t ProfileWriter::ensure_freebuff(std::uint32_t min_reqired) {
     if ((data.write_end + min_reqired) > data.capacity) {
         flush();
-        data.ensure_capacity(min_reqired);
+        data.ensure_free(min_reqired);
     }
     return data.capacity - data.write_end;
 }

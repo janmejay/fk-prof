@@ -14,8 +14,6 @@
 #define RECORDER_VERION 1
 #define DATA_ENCODING_VERSION 1
 
-#include "profile_writer.h"
-
 typedef std::shared_ptr<spdlog::logger> LoggerP;
 
 extern LoggerP logger;//TODO: stick me in GlobalCtx???
