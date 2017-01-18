@@ -5,7 +5,7 @@ std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t 
     std::unique_lock<std::mutex> lock(m);
 
     std::uint32_t total_written = 0;
-    while (true) {
+    while (allow_writes) {
         auto written_now = write_noblock(from, offset, sz);
         total_written += written_now;
         logger->trace("Wrote {} bytes (hence a total of {} bytes)", written_now, total_written);
@@ -15,7 +15,7 @@ std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t 
         }
         if (do_block && (sz > 0)) {
             logger->trace("Waiting on ring being writable (available: {}, capacity: {})", available, capacity);
-            writable.wait(lock, [&] { return available < capacity; });
+            writable.wait(lock, [&] { return (available < capacity) || (! allow_writes); });
         } else break;
     }
     return total_written;
@@ -28,6 +28,7 @@ std::uint32_t BlockingRingBuffer::read(std::uint8_t *to, std::uint32_t offset, s
     while (true) {
         auto read_now = read_noblock(to, offset, sz);
         total_read += read_now;
+        if (! allow_writes) break;
         logger->trace("Read {} bytes (hence a total of {} bytes)", read_now, total_read);
         if (read_now > 0) {
             logger->trace("Notifying writers");
@@ -35,7 +36,7 @@ std::uint32_t BlockingRingBuffer::read(std::uint8_t *to, std::uint32_t offset, s
         }
         if (do_block && (sz > 0)) {
             logger->trace("Waiting on ring being readable (available: {}, capacity: {})", available, capacity);
-            readable.wait(lock, [&] { return available > 0; });            
+            readable.wait(lock, [&] { return (available > 0) || (! allow_writes); });
         } else break;
     }
     return total_read;
@@ -113,12 +114,20 @@ std::uint32_t BlockingRingBuffer::read_noblock(std::uint8_t *to, std::uint32_t& 
     return bytes_copied;
 }
 
-std::uint32_t BlockingRingBuffer::clear() {
+std::uint32_t BlockingRingBuffer::reset() {
     std::unique_lock<std::mutex> lock(m);
     
     auto old_available = available;
     read_idx = write_idx = available = 0;
+    allow_writes = true;
     writable.notify_all();
     
     return old_available;
+}
+
+void BlockingRingBuffer::readonly() {
+    std::unique_lock<std::mutex> lock(m);
+    allow_writes = false;
+    readable.notify_all();
+    writable.notify_all();
 }

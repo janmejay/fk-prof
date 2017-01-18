@@ -4,54 +4,24 @@
 #include "buff.hh"
 #include "blocking_ring_buffer.hh"
 
-static void prep_new_thread(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
-    IMPLICITLY_USE(jvmti_env);
-    IMPLICITLY_USE(jni_env);
-    sigset_t mask;
-
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGPROF);
-
-    if (pthread_sigmask(SIG_BLOCK, &mask, NULL) < 0) {
-        logger->error("Unable to set controller thread signal mask");
-    }
-}
-
-static void start_new_thread(JavaVM *jvm, jvmtiEnv *jvmti, std::atomic_bool& running, const char* thd_name, jvmtiStartFunction run_fn, void *arg) {
-    JNIEnv *env = getJNIEnv(jvm);
-    jvmtiError result;
-
-    if (env == NULL) {
-        logError("ERROR: Failed to obtain JNIEnv\n");
-        return;
-    }
-
-    running.store(true, std::memory_order_relaxed);
-
-    jthread thread = newThread(env, thd_name);
-    result = jvmti->RunAgentThread(thread, run_fn, arg, JVMTI_THREAD_NORM_PRIORITY);
-
-    if (result != JVMTI_ERROR_NONE) {
-        logger->error("Starting thread named {} failed with: {}", thd_name, result);
-    }
-}
-
 void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    prep_new_thread(jvmti_env, jni_env);
-    Controller *control = (Controller *) arg;
+    Controller* control = static_cast<Controller*>(arg);
     control->run();
 }
 
 void Controller::start() {
-    start_new_thread(jvm, jvmti, running, "Fk-Prof Controller Thread", controllerRunnable, this);
+    keep_running.store(true, std::memory_order_relaxed);
+    thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Controller Thread", controllerRunnable, this);
 }
 
 void Controller::stop() {
-    running.store(false, std::memory_order_relaxed);
+    keep_running.store(false, std::memory_order_relaxed);
+    await_thd_death(thd_proc);
+    thd_proc.reset();
 }
 
 bool Controller::is_running() const {
-    return running.load();
+    return keep_running.load();
 }
 
 struct CurlInit {
@@ -234,7 +204,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
 
     scheduler.schedule(Time::now(), poll_cb);
     
-    while (running.load(std::memory_order_relaxed) && scheduler.poll());
+    while (keep_running.load(std::memory_order_relaxed) && scheduler.poll());
 }
 
 void Controller::run() {
@@ -260,7 +230,7 @@ void Controller::run() {
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
     
-    while (running.load(std::memory_order_relaxed)) {
+    while (keep_running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
         recording::RecorderInfo ri;
         populate_recorder_info(ri, cfg, start_time);
@@ -358,11 +328,13 @@ void Controller::accept_work(Buff& poll_response_buff, const std::string& host, 
     }
 }
 
-void httpRawWriterRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
+void http_raw_writer_runnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 
 static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ring) {
     auto ring = static_cast<BlockingRingBuffer*>(_ring);
-    return ring->read(reinterpret_cast<std::uint8_t*>(out_buff), 0, size * nitems, false);
+    auto copied = ring->read(reinterpret_cast<std::uint8_t*>(out_buff), 0, size * nitems);
+    logger->debug("Writing {} bytes of recorded data", copied);
+    return copied;
 }
 
 class HttpRawProfileWriter : public RawWriter {
@@ -381,16 +353,19 @@ private:
     //  can be used for other desirable things like compression.
     BlockingRingBuffer& ring;
 
-    std::atomic_bool running;
-
     std::function<void()> cancellation_fn;
-    
+
+    ThdProcP thd_proc;
+
 public:
-    HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port, BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) : RawWriter(), host(_host), port(_port), ring(_ring), running(false), cancellation_fn(_cancellation_fn) {
-        ring.clear();
-        start_new_thread(jvm, jvmti, running, "Fk-Prof Profiler Writer Thread", httpRawWriterRunnable, this);
+    HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port, BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) : RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn) {
+        ring.reset();
+        thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, &ring);
     }
-    virtual ~HttpRawProfileWriter() {}
+    virtual ~HttpRawProfileWriter() {
+        ring.readonly();
+        await_thd_death(thd_proc);
+    }
 
     void write_unbuffered(const std::uint8_t* data, std::uint32_t sz, std::uint32_t offset) {
         ring.write(data, offset, sz);
@@ -413,7 +388,7 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
-        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &ring);
+        curl_easy_setopt(curl.get(), CURLOPT_READDATA, this);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
 
         if (do_call(curl, url.c_str(), "send-profile", 0)) {
@@ -425,8 +400,7 @@ public:
     }
 };
 
-void httpRawWriterRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    prep_new_thread(jvmti_env, jni_env);
+void http_raw_writer_runnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     HttpRawProfileWriter* rpw = (HttpRawProfileWriter*) arg;
     rpw->run();
 }

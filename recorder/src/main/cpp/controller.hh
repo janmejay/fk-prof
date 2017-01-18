@@ -22,13 +22,14 @@
 #include <memory>
 #include "scheduler.hh"
 #include "blocking_ring_buffer.hh"
+#include "ti_thd.hh"
 
 #define MAX_DATA_SIZE 100
 
 class Controller {
 public:
     explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
-        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), running(false), raw_writer(nullptr), writer(nullptr), profiler(nullptr) {
+        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), raw_writer(nullptr), writer(nullptr), profiler(nullptr) {
         current_work.set_work_id(0);
         current_work_state = recording::WorkResponse::complete;
         current_work_result = recording::WorkResponse::success;
@@ -49,7 +50,8 @@ private:
     jvmtiEnv *jvmti;
     ThreadMap& thread_map;
     ConfigurationOptions& cfg;
-    std::atomic_bool running;
+    std::atomic_bool keep_running;
+    ThdProcP thd_proc;
     Buff buff;
     std::unique_ptr<RawWriter> raw_writer;
     std::unique_ptr<ProfileWriter> writer;

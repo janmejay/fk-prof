@@ -369,7 +369,7 @@ TEST(BlockingRingBuffer_should_not_block_on_read____if_0_byte_read_is_requested)
 
     t.join();
     
-    CHECK_EQUAL(30, ring.clear());
+    CHECK_EQUAL(30, ring.reset());
 }
 
 TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requested) {
@@ -390,7 +390,7 @@ TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requeste
 
     t.join();
     
-    CHECK_EQUAL(70, ring.clear());
+    CHECK_EQUAL(70, ring.reset());
 }
 
 TEST(BlockingRingBuffer_should_reset_and_drop_data____when_clered) {
@@ -402,7 +402,7 @@ TEST(BlockingRingBuffer_should_reset_and_drop_data____when_clered) {
     BlockingRingBuffer ring(100);
     
     CHECK_EQUAL(20, ring.write(write_buff, 0, 20));
-    CHECK_EQUAL(20, ring.clear());
+    CHECK_EQUAL(20, ring.reset());
 
     CHECK_EQUAL(100, ring.write(write_buff, 0, 100, false));
     CHECK_EQUAL(100, ring.read(read_buff, 0, 100, false));
@@ -485,3 +485,160 @@ TEST(BlockingRingBuffer_should_have_no_data_loss____in_the_face_of_concurrent_re
     
     CHECK_EQUAL(255*(256/2) * 4 * 5 * 10, sum.load());                    
 }
+
+void make_readonly_after_sleep(std::uint32_t ms, BlockingRingBuffer& ring) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    ring.readonly();
+}
+
+TEST(BlockingRingBuffer_should_not_block_reads____or_allow_writes____when_readonly) {
+    init_logger();
+    std::uint8_t buff[100];
+    BlockingRingBuffer ring(100);
+    
+    std::thread t(make_readonly_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring)); 
+
+    auto start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(0, ring.read(buff, 0, 20));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+
+    t.join();
+
+    start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(0, ring.read(buff, 0, 20));
+    CHECK_CLOSE(2, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
+
+    start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(0, ring.write(buff, 0, 20));
+    CHECK_CLOSE(2, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
+}
+
+TEST(BlockingRingBuffer_should_not_block_writes____when_readonly____but_should_allow_completion_of_read) {
+    init_logger();
+    std::uint8_t write_buff[100], read_buff[200];
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i;
+    }
+
+    BlockingRingBuffer ring(100);
+    CHECK_EQUAL(100, ring.write(write_buff, 0, 100));
+    
+    std::thread t(make_readonly_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring)); 
+
+    auto start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(0, ring.write(write_buff, 0, 1));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+
+    t.join();
+
+    start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(100, ring.read(read_buff, 0, 200));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 100);
+    ASSERT_IS_SEQUENCE(read_buff, 0, 100, 0);
+
+    start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(0, ring.read(read_buff, 0, 20));
+    CHECK_CLOSE(2, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
+}
+
+TEST(BlockingRingBuffer_should_block____if_reset____after_making_readonly) {
+    init_logger();
+    std::uint8_t write_buff[200], read_buff[200];
+    std::uint32_t bytes_written_after_sleep = 0, bytes_read_after_sleep = 0;
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i;
+    }
+
+    BlockingRingBuffer ring(100);
+    CHECK_EQUAL(10, ring.write(write_buff, 0, 10));
+    ring.readonly();
+    CHECK_EQUAL(10, ring.reset());
+    
+    std::thread t_write(write_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring), write_buff, static_cast<std::uint32_t>(0), static_cast<std::uint32_t>(10), std::ref(bytes_written_after_sleep));
+
+    auto start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(10, ring.read(read_buff, 0, 10));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+
+    t_write.join();
+
+    std::thread t_read(read_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring), read_buff, static_cast<std::uint32_t>(0), static_cast<std::uint32_t>(10), std::ref(bytes_read_after_sleep));
+
+    start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(110, ring.write(write_buff, 0, 110));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+    ASSERT_IS_SEQUENCE(read_buff, 0, 10, 0);
+    CHECK_EQUAL(10, bytes_read_after_sleep);
+
+    t_read.join();
+
+    CHECK_EQUAL(100, ring.read(read_buff, 0, 100));
+    ASSERT_IS_SEQUENCE(read_buff, 0, 100, 10);
+}
+
+TEST(BlockingRingBuffer_should_cancel_inflight_writes____when_readonly) {
+    init_logger();
+    std::uint8_t write_buff[200], read_buff[100];
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i;
+    }
+
+    BlockingRingBuffer ring(100);
+    
+    std::thread t(make_readonly_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring)); 
+
+    auto start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(100, ring.write(write_buff, 0, 110));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+
+    t.join();
+
+    CHECK_EQUAL(100, ring.read(read_buff, 0, 100));
+    ASSERT_IS_SEQUENCE(read_buff, 0, 100, 0);
+
+    CHECK_EQUAL(0, ring.read(read_buff, 0, 100));
+}
+
+TEST(BlockingRingBuffer_should_return_inflight_reads____when_readonly____without_waiting_for_buff_to_fill) {
+    init_logger();
+    std::uint8_t write_buff[100], read_buff[100];
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i;
+    }
+
+    BlockingRingBuffer ring(100);
+
+    CHECK_EQUAL(50, ring.write(write_buff, 0, 50));
+
+    std::thread t(make_readonly_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring)); 
+
+    auto start = std::chrono::steady_clock::now();
+    CHECK_EQUAL(50, ring.read(read_buff, 0, 60));
+    CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
+    ASSERT_IS_SEQUENCE(read_buff, 0, 50, 0);
+
+    t.join();
+}
+
+TEST(BlockingRingBuffer_should_allow_reads_and_writes____larger_than_ring_sz) {
+    init_logger();
+    std::uint8_t write_buff[200], read_buff[150];
+    std::uint32_t bytes_written_after_sleep = 0;
+    for (int i = 0; i < sizeof(write_buff); i++) {
+        write_buff[i] = i;
+    }
+
+    BlockingRingBuffer ring(100);
+
+    std::thread t(write_after_sleep, static_cast<std::uint32_t>(100), std::ref(ring), write_buff, static_cast<std::uint32_t>(0), static_cast<std::uint32_t>(200), std::ref(bytes_written_after_sleep));
+
+    CHECK_EQUAL(150, ring.read(read_buff, 0, 150));
+
+    t.join();
+
+    CHECK_EQUAL(200, bytes_written_after_sleep);
+
+    ASSERT_IS_SEQUENCE(read_buff, 0, 150, 0);
+
+}
+

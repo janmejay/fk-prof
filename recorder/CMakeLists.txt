@@ -71,6 +71,8 @@ set(SOURCE_FILES
     ${SRC}/controller.hh
     ${SRC}/globals.hh
     ${SRC}/globals.cc
+    ${SRC}/ti_thd.hh
+    ${SRC}/ti_thd.cc
     ${SRC}/log_writer.cc
     ${SRC}/log_writer.hh
     ${SRC}/signal_handler.cc
