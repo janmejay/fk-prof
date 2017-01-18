@@ -25,7 +25,7 @@ public:
     }
 
     ~BlockingRingBuffer() {
-        free(buff);
+        delete[] buff;
     }
 
     std::uint32_t write(const std::uint8_t *from, std::uint32_t offset, std::uint32_t sz, bool do_block = true);

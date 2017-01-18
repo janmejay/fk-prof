@@ -13,7 +13,7 @@ struct Buff { //TODO: test me
     }
 
     ~Buff() {
-        delete buff;
+        delete[] buff;
     }
 
     inline void ensure_capacity(std::uint32_t min) {

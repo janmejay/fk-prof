@@ -5,7 +5,7 @@
 #include "blocking_ring_buffer.hh"
 
 void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    Controller* control = static_cast<Controller*>(arg);
+    auto control = static_cast<Controller*>(arg);
     control->run();
 }
 
@@ -360,9 +360,10 @@ private:
 public:
     HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port, BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) : RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn) {
         ring.reset();
-        thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, &ring);
+        thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, this);
     }
     virtual ~HttpRawProfileWriter() {
+        logger->trace("HTTP RawProfileWriter destructor called");
         ring.readonly();
         await_thd_death(thd_proc);
     }
@@ -401,7 +402,8 @@ public:
 };
 
 void http_raw_writer_runnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    HttpRawProfileWriter* rpw = (HttpRawProfileWriter*) arg;
+    logger->trace("HTTP raw-writer thread target entered");
+    auto rpw = static_cast<HttpRawProfileWriter*>(arg);
     rpw->run();
 }
 
@@ -437,11 +439,13 @@ void Controller::retireWork(const std::uint64_t work_id) {
                 logger->warn("Stale work-retire call (target work_id was {}, current work_id is {}), ignoring", work_id, w.work_id());
                 return;//TODO: test me!
             }
+            logger->info("Will now retire work {}", work_id);
             for (auto i = 0; i < w.work_size(); i++) {
                 auto work = w.work(i);
                 retire(work);
             }
             writer.reset(nullptr);
+            logger->debug("Resetting raw-writer created for {}", work_id);
             raw_writer.reset(nullptr);
             
             logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);

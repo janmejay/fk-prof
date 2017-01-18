@@ -10,4 +10,8 @@ void init_logger() {
     }
 }
 
-int main() { return UnitTest::RunAllTests(); }
+int main() {
+    auto ret = UnitTest::RunAllTests();
+    logger.reset();
+    return ret;
+}

@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.lang.Integer.parseInt;
@@ -80,15 +81,16 @@ public class AgentRunner {
         String agentArg = "-agentpath:../recorder/build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
         process = new ProcessBuilder()
-                .command(java, agentArg, "-cp", "./target/test-classes/", fqdn)
-                .redirectError(new File("/tmp/error.log"))
+                .command("java", agentArg, "-cp", "./target/test-classes/", fqdn)
+                .redirectError(new File("/tmp/fkprof_stderr.log"))
+                .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
     }
 
     public void stop() {
         process.destroy();
         try {
-            process.waitFor();
+            process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             logger.info(e.getMessage(), e);
         }

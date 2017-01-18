@@ -22,26 +22,38 @@ struct ThreadTargetProc {
     void* arg;
     jvmtiStartFunction run_fn;
     std::string name;
-    std::atomic_bool running;
+    bool running;
     std::mutex m;
     std::condition_variable v;
 
-    ThreadTargetProc(void* _arg, jvmtiStartFunction _run_fn, const char* _name) : arg(_arg), run_fn(_run_fn), name(_name) {}
+    ThreadTargetProc(void* _arg, jvmtiStartFunction _run_fn, const char* _name) : arg(_arg), run_fn(_run_fn), name(_name), running(false) {
+        logger->trace("ThreadTargetProc for '{}' created", name);
+    }
+
+    ~ThreadTargetProc() {
+        logger->trace("ThreadTargetProc for '{}' destroyed", name);
+    }
 
     void await_stop() {
         std::unique_lock<std::mutex> l(m);
-        v.wait(l, [&] { return ! running.load(std::memory_order_relaxed); });
+        logger->trace("Will now wait for thread '{}' to be stopped", name);
+        v.wait(l, [&] { return ! running; });
     }
 
     void mark_stopped() {
-        bool lval_true = true;
-        assert(running.compare_exchange_strong(lval_true, false, std::memory_order_relaxed));
+        std::lock_guard<std::mutex> g(m);
+        assert(running);
+        running = false;
         v.notify_all();
+        logger->trace("Marked thread '{}' stopped", name);
+
     }
 
     void mark_started() {
-        bool lval_false = false;
-        assert(running.compare_exchange_strong(lval_false, true, std::memory_order_relaxed));
+        std::lock_guard<std::mutex> g(m);
+        assert(! running);
+        running = true;
+        logger->trace("Marked thread '{}' stopped", name);
     }
 };
 
@@ -49,7 +61,7 @@ typedef std::shared_ptr<ThreadTargetProc> ThdProcP;
 
 static void thread_target_proc_wrapper(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     prep_new_thread(jvmti_env, jni_env);
-    auto ttp = *static_cast<ThdProcP*>(arg);
+    auto ttp = static_cast<ThreadTargetProc*>(arg);
     ttp->mark_started();
     ttp->run_fn(jvmti_env, jni_env, ttp->arg);
     ttp->mark_stopped();
@@ -66,7 +78,7 @@ ThdProcP start_new_thd(JavaVM *jvm, jvmtiEnv *jvmti, const char* thd_name, jvmti
 
     jthread thread = newThread(env, thd_name);
     ThdProcP ttp = std::shared_ptr<ThreadTargetProc>(new ThreadTargetProc(arg, run_fn, thd_name));
-    result = jvmti->RunAgentThread(thread, thread_target_proc_wrapper, &ttp, JVMTI_THREAD_NORM_PRIORITY);
+    result = jvmti->RunAgentThread(thread, thread_target_proc_wrapper, ttp.get(), JVMTI_THREAD_NORM_PRIORITY);
 
     if (result == JVMTI_ERROR_NONE) {
         logger->info("Started thread named '{}'", thd_name);
