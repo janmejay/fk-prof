@@ -11,10 +11,11 @@
 
     <modules>
         <module>recorder</module>
-        <module>aggregation</module>
         <module>backend</module>
         <module>userapi</module>
         <module>e2etest</module>
+        <module>storage</module>
+        <module>aggregation</module>
     </modules>
 
     <properties>
