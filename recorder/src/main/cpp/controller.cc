@@ -283,12 +283,13 @@ void Controller::run() {
 }
 
 void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&, Time::Pt&, Time::Pt&)> proc) {
-    std::lock_guard<std::mutex> current_work_guard(current_work_mtx);
+    std::lock_guard<std::recursive_mutex> current_work_guard(current_work_mtx);
     proc(current_work, current_work_state, current_work_result, work_start, work_end);
 }
 
 void Controller::accept_work(Buff& poll_response_buff, const std::string& host, const std::uint32_t port) {
     recording::PollRes res;
+    logger->trace("Accept-work host: {} and port: {}", host, port);
     auto parse_successful = res.ParseFromArray(poll_response_buff.buff + poll_response_buff.read_end, poll_response_buff.write_end - poll_response_buff.read_end);
     if (! parse_successful) {
         logger->error("Parse of poll-response failed, ignoring it");
@@ -317,7 +318,7 @@ void Controller::accept_work(Buff& poll_response_buff, const std::string& host, 
                 if ((delay + w.duration()) > 0) {
                     wst = recording::WorkResponse::pre_start;
                     wres = recording::WorkResponse::unknown;
-                    issueWork(host, port);
+                    issueWork(host, port, res.controller_id(), res.controller_version());
                 } else {
                     wst = recording::WorkResponse::complete;
                     wres = recording::WorkResponse::success;
@@ -389,7 +390,7 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
-        curl_easy_setopt(curl.get(), CURLOPT_READDATA, this);
+        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &ring);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
 
         if (do_call(curl, url.c_str(), "send-profile", 0)) {
@@ -407,16 +408,32 @@ void http_raw_writer_runnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     rpw->run();
 }
 
-void Controller::issueWork(const std::string& host, const std::uint32_t port) {
+void populate_recording_header(recording::RecordingHeader& rh, const recording::WorkAssignment& w, std::uint32_t controller_id, std::uint32_t controller_version) {
+    rh.set_recorder_version(RECORDER_VERION);
+    rh.set_controller_version(controller_version);
+    rh.set_controller_id(controller_id);
+    recording::WorkAssignment* wa = rh.mutable_work_assignment();
+    *wa = w;
+}
+
+void Controller::issueWork(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version) {
     auto at = Time::now() + Time::sec(current_work.delay());
-    scheduler.schedule(at, [&]() {
+    scheduler.schedule(at, [&, port, controller_id, controller_version]() {
             with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                     auto work_id = w.work_id();
                     std::function<void()> cancellation_cb = [&, work_id]() {
-                        retireWork(work_id);
+                        scheduler.schedule(Time::now(), [&] {
+                                wres = recording::WorkResponse::failure;
+                                retireWork(work_id);
+                            });
                     };
-                    raw_writer.reset(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb)));
-                    writer.reset(new ProfileWriter(*raw_writer.get(), buff));
+                    if (w.work_size() > 0) {
+                        std::shared_ptr<HttpRawProfileWriter> raw_writer(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb)));
+                        writer.reset(new ProfileWriter(raw_writer, buff));
+                        recording::RecordingHeader rh;
+                        populate_recording_header(rh, w, controller_id, controller_version);
+                        writer->write_header(rh);
+                    }
                     
                     for (auto i = 0; i < w.work_size(); i++) {
                         auto work = w.work(i);
@@ -424,7 +441,7 @@ void Controller::issueWork(const std::string& host, const std::uint32_t port) {
                     }
                     start_tm = Time::now();
                     auto stop_at = start_tm + Time::sec(w.duration());
-                    scheduler.schedule(stop_at, [&]() {
+                    scheduler.schedule(stop_at, [&, work_id]() {
                             retireWork(work_id);
                         });
                     logger->info("Issuing work-id {}, it is slated for retire in {} seconds", w.work_id(), w.duration());
@@ -444,9 +461,7 @@ void Controller::retireWork(const std::uint64_t work_id) {
                 auto work = w.work(i);
                 retire(work);
             }
-            writer.reset(nullptr);
-            logger->debug("Resetting raw-writer created for {}", work_id);
-            raw_writer.reset(nullptr);
+            writer.reset();
             
             logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);
             wst = recording::WorkResponse::complete;
@@ -492,31 +507,35 @@ void Controller::issue(const recording::CpuSampleWork& csw) {
     auto max_stack_depth = csw.max_frames();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
     
-    profiler.reset(new Profiler(jvm, jvmti, thread_map, *writer.get(), 10, 20));
+    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq));
     JNIEnv *env = getJNIEnv(jvm);
-    profiler->start(env);
+    GlobalCtx::recording.cpu_profiler->start(env);
 }
 
 void Controller::retire(const recording::CpuSampleWork& csw) {
     auto freq = csw.frequency();
     auto max_stack_depth = csw.max_frames();
-    logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
+    logger->info("Stopping cpu-sampling", freq, max_stack_depth);
 
-    profiler->stop();
-    profiler.reset(nullptr);
+    GlobalCtx::recording.cpu_profiler->stop();
+    GlobalCtx::recording.cpu_profiler.reset();
 }
 
 void Controller::startSampling() {
-    JNIEnv *env = getJNIEnv(jvm);
+    // JNIEnv *env = getJNIEnv(jvm);
 
-    if (env == NULL) {
-        logError("ERROR: Failed to obtain JNI environment, cannot start sampling\n");
-        return;
-    }
+    // if (env == NULL) {
+    //     logError("ERROR: Failed to obtain JNI environment, cannot start sampling\n");
+    //     return;
+    // }
 
-    profiler->start(env);
+    // profiler->start(env);
 }
 
 void Controller::stopSampling() {
-    profiler->stop();
+    // profiler->stop();
+}
+
+namespace GlobalCtx {
+    GlobalCtx::Rec recording;
 }

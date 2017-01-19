@@ -8,7 +8,7 @@ std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t 
     while (allow_writes) {
         auto written_now = write_noblock(from, offset, sz);
         total_written += written_now;
-        logger->trace("Wrote {} bytes (hence a total of {} bytes)", written_now, total_written);
+        logger->trace("Ring wrote {} bytes (hence a total of {} bytes)", written_now, total_written);
         if (written_now > 0) {
             logger->trace("Notifying readers");
             readable.notify_all();
@@ -29,7 +29,7 @@ std::uint32_t BlockingRingBuffer::read(std::uint8_t *to, std::uint32_t offset, s
         auto read_now = read_noblock(to, offset, sz);
         total_read += read_now;
         if (! allow_writes) break;
-        logger->trace("Read {} bytes (hence a total of {} bytes)", read_now, total_read);
+        logger->trace("Ring read {} bytes (hence a total of {} bytes)", read_now, total_read);
         if (read_now > 0) {
             logger->trace("Notifying writers");
             writable.notify_all();
@@ -53,7 +53,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
         auto copy_bytes = min(sz, capacity - write_idx);
         std::memcpy(buff + write_idx, from + offset, copy_bytes);
         available += copy_bytes;
-        logger->trace("Added {} available bytes", copy_bytes);
+        logger->trace("Ring added {} available bytes", copy_bytes);
         offset += copy_bytes;
         sz -= copy_bytes;
         write_idx += copy_bytes;
@@ -71,7 +71,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
         if (write_idx == capacity) write_idx = 0;
         bytes_copied += copy_bytes;
         available += copy_bytes;
-        logger->trace("Added {} available bytes", copy_bytes);
+        logger->trace("Ring added {} available bytes", copy_bytes);
         offset += copy_bytes;
         sz -= copy_bytes;
     }

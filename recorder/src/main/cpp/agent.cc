@@ -261,6 +261,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 
     logger->set_level(CONFIGURATION->log_level);
     logger->set_pattern("{%t} %+");//TODO: make this configurable
+    logger->info("======================= Starting fk-prof JVMTI agent =======================");
 
     
     if (! CONFIGURATION->valid()) return 1;

@@ -16,6 +16,7 @@ const int NUMBER_OF_INTERVALS = 1024;
 class SignalHandler {
 public:
     SignalHandler(const int samplingIntervalMin, const int samplingIntervalMax) {
+        logger->debug("Signal-handler using interval range: {} - {}", samplingIntervalMin, samplingIntervalMax);
         intervalIndex = 0;
         timingIntervals = new int[NUMBER_OF_INTERVALS];
         srand (time(NULL));

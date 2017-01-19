@@ -68,10 +68,11 @@ bool Profiler::lookup_frame_information(const JVMPI_CallFrame &frame, jvmtiEnv *
 }
 
 static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
-    if (GlobalCtx::recording.on.load(std::memory_order_acquire)) {
-        GlobalCtx::recording.profiler->handle(signum, info, context);
-    } else {
+    std::shared_ptr<Profiler> cpu_profiler = GlobalCtx::recording.cpu_profiler;
+    if (cpu_profiler.get() == nullptr) {
         logger->warn("Received profiling signal while recording is off! Something wrong?");
+    } else {
+        cpu_profiler->handle(signum, info, context);
     }
 }
 
@@ -143,25 +144,26 @@ bool Profiler::__is_running() {
 void Profiler::set_sampling_freq(std::uint32_t sampling_freq) {
     auto mean_sampling_itvl = 1000000 / sampling_freq;
     std::uint32_t itvl_10_pct = 0.1 * mean_sampling_itvl;
-    auto itvl_max = mean_sampling_itvl + itvl_10_pct;
-    auto itvl_min = mean_sampling_itvl - itvl_10_pct;
+    itvl_max = mean_sampling_itvl + itvl_10_pct;
+    itvl_min = mean_sampling_itvl - itvl_10_pct;
     itvl_min = itvl_min > 0 ? itvl_min : DEFAULT_SAMPLING_INTERVAL;
     itvl_max = itvl_max > 0 ? itvl_max : DEFAULT_SAMPLING_INTERVAL;
     logger->warn("Chose CPU sampling interval range [{0:06d}, {1:06d}) for requested sampling freq {2:d} Hz", itvl_min, itvl_max, sampling_freq);
 }
 
-void Profiler::set_max_stack_depth(int max_stack_depth) {
-    max_stack_depth = (max_stack_depth > 0 && max_stack_depth < (MAX_FRAMES_TO_CAPTURE - 1)) ?
-        max_stack_depth : DEFAULT_MAX_FRAMES_TO_CAPTURE;
+void Profiler::set_max_stack_depth(std::uint32_t _max_stack_depth) {
+    max_stack_depth = (_max_stack_depth > 0 && _max_stack_depth < (MAX_FRAMES_TO_CAPTURE - 1)) ?
+        _max_stack_depth : DEFAULT_MAX_FRAMES_TO_CAPTURE;
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializer(writer);
+    serializer = new ProfileSerializer(*writer.get());
     
     buffer = new CircularQueue(*serializer, capture_stack_depth());
 
     handler = new SignalHandler(itvl_min, itvl_max);
     int processor_interval = Size * itvl_min / 1000 / 2;
+    logger->debug("CpuSamplingProfiler is using processor-interval value: {}", processor_interval);
     processor = new Processor(jvmti, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
 }
 

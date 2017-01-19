@@ -36,19 +36,11 @@ extern LoggerP logger;//TODO: stick me in GlobalCtx???
 class Profiler;
 
 namespace GlobalCtx {
-    struct {
-        std::atomic<bool> on;
-        Profiler* profiler;
-    } recording;
+    typedef struct {
+        std::shared_ptr<Profiler> cpu_profiler;
+    } Rec;
 
-    struct {
-        std::atomic<bool> known;
-        struct {
-            std::string host;
-            std::uint32_t port;
-        } remote;
-    } associate;
-    
+    extern GlobalCtx::Rec recording;
 }
 
 void logError(const char *__restrict format, ...);

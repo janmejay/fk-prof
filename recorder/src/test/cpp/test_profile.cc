@@ -44,7 +44,7 @@ public:
 };
 
 void write_to_file(const recording::RecordingHeader& rh, const std::initializer_list<const recording::Wse*> entries, const std::string& profile_data_file) {
-    TestRecordingWriter w(profile_data_file);
+    std::shared_ptr<TestRecordingWriter> w(new TestRecordingWriter(profile_data_file));
     Buff buff;
     ProfileWriter rec_w(w, buff);
     rec_w.write_header(rh);

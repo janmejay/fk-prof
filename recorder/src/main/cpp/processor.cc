@@ -45,7 +45,7 @@ void Processor::run() {
             break;
         }
 
-        sleep_for_millis(interval_);
+        sched_yield();
     }
 
     handler_.stopSigprof();

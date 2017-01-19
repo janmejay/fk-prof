@@ -80,7 +80,7 @@ public:
 
 class Profiler {
 public:
-    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileWriter& _writer, std::uint16_t _max_stack_depth, std::uint16_t _sampling_freq)
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq)
         : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), writer(_writer), ongoing_conf(false) {
         set_max_stack_depth(_max_stack_depth);
         set_sampling_freq(_sampling_freq);
@@ -106,7 +106,7 @@ private:
 
     std::uint32_t itvl_min, itvl_max;
 
-    ProfileWriter& writer;
+    std::shared_ptr<ProfileWriter> writer;
 
     CircularQueue *buffer;
 
@@ -125,7 +125,7 @@ private:
 
     void set_sampling_freq(std::uint32_t sampling_freq);
 
-    void set_max_stack_depth(int maxFramesToCapture);
+    void set_max_stack_depth(std::uint32_t max_stack_depth);
 
     void configure();
 

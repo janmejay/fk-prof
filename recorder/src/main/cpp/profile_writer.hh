@@ -2,6 +2,7 @@
 #include "checksum.hh"
 #include "recorder.pb.h"
 #include "buff.hh"
+#include <memory>
 
 #ifndef PROFILE_WRITER_H
 #define PROFILE_WRITER_H
@@ -18,7 +19,7 @@ private:
     //MIN_FREE_BUFF should accomodate atleast 4 varint32 values
     static const std::uint32_t MIN_FREE_BUFF = 64;
 
-    RawWriter& w;
+    std::shared_ptr<RawWriter> w;
     Checksum chksum;
     Buff &data;
     bool header_written;
@@ -34,7 +35,7 @@ private:
     template <class T> void write_unchecked_obj(const T& value);
 
 public:
-    ProfileWriter(RawWriter& _w, Buff& _data) : w(_w), data(_data), header_written(false) {
+    ProfileWriter(std::shared_ptr<RawWriter> _w, Buff& _data) : w(_w), data(_data), header_written(false) {
         data.write_end = data.read_end = 0;
     }
     ~ProfileWriter() {

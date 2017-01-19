@@ -36,7 +36,7 @@ struct ThreadTargetProc {
 
     void await_stop() {
         std::unique_lock<std::mutex> l(m);
-        logger->trace("Will now wait for thread '{}' to be stopped", name);
+        logger->trace("Will now wait for thread '{}' to be stopped, running as of now: {}", name, running);
         v.wait(l, [&] { return ! running; });
     }
 
@@ -45,7 +45,7 @@ struct ThreadTargetProc {
         assert(running);
         running = false;
         v.notify_all();
-        logger->trace("Marked thread '{}' stopped", name);
+        logger->trace("Thread '{}' stopped", name);
 
     }
 
@@ -53,7 +53,7 @@ struct ThreadTargetProc {
         std::lock_guard<std::mutex> g(m);
         assert(! running);
         running = true;
-        logger->trace("Marked thread '{}' stopped", name);
+        logger->trace("Thread '{}' started", name);
     }
 };
 

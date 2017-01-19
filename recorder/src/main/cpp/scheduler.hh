@@ -5,6 +5,8 @@
 #include <chrono>
 #include <queue>
 #include <exception>
+#include <mutex>
+#include <condition_variable>
 #include "globals.hh"
 
 class Scheduler {
@@ -28,6 +30,8 @@ public:
 
 private:
     Q q;
+    std::mutex m;
+    std::condition_variable nearest_entry_changed;
 };
 
 #endif

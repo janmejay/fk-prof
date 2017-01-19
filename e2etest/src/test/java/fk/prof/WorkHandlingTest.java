@@ -203,7 +203,7 @@ public class WorkHandlingTest {
         for (PollReqWithTime prwt : pollReqs) {
             assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
             if (idx > 0) {
-                assertThat(prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
+                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
             }
             prevTime = prwt.time;
             idx++;
@@ -234,7 +234,9 @@ public class WorkHandlingTest {
         assertThat(profileCalledSecondTime.getValue(), is(false));
     }
     
-    //TODO: write another few tests where associate goes down before or in-middle-of /profile call, see recorder recover 
+    //TODO: write another few tests where associate goes down before or in-middle-of /profile call, see recorder recover
+    
+    //TODO: write a test that fails /profile call and observe the work prematurely fail in reaction to the failure
 
     private void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {
         assertThat(rh, notNullValue());
@@ -311,8 +313,8 @@ public class WorkHandlingTest {
 
     private void assertWorkStateAndResultIs(String ctx, Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
         assertThat(ctx, workLastIssued.getWorkId(), is(expectedId));
-        assertThat(ctx, workLastIssued.getWorkState(), is(state));
         assertThat(ctx, workLastIssued.getWorkResult(), is(result));
+        assertThat(ctx, workLastIssued.getWorkState(), is(state));
         assertThat(ctx, workLastIssued.getElapsedTime(), is(elapsedTime));
     }
 

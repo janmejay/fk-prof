@@ -5,7 +5,7 @@
 //for buff, no one uses read-end here, so it is inconsistent
 
 void ProfileWriter::flush() {
-    w.write_unbuffered(data.buff, data.write_end, 0); //TODO: err-check me!
+    w->write_unbuffered(data.buff, data.write_end, 0); //TODO: err-check me!
     data.write_end = 0;
 }
 
