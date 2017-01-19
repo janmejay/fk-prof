@@ -1,21 +1,23 @@
 package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
-import fk.prof.backend.model.request.RecordedProfileParser;
+import fk.prof.backend.model.request.RecordedProfileProcessor;
 import fk.prof.backend.model.request.RecordedProfileRequestHandler;
+import fk.prof.backend.model.request.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.service.IProfileWorkService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.shareddata.LocalMap;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.LoggerHandler;
 
 public class HttpVerticle extends AbstractVerticle {
 
-  private IProfileWorkService profileWorkService;
-
+  private final IProfileWorkService profileWorkService;
+  private LocalMap<Long, Boolean> workIdsInPipeline;
   public HttpVerticle(IProfileWorkService profileWorkService) {
     this.profileWorkService = profileWorkService;
   }
@@ -23,7 +25,7 @@ public class HttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-
+    workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
     vertx.createHttpServer()
         .requestHandler(router::accept)
         .listen(config().getInteger("http.port"),
@@ -59,7 +61,9 @@ public class HttpVerticle extends AbstractVerticle {
   }
 
   private void handlePostProfile(RoutingContext context) {
-    RecordedProfileParser parser = new RecordedProfileParser(profileWorkService,
+    RecordedProfileProcessor parser = new RecordedProfileProcessor(
+        profileWorkService,
+        new SharedMapBasedSingleProcessingOfProfileGate(workIdsInPipeline),
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
         config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024*1024));
 

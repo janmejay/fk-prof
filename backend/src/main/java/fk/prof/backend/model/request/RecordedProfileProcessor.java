@@ -3,7 +3,6 @@ package fk.prof.backend.model.request;
 import com.google.protobuf.CodedInputStream;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.service.IProfileWorkService;
 import io.vertx.core.buffer.Buffer;
 import recording.Recorder;
@@ -12,9 +11,11 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
-public class RecordedProfileParser {
+public class RecordedProfileProcessor {
 
   private IProfileWorkService profileWorkService;
+  private ISingleProcessingOfProfileGate singleProcessingOfProfileGate;
+
   private RecordedProfileHeader header = null;
   private AggregationWindow aggregationWindow = null;
   private long workId = 0;
@@ -26,8 +27,10 @@ public class RecordedProfileParser {
 
   private boolean intermediateWseEntry = false;
 
-  public RecordedProfileParser(IProfileWorkService profileWorkService, int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
+  public RecordedProfileProcessor(IProfileWorkService profileWorkService, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
+                                  int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
     this.profileWorkService = profileWorkService;
+    this.singleProcessingOfProfileGate = singleProcessingOfProfileGate;
     this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader);
     this.wseParser = new WseParser(maxAllowedBytesForWse);
   }
@@ -51,12 +54,14 @@ public class RecordedProfileParser {
   }
 
   /**
-   * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
+   * Reads buffer and updates internal state with parsed fields.
+   * Aggregates the parsed entries in appropriate aggregation window
+   * Returns the starting unread position in outputstream
    *
    * @param codedInputStream
    * @return starting unread position in buffer
    */
-  public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure, AggregationFailure {
+  public int process(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws AggregationFailure {
     if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
@@ -67,19 +72,15 @@ public class RecordedProfileParser {
 
         if (headerParser.isParsed()) {
           header = headerParser.get();
-
           workId = header.getRecordingHeader().getWorkAssignment().getWorkId();
+          singleProcessingOfProfileGate.accept(workId);
+
           aggregationWindow = profileWorkService.getAssociatedAggregationWindow(workId);
           if (aggregationWindow == null) {
-            throw new HttpFailure(String.format("workId=%d not found, cannot continue receiving associated profile",
-                workId), 400);
+            throw new AggregationFailure(String.format("workId=%d not found, cannot continue receiving associated profile",
+                workId));
           }
-
-          boolean started = aggregationWindow.startProfile(workId, startedAt);
-          if (!started) {
-            throw new HttpFailure(String.format("Unable to start receiving profile for workId=%d, status=%s",
-                workId, aggregationWindow.getWorkInfo(workId).getStatus()), 400);
-          }
+          aggregationWindow.startProfile(workId, header.getRecordingHeader().getRecorderVersion(), startedAt);
         }
       }
 
@@ -105,22 +106,18 @@ public class RecordedProfileParser {
   /**
    * If parsing was successful, marks the profile as completed/retried, partial otherwise
    *
-   * @throws HttpFailure
+   * @throws AggregationFailure
    */
-  public void close() throws HttpFailure {
-    if (isParsed()) {
-      if (!aggregationWindow.completeProfile(workId)) {
-        throw new HttpFailure(String.format("Unable to complete receiving profile for workId=%d, status=%s",
-            workId, aggregationWindow.getWorkInfo(workId).getStatus()), 400);
-      }
-    } else {
-      if (!aggregationWindow.abandonProfile(workId)) {
-        throw new HttpFailure(String.format("Unable to abandon receiving profile for workId=%d, status=%s",
-            workId, aggregationWindow.getWorkInfo(workId).getStatus()), 400);
+  public void close() throws AggregationFailure {
+    try {
+      if (isParsed()) {
+        aggregationWindow.completeProfile(workId);
       } else {
-        //Successfully abandoned profile, now raise an exception so that failure http response is returned
-        throw new HttpFailure("Invalid or incomplete payload received", 400);
+        aggregationWindow.abandonProfile(workId);
+        throw new AggregationFailure(String.format("Invalid or incomplete payload received, aggregation failed for work_id=%d", workId));
       }
+    } finally {
+      singleProcessingOfProfileGate.finish(workId);
     }
   }
 

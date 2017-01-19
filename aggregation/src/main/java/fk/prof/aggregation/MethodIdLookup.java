@@ -1,49 +1,55 @@
 package fk.prof.aggregation;
 
-import com.koloboke.collect.map.hash.HashLongObjMaps;
-
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class MethodIdLookup {
+public class MethodIdLookup implements SerializableAggregationEntity {
   //-2 is reserved for placeholder global root method of all stack-trace
-  public final static long GLOBAL_ROOT_METHOD_ID = -2l;
+  public final static int GLOBAL_ROOT_METHOD_ID = -2;
   public final static String GLOBAL_ROOT_METHOD_SIGNATURE = "~ ROOT ~.()";
   //-1 is reserved for placeholder unclassifiable roor method of all incomplete stack-traces
-  public final static long UNCLASSIFIABLE_ROOT_METHOD_ID = -1l;
+  public final static int UNCLASSIFIABLE_ROOT_METHOD_ID = -1;
   public final static String UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE = "~ UNCLASSIFIABLE ~.()";
+  public final static int DEFAULT_LINE_NUMBER = 0;
 
   //Counter to generate method ids in auto increment fashion
-  //0 is reserved. No method is assigned 0. Counter starts with 1 during assignment
-  private AtomicLong counter = new AtomicLong(0);
-  private ConcurrentHashMap<String, Long> lookup = new ConcurrentHashMap<>();
+  private final AtomicInteger counter = new AtomicInteger(0);
+  private final ConcurrentHashMap<String, Integer> lookup = new ConcurrentHashMap<>();
 
   public MethodIdLookup() {
     lookup.put(GLOBAL_ROOT_METHOD_SIGNATURE, GLOBAL_ROOT_METHOD_ID);
     lookup.put(UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE, UNCLASSIFIABLE_ROOT_METHOD_ID);
   }
 
-  public Long getOrAdd(String methodSignature) {
-    return lookup.computeIfAbsent(methodSignature, (key -> counter.incrementAndGet()));
+  public Integer getOrAdd(String methodSignature) {
+    return lookup.computeIfAbsent(methodSignature, (key -> counter.getAndIncrement()));
   }
 
   /**
-   * Generates a reverse lookup map (unmodifiable view) from methodId to method name
-   * Usually a reverse lookup is modelled as Map[V, List[K]] but because the put semantics in this map using atomic long counter,
-   * we are assured of a 1:1 relationship between K and V. Therefore, reverse lookup is modelled as Map[V, K]
+   * Generates a reverse lookup array where array index corresponds to methodId + 2
+   * We are assured of a 1:1 relationship between K and V because of an atomic counter being used to generate sequential lookup values.
+   * Therefore, reverse lookup is modelled as an array
    *
-   * @return lookup from methodId - method name
+   * @return 2-indexed array where arr[idx] = method signature and idx-2 = corresponding method id
    */
-  public Map<Long, String> generateReverseLookup() {
-    Map<Long, String> reverseLookup = HashLongObjMaps.newUpdatableMap();
-    for (Map.Entry<String, Long> entry: lookup.entrySet()) {
-      if (entry.getValue() != null) {
-        reverseLookup.put(entry.getValue(), entry.getKey());
-      }
+  public String[] generateReverseLookup() {
+    String[] reverseLookup = new String[counter.get() + 2];
+    lookup.entrySet().forEach(entry -> reverseLookup[entry.getValue() + 2] = entry.getKey());
+    return reverseLookup;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    }
+    if (!(o instanceof MethodIdLookup)) {
+      return false;
     }
 
-    return Collections.unmodifiableMap(reverseLookup);
+    MethodIdLookup other = (MethodIdLookup) o;
+    return this.counter.get() == other.counter.get()
+        && this.lookup.equals(other.lookup);
   }
+
 }

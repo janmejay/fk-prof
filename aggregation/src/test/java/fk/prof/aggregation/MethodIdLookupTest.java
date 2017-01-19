@@ -1,36 +1,36 @@
 package fk.prof.aggregation;
 
-import fk.prof.aggregation.MethodIdLookup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Map;
 
 public class MethodIdLookupTest {
 
   @Test
   public void testGetAndAdd() {
     MethodIdLookup methodIdLookup = new MethodIdLookup();
-    long methodId1 = methodIdLookup.getOrAdd("alpha");
-    long methodId2 = methodIdLookup.getOrAdd("beta");
-    long methodId3 = methodIdLookup.getOrAdd("alpha");
-    Assert.assertEquals(1, methodId1);
-    Assert.assertEquals(2, methodId2);
+    int methodId1 = methodIdLookup.getOrAdd("alpha");
+    int methodId2 = methodIdLookup.getOrAdd("beta");
+    int methodId3 = methodIdLookup.getOrAdd("alpha");
+    Assert.assertEquals(0, methodId1);
+    Assert.assertEquals(1, methodId2);
     Assert.assertEquals(methodId1, methodId3);
   }
 
   @Test
   public void testReverseLookupAndReservedMethodIds() {
     MethodIdLookup methodIdLookup = new MethodIdLookup();
-    long methodId1 = methodIdLookup.getOrAdd("alpha");
-    long methodId2 = methodIdLookup.getOrAdd("beta");
-    Map<Long, String> reverseLookup = methodIdLookup.generateReverseLookup();
-    Assert.assertEquals("alpha", reverseLookup.get(methodId1));
-    Assert.assertEquals("beta", reverseLookup.get(methodId2));
-    Assert.assertEquals(4, reverseLookup.size());
-    Assert.assertEquals(MethodIdLookup.GLOBAL_ROOT_METHOD_SIGNATURE, reverseLookup.get(MethodIdLookup.GLOBAL_ROOT_METHOD_ID));
-    Assert.assertEquals(MethodIdLookup.UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE, reverseLookup.get(MethodIdLookup.UNCLASSIFIABLE_ROOT_METHOD_ID));
-    Assert.assertFalse(reverseLookup.containsKey(0l));
+    int methodId1 = methodIdLookup.getOrAdd("alpha");
+    int methodId2 = methodIdLookup.getOrAdd("beta");
+
+    String[] reverseLookup = methodIdLookup.generateReverseLookup();
+    Assert.assertEquals(4, reverseLookup.length);
+
+    Assert.assertEquals("alpha", reverseLookup[methodId1 + 2]);
+    Assert.assertEquals("beta", reverseLookup[methodId2 + 2]);
+
+    Assert.assertEquals(MethodIdLookup.GLOBAL_ROOT_METHOD_SIGNATURE, reverseLookup[MethodIdLookup.GLOBAL_ROOT_METHOD_ID + 2]);
+    Assert.assertEquals(MethodIdLookup.UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE, reverseLookup[MethodIdLookup.UNCLASSIFIABLE_ROOT_METHOD_ID + 2]);
   }
 
 }

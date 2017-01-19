@@ -11,9 +11,9 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   private Buffer runningBuffer = Buffer.buffer();
   private RoutingContext context = null;
-  private RecordedProfileParser profileParser = null;
+  private RecordedProfileProcessor profileParser = null;
 
-  public RecordedProfileRequestHandler(RoutingContext context, RecordedProfileParser profileParser) {
+  public RecordedProfileRequestHandler(RoutingContext context, RecordedProfileProcessor profileParser) {
     this.context = context;
     this.profileParser = profileParser;
   }
@@ -26,7 +26,7 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
       CodedInputStream codedInputStream = CodedInputStream.newInstance(runningBuffer.getByteBuf().nioBuffer());
       int currentPos = 0;
       try {
-        currentPos = profileParser.parse(codedInputStream, runningBuffer, currentPos);
+        currentPos = profileParser.process(codedInputStream, runningBuffer, currentPos);
         //NOTE: Do not rely on CodedInputStream::getTotalBytesRead() to determine remaining bytes to be parsed
         //Example: CodedInputStream::readUInt32 can throw InvalidProtocolBufferEx if incomplete bytes have been received but it will update the totalBytesRead count
         //This will result in un-parsed bytes getting discarded and not accounted for when next chunk is received

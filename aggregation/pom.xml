@@ -21,11 +21,6 @@
       <version>20.0</version>
     </dependency>
     <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>3.1.0</version>
-    </dependency>
-    <dependency>
       <groupId>com.koloboke</groupId>
       <artifactId>koloboke-api-jdk8</artifactId>
       <version>1.0.0</version>
