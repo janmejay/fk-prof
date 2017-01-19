@@ -88,8 +88,6 @@ void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
 void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
-
-    controller->stop();
 }
 
 static bool PrepareJvmti(jvmtiEnv *jvmti) {
