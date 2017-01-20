@@ -12,8 +12,40 @@ extern "C" {
  * Method:    generateCpusampleSimpleProfile
  * Signature: (Ljava/lang/String;)Z
  */
-    JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile
-    (JNIEnv *, jobject, jstring);
+JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getAndStubCtxIdStart
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getAndStubCtxIdStart
+  (JNIEnv *, jobject, jint);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getCurrentCtx
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCurrentCtx
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getLastRegisteredCtxName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getLastRegisteredCtxName
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getLastRegisteredCtxCoveragePct
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getLastRegisteredCtxCoveragePct
+  (JNIEnv *, jobject);
 
 #ifdef __cplusplus
 }

@@ -94,7 +94,8 @@ set(SOURCE_FILES
     ${SRC}/config.hh
     ${SRC}/config.cc
     ${SRC}/scheduler.hh
-    ${SRC}/scheduler.cc)
+    ${SRC}/scheduler.cc
+    ${SRC}/perf_ctx.hh)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.hh

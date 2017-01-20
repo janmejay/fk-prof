@@ -16,6 +16,7 @@ import recording.Recorder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -233,11 +234,61 @@ public class WorkHandlingTest {
         
         assertThat(profileCalledSecondTime.getValue(), is(false));
     }
-    
-    //TODO: write another few tests where associate goes down before or in-middle-of /profile call, see recorder recover
-    
-    //TODO: write a test that fails /profile call and observe the work prematurely fail in reaction to the failure
 
+    @Test
+    public void should_Abort_CpuProfileWork_When_Profile_Upload_Fails() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        boolean[] profileCalled = {false, false};
+        association[0] = pointToAssociate(recInfo, 8090);
+        PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
+        poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID);
+        for (int i = 2; i < poll.length; i++) {
+            poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
+        }
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+
+        profile[0] = (req) -> {
+            profileCalled[0] = true;
+            throw new RuntimeException("Ouch! something went wrong.");
+        };
+        profile[1] = (req) -> {
+            profileCalled[1] = true;
+            return null;
+        };
+
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        long idx = 0;
+        for (PollReqWithTime prwt : pollReqs) {
+            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            if (idx > 0) {
+                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
+            }
+            prevTime = prwt.time;
+            idx++;
+        }
+
+        assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        for (int i = 2; i < 4; i++) {
+            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.pre_start, Recorder.WorkResponse.WorkResult.unknown, 0);
+        }
+        assertWorkStateAndResultIs(pollReqs[4].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.failure, 0);
+        for (int i = 5; i < pollReqs.length; i++) {
+            assertWorkStateAndResultIs(pollReqs[i].req.getWorkLastIssued(), i + 99, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        }
+
+        assertThat(Arrays.asList(profileCalled), is(Arrays.asList(true, false)));
+    }
+    
     private void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {
         assertThat(rh, notNullValue());
         assertThat(rh.getRecorderVersion(), is(Versions.RECORDER_VERSION));
