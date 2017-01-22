@@ -21,11 +21,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>3.1.0</version>
-        </dependency>
-        <dependency>
             <groupId>com.sun</groupId>
             <artifactId>tools</artifactId>
             <version>8</version>

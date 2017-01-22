@@ -19,12 +19,6 @@ public class CpuSamplingTraceDetailTest {
     Assert.assertTrue(existingUnclassifiableRoot == addedUnclassifiableRoot);
   }
 
-  @Test
-  public void testSampleIncrementAndGetMethods() {
-//    CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
-//    Assert.assertEquals(0, traceDetail.getSamples());
-//    traceDetail.incrementSamples();
-//    traceDetail.incrementSamples();
-//    Assert.assertEquals(2, traceDetail.getSamples());
-  }
+  //TODO: Tests for increment of samples should be added once serialization is implemented
+
 }

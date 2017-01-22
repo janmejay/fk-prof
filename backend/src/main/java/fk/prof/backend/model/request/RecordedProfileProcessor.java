@@ -1,10 +1,10 @@
 package fk.prof.backend.model.request;
 
-import com.google.protobuf.CodedInputStream;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.service.IProfileWorkService;
-import io.vertx.core.buffer.Buffer;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 
 public class RecordedProfileProcessor {
+  private static Logger logger = LoggerFactory.getLogger(RecordedProfileProcessor.class);
 
   private IProfileWorkService profileWorkService;
   private ISingleProcessingOfProfileGate singleProcessingOfProfileGate;
@@ -58,35 +59,37 @@ public class RecordedProfileProcessor {
    * Aggregates the parsed entries in appropriate aggregation window
    * Returns the starting unread position in outputstream
    *
-   * @param codedInputStream
-   * @return starting unread position in buffer
+   * @param inputStream
    */
-  public int process(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws AggregationFailure {
+  public void process(CompositeByteBufInputStream inputStream) throws AggregationFailure {
     if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
 
     try {
       if (!headerParser.isParsed()) {
-        currentPos = headerParser.parse(codedInputStream, underlyingBuffer, currentPos);
+        headerParser.parse(inputStream);
 
         if (headerParser.isParsed()) {
           header = headerParser.get();
           workId = header.getRecordingHeader().getWorkAssignment().getWorkId();
-          singleProcessingOfProfileGate.accept(workId);
 
+          singleProcessingOfProfileGate.accept(workId);
           aggregationWindow = profileWorkService.getAssociatedAggregationWindow(workId);
           if (aggregationWindow == null) {
             throw new AggregationFailure(String.format("workId=%d not found, cannot continue receiving associated profile",
                 workId));
           }
+
           aggregationWindow.startProfile(workId, header.getRecordingHeader().getRecorderVersion(), startedAt);
+          logger.info(String.format("Profile aggregation started for work_id=%d started_at=%s",
+              workId, startedAt.toString()));
         }
       }
 
       if (headerParser.isParsed()) {
-        while (!codedInputStream.isAtEnd()) {
-          currentPos = wseParser.parse(codedInputStream, underlyingBuffer, currentPos);
+        while (inputStream.available() > 0) {
+          wseParser.parse(inputStream);
           if (wseParser.isParsed()) {
             Recorder.Wse wse = wseParser.get();
             processWse(wse);
@@ -99,8 +102,6 @@ public class RecordedProfileProcessor {
     } catch (IOException ex) {
       //NOTE: Ignore this exception. Can happen because incomplete request has been received. Chunks can be received later
     }
-
-    return currentPos;
   }
 
   /**
@@ -113,7 +114,9 @@ public class RecordedProfileProcessor {
       if (isParsed()) {
         aggregationWindow.completeProfile(workId);
       } else {
-        aggregationWindow.abandonProfile(workId);
+        if(aggregationWindow != null) {
+          aggregationWindow.abandonProfile(workId);
+        }
         throw new AggregationFailure(String.format("Invalid or incomplete payload received, aggregation failed for work_id=%d", workId));
       }
     } finally {

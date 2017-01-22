@@ -1,7 +1,8 @@
 package fk.prof.backend.aggregator;
 
+import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
-import fk.prof.aggregation.FinalizableAggregationEntity;
+import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.request.RecordedProfileIndexes;
@@ -10,14 +11,15 @@ import recording.Recorder;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAggregationWindow> {
+public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWindow> {
   private final String appId;
   private final String clusterId;
   private final String procId;
   private LocalDateTime start = null, endWithTolerance = null;
 
-  private final ConcurrentHashMap<Long, ProfileWorkInfo> workDetailLookup = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Long, ProfileWorkInfo> workInfoLookup = new ConcurrentHashMap<>();
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   public AggregationWindow(String appId, String clusterId, String procId,
@@ -28,7 +30,7 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
     this.start = start;
     this.endWithTolerance = this.start.plusMinutes(windowDurationInMinutes).plusSeconds(toleranceInSeconds);
     for (int i = 0; i < workIds.length; i++) {
-      this.workDetailLookup.put(workIds[i], new ProfileWorkInfo());
+      this.workInfoLookup.put(workIds[i], new ProfileWorkInfo());
     }
   }
 
@@ -36,10 +38,11 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
     ensureEntityIsWriteable();
 
     try {
-      ProfileWorkInfo workInfo = this.workDetailLookup.get(workId);
+      ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.startProfile(recorderVersion, startedAt);
-    } catch (AggregationFailure ex) {
-      throw new AggregationFailure(String.format("Error starting profile for work_id=%d", workId), ex);
+    } catch (IllegalStateException ex) {
+      throw new AggregationFailure(String.format("Error starting profile for work_id=%d, recorder_version=%d, startedAt=%s",
+          workId, recorderVersion, startedAt.toString()), ex);
     }
   }
 
@@ -47,9 +50,9 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
     ensureEntityIsWriteable();
 
     try {
-      ProfileWorkInfo workInfo = this.workDetailLookup.get(workId);
+      ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.completeProfile();
-    } catch (AggregationFailure ex) {
+    } catch (IllegalStateException ex) {
       throw new AggregationFailure(String.format("Error completing profile for work_id=%d", workId), ex);
     }
   }
@@ -58,9 +61,9 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
     ensureEntityIsWriteable();
 
     try {
-      ProfileWorkInfo workInfo = this.workDetailLookup.get(workId);
+      ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.abandonProfile();
-    } catch (AggregationFailure ex) {
+    } catch (IllegalStateException ex) {
       throw new AggregationFailure(String.format("Error abandoning profile for work_id=%d", workId), ex);
     }
   }
@@ -71,10 +74,10 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
   public void abortOngoingProfiles() throws AggregationFailure {
     ensureEntityIsWriteable();
 
-    for (Map.Entry<Long, ProfileWorkInfo> entry: workDetailLookup.entrySet()) {
+    for (Map.Entry<Long, ProfileWorkInfo> entry: workInfoLookup.entrySet()) {
       try {
         entry.getValue().abortProfile();
-      } catch (AggregationFailure ex) {
+      } catch (IllegalStateException ex) {
         throw new AggregationFailure(String.format("Error aborting profile for work_id=%d", entry.getKey()), ex);
       }
     }
@@ -99,7 +102,7 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
   public void updateWorkInfo(long workId, Recorder.Wse wse) {
     ensureEntityIsWriteable();
 
-    ProfileWorkInfo workInfo = workDetailLookup.get(workId);
+    ProfileWorkInfo workInfo = workInfoLookup.get(workId);
     if (workInfo == null) {
       throw new AggregationFailure(String.format("Cannot find work id=%d association in the aggregation window", workId), true);
     }
@@ -108,7 +111,14 @@ public class AggregationWindow extends FinalizableAggregationEntity<FinalizedAgg
 
   @Override
   protected FinalizedAggregationWindow buildFinalizedEntity() {
-    //TODO: Implement translation layer to finalized entity
-    return null;
+    Map<Long, FinalizedProfileWorkInfo> finalizedWorkInfoLookup = workInfoLookup.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey,
+            entry -> entry.getValue().finalizeEntity()));
+
+    return new FinalizedAggregationWindow(
+        appId, clusterId, procId, start, endWithTolerance, finalizedWorkInfoLookup,
+        cpuSamplingAggregationBucket.finalizeEntity()
+    );
   }
 }

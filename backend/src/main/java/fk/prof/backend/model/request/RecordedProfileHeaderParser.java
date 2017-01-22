@@ -1,8 +1,8 @@
 package fk.prof.backend.model.request;
 
 import com.google.protobuf.CodedInputStream;
-import fk.prof.backend.exception.HttpFailure;
-import io.vertx.core.buffer.Buffer;
+import com.google.protobuf.InvalidProtocolBufferException;
+import fk.prof.backend.exception.AggregationFailure;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -47,60 +47,77 @@ public class RecordedProfileHeaderParser {
   /**
    * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
    *
-   * @param codedInputStream
+   * @param inputStream
    * @return starting unread position in buffer
    */
-  public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure {
+  public void parse(CompositeByteBufInputStream inputStream) throws AggregationFailure {
     try {
       if (!headerParsed) {
         if (encodedVersion == null) {
-          encodedVersion = codedInputStream.readUInt32();
-          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+          inputStream.mark(0);
+          int firstByte = inputStream.read();
+          if(firstByte == -1) {
+            //NOTE: Wrapping this as invalid protocol buffer exception to indicate this is a case of incomplete protobuf-serialized bytes received
+            throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:encodedVersion from inputstream");
+          }
+          encodedVersion = CodedInputStream.readRawVarint32(firstByte, inputStream);
+          byte[] encodedVersionBytes = inputStream.getBytesReadSinceMark();
+          headerChecksum.update(encodedVersionBytes, 0, encodedVersionBytes.length);
         }
 
         if (headerLength == null) {
-          headerLength = codedInputStream.readUInt32();
-          if (headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
-            throw new HttpFailure("Allowed range for recording header length is 1B to " + maxAllowedBytesForRecordingHeader + "B", 400);
+          inputStream.mark(0);
+          int firstByte = inputStream.read();
+          if(firstByte == -1) {
+            throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:headerLength from inputstream");
           }
-          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+          headerLength = CodedInputStream.readRawVarint32(firstByte, inputStream);
+          if (headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
+            throw new AggregationFailure("Allowed range for recording header length is 1B to " + maxAllowedBytesForRecordingHeader + "B");
+          }
+          byte[] headerLengthBytes = inputStream.getBytesReadSinceMark();
+          headerChecksum.update(headerLengthBytes, 0, headerLengthBytes.length);
         }
 
         if (recordingHeader == null) {
-          if (headerLength > (underlyingBuffer.length() - currentPos)) {
-            return currentPos;
+          if(inputStream.available() < headerLength) {
+            return;
           }
-
-          int oldLimit = codedInputStream.pushLimit(headerLength);
           try {
-            recordingHeader = Recorder.RecordingHeader.parseFrom(codedInputStream);
-          } catch (IOException ex) {
+            inputStream.mark(0);
+            byte[] headerBytes = new byte[headerLength];
+            inputStream.read(headerBytes, 0, headerLength);
+            recordingHeader = Recorder.RecordingHeader.parseFrom(headerBytes);
+            headerChecksum.update(headerBytes, 0, headerBytes.length);
+          } catch (InvalidProtocolBufferException ex) {
             //Running buffer has sufficient bytes present for reading recording header. If exception is thrown while parsing, send error response
-            throw new HttpFailure("Error while parsing recording header", 400);
+            throw new AggregationFailure("Error while parsing recording header");
           }
-          codedInputStream.popLimit(oldLimit);
-          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
 
         if (checksumValue == null) {
-          checksumValue = codedInputStream.readUInt32();
-          currentPos = codedInputStream.getTotalBytesRead();
+          inputStream.mark(0);
+          int firstByte = inputStream.read();
+          if(firstByte == -1) {
+            throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:checksum from inputstream");
+          }
+          checksumValue = CodedInputStream.readRawVarint32(firstByte, inputStream);
           if ((int) headerChecksum.getValue() != checksumValue) {
-            throw new HttpFailure("Checksum of header does not match", 400);
+            throw new AggregationFailure("Checksum of header does not match");
           }
           headerParsed = true;
         }
       }
     } catch (IOException ex) {
-      //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+      if(!(ex instanceof InvalidProtocolBufferException)) {
+        throw new AggregationFailure(ex);
+      } else {
+        try {
+          inputStream.reset();
+        } catch (IOException ex1) {}
+        //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+      }
     }
-    return currentPos;
-  }
-
-  private int updateChecksumAndGetNewPos(Buffer underlyingBuffer, CodedInputStream codedInputStream, int oldPos) {
-    int newPos = codedInputStream.getTotalBytesRead();
-    headerChecksum.update(underlyingBuffer.getByteBuf().array(), oldPos, (newPos - oldPos));
-    return newPos;
   }
 
 }

@@ -1,4 +1,7 @@
 {
+  "vertxOptions": {
+    "blockedThreadCheckInterval": 60000
+  },
   "deploymentOptions": {
     "http.instances": 2,
     "config": {

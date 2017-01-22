@@ -1,8 +1,8 @@
 package fk.prof.backend.model.request;
 
 import com.google.protobuf.CodedInputStream;
-import fk.prof.backend.exception.HttpFailure;
-import io.vertx.core.buffer.Buffer;
+import com.google.protobuf.InvalidProtocolBufferException;
+import fk.prof.backend.exception.AggregationFailure;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class WseParser {
   }
 
   /**
-   * Returns {@link recording.Recorder.Wse} if {@link #isParsed()} is true, null otherwise
+   * Returns {@link Recorder.Wse} if {@link #isParsed()} is true, null otherwise
    *
    * @return
    */
@@ -55,54 +55,64 @@ public class WseParser {
   /**
    * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
    *
-   * @param codedInputStream
-   * @return starting unread position in buffer
+   * @param inputStream
    */
-  public int parse(CodedInputStream codedInputStream, Buffer underlyingBuffer, int currentPos) throws HttpFailure {
+  public void parse(CompositeByteBufInputStream inputStream) throws AggregationFailure {
     try {
       if (!wseParsed) {
         if (wseLength == null) {
-          wseLength = codedInputStream.readUInt32();
-          if (wseLength < 1 || wseLength > maxAllowedBytesForWse) {
-            throw new HttpFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B", 400);
+          inputStream.mark(0);
+          int firstByte = inputStream.read();
+          if(firstByte == -1) {
+            throw new InvalidProtocolBufferException("EOF when reading WSE:wseLength from inputstream");
           }
-          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
+          wseLength = CodedInputStream.readRawVarint32(firstByte, inputStream);
+          if (wseLength < 1 || wseLength > maxAllowedBytesForWse) {
+            throw new AggregationFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B");
+          }
+          byte[] wseLengthBytes = inputStream.getBytesReadSinceMark();
+          wseChecksum.update(wseLengthBytes, 0, wseLengthBytes.length);
         }
 
         if (wse == null) {
-          if (wseLength > (underlyingBuffer.length() - currentPos)) {
-            return currentPos;
+          if(inputStream.available() < wseLength) {
+            return;
           }
 
-          int oldLimit = codedInputStream.pushLimit(wseLength);
           try {
-            wse = Recorder.Wse.parseFrom(codedInputStream);
-          } catch (IOException ex) {
+            inputStream.mark(0);
+            byte[] wseBytes = new byte[wseLength];
+            inputStream.read(wseBytes, 0, wseLength);
+            wse = Recorder.Wse.parseFrom(wseBytes);
+            wseChecksum.update(wseBytes, 0, wseBytes.length);
+          } catch (InvalidProtocolBufferException ex) {
             //Running buffer has sufficient bytes present for reading wse. If exception is thrown while parsing, send error response
-            throw new HttpFailure("Error while parsing work-specific entry log", 400);
+            throw new AggregationFailure("Error while parsing work-specific entry log");
           }
-          codedInputStream.popLimit(oldLimit);
-          currentPos = updateChecksumAndGetNewPos(underlyingBuffer, codedInputStream, currentPos);
         }
 
         if (checksumValue == null) {
-          checksumValue = codedInputStream.readUInt32();
-          currentPos = codedInputStream.getTotalBytesRead();
+          inputStream.mark(0);
+          int firstByte = inputStream.read();
+          if(firstByte == -1) {
+            throw new InvalidProtocolBufferException("EOF when reading WSE:checksum from inputstream");
+          }
+          checksumValue = CodedInputStream.readRawVarint32(firstByte, inputStream);
           if ((int) wseChecksum.getValue() != checksumValue) {
-            throw new HttpFailure("Checksum of work-specific entry log does not match", 400);
+            throw new AggregationFailure("Checksum of work-specific entry log does not match");
           }
           wseParsed = true;
         }
       }
     } catch (IOException ex) {
-      //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+      if(!(ex instanceof InvalidProtocolBufferException)) {
+        throw new AggregationFailure(ex);
+      } else {
+        try {
+          inputStream.reset();
+        } catch (IOException ex1) {}
+        //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
+      }
     }
-    return currentPos;
-  }
-
-  private int updateChecksumAndGetNewPos(Buffer underlyingBuffer, CodedInputStream codedInputStream, int oldPos) {
-    int newPos = codedInputStream.getTotalBytesRead();
-    wseChecksum.update(underlyingBuffer.getByteBuf().array(), oldPos, (newPos - oldPos));
-    return newPos;
   }
 }

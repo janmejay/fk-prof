@@ -3,12 +3,11 @@ package fk.prof.aggregation.cpusampling;
 import fk.prof.aggregation.SerializableAggregationEntity;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-    public class CpuSamplingFrameNode implements SerializableAggregationEntity {
+public class CpuSamplingFrameNode implements SerializableAggregationEntity {
     private final int methodId;
     private final int lineNumber;
     private final List<CpuSamplingFrameNode> children = new ArrayList<>();

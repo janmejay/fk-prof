@@ -34,6 +34,32 @@ public class MockProfileObjects {
     return recordingHeader;
   }
 
+  public static Recorder.RecordingHeader getRecordingHeader(long workId, int recorderVersion) {
+    Recorder.WorkAssignment workAssignment = Recorder.WorkAssignment.newBuilder()
+        .addWork(
+            Recorder.Work.newBuilder()
+                .setWType(Recorder.WorkType.cpu_sample_work)
+                .setCpuSample(Recorder.CpuSampleWork.newBuilder()
+                    .setFrequency(100)
+                    .setMaxFrames(64)
+                )
+        )
+        .setWorkId(workId)
+        .setIssueTime(LocalDateTime.now().toString())
+        .setDelay(180)
+        .setDuration(60)
+        .build();
+    Recorder.RecordingHeader recordingHeader = Recorder.RecordingHeader.newBuilder()
+        .setRecorderVersion(recorderVersion)
+        .setControllerVersion(2)
+        .setControllerId(3)
+        .setWorkAssignment(workAssignment)
+        .setWorkDescription("Test Work")
+        .build();
+
+    return recordingHeader;
+  }
+
   public static List<Recorder.StackSample> getPredefinedStackSamples(int traceId) {
     Recorder.StackSample stackSample1 = getMockStackSample(1, new char[]{'D', 'C', 'D', 'C', 'Y'});
     Recorder.StackSample stackSample2 = getMockStackSample(1, new char[]{'D', 'C', 'E', 'D', 'C', 'Y'});

@@ -1,6 +1,6 @@
 package fk.prof.backend.aggregator;
 
-import fk.prof.aggregation.FinalizableAggregationEntity;
+import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.request.RecordedProfileIndexes;
@@ -10,10 +10,9 @@ import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
 import recording.Recorder;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class CpuSamplingAggregationBucket extends FinalizableAggregationEntity<FinalizedCpuSamplingAggregationBucket> {
+public class CpuSamplingAggregationBucket extends FinalizableBuilder<FinalizedCpuSamplingAggregationBucket> {
   private final MethodIdLookup methodIdLookup = new MethodIdLookup();
   private final ConcurrentHashMap<String, CpuSamplingTraceDetail> traceDetailLookup = new ConcurrentHashMap<>();
 
@@ -61,7 +60,9 @@ public class CpuSamplingAggregationBucket extends FinalizableAggregationEntity<F
 
   @Override
   protected FinalizedCpuSamplingAggregationBucket buildFinalizedEntity() {
-    //TODO: Implement translation layer to finalized entity
-    return null;
+    return new FinalizedCpuSamplingAggregationBucket(
+        methodIdLookup,
+        traceDetailLookup
+    );
   }
 }

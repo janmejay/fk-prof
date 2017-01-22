@@ -32,5 +32,5 @@ public class CpuSamplingFrameNodeTest {
     Assert.assertTrue(n3 == n4);
   }
 
-  //TODO: Tests for increment of on-stack and on-cpu samples should be added once serialization is added
+  //TODO: Tests for increment of on-stack and on-cpu samples should be added once serialization is implemented
 }

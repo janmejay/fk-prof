@@ -1,10 +1,12 @@
 package fk.prof.aggregation.state;
 
+
+//TODO: Add ascii-art here explaining the state machine with transitions
 public enum AggregationState {
   SCHEDULED {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
-      switch (stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
+      switch (stateEvent) {
         case START_PROFILE:
           return ONGOING;
         default:
@@ -14,8 +16,8 @@ public enum AggregationState {
   },
   PARTIAL {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
-      switch (stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
+      switch (stateEvent) {
         case START_PROFILE:
           return ONGOING_PARTIAL;
         default:
@@ -25,8 +27,8 @@ public enum AggregationState {
   },
   ONGOING {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
-      switch (stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
+      switch (stateEvent) {
         case COMPLETE_PROFILE:
           return COMPLETED;
         case ABANDON_PROFILE:
@@ -40,8 +42,8 @@ public enum AggregationState {
   },
   ONGOING_PARTIAL {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
-      switch (stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
+      switch (stateEvent) {
         case COMPLETE_PROFILE:
           return RETRIED;
         case ABANDON_PROFILE:
@@ -56,24 +58,24 @@ public enum AggregationState {
   //Terminal state
   COMPLETED {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
     }
   },
   //Terminal state
   RETRIED {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
     }
   },
   //Terminal state
   ABORTED {
     @Override
-    public AggregationState process(AggregationStateTransition stateTransition) {
+    public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
     }
   };
 
-  public abstract AggregationState process(AggregationStateTransition stateTransition);
+  public abstract AggregationState process(AggregationStateEvent stateEvent);
 }
