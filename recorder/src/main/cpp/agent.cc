@@ -18,6 +18,7 @@ LoggerP logger(nullptr);
 static ConfigurationOptions* CONFIGURATION;
 static Controller* controller;
 static ThreadMap threadMap;
+PerfCtx* perfCtx;
 
 
 // This has to be here, or the VM turns off class loading events.

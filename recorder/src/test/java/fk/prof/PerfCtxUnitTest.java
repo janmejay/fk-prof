@@ -66,7 +66,7 @@ public class PerfCtxUnitTest {
 
     @Test
     public void shouldNotAllow_RestrictedChars_InCtxName() {
-        for (String s : new String[] {"~", "%"}) {
+        for (String s : new String[] {"~", "%", "<", ">"}) {
             try {
                 new PerfCtx("foo" + s, 10);
                 fail("PerfCtx creation should have failed");
@@ -75,7 +75,7 @@ public class PerfCtxUnitTest {
             }
         }
         
-        for (String s : new String[] {",", ".", " ", "!", "@", "#", "$", "^", "&", "(", ")", "[", "]", "{", "}", "/", "<", ">", "'", "\"", ";", ":", "?"}) {
+        for (String s : new String[] {",", ".", " ", "!", "@", "#", "$", "^", "&", "(", ")", "[", "]", "{", "}", "/", "'", "\"", ";", ":", "?"}) {
             try {
                 new PerfCtx("foo" + s, 10);
             } catch (IllegalArgumentException e) {
@@ -146,5 +146,12 @@ public class PerfCtxUnitTest {
         assertThat(open, is(open1));
         open1.close();
         assertThat(open, is(open1));
+    }
+    
+    @Test
+    public void shouldDefaultParams_sensibly() {
+        testJni.getAndStubCtxIdStart(95);
+        PerfCtx foo = new PerfCtx("foo");
+        assertThat(foo.toString(), is("PerfCtx(95) {name: 'foo', coverage: 10%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
     }
 }

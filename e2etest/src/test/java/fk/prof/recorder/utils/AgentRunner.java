@@ -83,7 +83,7 @@ public class AgentRunner {
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
 
         List<String> classpath = discoverClasspath(getClass());
-        System.out.println("classpath = " + classpath);
+        //System.out.println("classpath = " + classpath);
         process = new ProcessBuilder()
                 .command("java", agentArg, "-cp", String.join(":", classpath), fqdn)
                 .redirectError(new File("/tmp/fkprof_stderr.log"))

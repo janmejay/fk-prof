@@ -1,5 +1,5 @@
 #include "test_jni.hh"
-#include "../../main/cpp/perf_ctx.hh"
+#include "../../main/cpp/perf_ctx_jni.hh"
 #include "test_profile.hh"
 #include <jni.h>
 #include <iostream>

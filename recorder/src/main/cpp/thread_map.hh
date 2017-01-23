@@ -58,6 +58,7 @@ struct ThreadBucket {
 	char *name;
 	std::atomic_int refs;
 	map::GC::EpochType localEpoch;
+    
 
 	ThreadBucket(int id, const char *n) : tid(id), refs(1), localEpoch(GCHelper::attach()) {
 		int len = strlen(n) + 1;
