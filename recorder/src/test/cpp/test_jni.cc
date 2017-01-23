@@ -42,7 +42,7 @@ JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* jni, jobject self, jint 
     in_ctx = -1;
 }
 
-JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_start(JNIEnv* jni, jobject self, jint ctx_id) {
+JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* jni, jobject self, jint ctx_id) {
     in_ctx = ctx_id;
 }
 

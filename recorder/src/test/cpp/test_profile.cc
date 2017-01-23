@@ -78,11 +78,13 @@ void generate_cpusample_simple_profile(const std::string& profile_data_file) {
     recording::StackSample* ss = wse_1->add_stack_sample();
     ss->set_start_offset_micros(15000);
     ss->set_thread_id(200);
+    ss->set_trace_id(401);
     std::unordered_map<std::string, int> method_tracker;
     add_frames_for({"Y", "C", "D", "C", "D"}, method_tracker, *wse_1, ss, idx_data);
     ss = wse_1->add_stack_sample();
     ss->set_start_offset_micros(15050);
     ss->set_thread_id(200);
+    ss->set_trace_id(405);
     add_frames_for({"Y", "C", "D", "E", "C", "D"}, method_tracker, *wse_1, ss, idx_data);
 
     recording::Wse e2;
@@ -92,6 +94,7 @@ void generate_cpusample_simple_profile(const std::string& profile_data_file) {
     ss = wse_2->add_stack_sample();
     ss->set_start_offset_micros(25002);
     ss->set_thread_id(201);
+    ss->set_trace_id(802);
     add_frames_for({"Y", "C", "D", "E", "F", "C"}, method_tracker, *wse_2, ss, idx_data);
 
     write_to_file(rh, {&e1, &e2}, profile_data_file);

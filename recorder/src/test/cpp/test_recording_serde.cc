@@ -28,6 +28,6 @@ TEST(WriteAndReadBack_CPUSampleRecording) {
     Checksum csum;
     auto actual_chksum = csum.chksum(buff, len);
 
-    CHECK_EQUAL(1216502518, actual_chksum);
+    CHECK_EQUAL(2686278808, actual_chksum);
 }
 

@@ -1,9 +1,9 @@
-package fk.prof;
+package fk.prof.recorder;
 
 import com.google.protobuf.CodedInputStream;
-import fk.prof.nodep.SleepForever;
-import fk.prof.utils.AgentRunner;
-import fk.prof.utils.TestBackendServer;
+import fk.prof.recorder.main.SleepForever;
+import fk.prof.recorder.utils.AgentRunner;
+import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.joda.time.DateTime;
@@ -26,7 +26,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.zip.Adler32;
 
-import static fk.prof.utils.Matchers.approximatelyBetween;
+import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.*;
@@ -80,7 +80,7 @@ public class WorkHandlingTest {
         associateServer.stop();
     }
 
-    private static class PollReqWithTime {
+    public static class PollReqWithTime {
         public PollReqWithTime(Recorder.PollReq req) {
             this.req = req;
             time = System.currentTimeMillis();
@@ -289,7 +289,7 @@ public class WorkHandlingTest {
         assertThat(Arrays.asList(profileCalled), is(Arrays.asList(true, false)));
     }
     
-    private void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {
+    public static void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {
         assertThat(rh, notNullValue());
         assertThat(rh.getRecorderVersion(), is(Versions.RECORDER_VERSION));
         assertThat(rh.getControllerVersion(), is(Versions.CONTROLLER_VERSION));
@@ -307,7 +307,7 @@ public class WorkHandlingTest {
         }
     }
 
-    private void recordProfile(byte[] req, MutableObject<Recorder.RecordingHeader> hdr, List<Recorder.Wse> entries) {
+    public static void recordProfile(byte[] req, MutableObject<Recorder.RecordingHeader> hdr, List<Recorder.Wse> entries) {
         try {
             recordProfile_(req, hdr, entries);
         } catch (IOException e) {
@@ -315,7 +315,7 @@ public class WorkHandlingTest {
         }
     }
 
-    private void recordProfile_(byte[] req, MutableObject<Recorder.RecordingHeader> hdr, List<Recorder.Wse> entries) throws IOException {
+    public static void recordProfile_(byte[] req, MutableObject<Recorder.RecordingHeader> hdr, List<Recorder.Wse> entries) throws IOException {
         CodedInputStream is = CodedInputStream.newInstance(req);
         assertThat(is.readUInt32(), is(Versions.RECORDER_ENCODING_VERSION));
 
@@ -358,22 +358,22 @@ public class WorkHandlingTest {
         }
     }
 
-    private void assertItHadNoWork(Recorder.WorkResponse workLastIssued, long expectedId) {
+    public static void assertItHadNoWork(Recorder.WorkResponse workLastIssued, long expectedId) {
         assertWorkStateAndResultIs(workLastIssued, expectedId, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
     }
 
-    private void assertWorkStateAndResultIs(String ctx, Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
+    public static void assertWorkStateAndResultIs(String ctx, Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
         assertThat(ctx, workLastIssued.getWorkId(), is(expectedId));
         assertThat(ctx, workLastIssued.getWorkResult(), is(result));
         assertThat(ctx, workLastIssued.getWorkState(), is(state));
         assertThat(ctx, workLastIssued.getElapsedTime(), is(elapsedTime));
     }
 
-    private void assertWorkStateAndResultIs(Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
+    public static void assertWorkStateAndResultIs(Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
         assertWorkStateAndResultIs("UNKNOWN", workLastIssued, expectedId, state, result, elapsedTime);
     }
 
-    private Function<byte[], byte[]> issueCpuProfilingWork(PollReqWithTime[] pollReqs, int idx, final int duration, final int delay, final String issueTime, final int workId) {
+    public static Function<byte[], byte[]> issueCpuProfilingWork(PollReqWithTime[] pollReqs, int idx, final int duration, final int delay, final String issueTime, final int workId) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
             Recorder.WorkAssignment.Builder workAssignmentBuilder = prepareWorkAssignment(nowString, builder, idx, delay, duration, CPU_SAMPLING_WORK_DESCRIPTION, workId);
             Recorder.Work.Builder workBuilder = workAssignmentBuilder.addWorkBuilder();
@@ -383,7 +383,7 @@ public class WorkHandlingTest {
         }, issueTime);
     }
 
-    private Recorder.WorkAssignment.Builder prepareWorkAssignment(String nowString, Recorder.PollRes.Builder builder, int idx, int delay, int duration, final String desc, int workId) {
+    public static Recorder.WorkAssignment.Builder prepareWorkAssignment(String nowString, Recorder.PollRes.Builder builder, int idx, int delay, int duration, final String desc, int workId) {
         return builder.getAssignmentBuilder()
                 .setWorkId(workId)
                 .setDescription(desc)
@@ -392,22 +392,22 @@ public class WorkHandlingTest {
                 .setIssueTime(nowString);
     }
 
-    private Function<byte[], byte[]> tellRecorderToContinueWhatItWasDoing(PollReqWithTime[] pollReqs, int idx) {
+    public static Function<byte[], byte[]> tellRecorderToContinueWhatItWasDoing(PollReqWithTime[] pollReqs, int idx) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
         }, ISODateTimeFormat.dateTime().print(DateTime.now()));
     }
 
-    private Function<byte[], byte[]> tellRecorderWeHaveNoWork(PollReqWithTime[] pollReqs, int idx) {
+    public static Function<byte[], byte[]> tellRecorderWeHaveNoWork(PollReqWithTime[] pollReqs, int idx) {
         return tellRecorderWeHaveNoWork(pollReqs, idx, 0, 0);
     }
 
-    private Function<byte[], byte[]> tellRecorderWeHaveNoWork(PollReqWithTime[] pollReqs, int idx, int duration, final int delay) {
+    public static Function<byte[], byte[]> tellRecorderWeHaveNoWork(PollReqWithTime[] pollReqs, int idx, int duration, final int delay) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
             prepareWorkAssignment(nowString, builder, idx, delay, duration, "no work for ya!", idx + 100);
         }, ISODateTimeFormat.dateTime().print(DateTime.now()));
     }
 
-    private Function<byte[], byte[]> cookPollResponse(PollReqWithTime[] pollReqs, int idx, final BiConsumer<String, Recorder.PollRes.Builder> biConsumer, final String nowString) {
+    public static Function<byte[], byte[]> cookPollResponse(PollReqWithTime[] pollReqs, int idx, final BiConsumer<String, Recorder.PollRes.Builder> biConsumer, final String nowString) {
         return (req) -> {
             try {
                 Recorder.PollReq.Builder pollReqBuilder = Recorder.PollReq.newBuilder();
@@ -429,7 +429,7 @@ public class WorkHandlingTest {
         };
     }
 
-    private Function<byte[], byte[]> pointToAssociate(MutableObject<Recorder.RecorderInfo> recInfo, final int associatePort) {
+    public static Function<byte[], byte[]> pointToAssociate(MutableObject<Recorder.RecorderInfo> recInfo, final int associatePort) {
         return (req) -> {
             try {
                 Recorder.RecorderInfo.Builder recInfoBuilder = Recorder.RecorderInfo.newBuilder();
@@ -449,7 +449,7 @@ public class WorkHandlingTest {
         };
     }
 
-    private void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
+    public static void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
         assertThat(recorderInfo.getIp(), is("10.20.30.40"));
         assertThat(recorderInfo.getHostname(), is("foo-host"));
         assertThat(recorderInfo.getAppId(), is("bar-app"));

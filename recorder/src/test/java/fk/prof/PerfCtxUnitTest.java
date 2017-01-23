@@ -33,7 +33,7 @@ public class PerfCtxUnitTest {
         testJni.getAndStubCtxIdStart(4);
         PerfCtx foo = new PerfCtx("foo", 15);
         assertThat(testJni.getCurrentCtx(), is(-1));
-        foo.start();
+        foo.begin();
         assertThat(testJni.getCurrentCtx(), is(4));
         foo.end();
         assertThat(testJni.getCurrentCtx(), is(-1));

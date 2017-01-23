@@ -1,4 +1,4 @@
-package fk.prof.nodep;
+package fk.prof.recorder.main;
 
 public class SleepForever {
     public static void main(String[] args) throws InterruptedException {

@@ -8,7 +8,7 @@ public class ClosablePerfCtx implements AutoCloseable {
 
     public ClosablePerfCtx(PerfCtx perfCtx) {
         this.perfCtx = perfCtx;
-        perfCtx.start();
+        perfCtx.begin();
     }
 
     @Override

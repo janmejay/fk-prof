@@ -145,6 +145,7 @@ message StackSample {
   required uint32 start_offset_micros = 1;
   required int64 thread_id = 2;
   repeated Frame frame = 3;
+  required uint32 trace_id = 4;
 }
 
 message Frame {

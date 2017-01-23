@@ -1,9 +1,9 @@
-package fk.prof;
+package fk.prof.recorder;
 
-import fk.prof.nodep.SleepForever;
-import fk.prof.utils.AgentRunner;
-import fk.prof.utils.Matchers;
-import fk.prof.utils.TestBackendServer;
+import fk.prof.recorder.main.SleepForever;
+import fk.prof.recorder.utils.AgentRunner;
+import fk.prof.recorder.utils.Matchers;
+import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -362,7 +362,7 @@ public class AssociationTest {
         };
     }
 
-    private void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
+    public static void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
         assertThat(recorderInfo.getIp(), is("10.20.30.40"));
         assertThat(recorderInfo.getHostname(), is("foo-host"));
         assertThat(recorderInfo.getAppId(), is("bar-app"));

@@ -19,7 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  **/
-package fk.prof.utils;
+package fk.prof.recorder.utils;
 
 import java.util.Calendar;
 import java.util.concurrent.ExecutorService;

@@ -1,4 +1,4 @@
-package fk.prof.utils;
+package fk.prof.recorder.utils;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;

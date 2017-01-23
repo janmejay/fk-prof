@@ -1,7 +1,5 @@
 package fk.prof;
 
-import java.util.function.Function;
-
 /**
  * @understands a named "logical" context under which all performance data is aggregated
  */
@@ -32,8 +30,8 @@ public class PerfCtx {
         end(ctxId);
     }
 
-    public void start() {
-        start(ctxId);
+    public void begin() {
+        begin(ctxId);
     }
     
     public ClosablePerfCtx open() {
@@ -42,7 +40,7 @@ public class PerfCtx {
 
     private native void end(int ctxId);
     
-    private native void start(int ctxId);
+    private native void begin(int ctxId);
 
     @Override
     public boolean equals(Object o) {

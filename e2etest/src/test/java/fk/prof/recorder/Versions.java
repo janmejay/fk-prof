@@ -1,4 +1,4 @@
-package fk.prof;
+package fk.prof.recorder;
 
 /**
  * @understands various values of various versioning fields used in RPC or storage payloads

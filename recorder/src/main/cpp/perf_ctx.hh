@@ -12,24 +12,24 @@ extern "C" {
  * Method:    registerCtx
  * Signature: (Ljava/lang/String;I)I
  */
-    JNIEXPORT jint JNICALL Java_fk_prof_PerfCtx_registerCtx
-    (JNIEnv *, jobject, jstring, jint);
+JNIEXPORT jint JNICALL Java_fk_prof_PerfCtx_registerCtx
+  (JNIEnv *, jobject, jstring, jint);
 
 /*
  * Class:     fk_prof_PerfCtx
  * Method:    end
  * Signature: (I)V
  */
-    JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end
-    (JNIEnv *, jobject, jint);
+JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end
+  (JNIEnv *, jobject, jint);
 
 /*
  * Class:     fk_prof_PerfCtx
- * Method:    start
+ * Method:    begin
  * Signature: (I)V
  */
-    JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_start
-    (JNIEnv *, jobject, jint);
+JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin
+  (JNIEnv *, jobject, jint);
 
 #ifdef __cplusplus
 }
