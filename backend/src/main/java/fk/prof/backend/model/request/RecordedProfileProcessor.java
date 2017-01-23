@@ -46,15 +46,6 @@ public class RecordedProfileProcessor {
   }
 
   /**
-   * Returns {@link RecordedProfileHeader} if {@link #isParsed()} is true, null otherwise
-   *
-   * @return
-   */
-  public RecordedProfileHeader getProfileHeader() {
-    return headerParser.get();
-  }
-
-  /**
    * Reads buffer and updates internal state with parsed fields.
    * Aggregates the parsed entries in appropriate aggregation window
    * Returns the starting unread position in outputstream

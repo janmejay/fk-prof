@@ -47,8 +47,5 @@ cscope.*
 npm-debug.log
 ui/public/*
 
-#Ignore proto generated classes
-backend/src/main/java/recording/Recorder.java
-
 #Ignore logs directory
 backend/logs/
