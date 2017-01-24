@@ -116,7 +116,7 @@ public class IOStreamTest {
     }
 
     @Test
-    public void test1() throws Exception {
+    public void testInputStreamClose_shouldReliablyCloseInCaseOfInterruption() throws Exception {
         int wait = 100;
         ScheduledExecutorService scheduled = Executors.newScheduledThreadPool(2);
 
