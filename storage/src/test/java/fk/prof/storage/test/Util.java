@@ -46,7 +46,6 @@ public class Util {
             }
         }
 
-        @Override
         public InputStream fetch(String path) throws StorageException {
             if(writtenContent.containsKey(path)) {
                 return new ByteArrayInputStream(writtenContent.get(path).getBytes());

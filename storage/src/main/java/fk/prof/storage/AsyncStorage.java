@@ -18,14 +18,6 @@ public interface AsyncStorage {
     void storeAsync(String path, InputStream content, long length);
 
     /**
-     * Synchronous method to fetch content from the specified path.
-     * May throw {@link StorageException }
-     * @param path
-     * @return
-     */
-    InputStream fetch(String path) throws StorageException;
-
-    /**
      * Retrieves the content from the specified path.
      * @param path
      * @return Future object for the content.
