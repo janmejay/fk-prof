@@ -1,5 +1,6 @@
 package fk.prof.storage.test;
 
+import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.FileNamingStrategy;
 import fk.prof.storage.ObjectNotFoundException;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
@@ -9,10 +10,14 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.*;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -21,6 +26,7 @@ import static org.mockito.Mockito.*;
  * Tests {@link StorageBackedOutputStream} and {@link StorageBackedInputStream} using a simple hashmap based storage.
  * @author gaurav.ashok
  */
+@RunWith(MockitoJUnitRunner.class)
 public class IOStreamTest {
 
     Util.StringStorage storage;
@@ -109,10 +115,70 @@ public class IOStreamTest {
         }
     }
 
+    @Test
+    public void testInputStreamClose_shouldReliablyCloseInCaseOfInterruption() throws Exception {
+        int wait = 100;
+        ScheduledExecutorService scheduled = Executors.newScheduledThreadPool(2);
+
+        AsyncStorage storage = mock(AsyncStorage.class);
+        StorageBackedInputStream in = new StorageBackedInputStream(storage, fileName);
+
+        Thread mainThread = Thread.currentThread();
+
+        // spy the inputStream to check whether you can close after interruption.
+        InputStream spyContent1 = spy(strAsInputStream(content));
+        InputStream spyContent2 = spy(strAsInputStream(content));
+
+        when(storage.fetchAsync("1")).thenReturn(CompletableFuture.completedFuture(spyContent1));
+        when(storage.fetchAsync("2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+            // create a task, that interrupts main thread while waiting on the delayed response
+            scheduled.schedule(() -> mainThread.interrupt(), wait / 2, TimeUnit.MILLISECONDS);
+
+            // create a delayed response by waiting for some time
+            try {
+                return scheduled.schedule(() -> spyContent2, wait, TimeUnit.MILLISECONDS).get();
+            }
+            catch (ExecutionException | InterruptedException e) {
+                fail("storage fetch got interrupted instead");
+            }
+            return null;
+        }, scheduled));
+
+        byte[] bytes = new byte[2 * contentSize];
+
+        try {
+            in.read(bytes);
+            fail("unreachable. should get interrupted");
+        }
+        catch (InterruptedIOException e) {
+            assertEquals(200, e.bytesTransferred);
+        }
+        catch (RuntimeException e) {
+            fail("unexpected exception while reading");
+        }
+
+        // lets close
+        in.close();
+
+        // lets wait for the scheduled task to finish
+        scheduled.awaitTermination(wait, TimeUnit.MILLISECONDS);
+
+        verify(spyContent1).read();
+        verify(spyContent1).read(eq(bytes), eq(1), eq(399));
+        verify(spyContent1).read(eq(bytes), eq(200), eq(200));
+        verify(spyContent1).close();
+        verify(spyContent2).close();
+        verifyNoMoreInteractions(spyContent1, spyContent2);
+    }
+
     private void initStorage() {
         for(int i = 0; i < contentSize/partSize; ++i) {
             String chunkedContent = content.substring(i * partSize, (i + 2) * partSize > contentSize ? contentSize : (i + 1) * partSize);
             storage.writtenContent.put(fileName.getFileName(i + 1), chunkedContent);
         }
+    }
+
+    private InputStream strAsInputStream(String str) {
+        return new ByteArrayInputStream(str.getBytes(Charset.forName("utf-8")));
     }
 }
