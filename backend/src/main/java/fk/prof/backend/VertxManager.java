@@ -1,49 +1,39 @@
 package fk.prof.backend;
 
-import com.codahale.metrics.SharedMetricRegistries;
-import com.google.common.io.Files;
 import fk.prof.backend.service.IProfileWorkService;
-import fk.prof.backend.verticles.http.HttpVerticle;
+import fk.prof.backend.verticles.http.AggregatorHttpVerticle;
 import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.verticles.leader.election.*;
 import io.vertx.core.*;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions;
 import io.vertx.ext.dropwizard.Match;
 import io.vertx.ext.dropwizard.MatchType;
+import org.apache.curator.framework.CuratorFramework;
 
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * TODO: Deployment process is liable to changes later
- * Right now http verticles are injected with profileworkservice instance and started directly
  */
 public class VertxManager {
   private static Logger logger = LoggerFactory.getLogger(VertxManager.class);
 
-  public static Future<Void> launch(Vertx vertx, JsonObject confJson) {
-    Future future = Future.future();
+  public static Vertx initialize(JsonObject vertxConfig) throws IOException {
+    VertxOptions vertxOptions = vertxConfig != null
+        ? new VertxOptions(vertxConfig)
+        : new VertxOptions();
 
-    DeploymentOptions deploymentOptions = new DeploymentOptions(confJson);
-    ProfileWorkService profileWorkService = new ProfileWorkService();
-
-    int httpVerticleCount = confJson.getInteger("http.instances", 1);
-    if(httpVerticleCount < 1) {
-      httpVerticleCount = 1;
-    }
-    CompositeFuture deploymentFuture = deployHttpVerticles(vertx, deploymentOptions, httpVerticleCount, profileWorkService);
-    deploymentFuture.setHandler(future.completer());
-
-    return future;
+    vertxOptions.setMetricsOptions(new DropwizardMetricsOptions()
+        .setEnabled(true)
+        .setJmxEnabled(true)
+        .setRegistryName(ConfigManager.METRIC_REGISTRY)
+        .addMonitoredHttpServerUri(new Match().setValue("/.*").setType(MatchType.REGEX)));
+    return Vertx.vertx(vertxOptions);
   }
 
   public static Future<Void> close(Vertx vertx) {
@@ -61,19 +51,27 @@ public class VertxManager {
     return future;
   }
 
-  public static CompositeFuture deployHttpVerticles(Vertx vertx, DeploymentOptions deploymentOptions, int instancesCount, IProfileWorkService profileWorkService) {
+  public static CompositeFuture deployAggregatorHttpVerticles(
+      Vertx vertx,
+      DeploymentOptions aggregatorDeploymentOptions,
+      IProfileWorkService profileWorkService) {
+    assert vertx != null;
+    assert aggregatorDeploymentOptions != null;
+    assert profileWorkService != null;
+
+    int verticleCount = aggregatorDeploymentOptions.getConfig().getInteger("http.instances", 1);
     List<Future> deployFutures = new ArrayList<>();
-    for(int i = 1;i <= instancesCount;i++) {
-      Future<Void> deployFuture = Future.future();
+    for(int i = 1;i <= verticleCount;i++) {
+      Future<String> deployFuture = Future.future();
       deployFutures.add(deployFuture);
 
-      Verticle httpVerticle = new HttpVerticle(profileWorkService);
-      vertx.deployVerticle(httpVerticle, deploymentOptions, deployResult -> {
+      Verticle httpVerticle = new AggregatorHttpVerticle(profileWorkService);
+      vertx.deployVerticle(httpVerticle, aggregatorDeploymentOptions, deployResult -> {
         if(deployResult.succeeded()) {
-          logger.info("Deployment of HttpVerticle succeeded with deploymentId = " + deployResult.result());
-          deployFuture.complete();
+          logger.info("Deployment of AggregatorHttpVerticle succeeded with deploymentId = " + deployResult.result());
+          deployFuture.complete(deployResult.result());
         } else {
-          logger.error("Deployment of HttpVerticle failed", deployResult.cause());
+          logger.error("Deployment of AggregatorHttpVerticle failed", deployResult.cause());
           deployFuture.fail(deployResult.cause());
         }
       });
@@ -82,17 +80,73 @@ public class VertxManager {
     return CompositeFuture.all(deployFutures);
   }
 
-  public static Vertx setup(JsonObject vertxConfig) throws IOException {
-    VertxOptions vertxOptions = vertxConfig != null
-        ? new VertxOptions(vertxConfig)
-        : new VertxOptions();
+  public static void deployLeaderElectionWorkerVerticles
+      (Vertx vertx,
+       DeploymentOptions leaderDeploymentOptions,
+       CuratorFramework curatorClient,
+       Runnable leaderElectedTask,
+       LeaderDiscoveryStore leaderDiscoveryStore) {
+    assert vertx != null;
+    assert leaderDeploymentOptions != null;
+    assert curatorClient != null;
+    assert leaderElectedTask != null;
+    assert leaderDiscoveryStore != null;
 
-    vertxOptions.setMetricsOptions(new DropwizardMetricsOptions()
-        .setEnabled(true)
-        .setJmxEnabled(true)
-        .setRegistryName(ConfigManager.METRIC_REGISTRY)
-        .addMonitoredHttpServerUri(new Match().setValue("/.*").setType(MatchType.REGEX)));
-    return Vertx.vertx(vertxOptions);
+    Verticle leaderElectionParticipator = new LeaderElectionParticipator(curatorClient, leaderElectedTask);
+    vertx.deployVerticle(leaderElectionParticipator, leaderDeploymentOptions);
+
+    Verticle leaderElectionWatcher = new LeaderElectionWatcher(
+        curatorClient,
+        leaderDiscoveryStore);
+    vertx.deployVerticle(leaderElectionWatcher, leaderDeploymentOptions);
+  }
+
+  public static Runnable getDefaultLeaderElectedTask(Vertx vertx, boolean aggregationEnabled, List<String> aggregatorDeployments) {
+    LeaderElectedTask.Builder builder = new LeaderElectedTask.Builder();
+    if(!aggregationEnabled) {
+      builder.disableAggregation(aggregatorDeployments);
+    }
+    return builder.build(vertx);
+  }
+
+  public static LeaderDiscoveryStore getDefaultLeaderDiscoveryStore(Vertx vertx) {
+    return new SharedMapBasedLeaderDiscoveryStore(vertx);
+  }
+
+  public static Future<Void> launch(Vertx vertx, CuratorFramework curatorClient, JsonObject configOptions) {
+    JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(configOptions);
+    if(aggregatorDeploymentConfig == null) {
+      throw new RuntimeException("Aggregator deployment options are required to be present");
+    }
+
+    JsonObject leaderDeploymentConfig = ConfigManager.getLeaderDeploymentConfig(configOptions);
+    if(leaderDeploymentConfig == null) {
+      throw new RuntimeException("Leader deployment options are required to be present");
+    }
+
+    Future future = Future.future();
+    DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
+    ProfileWorkService profileWorkService = new ProfileWorkService();
+
+    CompositeFuture aggregatorDeploymentFuture = deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
+    aggregatorDeploymentFuture.setHandler(result -> {
+      if(result.succeeded()) {
+        //Deploy leader related verticles
+        List<String> aggregatorDeployments = result.result().list();
+        DeploymentOptions leaderDeploymentOptions = new DeploymentOptions(leaderDeploymentConfig);
+        Runnable leaderElectedTask = getDefaultLeaderElectedTask(
+            vertx,
+            leaderDeploymentOptions.getConfig().getBoolean("aggregation.enabled", true),
+            aggregatorDeployments);
+        LeaderDiscoveryStore leaderDiscoveryStore = getDefaultLeaderDiscoveryStore(vertx);
+        deployLeaderElectionWorkerVerticles(vertx, leaderDeploymentOptions, curatorClient, leaderElectedTask, leaderDiscoveryStore);
+
+      } else {
+        future.fail(result.cause());
+      }
+    });
+
+    return future;
   }
 
 }

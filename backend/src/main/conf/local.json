@@ -2,9 +2,9 @@
   "vertxOptions": {
     "blockedThreadCheckInterval": 60000
   },
-  "deploymentOptions": {
-    "http.instances": 2,
+  "aggregatorOptions": {
     "config": {
+      "http.instances": 2,
       "http.port": 9300,
       "parser": {
         "recordingheader.max.bytes": 1024,
@@ -14,6 +14,22 @@
         "window.duration.mins": 20,
         "window.tolerance.secs": 60
       }
+    }
+  },
+  "curatorOptions": {
+    "connection.url": "",
+    "namespace": "fkprof",
+    "connection.timeout.ms": 5000,
+    "session.timeout.ms": 5000,
+    "max.retries": 3
+  },
+  "leaderOptions": {
+    "worker": true,
+    "config": {
+      "aggregation.enabled": false,
+      "leader.watching.path": "/leaderwatch",
+      "leader.mutex.path": "/leader",
+      "leader.sleep.ms": 60000
     }
   }
 }

@@ -15,11 +15,11 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.LoggerHandler;
 
-public class HttpVerticle extends AbstractVerticle {
-
+public class AggregatorHttpVerticle extends AbstractVerticle {
   private final IProfileWorkService profileWorkService;
   private LocalMap<Long, Boolean> workIdsInPipeline;
-  public HttpVerticle(IProfileWorkService profileWorkService) {
+
+  public AggregatorHttpVerticle(IProfileWorkService profileWorkService) {
     this.profileWorkService = profileWorkService;
   }
 

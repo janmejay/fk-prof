@@ -46,15 +46,15 @@ public class ProfileApiTest {
   public static void setUp(TestContext context) throws IOException {
     ConfigManager.setDefaultSystemProperties();
     JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
-    JsonObject vertxConfig = config.getJsonObject("vertxOptions");
-    JsonObject deploymentConfig = config.getJsonObject("deploymentOptions");
-    assert deploymentConfig != null;
+    JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
+    JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(config);
+    assert aggregatorDeploymentConfig != null;
 
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     profileWorkService = new ProfileWorkService();
-    port = deploymentConfig.getJsonObject("config").getInteger("http.port");
-    DeploymentOptions deploymentOptions = new DeploymentOptions(deploymentConfig);
-    VertxManager.deployHttpVerticles(vertx, deploymentOptions, 2, profileWorkService);
+    port = aggregatorDeploymentConfig.getJsonObject("config").getInteger("http.port");
+    DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
+    VertxManager.deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
   }
 
   @AfterClass
