@@ -70,8 +70,18 @@ public class CompositeByteBufInputStream extends InputStream {
     return true;
   }
 
+  /**
+   * Besides marking the current position, this method discards all the bytes read up until this point.
+   * Calling reset does not restore the discarded bytes
+   * Call mark() when you are sure you have read all previous bytes correctly and can be freed up
+   *
+   * Readlimit parameter is accepted as arg to comply with Inputstream abstract class but is not used or supported by this impl
+   * @param readlimit
+   */
   @Override
   public void mark(int readlimit) {
+    //CompositeByteBuf::discardReadBytes method changes readerIndex position so calling this before storing readerIndex position
+    buffer.discardReadBytes();
     buffer.markReaderIndex();
     readerIndexAtMark = buffer.readerIndex();
   }
@@ -87,8 +97,9 @@ public class CompositeByteBufInputStream extends InputStream {
   }
 
   // NOTE: Use this method with caution.
-  // This copies all bytes read since mark() was called on inputstream
-  // or start if mark() was never called prior to calling this method till the current read position in a new byte array
+  // All bytes read since mark() was called on inputstream
+  // or from the start if mark() was never called prior to calling this method,
+  // until the current read position are copied in a new byte array
   public byte[] getBytesReadSinceMark() {
     int readBytes = buffer.readerIndex() - readerIndexAtMark;
     byte[] bytesReadSinceMark = new byte[readBytes];

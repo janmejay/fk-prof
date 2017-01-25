@@ -29,7 +29,7 @@ public class RecordedProfileIndexes {
     if (methods != null) {
       for (Recorder.MethodInfo methodInfo : methods) {
         methodLookup.put(methodInfo.getMethodId(),
-            methodInfo.getClassFqdn() + "." + methodInfo.getMethodName() + methodInfo.getSignature());
+            methodInfo.getClassFqdn() + "#" + methodInfo.getMethodName() + " " + methodInfo.getSignature());
       }
     }
   }

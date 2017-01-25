@@ -108,15 +108,13 @@ public class RecordedProfileHeaderParser {
           headerParsed = true;
         }
       }
+    } catch (InvalidProtocolBufferException ex) {
+      //NOTE: This exception can come because incomplete request has been received. Chunks can be received later
+      try {
+        inputStream.reset();
+      } catch (IOException ex1) {}
     } catch (IOException ex) {
-      if(!(ex instanceof InvalidProtocolBufferException)) {
-        throw new AggregationFailure(ex);
-      } else {
-        try {
-          inputStream.reset();
-        } catch (IOException ex1) {}
-        //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
-      }
+      throw new AggregationFailure(ex);
     }
   }
 

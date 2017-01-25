@@ -378,11 +378,11 @@ public class ProfileApiTest {
 
   private FinalizedCpuSamplingAggregationBucket getExpectedAggregationBucketOfPredefinedSamples() {
     MethodIdLookup expectedMethodIdLookup = new MethodIdLookup();
-    expectedMethodIdLookup.getOrAdd(".Y()");
-    expectedMethodIdLookup.getOrAdd(".C()");
-    expectedMethodIdLookup.getOrAdd(".D()");
-    expectedMethodIdLookup.getOrAdd(".E()");
-    expectedMethodIdLookup.getOrAdd(".F()");
+    expectedMethodIdLookup.getOrAdd("#Y ()");
+    expectedMethodIdLookup.getOrAdd("#C ()");
+    expectedMethodIdLookup.getOrAdd("#D ()");
+    expectedMethodIdLookup.getOrAdd("#E ()");
+    expectedMethodIdLookup.getOrAdd("#F ()");
 
     Map<String, CpuSamplingTraceDetail> expectedTraceDetailLookup = new HashMap<>();
     CpuSamplingTraceDetail expectedTraceDetail = new CpuSamplingTraceDetail();

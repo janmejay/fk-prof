@@ -6,7 +6,7 @@ package fk.prof.aggregation;
  * @param <T>
  */
 public abstract class FinalizableBuilder<T> {
-  private boolean finalized = false;
+  private volatile boolean finalized = false;
 
   public T finalizeEntity() {
     ensureEntityIsWriteable();

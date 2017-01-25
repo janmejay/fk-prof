@@ -31,6 +31,7 @@ public class MethodIdLookup implements SerializableAggregationEntity {
    * Therefore, reverse lookup is modelled as an array
    *
    * @return 2-indexed array where arr[idx] = method signature and idx-2 = corresponding method id
+   * NOTE: Make the access private if not required outside post serialization is implemented
    */
   public String[] generateReverseLookup() {
     String[] reverseLookup = new String[counter.get() + 2];
