@@ -103,6 +103,13 @@ message TraceContext {
   required uint32 trace_id = 1;
   required string trace_name = 2;
   required uint32 coverage_pct = 3;
+  enum MergeSemantics {
+    parent = 0;
+    scoped = 1;
+    stack = 2;
+    duplicate = 3;
+  }
+  required MergeSemantics merge = 4;
 }
 
 message MethodInfo {

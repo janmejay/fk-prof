@@ -109,6 +109,7 @@ set(TEST_FILES
     ${SRC_TEST}/test_checksum.cc
     ${SRC_TEST}/test_maps.cc
     ${SRC_TEST}/test_scheduler.cc
+    ${SRC_TEST}/test_thread_perf_ctx_tracker.cc
     ${SRC_TEST}/test_blocking_ring_buffer.cc)
 
 set(TEST_UTIL_FILES

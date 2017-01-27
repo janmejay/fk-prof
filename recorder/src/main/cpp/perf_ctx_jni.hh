@@ -10,26 +10,26 @@ extern "C" {
 /*
  * Class:     fk_prof_PerfCtx
  * Method:    registerCtx
- * Signature: (Ljava/lang/String;I)I
+ * Signature: (Ljava/lang/String;II)J
  */
-JNIEXPORT jint JNICALL Java_fk_prof_PerfCtx_registerCtx
-  (JNIEnv *, jobject, jstring, jint);
+JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx
+  (JNIEnv *, jobject, jstring, jint, jint);
 
 /*
  * Class:     fk_prof_PerfCtx
  * Method:    end
- * Signature: (I)V
+ * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jobject, jlong);
 
 /*
  * Class:     fk_prof_PerfCtx
  * Method:    begin
- * Signature: (I)V
+ * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jobject, jlong);
 
 #ifdef __cplusplus
 }

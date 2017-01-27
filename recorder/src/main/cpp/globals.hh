@@ -9,13 +9,14 @@
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
 
+#include "profile_writer.hh"
+#include "perf_ctx.hh"
+
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
 #define RECORDER_VERION 1
 #define DATA_ENCODING_VERSION 1
-
-#include "profile_writer.hh"
 
 typedef std::shared_ptr<spdlog::logger> LoggerP;
 
@@ -41,6 +42,7 @@ namespace GlobalCtx {
     } Rec;
 
     extern GlobalCtx::Rec recording;
+    extern PerfCtx::Ctx* perf_ctx;
 }
 
 void logError(const char *__restrict format, ...);

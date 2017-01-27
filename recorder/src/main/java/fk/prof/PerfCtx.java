@@ -10,26 +10,26 @@ package fk.prof;
  * <p>
  * Constraints / Limits:
  * 1. An application (single JVM instance) can have only upto 100 unique PerfCtx instances (uniqueness is implied by name)
- * 2. There exists an upper-limit to number of context to be tracked. This may change between releases. Consult the service-endpoint to learn the actual enforced limit.
+ * 2. There exists an upper-limit to number of context to be tracked. This may change between releases. Consult the package-maintainers to learn the actual enforced limit.
  * 3. No more than 6 perf-ctx instances should be nested with "scoped" merge-semantic.
  * 
  * Internal technical limitation:
  * Purely technically, it is possible to track 100 statically created perf-ctx with upto 6 level depth using prime-numbers to represent each statically created ctx so multiplication of prime-numbers can be used to represent to scope with a unsigned 64-bit field being used to represent the ctx-id (along with merge-semantic (2 bits) and coverage-pct (7 bits), which is total of 9 bits overhead, leaving us a max width of 55 bits and 2^55 > 541^6, (541 is the 100th prime number), but it doesn't seem like anyone should need more than 64 contexts (in totality) except for when context nesting is buggy (not correctly done).
  */
 public class PerfCtx {
-    private final int ctxId;
+    private final long ctxId;
     private final String stringRep;
     final String autoClosableStringRep;
 
-    public PerfCtx(final String name) throws IllegalArgumentException {
+    public PerfCtx(final String name) throws IllegalArgumentException, ConflictingDefinitionException {
         this(name, 10);
     }
 
-    public PerfCtx(final String name, final int coveragePct) throws IllegalArgumentException {
+    public PerfCtx(final String name, final int coveragePct) throws IllegalArgumentException, ConflictingDefinitionException {
         this(name, coveragePct, MergeSemantics.MERGE_TO_PARENT);
     }
 
-    public PerfCtx(final String name, final int coveragePct, final MergeSemantics mrgSem) throws IllegalArgumentException {
+    public PerfCtx(final String name, final int coveragePct, final MergeSemantics mrgSem) throws IllegalArgumentException, ConflictingDefinitionException {
         if (coveragePct < 0 || coveragePct > 100) {
             throw new IllegalArgumentException(String.format("Coverage-percentage value %s is not valid, a valid value must be in the range [0, 100].", coveragePct));
         }
@@ -45,9 +45,9 @@ public class PerfCtx {
         autoClosableStringRep = "Closable" + stringRep;
     }
 
-    private native int registerCtx(String name, int coveragePct, int typeId);
+    private native long registerCtx(String name, int coveragePct, int typeId) throws ConflictingDefinitionException;
 
-    public void end() {
+    public void end() throws IncorrectContextException {
         end(ctxId);
     }
 
@@ -59,9 +59,9 @@ public class PerfCtx {
         return new ClosablePerfCtx(this);
     }
 
-    private native void end(int ctxId);
+    private native void end(long ctxId) throws IncorrectContextException;
 
-    private native void begin(int ctxId);
+    private native void begin(long ctxId);
 
     @Override
     public boolean equals(Object o) {
@@ -75,7 +75,7 @@ public class PerfCtx {
 
     @Override
     public int hashCode() {
-        return ctxId;
+        return (int) (ctxId ^ (ctxId >>> 32));
     }
 
     @Override

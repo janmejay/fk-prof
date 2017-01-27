@@ -159,7 +159,7 @@ public class WorkHandlingTest {
             assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), 101, Recorder.WorkResponse.WorkState.pre_start, Recorder.WorkResponse.WorkResult.unknown, 0);
         }
         for (int i = 4; i < 14; i++) {
-            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), 101, Recorder.WorkResponse.WorkState.running, Recorder.WorkResponse.WorkResult.unknown, i - 4);
+            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), 101, Recorder.WorkResponse.WorkState.start, Recorder.WorkResponse.WorkResult.unknown, i - 4);
         }
         assertWorkStateAndResultIs(pollReqs[14].req.getWorkLastIssued(), 101, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 10);
         for (int i = 15; i < pollReqs.length; i++) {
@@ -216,7 +216,7 @@ public class WorkHandlingTest {
             assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.pre_start, Recorder.WorkResponse.WorkResult.unknown, 0);
         }
         for (int i = 4; i < 14; i++) {
-            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.running, Recorder.WorkResponse.WorkResult.unknown, i - 4);
+            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.start, Recorder.WorkResponse.WorkResult.unknown, i - 4);
         }
         assertWorkStateAndResultIs(pollReqs[14].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 10);
         for (int i = 15; i < pollReqs.length; i++) {
@@ -297,7 +297,6 @@ public class WorkHandlingTest {
         Recorder.WorkAssignment wa = rh.getWorkAssignment();
         assertThat(wa.getWorkId(), is(workId));
         assertThat(wa.getIssueTime(), is(cpuSamplingWorkIssueTime));
-        assertThat(wa.getDescription(), is(CPU_SAMPLING_WORK_DESCRIPTION));
         assertThat(wa.getDuration(), is(duration));
         assertThat(wa.getDelay(), is(delay));
         assertThat(wa.getWorkCount(), is(expectedWork.length));
@@ -386,7 +385,6 @@ public class WorkHandlingTest {
     public static Recorder.WorkAssignment.Builder prepareWorkAssignment(String nowString, Recorder.PollRes.Builder builder, int idx, int delay, int duration, final String desc, int workId) {
         return builder.getAssignmentBuilder()
                 .setWorkId(workId)
-                .setDescription(desc)
                 .setDelay(delay)
                 .setDuration(duration)
                 .setIssueTime(nowString);

@@ -4,7 +4,7 @@ package fk.prof;
  * @understands how to combine perf-data recorded when perf-ctx nests
  * <p>
  * If a parent doesn't exist, this has no relevance, because merge isn't relevant in absence of a parent. This also implies that merge-semantics should always be seen from the most-recently-entered-ctx or child-ctx PoV.
-  */
+ */
 public enum MergeSemantics {
     /*
       Coverage implications:
@@ -29,23 +29,32 @@ public enum MergeSemantics {
      * <p>
      * Filter: FM_parent
      * <p>
-     * WARNING: No more than 6 contexts can be merged this way. Performance-data beyond 6 levels of nesting MAY be folded in without scoping. Eg. nesting is 7-node deep and of the form A -> B -> C -> D -> E ->F -> G, data for G MAY be folded into scoped-context ending in F. Also, note that its easy to violate the upper-limit on number of contexts to be tracked using this merge-semantic, which leads to data-loss, so this must be used with care.
+     * WARNING: No more than PerfCtx.MAX_PARENT_SCOPE_NESTING contexts can be merged this way. Performance-data beyond supported levels of nesting MAY be folded in without scoping. Eg. nesting is 7-node deep and of the form A -> B -> C -> D -> E ->F -> G, data for G MAY be folded into scoped-context ending in E. Also, note that its easy to violate the upper-limit on number of contexts to be tracked using this merge-semantic, which leads to data-loss, so this must be used with care.
      */
     PARENT_SCOPED(1),
 
+    /**
+     * Similar to PARENT_SCOPED, but will scope for itself too. Eg. When parent ctx "Q" enters itself again, this creates context "Q > Q".
+     * <p>
+     * Filter: FM_parent
+     * <p>
+     * WARNING: This can create similar set of problems as PARENT_SCOPED merge semantic.   
+     */
+    PARENT_SCOPED_STRICT(2),
+    
     /**
      * Ctx behaves like a stack (FIFO semantics). The recorded data goes to the closest ctx and is invisible in wrapper/parent ctx(s).
      * <p>
      * Filter: FM_child
      */
-    STACK_UP(2),
+    STACK_UP(3),
 
     /**
-     * Records data under current "and" all parent scopes. This means, in example above, the data will appear twice in "P" and in "Q". There is no way to distinguish data that comes from P -> Q nesting vs P -> R -> S -> Q nesting vs direct call to Q.
+     * Records data under current "and" all parent scopes that choose this merge-semantic. This means, in example above, the data will appear twice in "P" and in "Q". There is no way to distinguish data that comes from P -> Q nesting vs P -> R -> S -> Q nesting vs direct call to Q.
      * <p>
      * Filter: FM_child
      */
-    DUPLICATE(3);
+    DUPLICATE(4);
 
     private final int typeId;
 
