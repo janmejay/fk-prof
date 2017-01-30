@@ -19,7 +19,7 @@ LoggerP logger(nullptr);
 static ConfigurationOptions* CONFIGURATION;
 static Controller* controller;
 static ThreadMap threadMap;
-PerfCtx::Ctx* GlobalCtx::perf_ctx;
+PerfCtx::Registry* GlobalCtx::ctx_reg;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -296,7 +296,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     Asgct::SetAsgct(Accessors::GetJvmFunction<ASGCTType>("AsyncGetCallTrace"));
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
 
-    GlobalCtx::perf_ctx = new PerfCtx::Ctx();
+    GlobalCtx::ctx_reg = new PerfCtx::Registry();
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
@@ -309,7 +309,7 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
     controller->stop();
 
     delete controller;
-    delete GlobalCtx::perf_ctx;
+    delete GlobalCtx::ctx_reg;
     delete CONFIGURATION;
 }
 

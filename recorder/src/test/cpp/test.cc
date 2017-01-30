@@ -1,7 +1,7 @@
 #include "test.hh"
 
 LoggerP logger(nullptr);
-PerfCtx::Ctx* GlobalCtx::perf_ctx;
+PerfCtx::Registry* GlobalCtx::ctx_reg;
 
 void init_logger() {
     if (logger == nullptr) {

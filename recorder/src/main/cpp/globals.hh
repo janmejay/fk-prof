@@ -42,7 +42,7 @@ namespace GlobalCtx {
     } Rec;
 
     extern GlobalCtx::Rec recording;
-    extern PerfCtx::Ctx* perf_ctx;
+    extern PerfCtx::Registry* ctx_reg;
 }
 
 void logError(const char *__restrict format, ...);
