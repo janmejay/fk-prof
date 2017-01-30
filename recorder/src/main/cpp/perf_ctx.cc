@@ -14,6 +14,14 @@ static std::uint8_t effective_tracept_len(const std::vector<PerfCtx::TracePt>& e
 }
 
 void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
+    if (actual_stack.size() > 0) {
+        auto& top = actual_stack.back();
+        if (top.ctx == pt) {
+            top.push_count++;
+            return;
+        }
+    }
+
     if (actual_stack.size() == PerfCtx::MAX_NESTING) {
         ignore_count++;
         return;
@@ -42,6 +50,15 @@ void PerfCtx::ThreadTracker::exit(PerfCtx::TracePt pt) throw (IncorrectEnterExit
         ignore_count--;
         return;
     }
+    if (actual_stack.size() > 0) {
+        auto& top = actual_stack.back();
+        if ((top.ctx == pt) &&
+            (top.push_count > 0)) {
+            top.push_count--;
+            return;
+        }
+    }
+
     auto top = actual_stack.back();
     if (top.ctx != pt) throw IncorrectEnterExitPairing(top.ctx, pt);
     effective.resize(top.effective.start);
