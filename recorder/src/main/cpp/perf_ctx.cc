@@ -9,12 +9,24 @@ PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
     return static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & MERGE_SEMANTIIC_MASK);
 }
 
-static std::uint8_t effective_tracept_len(const std::vector<PerfCtx::TracePt>& effective_tracepts) {
-    return static_cast<std::uint8_t>(effective_tracepts.size());
-}
+// static std::uint8_t effective_tracept_len(const std::vector<PerfCtx::TracePt>& effective_tracepts) {
+//     return static_cast<std::uint8_t>(effective_tracepts.size());
+// }
+
+// void duplicate_effective(std::vector<PerfCtx::ThreadCtx>& actual_stack, std::vector<PerfCtx::TracePt>& effective) {
+    
+//     const auto& eff = actual_stack.back().effective;
+//     for (auto i = eff.start; i < eff.end; i++) {
+//         effective.push_back(effective[i]);
+//     }
+// }
 
 void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
-    if (actual_stack.size() > 0) {
+    assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
+
+    auto ms = PerfCtx::merge_semantic(pt);
+    if ((ms != PerfCtx::MergeSemantic::scoped_strict) &&
+        (actual_stack.size() > 0)) {
         auto& top = actual_stack.back();
         if (top.ctx == pt) {
             top.push_count++;
@@ -27,20 +39,35 @@ void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
         return;
     }
     assert(actual_stack.size() < PerfCtx::MAX_NESTING);
-    auto ms = PerfCtx::merge_semantic(pt);
     assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
-    auto effective_end_before = effective_tracept_len(effective);
+    actual_stack.emplace_back(pt, effective_start, effective_end);
     switch (ms) {
     case PerfCtx::MergeSemantic::to_parent:
-        if (effective_end_before == 0) effective.push_back(pt);
-        actual_stack.emplace_back(pt, effective_end_before, effective_tracept_len(effective));
+        if (effective_end == 0) {
+            effective.push_back(pt);
+            effective_end++;
+        }
         break;
     case PerfCtx::MergeSemantic::scoped:
-        if (effective_end_before == 0) effective.push_back(pt);
-        else {
-            effective.push_back(reg.merge_bind(actual_stack, pt));
+    case PerfCtx::MergeSemantic::scoped_strict:
+        if (effective_end == 0) {
+            effective.push_back(pt);
+        } else {
+            effective.push_back(reg.merge_bind(actual_stack));
+            effective_start++;
         }
-        actual_stack.emplace_back(pt, effective_end_before, effective_tracept_len(effective));
+        effective_end++;
+        break;
+    case PerfCtx::MergeSemantic::stack_up:
+        effective.push_back(pt);
+        if (effective_end > 0) {
+            effective_start++;
+        }
+        effective_end++;
+        break;
+    case PerfCtx::MergeSemantic::duplicate:
+        effective.push_back(pt);
+        effective_end++;
         break;
     }
 }
@@ -61,14 +88,19 @@ void PerfCtx::ThreadTracker::exit(PerfCtx::TracePt pt) throw (IncorrectEnterExit
 
     auto top = actual_stack.back();
     if (top.ctx != pt) throw IncorrectEnterExitPairing(top.ctx, pt);
-    effective.resize(top.effective.start);
+    effective.resize(top.prev.end);
+    effective_start = top.prev.start;
+    effective_end = top.prev.end;
     actual_stack.pop_back();
 }
 
 int PerfCtx::ThreadTracker::current(std::array<PerfCtx::TracePt, PerfCtx::MAX_NESTING>& curr) {
     if (effective.size() == 0) return 0;
-    curr[0] = effective.back();
-    return 1;
+    auto len = effective_end - effective_start;
+    for (auto i = 0; i < len; i++) {
+        curr[i] = effective[i + effective_start];
+    }
+    return len;
 }
 
 PerfCtx::TracePt PerfCtx::Registry::find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (PerfCtx::ConflictingDefinition) {
@@ -111,18 +143,16 @@ PerfCtx::TracePt merge(std::array<std::uint64_t, PerfCtx::MAX_NESTING> s, std::u
     return PerfCtx::MERGE_GENERATED_TYPE | (combination_id << PerfCtx::GENERATED_COMBINATION_SHIFT) | permutation_id;
 }
 
-PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx_stack, PerfCtx::TracePt child, bool strict) {
+PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx_stack, bool strict) {
     assert(ctx_stack.size() > 0);
     assert(ctx_stack.size() <= PerfCtx::MAX_NESTING);
     auto parent_chain_start = scoped_parent_chain_beginning(ctx_stack);
     auto curr_rev = ctx_stack.crbegin();
 
     std::array<std::uint64_t, PerfCtx::MAX_NESTING> ctx_ids;
-    assert((child & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
-    ctx_ids[0] = child & USER_CREATED_CTX_ID_MASK;
 
     std::uint8_t i;
-    for (i = 1; curr_rev != parent_chain_start; curr_rev++, i++) {
+    for (i = 0; curr_rev != parent_chain_start; curr_rev++, i++) {
         assert(i < PerfCtx::MAX_NESTING);
         ctx_ids[i] = curr_rev->ctx & USER_CREATED_CTX_ID_MASK;
     }

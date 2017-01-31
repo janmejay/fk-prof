@@ -52,7 +52,7 @@ public enum MergeSemantics {
     /**
      * Records data under current "and" all parent scopes that choose this merge-semantic. This means, in example above, the data will appear twice in "P" and in "Q". There is no way to distinguish data that comes from P -> Q nesting vs P -> R -> S -> Q nesting vs direct call to Q.
      * <p>
-     * Filter: FM_child
+     * Filter: FM_parent
      */
     DUPLICATE(4);
 

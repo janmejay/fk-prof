@@ -23,12 +23,13 @@ namespace PerfCtx {
         std::uint32_t push_count;
         struct {
             std::uint8_t start, end;
-        } effective;
+        } prev;
 
-        ThreadCtx(TracePt _ctx, std::uint8_t start_idx, std::uint8_t end_idx) : ctx(_ctx), push_count(0) {
-            effective.start = start_idx;
-            effective.end = end_idx;
+        ThreadCtx(TracePt _ctx, std::uint8_t _prev_start, std::uint8_t _prev_end) : ctx(_ctx), push_count(0) {
+            prev.start = _prev_start;
+            prev.end = _prev_end;
         }
+        ~ThreadCtx() {}
     };
     
     class Registry {
@@ -36,7 +37,7 @@ namespace PerfCtx {
         Registry() {}
         ~Registry() {}
         TracePt find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (ConflictingDefinition);
-        TracePt merge_bind(const std::vector<ThreadCtx>& parent, TracePt child, bool strict = false);
+        TracePt merge_bind(const std::vector<ThreadCtx>& parent, bool strict = false);
     };
 
     class IncorrectEnterExitPairing : public std::runtime_error {
@@ -95,9 +96,11 @@ namespace PerfCtx {
         std::vector<TracePt> effective;
 
         std::uint32_t ignore_count;
+        
+        std::uint8_t effective_start, effective_end;
 
     public:
-        ThreadTracker(Registry& _reg) : reg(_reg) {
+        ThreadTracker(Registry& _reg) : reg(_reg), effective_start(0), effective_end(0) {
             effective.reserve((MAX_NESTING * (MAX_NESTING + 1)) / 2);
         }
         ~ThreadTracker() {}

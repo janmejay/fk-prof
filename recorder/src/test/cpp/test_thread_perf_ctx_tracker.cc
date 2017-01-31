@@ -362,3 +362,475 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
     t_ctx.exit(2);
     CHECK_EQUAL(0, t_ctx.current(curr));
 }
+
+TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when_strict_scoping_under_parent__and_starting_out_with_scoped_ctx) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto SCOPED_STRICT_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped_strict) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(SCOPED_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{SCOPED_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x4;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+    
+    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x12;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.enter(100 - 1);//gibberish
+        CHECK_EQUAL(1, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 1);
+    }
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.exit(i);//gibberish
+        CHECK_EQUAL(1, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 1);
+    }
+
+    t_ctx.exit(SCOPED_STRICT_MASK | 4);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x4;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_STRICT_MASK | 4);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_STRICT_MASK | 4);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 7);
+    expected[0] = SCOPED_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____and_handle_overflow_well) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto PARENT_MASK = 0;
+
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(PARENT_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{PARENT_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(STACK_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(PARENT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(STACK_MASK | 9);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 9;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+    
+    t_ctx.enter(STACK_MASK | 5);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 5;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.enter(100 - 1);//gibberish
+        CHECK_EQUAL(1, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 1);
+    }
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.exit(i);//gibberish
+        CHECK_EQUAL(1, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 1);
+    }
+
+    t_ctx.exit(STACK_MASK | 5);
+    expected[0] = STACK_MASK | 9;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(STACK_MASK | 9);
+    expected[0] = STACK_MASK | 7;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 4);
+    expected[0] = STACK_MASK | 7;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(STACK_MASK | 7);
+    expected[0] = PARENT_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto PARENT_MASK = 0;
+
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(STACK_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{STACK_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(STACK_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(PARENT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACK_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 4);
+    expected[0] = STACK_MASK | 7;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(STACK_MASK | 7);
+    expected[0] = STACK_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(STACK_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent_____and_handle_overflow_well) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto PARENT_MASK = 0;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(PARENT_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{PARENT_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(DUP_MASK | 7);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.enter(PARENT_MASK | 4);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.enter(DUP_MASK | 9);
+    CHECK_EQUAL(3, t_ctx.current(curr));
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    expected[2] = DUP_MASK | 9;
+    CHECK_ARRAY_EQUAL(expected, curr, 3);
+    
+    t_ctx.enter(DUP_MASK | 5);
+    CHECK_EQUAL(4, t_ctx.current(curr));
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    expected[2] = DUP_MASK | 9;
+    expected[3] = DUP_MASK | 5;
+    CHECK_ARRAY_EQUAL(expected, curr, 4);
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.enter(100 - 1);//gibberish
+        CHECK_EQUAL(4, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 4);
+    }
+
+    for (auto i = 0; i < 100; i++) {
+        t_ctx.exit(i);//gibberish
+        CHECK_EQUAL(4, t_ctx.current(curr));
+        CHECK_ARRAY_EQUAL(expected, curr, 4);
+    }
+
+    t_ctx.exit(DUP_MASK | 5);
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    expected[2] = DUP_MASK | 9;
+    CHECK_EQUAL(3, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 3);
+
+    t_ctx.exit(DUP_MASK | 9);
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(PARENT_MASK | 4);
+    expected[0] = PARENT_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(DUP_MASK | 7);
+    expected[0] = PARENT_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first_ctx) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto PARENT_MASK = 0;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(DUP_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{DUP_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(DUP_MASK | 7);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = DUP_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.enter(PARENT_MASK | 4);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = DUP_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(PARENT_MASK | 4);
+    expected[0] = DUP_MASK | 2;
+    expected[1] = DUP_MASK | 7;
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(DUP_MASK | 7);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(DUP_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by_scoping_elements) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(DUP_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{DUP_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(DUP_MASK | 4);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    expected[1] = DUP_MASK | 4;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.enter(DUP_MASK | 9);
+    CHECK_EQUAL(3, t_ctx.current(curr));
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    expected[1] = DUP_MASK | 4;
+    expected[2] = DUP_MASK | 9;
+    CHECK_ARRAY_EQUAL(expected, curr, 3);
+
+
+    t_ctx.exit(DUP_MASK | 9);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    expected[1] = DUP_MASK | 4;
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(DUP_MASK | 4);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 7);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(DUP_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_chain_broken_by_stacking_elements) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto STACKED_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(DUP_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{DUP_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(STACKED_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = STACKED_MASK | 7;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(DUP_MASK | 4);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = STACKED_MASK | 7;
+    expected[1] = DUP_MASK | 4;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.enter(DUP_MASK | 9);
+    CHECK_EQUAL(3, t_ctx.current(curr));
+    expected[0] = STACKED_MASK | 7;
+    expected[1] = DUP_MASK | 4;
+    expected[2] = DUP_MASK | 9;
+    CHECK_ARRAY_EQUAL(expected, curr, 3);
+
+    t_ctx.exit(DUP_MASK | 9);
+    expected[0] = STACKED_MASK | 7;
+    expected[1] = DUP_MASK | 4;
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(DUP_MASK | 4);
+    expected[0] = STACKED_MASK | 7;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(STACKED_MASK | 7);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(DUP_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
+
+TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_merge_elements_between_2_duplicate) {
+    init_logger();
+    Registry r;
+    ThreadTracker t_ctx(r);
+
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto PARENT_MASK = static_cast<std::uint64_t>(MergeSemantic::to_parent) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+
+    std::array<TracePt, MAX_NESTING> curr;
+
+    CHECK_EQUAL(0, t_ctx.current(curr));
+    t_ctx.enter(DUP_MASK | 2);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    std::array<TracePt, 1> expected{{DUP_MASK | 2}};
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(PARENT_MASK | 7);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = DUP_MASK | 2;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(PARENT_MASK | 4);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    expected[0] = DUP_MASK | 2;
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(DUP_MASK | 9);
+    CHECK_EQUAL(2, t_ctx.current(curr));
+    expected[0] = DUP_MASK | 2;
+    expected[1] = DUP_MASK | 9;
+    CHECK_ARRAY_EQUAL(expected, curr, 2);
+
+    t_ctx.exit(DUP_MASK | 9);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 4);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(PARENT_MASK | 7);
+    expected[0] = DUP_MASK | 2;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(DUP_MASK | 2);
+    CHECK_EQUAL(0, t_ctx.current(curr));
+}
