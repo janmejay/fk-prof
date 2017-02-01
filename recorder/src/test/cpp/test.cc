@@ -3,6 +3,29 @@
 LoggerP logger(nullptr);
 PerfCtx::Registry* GlobalCtx::ctx_reg;
 
+std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms) {
+    switch (ms) {
+    case PerfCtx::MergeSemantic::to_parent:
+        os << "Merge_To_Parent";
+        break;
+    case PerfCtx::MergeSemantic::scoped:
+        os << "Parent_Scoped";
+        break;
+    case PerfCtx::MergeSemantic::scoped_strict:
+        os << "Parent_Scoped (Strict)";
+        break;
+    case PerfCtx::MergeSemantic::stack_up:
+        os << "Stack_up";
+        break;
+    case PerfCtx::MergeSemantic::duplicate:
+        os << "Duplicate";
+        break;
+    default:
+        os << "!!Unknown!!";
+    }
+    return os;
+}
+
 void init_logger() {
     if (logger == nullptr) {
         logger = spdlog::stdout_color_mt("console");

@@ -16,6 +16,7 @@ include(CheckFunctionExists)
 ##########################################################
 # Paths
 set(SRC "src/main/cpp")
+set(INCLUDE_VENDOR_CONCQUEUE "vendor/concurrentqueue")
 set(INCLUDE_VENDOR_SPDLOG "vendor/spdlog/include")
 set(SRC_TEST "src/test/cpp")
 set(BIN "build")
@@ -28,7 +29,12 @@ include_directories(src/idl)
 ##########################################################
 # Libraries & Code
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+
 find_package(PkgConfig REQUIRED)
+
+find_package(LibCuckoo REQUIRED)
+include_directories(${LIBCUCKOO_INCLUDE_DIRS})
 
 find_package(JNI REQUIRED)
 include_directories(${JAVA_INCLUDE_PATH})
@@ -110,7 +116,8 @@ set(TEST_FILES
     ${SRC_TEST}/test_checksum.cc
     ${SRC_TEST}/test_maps.cc
     ${SRC_TEST}/test_scheduler.cc
-    ${SRC_TEST}/test_thread_perf_ctx_tracker.cc
+    ${SRC_TEST}/test_perf_ctx_tracker.cc
+    ${SRC_TEST}/test_perf_ctx_registry.cc
     ${SRC_TEST}/test_blocking_ring_buffer.cc)
 
 set(TEST_UTIL_FILES
@@ -156,7 +163,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
 # to enable tracing add: -DENABLE_TRACING
-set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
+set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} -I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 
 ##########################################################
 # Build
@@ -164,9 +171,9 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARN
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})

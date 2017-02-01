@@ -7,64 +7,7 @@
 #include "../../main/cpp/globals.hh"
 #include "../../main/cpp/perf_ctx.hh"
 
-/*** a simple test to calculate index of given permutation of chars, will later adapt it for numbers
-
-  int main(int argc, char** argv) {
-    if (argc < 2) { return -1; }
-    
-    const char* s = argv[1];
-    auto l = strlen(s);
-    auto fac = 1;
-    auto val = 0;
-    for (auto i = 0; i < l; i++) {
-      auto fv = s[i] - '0';
-
-      auto rank = 1;
-
-      for (auto j = 0; j < i; j++) {
-        if (s[i] > s[j]) {
-          rank++;
-        }
-      }
-      val += fac * (rank - 1);
-      fac *= (i + 1);
-    }
-    
-    std::cout << val << "\n";
-    
-    return 0;
-  }
-
-  written haphazardly, basically based on the fact that nth element picked from a set for a certain position while permuting, falls at (n! / n * rank) th place.
-
-  This along with pi(prime-nos) uniquely identifies a permuted instance of set mPk, where mCk is identified by prime-number multiplication + one of k! members of the set identified by the permutation-idx.
-***/
-
 using namespace PerfCtx;
-
-
-std::ostream& operator<<(std::ostream& os, MergeSemantic ms) {
-    switch (ms) {
-    case MergeSemantic::to_parent:
-        os << "Merge_To_Parent";
-        break;
-    case MergeSemantic::scoped:
-        os << "Parent_Scoped";
-        break;
-    case MergeSemantic::scoped_strict:
-        os << "Parent_Scoped (Strict)";
-        break;
-    case MergeSemantic::stack_up:
-        os << "Stack_up";
-        break;
-    case MergeSemantic::duplicate:
-        os << "Duplicate";
-        break;
-    default:
-        os << "!!Unknown!!";
-    }
-    return os;
-}
 
 TEST(PerfCtx__should_understand_ctx_merge_semantics) {
     init_logger();
@@ -73,6 +16,10 @@ TEST(PerfCtx__should_understand_ctx_merge_semantics) {
     CHECK_EQUAL(MergeSemantic::scoped_strict, merge_semantic((std::uint64_t) 2 << 53));
     CHECK_EQUAL(MergeSemantic::stack_up, merge_semantic((std::uint64_t) 3 << 53));
     CHECK_EQUAL(MergeSemantic::duplicate, merge_semantic((std::uint64_t) 4 << 53));
+}
+
+PerfCtx::TracePt reg(Registry& r, const char* name, PerfCtx::MergeSemantic m = PerfCtx::MergeSemantic::scoped) {
+    return r.find_or_bind(name, 0, static_cast<std::uint8_t>(m));
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
@@ -136,62 +83,66 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
 
     std::array<TracePt, MAX_NESTING> curr;
 
+    reg(r, "2", PerfCtx::MergeSemantic::to_parent);
+    reg(r, "3");
+    reg(r, "5");
+    reg(r, "7");
     CHECK_EQUAL(0, t_ctx.current(curr));
     t_ctx.enter(2);
     CHECK_EQUAL(1, t_ctx.current(curr));
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
-    
-    t_ctx.enter(SCOPED_MASK | 5);
+
+    t_ctx.enter(SCOPED_MASK | 7);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5) << GENERATED_COMBINATION_SHIFT);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 4);
+    t_ctx.enter(SCOPED_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     //now we exit 2 nearest scopes and push them in opposite order
     
     t_ctx.exit(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.exit(SCOPED_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.enter(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.enter(SCOPED_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 3 * 4) << GENERATED_COMBINATION_SHIFT) | 0x4;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    //permutation id now is 4 and not 5, while combination-id is the same (this distinguishes 2>5>3>4 from 2>5>4>3
-
-    t_ctx.exit(SCOPED_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.exit(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5) << GENERATED_COMBINATION_SHIFT);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_MASK | 3);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    //permutation id now is 4 and not 5, while combination-id is the same (this distinguishes 2>7>3>5 from 2>7>5>3
+
+    t_ctx.exit(SCOPED_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 3);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = 2;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
@@ -209,39 +160,46 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
 
     std::array<TracePt, MAX_NESTING> curr;
 
+    reg(r, "2", PerfCtx::MergeSemantic::to_parent);
+    reg(r, "3");
+    reg(r, "5");
+    reg(r, "7");
+    reg(r, "11");
+    reg(r, "13");
+
     CHECK_EQUAL(0, t_ctx.current(curr));
     t_ctx.enter(2);
     CHECK_EQUAL(1, t_ctx.current(curr));
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     
-    t_ctx.enter(SCOPED_MASK | 5);
+    t_ctx.enter(SCOPED_MASK | 7);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5) << GENERATED_COMBINATION_SHIFT);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 4);
+    t_ctx.enter(SCOPED_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.enter(SCOPED_MASK | 7);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3 * 7) << GENERATED_COMBINATION_SHIFT) | 0xE;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 11);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3 * 7) << GENERATED_COMBINATION_SHIFT) | 0xE;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 13);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3 * 7) << GENERATED_COMBINATION_SHIFT) | 0xE;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.enter(SCOPED_MASK | 17);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
@@ -257,25 +215,25 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
         t_ctx.exit(42); //now gibberish won't work, because ctx is tracking it
         CHECK(false); //should never reach here
     } catch (const IncorrectEnterExitPairing& e) {
-        CHECK_EQUAL(to_s("Expected ", SCOPED_MASK | 7, " got 42"), e.what());
+        CHECK_EQUAL(to_s("Expected ", SCOPED_MASK | 11, " got 42"), e.what());
     }
     
-    t_ctx.exit(SCOPED_MASK | 7);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
+    t_ctx.exit(SCOPED_MASK | 11);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
-    CHECK_ARRAY_EQUAL(expected, curr, 1);
-
-    t_ctx.exit(SCOPED_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 5) << GENERATED_COMBINATION_SHIFT);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    CHECK_EQUAL(1, t_ctx.current(curr));
+    CHECK_ARRAY_EQUAL(expected, curr, 1);
+
+    t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = 2;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
@@ -293,39 +251,46 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
 
     std::array<TracePt, MAX_NESTING> curr;
 
+    reg(r, "2", PerfCtx::MergeSemantic::to_parent);
+    reg(r, "3");
+    reg(r, "5");
+    reg(r, "7");
+    reg(r, "11");
+    reg(r, "13");
+
     CHECK_EQUAL(0, t_ctx.current(curr));
     t_ctx.enter(2);
     CHECK_EQUAL(1, t_ctx.current(curr));
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 7);
+    t_ctx.enter(SCOPED_MASK | 11);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 4);
+    t_ctx.enter(SCOPED_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
-        t_ctx.enter(SCOPED_MASK | 4);
+        t_ctx.enter(SCOPED_MASK | 5);
         CHECK_EQUAL(1, t_ctx.current(curr));
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     t_ctx.enter(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 5);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 3 * 5) << GENERATED_COMBINATION_SHIFT) | 0x14;
+    t_ctx.enter(SCOPED_MASK | 7);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3 * 7) << GENERATED_COMBINATION_SHIFT) | 0x14;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_MASK | 11);
+    t_ctx.enter(SCOPED_MASK | 13);
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
@@ -333,28 +298,28 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.exit(SCOPED_MASK | 5);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
+    t_ctx.exit(SCOPED_MASK | 7);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 3);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
-        t_ctx.exit(SCOPED_MASK | 4);
+        t_ctx.exit(SCOPED_MASK | 5);
         CHECK_EQUAL(1, t_ctx.current(curr));
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
-    t_ctx.exit(SCOPED_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
+    t_ctx.exit(SCOPED_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 11) << GENERATED_COMBINATION_SHIFT);
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.exit(SCOPED_MASK | 7);
+    t_ctx.exit(SCOPED_MASK | 11);
     expected[0] = 2;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
@@ -373,6 +338,11 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
 
     std::array<TracePt, MAX_NESTING> curr;
 
+    reg(r, "2");
+    reg(r, "3");
+    reg(r, "5", PerfCtx::MergeSemantic::scoped_strict);
+    reg(r, "7");
+
     CHECK_EQUAL(0, t_ctx.current(curr));
     t_ctx.enter(SCOPED_MASK | 2);
     CHECK_EQUAL(1, t_ctx.current(curr));
@@ -384,19 +354,19 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    t_ctx.enter(SCOPED_STRICT_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    t_ctx.enter(SCOPED_STRICT_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x4;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     
-    t_ctx.enter(SCOPED_STRICT_MASK | 4);
+    t_ctx.enter(SCOPED_STRICT_MASK | 5);
     CHECK_EQUAL(1, t_ctx.current(curr));
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x12;
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x12;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
@@ -411,17 +381,17 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
-    t_ctx.exit(SCOPED_STRICT_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4 * 4) << GENERATED_COMBINATION_SHIFT) | 0x4;
+    t_ctx.exit(SCOPED_STRICT_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.exit(SCOPED_STRICT_MASK | 4);
-    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 4) << GENERATED_COMBINATION_SHIFT) | 0x1;
+    t_ctx.exit(SCOPED_STRICT_MASK | 5);
+    expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.exit(SCOPED_STRICT_MASK | 4);
+    t_ctx.exit(SCOPED_STRICT_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);
@@ -685,6 +655,14 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
 
     std::array<TracePt, MAX_NESTING> curr;
 
+    reg(r, "2", PerfCtx::MergeSemantic::duplicate);
+    reg(r, "3");
+    reg(r, "5", PerfCtx::MergeSemantic::duplicate);
+    reg(r, "7");
+    reg(r, "11", PerfCtx::MergeSemantic::duplicate);
+    reg(r, "13");
+
+
     CHECK_EQUAL(0, t_ctx.current(curr));
     t_ctx.enter(DUP_MASK | 2);
     CHECK_EQUAL(1, t_ctx.current(curr));
@@ -696,27 +674,27 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
-    t_ctx.enter(DUP_MASK | 4);
+    t_ctx.enter(DUP_MASK | 5);
     CHECK_EQUAL(2, t_ctx.current(curr));
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    expected[1] = DUP_MASK | 4;
+    expected[1] = DUP_MASK | 5;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
-    t_ctx.enter(DUP_MASK | 9);
+    t_ctx.enter(DUP_MASK | 11);
     CHECK_EQUAL(3, t_ctx.current(curr));
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    expected[1] = DUP_MASK | 4;
-    expected[2] = DUP_MASK | 9;
+    expected[1] = DUP_MASK | 5;
+    expected[2] = DUP_MASK | 11;
     CHECK_ARRAY_EQUAL(expected, curr, 3);
 
 
-    t_ctx.exit(DUP_MASK | 9);
+    t_ctx.exit(DUP_MASK | 11);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    expected[1] = DUP_MASK | 4;
+    expected[1] = DUP_MASK | 5;
     CHECK_EQUAL(2, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
-    t_ctx.exit(DUP_MASK | 4);
+    t_ctx.exit(DUP_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_EQUAL(1, t_ctx.current(curr));
     CHECK_ARRAY_EQUAL(expected, curr, 1);

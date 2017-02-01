@@ -5,47 +5,15 @@
 #include <vector>
 #include "util.hh"
 #include <mutex>
+#include <cuckoohash_map.hh>
+#include <city_hasher.hh>
+#include <concurrentqueue.h>
 
 #ifndef PERF_CTX_H
 #define PERF_CTX_H
 
 namespace PerfCtx {
     typedef std::uint64_t TracePt;
-        
-    class ConflictingDefinition : public std::runtime_error {
-    public:
-        ConflictingDefinition(const std::string& existing_def, const std::string& new_def) : runtime_error("Found conflicting perf-ctx defenition " + new_def + " which conflicts with " + existing_def) {}
-        virtual ~ConflictingDefinition() {}
-    };
-
-    struct ThreadCtx {
-        TracePt ctx;
-        std::uint32_t push_count;
-        struct {
-            std::uint8_t start, end;
-        } prev;
-
-        ThreadCtx(TracePt _ctx, std::uint8_t _prev_start, std::uint8_t _prev_end) : ctx(_ctx), push_count(0) {
-            prev.start = _prev_start;
-            prev.end = _prev_end;
-        }
-        ~ThreadCtx() {}
-    };
-    
-    class Registry {
-    public:
-        Registry() {}
-        ~Registry() {}
-        TracePt find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (ConflictingDefinition);
-        TracePt merge_bind(const std::vector<ThreadCtx>& parent, bool strict = false);
-    };
-
-    class IncorrectEnterExitPairing : public std::runtime_error {
-    public:
-        IncorrectEnterExitPairing(const TracePt expected, const TracePt got) : runtime_error(to_s("Expected ", expected, " got ", got)) {};
-        virtual ~IncorrectEnterExitPairing() {}
-    };
-
     /*
       Ctx bit layout: it is composed of 3 parts, coverage %, merge-semantic and ctx-id and merge-semantic is not relevant for merge-generated ctx
       because they can never get pushed over some other context (other contexts may get pushed over them, but then the parent's merge-semantic
@@ -68,7 +36,7 @@ namespace PerfCtx {
       This allows us to offer upto 349 user defined ctx, because 2351 is the 349th prime number and value of 2357^5 (next prime, 350th) is greater than 2^56. Since we support 5-depth nesting (as 2351^5 < 2^56) we need 7 bits for storing permutation-id (5! = 120, the next power of 2 is 128, ie 2^7).
           
     */
-
+    const std::uint16_t MAX_USER_CTX_COUNT = 200; //this can actually be made as high as 349
     const std::uint8_t MAX_NESTING = 5;
 
     constexpr std::uint64_t TYPE_MASK = static_cast<std::uint64_t>(0x80) << (7 * 8);
@@ -78,14 +46,70 @@ namespace PerfCtx {
     constexpr std::uint64_t USER_CREATED_CTX_ID_MASK = 0x1FFF;
 
     constexpr std::uint8_t MERGE_SEMANTIIC_SHIFT = 53;
-    constexpr std::uint8_t MERGE_SEMANTIIC_MASK = 7;
+    constexpr std::uint8_t MERGE_SEMANTIIC_MASK = 0x7;
+    constexpr std::uint8_t COVERAGE_PCT_SHIFT = 56;
+    constexpr std::uint8_t COVERAGE_PCT_MASK = 0x7F;
 
+    
     constexpr std::uint8_t GENERATED_COMBINATION_SHIFT = 7;
     constexpr std::uint64_t GENERATED_COMBINATION_MAX_VALUE = 0xFFFFFFFFFFFFFF;
     constexpr std::uint8_t GENERATED_PERMUTATION_MAX_VALUE = 120;
     
 
     enum class MergeSemantic { to_parent = 0, scoped = 1, scoped_strict = 2, stack_up = 3, duplicate = 4 };
+
+    class CtxCreationFailure : public std::runtime_error {
+    public:
+        CtxCreationFailure(const std::string& msg) : runtime_error("PerfCtx creation failed: " + msg) {}
+        virtual ~CtxCreationFailure() {}
+    };
+
+    class UnknownCtx : public std::runtime_error {
+    public:
+        UnknownCtx(TracePt pt) : runtime_error(to_s("Name dereference failed for unkonwn ctx: 0x", std::hex, pt)) {}
+        virtual ~UnknownCtx() {}
+    };
+
+    struct ThreadCtx {
+        TracePt ctx;
+        std::uint32_t push_count;
+        struct {
+            std::uint8_t start, end;
+        } prev;
+
+        ThreadCtx(TracePt _ctx, std::uint8_t _prev_start, std::uint8_t _prev_end) : ctx(_ctx), push_count(0) {
+            prev.start = _prev_start;
+            prev.end = _prev_end;
+        }
+        ~ThreadCtx() {}
+    };
+    
+    class Registry {
+        typedef cuckoohash_map<std::string, TracePt, CityHasher<std::string> > NameToPt;
+        typedef cuckoohash_map<TracePt, std::string, CityHasher<TracePt> > PtToName;
+
+        moodycamel::ConcurrentQueue<std::uint32_t> unused_prime_nos;
+        NameToPt name_to_pt;
+        PtToName pt_to_name;
+
+        void load_unused_primes(std::uint32_t count);
+
+    public:
+        Registry() : unused_prime_nos(MAX_USER_CTX_COUNT) {
+            load_unused_primes(MAX_USER_CTX_COUNT);
+        };
+        ~Registry() {};
+        
+        TracePt find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (CtxCreationFailure);
+        TracePt merge_bind(const std::vector<ThreadCtx>& parent, bool strict = false);
+        void name_for(TracePt pt, std::string& name) throw (UnknownCtx);
+    };
+
+    class IncorrectEnterExitPairing : public std::runtime_error {
+    public:
+        IncorrectEnterExitPairing(const TracePt expected, const TracePt got) : runtime_error(to_s("Expected ", expected, " got ", got)) {};
+        virtual ~IncorrectEnterExitPairing() {}
+    };
 
     MergeSemantic merge_semantic(TracePt pt);
     
@@ -100,7 +124,7 @@ namespace PerfCtx {
         std::uint8_t effective_start, effective_end;
 
     public:
-        ThreadTracker(Registry& _reg) : reg(_reg), effective_start(0), effective_end(0) {
+        ThreadTracker(Registry& _reg) : reg(_reg), ignore_count(0), effective_start(0), effective_end(0) {
             effective.reserve((MAX_NESTING * (MAX_NESTING + 1)) / 2);
         }
         ~ThreadTracker() {}
