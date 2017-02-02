@@ -104,7 +104,9 @@ set(SOURCE_FILES
     ${SRC}/util.hh
     ${SRC}/perf_ctx_jni.hh
     ${SRC}/perf_ctx.hh
-    ${SRC}/perf_ctx.cc)
+    ${SRC}/perf_ctx.cc
+    ${SRC}/prob_pct.hh
+    ${SRC}/prob_pct.cc)
 
 set(TEST_FILES
     ${SRC_TEST}/fixtures.hh
@@ -118,6 +120,7 @@ set(TEST_FILES
     ${SRC_TEST}/test_scheduler.cc
     ${SRC_TEST}/test_perf_ctx_tracker.cc
     ${SRC_TEST}/test_perf_ctx_registry.cc
+    ${SRC_TEST}/test_prob_pct.cc
     ${SRC_TEST}/test_blocking_ring_buffer.cc)
 
 set(TEST_UTIL_FILES

@@ -5,7 +5,8 @@
 #include <jni.h>
 #include <string.h>
 #include "concurrent_map.hh"
-
+#include "perf_ctx.hh"
+#include "globals.hh"
 
 int gettid();
 
@@ -58,9 +59,9 @@ struct ThreadBucket {
 	char *name;
 	std::atomic_int refs;
 	map::GC::EpochType localEpoch;
-    
+    PerfCtx::ThreadTracker ctx_tracker;
 
-	ThreadBucket(int id, const char *n) : tid(id), refs(1), localEpoch(GCHelper::attach()) {
+	ThreadBucket(int id, const char *n) : tid(id), refs(1), localEpoch(GCHelper::attach()), ctx_tracker(*GlobalCtx::ctx_reg, *GlobalCtx::prob_pct, id) {
 		int len = strlen(n) + 1;
 		name = new char[len];
 		std::copy(n, n + len, name);

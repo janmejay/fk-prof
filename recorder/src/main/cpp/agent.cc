@@ -10,6 +10,7 @@
 #include "profiler.hh"
 #include "controller.hh"
 #include "perf_ctx.hh"
+#include "prob_pct.hh"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -20,6 +21,7 @@ static ConfigurationOptions* CONFIGURATION;
 static Controller* controller;
 static ThreadMap threadMap;
 PerfCtx::Registry* GlobalCtx::ctx_reg;
+ProbPct* GlobalCtx::prob_pct;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -297,6 +299,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
 
     GlobalCtx::ctx_reg = new PerfCtx::Registry();
+    GlobalCtx::prob_pct = new ProbPct();    
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
@@ -310,6 +313,7 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
 
     delete controller;
     delete GlobalCtx::ctx_reg;
+    delete GlobalCtx::prob_pct;
     delete CONFIGURATION;
 }
 

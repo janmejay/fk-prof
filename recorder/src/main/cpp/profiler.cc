@@ -79,28 +79,34 @@ static void handle_profiling_signal(int signum, siginfo_t *info, void *context) 
 void Profiler::handle(int signum, siginfo_t *info, void *context) {
     IMPLICITLY_USE(signum);//TODO: make this reenterant or implement try_lock+backoff
     IMPLICITLY_USE(info);
+    JNIEnv *jniEnv = getJNIEnv(jvm);
+    ThreadBucket *thread_info = nullptr;
+    PerfCtx::ThreadTracker* ctx_tracker = nullptr;
+    if (jniEnv != nullptr) {
+        thread_info = thread_map.get(jniEnv);
+        assert(thread_info != nullptr);
+        ctx_tracker = &(thread_info->ctx_tracker);
+        if (! ctx_tracker->should_record()) return;
+    }
     SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer
-    ThreadBucket *threadInfo;
 
     // sample data structure
     STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
     JVMPI_CallTrace trace;
     trace.frames = frames;
-    JNIEnv *jniEnv = getJNIEnv(jvm);
+    
     if (jniEnv == NULL) {
         IsGCActiveType is_gc_active = Asgct::GetIsGCActive();
         trace.num_frames = ((is_gc_active != NULL) &&
                             ((*is_gc_active)() == 1)) ? -2 : -3; // ticks_unknown_not_Java or GC
-        threadInfo = nullptr;
     } else {
         trace.env_id = jniEnv;
         ASGCTType asgct = Asgct::GetAsgct();
         (*asgct)(&trace, capture_stack_depth(), context);
-        threadInfo = thread_map.get(jniEnv);
     }
     // log all samples, failures included, let the post processing sift through the data
-    buffer->push(trace, threadInfo);
+    buffer->push(trace, thread_info);
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {

@@ -25,7 +25,8 @@ PerfCtx::TracePt reg(Registry& r, const char* name, PerfCtx::MergeSemantic m = P
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -53,7 +54,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
 TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
     std::array<TracePt, MAX_NESTING> curr;
 
     CHECK_EQUAL(0, t_ctx.current(curr));
@@ -77,7 +79,8 @@ TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
 
@@ -154,7 +157,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
 TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
 
@@ -245,7 +249,8 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
 TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_under_parent) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
 
@@ -331,7 +336,8 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
 TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when_strict_scoping_under_parent__and_starting_out_with_scoped_ctx) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto SCOPED_STRICT_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped_strict) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
@@ -408,7 +414,8 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____and_handle_overflow_well) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
@@ -481,7 +488,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____
 TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
@@ -522,7 +530,8 @@ TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent_____and_handle_overflow_well) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
@@ -605,7 +614,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first_ctx) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
@@ -648,7 +658,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by_scoping_elements) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
@@ -711,7 +722,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
 TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_chain_broken_by_stacking_elements) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto STACKED_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
@@ -765,7 +777,8 @@ TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_cha
 TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_merge_elements_between_2_duplicate) {
     init_logger();
     Registry r;
-    ThreadTracker t_ctx(r);
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
 
     constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
     constexpr auto PARENT_MASK = static_cast<std::uint64_t>(MergeSemantic::to_parent) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
@@ -812,3 +825,80 @@ TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_mer
     t_ctx.exit(DUP_MASK | 2);
     CHECK_EQUAL(0, t_ctx.current(curr));
 }
+
+TEST(ThreadPerfCtxTracker__should_turn_on_recording_enough_times_to_meet_desired_coverage) {
+    init_logger();
+    Registry r;
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
+
+    PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | 2;
+
+
+    auto fire_count = 0;
+    for (int i = 0; i < 10000; i++) {
+        t_ctx.enter(v2);
+        if (t_ctx.should_record()) fire_count++;
+        t_ctx.exit(v2);
+    }
+    
+    CHECK_CLOSE(1000, fire_count, 500);
+}
+
+TEST(ThreadPerfCtxTracker__should_track_stacking_merges___as_independent_ctxs___and_handles_exit_from_child_ctx_cleanly) {
+    init_logger();
+    Registry r;
+    ProbPct prob_pct;
+    ThreadTracker t_ctx(r, prob_pct, 210);
+
+    PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | 2;
+
+    PerfCtx::TracePt v3 = (static_cast<std::uint64_t>(50) << COVERAGE_PCT_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIIC_SHIFT)
+        | 3;
+
+    PerfCtx::TracePt v5 = (static_cast<std::uint64_t>(25) << COVERAGE_PCT_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIIC_SHIFT)
+        | 5;
+
+
+    auto no_v_fire_count = 0,
+        v2_fire_count = 0,
+        v3_fire_count = 0,
+        v5_fire_count = 0,
+        
+        v2_ret_fire_count = 0,
+        v3_ret_fire_count = 0,
+        no_v_ret_fire_count = 0;
+    
+    for (int i = 0; i < 10000; i++) {
+        if (t_ctx.should_record()) no_v_fire_count++;
+        t_ctx.enter(v2);
+        if (t_ctx.should_record()) v2_fire_count++;
+        t_ctx.enter(v3);
+        if (t_ctx.should_record()) v3_fire_count++;
+        t_ctx.enter(v5);
+        if (t_ctx.should_record()) v5_fire_count++;
+        t_ctx.exit(v5);
+        if (t_ctx.should_record()) v3_ret_fire_count++;
+        t_ctx.exit(v3);
+        if (t_ctx.should_record()) v2_ret_fire_count++;
+        t_ctx.exit(v2);
+        if (t_ctx.should_record()) no_v_ret_fire_count++;
+    }
+    
+    CHECK_CLOSE(v2_fire_count * 5,  v3_fire_count, 1000);
+    CHECK_CLOSE(v3_fire_count,  v5_fire_count * 2, 1000);
+
+    CHECK_EQUAL(v2_fire_count, v2_ret_fire_count);
+    CHECK_EQUAL(v3_fire_count, v3_ret_fire_count);
+
+    CHECK_EQUAL(no_v_ret_fire_count, no_v_fire_count);
+    CHECK_EQUAL(no_v_fire_count, 0);
+}
+
+//TODO: write a test that turns off recording while entering a stacking child context and then turns it on again while leaving the child ctx

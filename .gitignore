@@ -44,3 +44,5 @@ Testing
 .attach_pid*
 TAGS
 cscope.*
+
+.#*

@@ -34,6 +34,8 @@ struct TraceHolder {
     std::atomic<int> is_committed;
     JVMPI_CallTrace trace;
     ThreadBucket *info;
+    PerfCtx::ThreadTracker::EffectiveCtx ctx;
+    std::uint8_t ctx_len;
 };
 
 class CircularQueue {

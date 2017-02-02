@@ -143,9 +143,9 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
     CHECK_EQUAL(v13, r.find_or_bind("all", 100, 1));
 
     std::vector<PerfCtx::ThreadCtx> stk;
-    stk.emplace_back(v2, 0, 0);
-    stk.emplace_back(v3, 0, 0);
-    stk.emplace_back(v5, 0, 0);
+    stk.emplace_back(v2, 0, 0, false);
+    stk.emplace_back(v3, 0, 0, false);
+    stk.emplace_back(v5, 0, 0, false);
 
     PerfCtx::TracePt m_2_3_5 = MERGE_GENERATED_TYPE
         | (static_cast<std::uint64_t>(2 * 3 * 5) << GENERATED_COMBINATION_SHIFT)
@@ -157,9 +157,9 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
     CHECK_EQUAL("foo > bar > baz", name);
 
     stk.clear();
-    stk.emplace_back(v5, 0, 0);
-    stk.emplace_back(v3, 0, 0);
-    stk.emplace_back(v2, 0, 0);
+    stk.emplace_back(v5, 0, 0, false);
+    stk.emplace_back(v3, 0, 0, false);
+    stk.emplace_back(v2, 0, 0, false);
     CHECK_EQUAL(3, stk.size());
 
     PerfCtx::TracePt m_5_3_2 = MERGE_GENERATED_TYPE
@@ -170,8 +170,8 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
     r.name_for(m_5_3_2, name);
     CHECK_EQUAL("baz > bar > foo", name);
 
-    stk.emplace_back(v11, 0, 0);
-    stk.emplace_back(v7, 0, 0);
+    stk.emplace_back(v11, 0, 0, false);
+    stk.emplace_back(v7, 0, 0, false);
 
     PerfCtx::TracePt m_5_3_2_11_7 = MERGE_GENERATED_TYPE
         | (static_cast<std::uint64_t>(5 * 3 * 2 * 11 * 7) << GENERATED_COMBINATION_SHIFT)

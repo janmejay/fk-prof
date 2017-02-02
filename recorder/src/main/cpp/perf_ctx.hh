@@ -8,6 +8,8 @@
 #include <cuckoohash_map.hh>
 #include <city_hasher.hh>
 #include <concurrentqueue.h>
+#include "prob_pct.hh"
+#include <unordered_map>
 
 #ifndef PERF_CTX_H
 #define PERF_CTX_H
@@ -75,11 +77,13 @@ namespace PerfCtx {
         std::uint32_t push_count;
         struct {
             std::uint8_t start, end;
+            bool record;
         } prev;
 
-        ThreadCtx(TracePt _ctx, std::uint8_t _prev_start, std::uint8_t _prev_end) : ctx(_ctx), push_count(0) {
+        ThreadCtx(TracePt _ctx, std::uint8_t _prev_start, std::uint8_t _prev_end, bool _prev_record) : ctx(_ctx), push_count(0) {
             prev.start = _prev_start;
             prev.end = _prev_end;
+            prev.record = _prev_record;
         }
         ~ThreadCtx() {}
     };
@@ -115,6 +119,7 @@ namespace PerfCtx {
     
     class ThreadTracker {
         Registry& reg;
+        ProbPct& pct;
         
         std::vector<ThreadCtx> actual_stack;
         std::vector<TracePt> effective;
@@ -123,15 +128,24 @@ namespace PerfCtx {
         
         std::uint8_t effective_start, effective_end;
 
+        bool record;
+
+        std::unordered_map<TracePt, std::uint32_t> prob_idxs;
+
+        const int tid;
+
     public:
-        ThreadTracker(Registry& _reg) : reg(_reg), ignore_count(0), effective_start(0), effective_end(0) {
+        typedef std::array<TracePt, MAX_NESTING> EffectiveCtx;
+        
+        ThreadTracker(Registry& _reg, ProbPct& _pct, int _tid) : reg(_reg), pct(_pct), ignore_count(0), effective_start(0), effective_end(0), record(false), tid(_tid) {
             effective.reserve((MAX_NESTING * (MAX_NESTING + 1)) / 2);
         }
         ~ThreadTracker() {}
 
         void enter(TracePt pt);
         void exit(TracePt pt) throw (IncorrectEnterExitPairing);
-        int current(std::array<TracePt, MAX_NESTING>& curr);
+        int current(EffectiveCtx& curr);
+        bool should_record();
     };
 };
 

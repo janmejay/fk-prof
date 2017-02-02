@@ -15,6 +15,9 @@ bool CircularQueue::push(const JVMPI_CallTrace &item, ThreadBucket *info) {
     } while (!input.compare_exchange_strong(currentInput, nextInput, std::memory_order_relaxed));
     write(item, currentInput);
     buffer[currentInput].info = info;
+    if (info != nullptr) {
+        buffer[currentInput].ctx_len = info->ctx_tracker.current(buffer[currentInput].ctx);
+    }
     buffer[currentInput].is_committed.store(COMMITTED, std::memory_order_release);
 
     return true;

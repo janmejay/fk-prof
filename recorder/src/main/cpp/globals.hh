@@ -43,6 +43,7 @@ namespace GlobalCtx {
 
     extern GlobalCtx::Rec recording;
     extern PerfCtx::Registry* ctx_reg;
+    extern ProbPct* prob_pct;
 }
 
 void logError(const char *__restrict format, ...);
