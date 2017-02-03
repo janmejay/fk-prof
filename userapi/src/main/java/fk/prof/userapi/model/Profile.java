@@ -1,4 +1,4 @@
-package model;
+package fk.prof.userapi.model;
 
 import java.util.HashSet;
 import java.util.Set;

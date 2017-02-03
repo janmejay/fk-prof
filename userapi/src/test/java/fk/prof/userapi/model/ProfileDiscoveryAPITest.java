@@ -1,6 +1,7 @@
-package model;
+package fk.prof.userapi.model;
 
-import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.AsyncStorage;
+import fk.prof.userapi.discovery.ProfileDiscoveryAPIImpl;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -20,20 +21,22 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+
 /**
- * Tests for {@link IDataModel} DataModel Interface using mocked behaviour of S3 listAysnc {@link S3AsyncStorage}API
+ * Tests for {@link ProfileDiscoveryAPIImpl} using mocked behaviour of listAysnc {@link AsyncStorage} API
  * Created by rohit.patiyal on 24/01/17.
  */
+
 @RunWith(MockitoJUnitRunner.class)
-public class IDataModelTest {
+public class ProfileDiscoveryAPITest {
 
     private static final String DELIMITER = "_";
 
     @InjectMocks
-    private IDataModel iDataModel = new D42Model();
+    private ProfileDiscoveryAPIImpl profileDiscoveryAPI;
 
     @Mock
-    private S3AsyncStorage asyncStorage;
+    private AsyncStorage asyncStorage;
 
     private Set<String> getObjList(String prefix, boolean recursive) {
         String objects[] = {
@@ -76,8 +79,7 @@ public class IDataModelTest {
         };
 
         for (Map.Entry<String, Collection<Object>> entry : appIdTestPairs.entrySet()) {
-            Set<String> got = iDataModel.getAppIdsWithPrefix(entry.getKey());
-            assertThat(got, is(entry.getValue()));
+            assertThat(profileDiscoveryAPI.getAppIdsWithPrefix(entry.getKey()).get(), is(entry.getValue()));
         }
     }
 
@@ -89,12 +91,14 @@ public class IDataModelTest {
                 put(Arrays.asList("app1", "cl"), Sets.newSet("cluster1"));
                 put(Arrays.asList("app1", ""), Sets.newSet("cluster1"));
                 put(Arrays.asList("foo", "b"), Sets.newSet("bar"));
+                put(Arrays.asList("np", "np"), Sets.newSet());
+                put(Arrays.asList("app1", "b"), Sets.newSet());
                 put(Arrays.asList("", ""), Sets.newSet());
             }
         };
 
         for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<String> got = iDataModel.getClusterIdsWithPrefix(entry.getKey().get(0), entry.getKey().get(1));
+            Set<String> got = profileDiscoveryAPI.getClusterIdsWithPrefix(entry.getKey().get(0), entry.getKey().get(1)).get();
             assertThat(got, is(entry.getValue()));
         }
     }
@@ -111,7 +115,7 @@ public class IDataModelTest {
         };
 
         for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<String> got = iDataModel.getProcsWithPrefix(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2));
+            Set<String> got = profileDiscoveryAPI.getProcsWithPrefix(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2)).get();
             assertThat(got, is(entry.getValue()));
         }
     }
@@ -130,7 +134,7 @@ public class IDataModelTest {
         Map<List<String>, Collection<?>> appIdTestPairs = new HashMap<List<String>, Collection<?>>() {
             {
                 put(Arrays.asList("app1", "cluster1", "process1", "2017-01-20T12:37:20.551+05:30", "1600"),
-                        Sets.newSet(profile1));
+                        Sets.newSet(profile1, profile2));
                 put(Arrays.asList("app1", "cluster1", "process1", "2017-01-20T12:37:20.551+05:30", "1900"),
                         Sets.newSet(profile1, profile2));
                 put(Arrays.asList("foo", "bar", "main", "2017-01-20T12:37:20.551+05:30", "1900"),
@@ -139,9 +143,10 @@ public class IDataModelTest {
         };
 
         for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<Profile> got = iDataModel.getProfilesInTimeWindow(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2), entry.getKey().get(3), entry.getKey().get(4));
+            Set<Profile> got = profileDiscoveryAPI.getProfilesInTimeWindow(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2), entry.getKey().get(3), entry.getKey().get(4)).get();
             assertEquals(entry.getValue(), got);
         }
     }
 
 }
+
