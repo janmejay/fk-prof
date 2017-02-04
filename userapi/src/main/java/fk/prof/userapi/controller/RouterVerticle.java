@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import io.vertx.core.VoidHandler;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -64,9 +65,6 @@ public class RouterVerticle extends AbstractVerticle {
     }
 
     private void returnResponse(Set<?> responseContent, Throwable throwable, RoutingContext routingContext) {
-        System.out.println("RETURN RESPONSE THREAD " + Thread.currentThread().getName());
-        System.out.println("RETURN RESPONSE " + responseContent);
-
         routingContext.response().
                 putHeader("content-type", "application/json; charset=utf-8").
                 end(Json.encodePrettily(responseContent));
@@ -80,8 +78,12 @@ public class RouterVerticle extends AbstractVerticle {
         if (prefix == null) {
             prefix = "";
         }
-        System.out.println("PARAM IS " + prefix);
-        profileDiscoveryAPI.getAppIdsWithPrefix(prefix).whenCompleteAsync((appIds, throwable) -> returnResponse(appIds, throwable, routingContext));
+        profileDiscoveryAPI.getAppIdsWithPrefix(prefix).whenComplete((appIds, throwable) -> vertx.runOnContext(new VoidHandler() {
+            @Override
+            protected void handle() {
+                returnResponse(appIds, throwable, routingContext);
+            }
+        }));
     }
 
     private void getClusterIds(RoutingContext routingContext) {
@@ -90,9 +92,12 @@ public class RouterVerticle extends AbstractVerticle {
         if (prefix == null) {
             prefix = "";
         }
-        System.out.println("PARAM IS " + prefix);
-
-        profileDiscoveryAPI.getClusterIdsWithPrefix(appId, prefix).whenComplete((clusterIds, throwable) -> returnResponse(clusterIds, throwable, routingContext));
+        profileDiscoveryAPI.getClusterIdsWithPrefix(appId, prefix).whenComplete((clusterIds, throwable) -> vertx.runOnContext(new VoidHandler() {
+            @Override
+            protected void handle() {
+                returnResponse(clusterIds, throwable, routingContext);
+            }
+        }));
     }
 
     private void getProcs(RoutingContext routingContext) {
@@ -102,8 +107,13 @@ public class RouterVerticle extends AbstractVerticle {
         if (prefix == null) {
             prefix = "";
         }
-        System.out.println("PARAM IS " + prefix);
-        profileDiscoveryAPI.getProcsWithPrefix(appId, clusterId, prefix).whenComplete((procs, throwable) -> returnResponse(procs, throwable, routingContext));
+        profileDiscoveryAPI.getProcsWithPrefix(appId, clusterId, prefix).whenComplete((procs, throwable) -> vertx.runOnContext(new VoidHandler() {
+            @Override
+            protected void handle() {
+                returnResponse(procs, throwable, routingContext);
+            }
+        }));
+
     }
 
     private void getProfiles(RoutingContext routingContext) {
@@ -119,7 +129,12 @@ public class RouterVerticle extends AbstractVerticle {
         if (duration == null) {
             duration = "";
         }
-        profileDiscoveryAPI.getProfilesInTimeWindow(appId, clusterId, proc, start, duration).whenComplete((profiles, throwable) -> returnResponse(profiles, throwable, routingContext));
+        profileDiscoveryAPI.getProfilesInTimeWindow(appId, clusterId, proc, start, duration).whenComplete((profiles, throwable) -> vertx.runOnContext(new VoidHandler() {
+            @Override
+            protected void handle() {
+                returnResponse(profiles, throwable, routingContext);
+            }
+        }));
     }
 
 }

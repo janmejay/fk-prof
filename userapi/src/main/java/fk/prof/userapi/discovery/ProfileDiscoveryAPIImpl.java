@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.ZonedDateTime;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -109,15 +108,14 @@ public class ProfileDiscoveryAPIImpl implements ProfileDiscoveryAPI {
             } catch (Exception e) {
                 LOGGER.error(e.getLocalizedMessage());
             }
-            //Group all objects by their time interval (profile object) and collect all the worktypes as a set
-            //This is map with key is a timeinterval and value corresponding to it is the set of worktypes collected
-            Map<Profile, Set<String>> profilesMap = streamObjects.collect(Collectors.groupingBy(ProfileDiscoveryAPIImpl::getProfile, Collectors.mapping(ProfileDiscoveryAPIImpl::getWorkType, Collectors.toSet())));
-
-            //Converting the map to a set by moving the map's value inside the key object and then taking the keySet
-            return profilesMap.entrySet().stream().map(profileSetEntry -> {
-                profileSetEntry.getKey().setValues(profileSetEntry.getValue());
-                return profileSetEntry.getKey();
-            }).collect(Collectors.toSet());
+            //Groups all strings by their time interval (as profiles) and collects the corresponding worktypes in a set as its value in the map
+            //Next is moving the set(value corresponding to the key) inside the key object and then collecting the keySet only
+            return streamObjects.collect(Collectors.groupingBy(ProfileDiscoveryAPIImpl::getProfile, Collectors.mapping(ProfileDiscoveryAPIImpl::getWorkType, Collectors.toSet()))).
+                    entrySet()
+                    .stream().map(kv -> {
+                        kv.getKey().setValues(kv.getValue());
+                        return kv.getKey();
+                    }).collect(Collectors.toSet());
         });
     }
 

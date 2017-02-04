@@ -114,7 +114,6 @@ public class RouterVerticleTest {
         client.getNow(port, "localhost", "/apps?prefix=a", httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.SERVICE_UNAVAILABLE.code());
             httpClientResponse.bodyHandler(buffer -> {
-                System.out.println(buffer.toString());
                 testContext.assertTrue(buffer.toString().contains("Service Unavailable"));
                 async.complete();
             });
@@ -146,7 +145,6 @@ public class RouterVerticleTest {
         client.getNow(port, "localhost", "/apps?prefix=" + P_APP_ID.substring(0, 1 + new Random().nextInt(P_APP_ID.length() - 1)), httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
             httpClientResponse.bodyHandler(buffer -> {
-                System.out.println("B1 " + buffer);
                 testContext.assertTrue(buffer.toString().contains(P_APP_ID));
                 testContext.assertFalse(buffer.toString().contains(NP_APP_ID));
                 pCorrectPrefix.complete();
@@ -155,7 +153,6 @@ public class RouterVerticleTest {
         client.getNow(port, "localhost", "/apps?prefix=", httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
             httpClientResponse.bodyHandler(buffer -> {
-                System.out.println("B1 " + buffer);
                 testContext.assertTrue(buffer.toString().contains(P_APP_ID));
                 testContext.assertFalse(buffer.toString().contains(NP_APP_ID));
                 pIncorrectPrefix.complete();
@@ -164,7 +161,6 @@ public class RouterVerticleTest {
         client.getNow(port, "localhost", "/apps?prefix=" + NP_APP_ID.substring(0, 1 + new Random().nextInt(NP_APP_ID.length() - 1)), httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
             httpClientResponse.bodyHandler(buffer -> {
-                System.out.println("B2 " + buffer);
                 testContext.assertFalse(buffer.toString().contains(P_APP_ID));
                 testContext.assertFalse(buffer.toString().contains(NP_APP_ID));
                 pNoPrefix.complete();
