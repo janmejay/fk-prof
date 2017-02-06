@@ -80,17 +80,10 @@
               <goal>run</goal>
             </goals>
             <configuration>
-              <!--<protocArtifact>com.google.protobuf:protoc:3.1.0</protocArtifact>-->
               <protocVersion>3.1.0</protocVersion>
               <inputDirectories>
                 <include>src/idl/</include>
               </inputDirectories>
-              <!--<outputTargets>-->
-              <!--<outputTarget>-->
-              <!--<type>java</type>-->
-              <!--<outputDirectory>src/main/java/</outputDirectory>-->
-              <!--</outputTarget>-->
-              <!--</outputTargets>-->
             </configuration>
           </execution>
         </executions>
