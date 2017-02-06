@@ -8,7 +8,7 @@ class ItemHolder : public QueueListener {
 public:
   explicit ItemHolder() {}
 
-  virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info) {
+    virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     CHECK_EQUAL(2, trace.num_frames);
     CHECK_EQUAL((JNIEnv *)envId, trace.env_id);
 

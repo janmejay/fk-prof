@@ -75,7 +75,7 @@ public:
 
     ~ProfileSerializer() {}
 
-    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr) {}
+    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) {}
 };
 
 class Profiler {

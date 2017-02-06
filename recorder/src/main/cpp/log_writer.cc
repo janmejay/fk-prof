@@ -78,7 +78,7 @@ jint LogWriter::getLineNo(jint bci, jmethodID methodId) {
     return lineno;
 }
 
-void LogWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info) {
+void LogWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     map::HashType threadId = (map::HashType) trace.env_id;
     // char *src = (char*)"";
 

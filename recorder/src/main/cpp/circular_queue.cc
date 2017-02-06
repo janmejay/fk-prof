@@ -51,7 +51,7 @@ bool CircularQueue::pop() {
         usleep(1);
     }
 
-    listener_.record(buffer[current_output].trace, buffer[current_output].info);
+    listener_.record(buffer[current_output].trace, buffer[current_output].info, buffer[current_output].ctx_len, &buffer[current_output].ctx);
     
     // 0 out all frames so the next write is clean
     JVMPI_CallFrame *fb = frame_buffer_[current_output];

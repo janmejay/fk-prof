@@ -49,7 +49,7 @@ public:
             : output_(output), frameLookup_(frameLookup), jvmti_(jvmti) {
     }
 
-    virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info = nullptr);
+    virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr);
 
     void recordTraceStart(const jint num_frames, const map::HashType threadId);
 
