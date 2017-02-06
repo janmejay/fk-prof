@@ -1,7 +1,7 @@
-package fk.prof.userapi.controller;
+package fk.prof.userapi.verticles;
 
-import fk.prof.userapi.discovery.ProfileDiscoveryAPIImpl;
-import fk.prof.userapi.model.Profile;
+import fk.prof.userapi.api.ProfileStoreAPIImpl;
+import fk.prof.userapi.model.FilteredProfiles;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -26,15 +26,17 @@ import org.mockito.junit.MockitoRule;
 
 import java.net.ServerSocket;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 /**
- * Tests for {@link RouterVerticle} using mocked behaviour of ProfileDiscoveryAPIImpl
+ * Tests for {@link HttpVerticle} using mocked behaviour of ProfileStoreAPIImpl
  * Created by rohit.patiyal on 27/01/17.
  */
 @RunWith(VertxUnitRunner.class)
@@ -50,14 +52,14 @@ public class RouterVerticleTest {
 
     private static final String P_ENCODED_TIME_STAMP = "2017-01-20T12:37:00.376%2B05:30";
     private static final String NP_ENCODED_TIME_STAMP = "2017-01-21T12:37:00.376%2B05:30";
-    private static final String P_TIME_STAMP = "2017-01-20T12:37:00.376+05:30";
-    private static final String NP_TIME_STAMP = "2017-01-21T12:37:00.376+05:30";
+    private static final ZonedDateTime P_TIME_STAMP = ZonedDateTime.parse("2017-01-20T12:37:00.376+05:30", DateTimeFormatter.ISO_ZONED_DATE_TIME);
+    private static final ZonedDateTime NP_TIME_STAMP = ZonedDateTime.parse("2017-01-21T12:37:00.376+05:30", DateTimeFormatter.ISO_ZONED_DATE_TIME);
 
-    private static final String P_WORKTYPE = "worktype1";
-    private static final String NP_WORKTYPE = "cpusamples";
+    private static final String P_WORKTYPE = "thread_sample_work";
+    private static final String NP_WORKTYPE = "cpu_sample_work";
 
 
-    private static final String DURATION = "1500";
+    private static final int DURATION = 1500;
     private static final long MORE_THAN_TIMEOUT = 3000;
     @Rule
     public MockitoRule rule = MockitoJUnit.rule();
@@ -65,10 +67,10 @@ public class RouterVerticleTest {
     private HttpClient client;
     private int port = 8082;
     @InjectMocks
-    private RouterVerticle routerVerticle;
+    private HttpVerticle routerVerticle;
 
     @Mock
-    private ProfileDiscoveryAPIImpl profileDiscoveryAPI;
+    private ProfileStoreAPIImpl profileDiscoveryAPI;
 
     @Before
     public void setUp(TestContext testContext) throws Exception {
@@ -102,14 +104,18 @@ public class RouterVerticleTest {
     public void TestRequestTimeout(TestContext testContext) throws Exception {
         final Async async = testContext.async();
         String pPrefixSet = "(^$|a|ap|app|app1)";
-        when(profileDiscoveryAPI.getAppIdsWithPrefix(ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> {
-            try {
-                Thread.sleep(MORE_THAN_TIMEOUT);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return Sets.newSet(P_APP_ID);
-        }));
+        doAnswer(invocation -> {
+                    Future<Set<String>> future = invocation.getArgument(0);
+                    CompletableFuture.supplyAsync(() -> {
+                        try {
+                            Thread.sleep(MORE_THAN_TIMEOUT);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        return Sets.newSet(P_APP_ID);
+                    }).whenComplete((result ,error) -> completeFuture(result, error, future));
+            return null;
+        }).when(profileDiscoveryAPI).getAppIdsWithPrefix(any(), any(), ArgumentMatchers.matches(pPrefixSet));
 
         client.getNow(port, "localhost", "/apps?prefix=a", httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.SERVICE_UNAVAILABLE.code());
@@ -121,22 +127,20 @@ public class RouterVerticleTest {
     }
 
     @Test
-    public void TestRootRoute(TestContext testContext) throws Exception {
-        final Async async = testContext.async();
-
-        client.getNow(port, "localhost", "/", httpClientResponse -> httpClientResponse.bodyHandler(buffer -> {
-            testContext.assertTrue(buffer.toString().contains("UserAPI"));
-            async.complete();
-        }));
-    }
-
-    @Test
     public void TestGetAppsRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
         String pPrefixSet = "(^$|a|ap|app|app1)";
         String npPrefixSet = "(f|fo|foo)";
-        when(profileDiscoveryAPI.getAppIdsWithPrefix(ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> Sets.newSet(P_APP_ID)));
-        when(profileDiscoveryAPI.getAppIdsWithPrefix(ArgumentMatchers.matches(npPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
+        doAnswer(invocation -> {
+            Future<Set<String>> future = invocation.getArgument(0);
+            CompletableFuture.supplyAsync(() -> Sets.newSet(P_APP_ID)).whenComplete((res, error) -> completeFuture(res, error, future));
+            return null;
+        }).when(profileDiscoveryAPI).getAppIdsWithPrefix(any(), any(), ArgumentMatchers.matches(pPrefixSet));
+        doAnswer(invocation -> {
+            Future<Set<String>> future = invocation.getArgument(0);
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, future));
+            return null;
+        }).when(profileDiscoveryAPI).getAppIdsWithPrefix(any(), any(), ArgumentMatchers.matches(npPrefixSet));
 
         Future<Void> pCorrectPrefix = Future.future();
         Future<Void> pIncorrectPrefix = Future.future();
@@ -172,14 +176,36 @@ public class RouterVerticleTest {
     }
 
     @Test
+    public void TestRootRoute(TestContext testContext) throws Exception {
+        final Async async = testContext.async();
+
+        client.getNow(port, "localhost", "/", httpClientResponse -> httpClientResponse.bodyHandler(buffer -> {
+            testContext.assertTrue(buffer.toString().contains("UserAPI"));
+            async.complete();
+        }));
+    }
+
+    @Test
     public void TestGetClustersRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
         String pPrefixSet = "(^$|c|cl|clu|clus|clust|cluste|cluster|cluster1)";
         String npPrefixSet = "(b|ba|bar)";
-        when(profileDiscoveryAPI.getClusterIdsWithPrefix(eq(P_APP_ID), ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> Sets.newSet(P_CLUSTER_ID)));
-        when(profileDiscoveryAPI.getClusterIdsWithPrefix(eq(P_APP_ID), ArgumentMatchers.matches(npPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
-        when(profileDiscoveryAPI.getClusterIdsWithPrefix(eq(NP_APP_ID), ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
-        when(profileDiscoveryAPI.getClusterIdsWithPrefix(eq(NP_APP_ID), ArgumentMatchers.matches(npPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(() -> Sets.newSet(P_CLUSTER_ID)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getClusterIdsWithPrefix(any(), any(), eq(P_APP_ID), ArgumentMatchers.matches(pPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getClusterIdsWithPrefix(any(), any(), eq(P_APP_ID), ArgumentMatchers.matches(npPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getClusterIdsWithPrefix(any(), any(), eq(NP_APP_ID), ArgumentMatchers.matches(pPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getClusterIdsWithPrefix(any(), any(), eq(NP_APP_ID), ArgumentMatchers.matches(npPrefixSet));
 
         Future<Void> pAndCorrectPrefix = Future.future();
         Future<Void> pAndIncorrectPrefix = Future.future();
@@ -248,10 +274,22 @@ public class RouterVerticleTest {
         String pPrefixSet = "(^$|p|pr|pro|proc|proce|proces|process|process1)";
         String npPrefixSet = "(m|ma|mai|main)";
 
-        when(profileDiscoveryAPI.getProcsWithPrefix(eq(P_APP_ID), eq(P_CLUSTER_ID), ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> Sets.newSet(P_PROC)));
-        when(profileDiscoveryAPI.getProcsWithPrefix(eq(P_APP_ID), eq(P_CLUSTER_ID), ArgumentMatchers.matches(npPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
-        when(profileDiscoveryAPI.getProcsWithPrefix(eq(NP_APP_ID), eq(NP_CLUSTER_ID), ArgumentMatchers.matches(pPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
-        when(profileDiscoveryAPI.getProcsWithPrefix(eq(NP_APP_ID), eq(NP_CLUSTER_ID), ArgumentMatchers.matches(npPrefixSet))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(() -> Sets.newSet(P_PROC)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProcsWithPrefix(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), ArgumentMatchers.matches(pPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProcsWithPrefix(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), ArgumentMatchers.matches(npPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProcsWithPrefix(any(), any(), eq(NP_APP_ID), eq(NP_CLUSTER_ID), ArgumentMatchers.matches(pPrefixSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<String>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProcsWithPrefix(any(), any(), eq(NP_APP_ID), eq(NP_CLUSTER_ID), ArgumentMatchers.matches(npPrefixSet));
 
         Future<Void> pAndCorrectPrefix = Future.future();
         Future<Void> pAndIncorrectPrefix = Future.future();
@@ -324,24 +362,22 @@ public class RouterVerticleTest {
     public void TestGetProfilesRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
 
-        Profile pProfile = new Profile(P_TIME_STAMP, ZonedDateTime.parse(P_TIME_STAMP).plusSeconds(1800).toString());
-        pProfile.setValues(Sets.newSet(P_WORKTYPE));
+        FilteredProfiles pProfile = new FilteredProfiles(P_TIME_STAMP, P_TIME_STAMP.plusSeconds(1800), Sets.newSet(P_WORKTYPE));
 
-        Profile nPProfile = new Profile(P_TIME_STAMP, ZonedDateTime.parse(P_TIME_STAMP).plusSeconds(1500).toString());
-        nPProfile.setValues(Sets.newSet(NP_WORKTYPE));
+        FilteredProfiles nPProfile = new FilteredProfiles(P_TIME_STAMP, P_TIME_STAMP.plusSeconds(1500), Sets.newSet(NP_WORKTYPE));
 
-        when(profileDiscoveryAPI.getProfilesInTimeWindow(eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(P_TIME_STAMP), eq(DURATION))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> Sets.newSet(pProfile)));
-        when(profileDiscoveryAPI.getProfilesInTimeWindow(eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(""), eq(""))).thenAnswer(invocation -> CompletableFuture.supplyAsync(() -> Sets.newSet(pProfile)));
-        when(profileDiscoveryAPI.getProfilesInTimeWindow(eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(NP_TIME_STAMP), eq(DURATION))).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
-        when(profileDiscoveryAPI.getProfilesInTimeWindow(eq(NP_APP_ID), eq(NP_CLUSTER_ID), eq(NP_PROC), anyString(), anyString())).thenAnswer(invocation -> CompletableFuture.supplyAsync(Sets::newSet));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(() -> Sets.newSet(pProfile)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProfilesInTimeWindow(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(P_TIME_STAMP), eq(DURATION));
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(Sets::<FilteredProfiles>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProfilesInTimeWindow(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(NP_TIME_STAMP), eq(DURATION));
 
         Future<Void> pAndCorrectPrefix = Future.future();
         Future<Void> pAndIncorrectPrefix = Future.future();
         Future<Void> pAndNoPrefix = Future.future();
-
-        Future<Void> npAndPPrefix = Future.future();
-        Future<Void> npAndNpPrefix = Future.future();
-        Future<Void> npAndNoPrefix = Future.future();
 
         client.getNow(port, "localhost", "/profiles/" + P_APP_ID + URL_SEPARATOR + P_CLUSTER_ID + URL_SEPARATOR + P_PROC + "?start=" + P_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
@@ -362,45 +398,20 @@ public class RouterVerticleTest {
 
         });
         client.getNow(port, "localhost", "/profiles/" + P_APP_ID + URL_SEPARATOR + P_CLUSTER_ID + URL_SEPARATOR + P_PROC, httpClientResponse -> {
-            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
-            httpClientResponse.bodyHandler(buffer -> {
-                testContext.assertTrue(buffer.toString().contains(P_WORKTYPE));
-                testContext.assertFalse(buffer.toString().contains(NP_WORKTYPE));
-                pAndNoPrefix.complete();
+            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.BAD_REQUEST.code());
+            pAndNoPrefix.complete();
             });
 
-        });
-        client.getNow(port, "localhost", "/profiles/" + NP_APP_ID + URL_SEPARATOR + NP_CLUSTER_ID + URL_SEPARATOR + NP_PROC + "?start=" + P_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
-            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
-            httpClientResponse.bodyHandler(buffer -> {
-                testContext.assertFalse(buffer.toString().contains(P_WORKTYPE));
-                testContext.assertFalse(buffer.toString().contains(NP_WORKTYPE));
-                npAndPPrefix.complete();
-            });
-
-        });
-        client.getNow(port, "localhost", "/profiles/" + NP_APP_ID + URL_SEPARATOR + NP_CLUSTER_ID + URL_SEPARATOR + NP_PROC + "?start=" + NP_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
-            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
-            httpClientResponse.bodyHandler(buffer -> {
-                testContext.assertFalse(buffer.toString().contains(P_WORKTYPE));
-                testContext.assertFalse(buffer.toString().contains(NP_WORKTYPE));
-                npAndNpPrefix.complete();
-            });
-
-        });
-        client.getNow(port, "localhost", "/profiles/" + NP_APP_ID + URL_SEPARATOR + NP_CLUSTER_ID + URL_SEPARATOR + NP_PROC + "?start=" + NP_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
-            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
-            httpClientResponse.bodyHandler(buffer -> {
-                testContext.assertFalse(buffer.toString().contains(P_WORKTYPE));
-                testContext.assertFalse(buffer.toString().contains(NP_WORKTYPE));
-                npAndNoPrefix.complete();
-            });
-
-        });
-
-        CompositeFuture.all(pAndCorrectPrefix, pAndIncorrectPrefix, pAndNoPrefix, npAndPPrefix, npAndNpPrefix, npAndNoPrefix).setHandler(compositeFutureAsyncResult -> async.complete());
+        CompositeFuture.all(pAndCorrectPrefix, pAndIncorrectPrefix, pAndNoPrefix).setHandler(compositeFutureAsyncResult -> async.complete());
 
     }
 
-
+    private <T> void completeFuture(T result, Throwable error, Future<T> future) {
+        if(error == null) {
+            future.complete(result);
+        }
+        else {
+            future.fail(error);
+        }
+    }
 }

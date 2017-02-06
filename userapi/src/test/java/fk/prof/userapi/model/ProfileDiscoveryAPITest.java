@@ -1,49 +1,54 @@
 package fk.prof.userapi.model;
 
 import fk.prof.storage.AsyncStorage;
-import fk.prof.userapi.discovery.ProfileDiscoveryAPIImpl;
+import fk.prof.userapi.api.ProfileStoreAPI;
+import fk.prof.userapi.api.ProfileStoreAPIImpl;
+import fk.prof.userapi.model.json.ProtoSerializers;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.Json;
+import io.vertx.ext.unit.Async;
+import io.vertx.ext.unit.TestContext;
+import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
 /**
- * Tests for {@link ProfileDiscoveryAPIImpl} using mocked behaviour of listAysnc {@link AsyncStorage} API
+ * Tests for {@link ProfileStoreAPIImpl} using mocked behaviour of listAysnc {@link AsyncStorage} API
  * Created by rohit.patiyal on 24/01/17.
  */
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(VertxUnitRunner.class)
 public class ProfileDiscoveryAPITest {
 
-    private static final String DELIMITER = "_";
+    private static final String DELIMITER = "/";
+    private static final String BASE_DIR = "profiles";
 
-    @InjectMocks
-    private ProfileDiscoveryAPIImpl profileDiscoveryAPI;
-
-    @Mock
+    private ProfileStoreAPI profileDiscoveryAPI;
     private AsyncStorage asyncStorage;
+    private Vertx vertx;
 
     private Set<String> getObjList(String prefix, boolean recursive) {
         String objects[] = {
-                "v001_MZXW6===_MJQXE===_main_2017-01-20T12:37:20.551+05:30_1500_iosamples_0001",
-                "v001_MZXW6===_MJQXE===_main_2017-01-20T12:37:20.551+05:30_1500_cpusamples_0001",
-                "v001_MFYHAMI=_MNWHK43UMVZDC===_process1_2017-01-20T12:37:20.551+05:30_1500_worktype1_0001",
-                "v001_MFYHAMI=_MNWHK43UMVZDC===_process1_2017-01-20T12:37:20.551+05:30_1800_worktype2_0001",
+                "v001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
+                "v001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
+                "v001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
+                "v001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
         };
         Set<String> resultObjects = new HashSet<>();
         for (String obj : objects) {
@@ -58,19 +63,28 @@ public class ProfileDiscoveryAPITest {
         return resultObjects;
     }
 
+    @BeforeClass
+    public static void setup() {
+        ProtoSerializers.registerSerializers(Json.mapper);
+    }
+
     @Before
     public void setUp() throws Exception {
+        vertx = Vertx.vertx();
+        asyncStorage = mock(AsyncStorage.class);
+        profileDiscoveryAPI = new ProfileStoreAPIImpl(vertx, asyncStorage, 30);
+
         when(asyncStorage.listAsync(anyString(), anyBoolean())).thenAnswer(invocation -> {
             String path1 = invocation.getArgument(0);
-            String fileName = path1.split("/")[1];
+            String fileName = path1.substring(path1.indexOf('/') + 1);
             Boolean recursive = invocation.getArgument(1);
             return CompletableFuture.supplyAsync(() -> getObjList(fileName, recursive));
         });
-
     }
 
     @Test
-    public void TestGetAppIdsWithPrefix() throws Exception {
+    public void TestGetAppIdsWithPrefix(TestContext context) throws Exception {
+        Async async = context.async();
         Map<String, Collection<Object>> appIdTestPairs = new HashMap<String, Collection<Object>>() {
             {
                 put("app", Sets.newSet("app1"));
@@ -78,14 +92,22 @@ public class ProfileDiscoveryAPITest {
             }
         };
 
+        List<Future> futures = new ArrayList<>();
         for (Map.Entry<String, Collection<Object>> entry : appIdTestPairs.entrySet()) {
-            assertThat(profileDiscoveryAPI.getAppIdsWithPrefix(entry.getKey()).get(), is(entry.getValue()));
+            Future<Set<String>> f = Future.future();
+            futures.add(f);
+
+            f.setHandler(res -> context.assertEquals(entry.getValue(), res.result()));
+            profileDiscoveryAPI.getAppIdsWithPrefix(f, BASE_DIR, entry.getKey());
         }
+
+        CompositeFuture f = CompositeFuture.all(futures);
+        f.setHandler(res -> completeTest(res, context, async));
     }
 
     @Test
-    public void TestGetClusterIdsWithPrefix() throws Exception {
-
+    public void TestGetClusterIdsWithPrefix(TestContext context) throws Exception {
+        Async async = context.async();
         Map<List<String>, Collection<?>> appIdTestPairs = new HashMap<List<String>, Collection<?>>() {
             {
                 put(Arrays.asList("app1", "cl"), Sets.newSet("cluster1"));
@@ -97,14 +119,22 @@ public class ProfileDiscoveryAPITest {
             }
         };
 
+        List<Future> futures = new ArrayList<>();
         for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<String> got = profileDiscoveryAPI.getClusterIdsWithPrefix(entry.getKey().get(0), entry.getKey().get(1)).get();
-            assertThat(got, is(entry.getValue()));
+            Future<Set<String>> f = Future.future();
+            futures.add(f);
+
+            f.setHandler(res -> context.assertEquals(entry.getValue(), res.result()));
+            profileDiscoveryAPI.getClusterIdsWithPrefix(f, BASE_DIR, entry.getKey().get(0), entry.getKey().get(1));
         }
+
+        CompositeFuture f = CompositeFuture.all(futures);
+        f.setHandler(res -> completeTest(res, context, async));
     }
 
     @Test
-    public void TestGetProcsWithPrefix() throws Exception {
+    public void TestGetProcsWithPrefix(TestContext context) throws Exception {
+        Async async = context.async();
         Map<List<String>, Collection<?>> appIdTestPairs = new HashMap<List<String>, Collection<?>>() {
             {
                 put(Arrays.asList("app1", "cluster1", "pr"), Sets.newSet("process1"));
@@ -114,39 +144,58 @@ public class ProfileDiscoveryAPITest {
             }
         };
 
+        List<Future> futures = new ArrayList<>();
         for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<String> got = profileDiscoveryAPI.getProcsWithPrefix(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2)).get();
-            assertThat(got, is(entry.getValue()));
+            Future<Set<String>> f = Future.future();
+            futures.add(f);
+
+            f.setHandler(res -> {
+                context.assertEquals(entry.getValue(), res.result());
+            });
+            profileDiscoveryAPI.getProcsWithPrefix(f, BASE_DIR, entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2));
         }
+
+        CompositeFuture f = CompositeFuture.all(futures);
+        f.setHandler(res -> completeTest(res, context, async));
     }
 
     @Test
-    public void TestGetProfilesInTimeWindow() throws Exception {
-        Profile profile1 = new Profile("2017-01-20T12:37:20.551+05:30", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1500).toString());
-        profile1.setValues(Sets.newSet("worktype1"));
+    public void TestGetProfilesInTimeWindow(TestContext context) throws Exception {
+        Async async = context.async();
+        FilteredProfiles profile1 = new FilteredProfiles(ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1500), Sets.newSet("monitor_contention_work"));
+        FilteredProfiles profile2 = new FilteredProfiles(ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1800), Sets.newSet("monitor_wait_work"));
+        FilteredProfiles profile3 = new FilteredProfiles(ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1500), Sets.newSet("thread_sample_work", "cpu_sample_work"));
 
-        Profile profile2 = new Profile("2017-01-20T12:37:20.551+05:30", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1800).toString());
-        profile2.setValues(Sets.newSet("worktype2"));
-
-        Profile profile3 = new Profile("2017-01-20T12:37:20.551+05:30", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30").plusSeconds(1500).toString());
-        profile3.setValues(Sets.newSet("iosamples", "cpusamples"));
-
-        Map<List<String>, Collection<?>> appIdTestPairs = new HashMap<List<String>, Collection<?>>() {
+        Map<List<Object>, Collection<?>> appIdTestPairs = new HashMap<List<Object>, Collection<?>>() {
             {
-                put(Arrays.asList("app1", "cluster1", "process1", "2017-01-20T12:37:20.551+05:30", "1600"),
+                put(Arrays.asList("app1", "cluster1", "process1", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1600),
                         Sets.newSet(profile1, profile2));
-                put(Arrays.asList("app1", "cluster1", "process1", "2017-01-20T12:37:20.551+05:30", "1900"),
+                put(Arrays.asList("app1", "cluster1", "process1", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1900),
                         Sets.newSet(profile1, profile2));
-                put(Arrays.asList("foo", "bar", "main", "2017-01-20T12:37:20.551+05:30", "1900"),
+                put(Arrays.asList("foo", "bar", "main", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1900),
                         Sets.newSet(profile3));
             }
         };
 
-        for (Map.Entry<List<String>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Set<Profile> got = profileDiscoveryAPI.getProfilesInTimeWindow(entry.getKey().get(0), entry.getKey().get(1), entry.getKey().get(2), entry.getKey().get(3), entry.getKey().get(4)).get();
-            assertEquals(entry.getValue(), got);
+        List<Future> futures = new ArrayList<>();
+        for (Map.Entry<List<Object>, Collection<?>> entry : appIdTestPairs.entrySet()) {
+            Future<Set<FilteredProfiles>> f = Future.future();
+            futures.add(f);
+
+            f.setHandler(res -> context.assertEquals(entry.getValue(), res.result()));
+            profileDiscoveryAPI.getProfilesInTimeWindow(f, BASE_DIR,
+                    (String)entry.getKey().get(0), (String)entry.getKey().get(1), (String)entry.getKey().get(2), (ZonedDateTime)entry.getKey().get(3), (Integer)entry.getKey().get(4));
         }
+
+        CompositeFuture f = CompositeFuture.all(futures);
+        f.setHandler(res -> completeTest(res, context, async));
     }
 
+    private void completeTest(AsyncResult result, TestContext context, Async async) {
+        if(result.failed()) {
+            context.fail(result.cause());
+        }
+        async.complete();
+    }
 }
 

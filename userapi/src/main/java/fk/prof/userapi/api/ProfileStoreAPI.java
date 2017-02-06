@@ -1,22 +1,25 @@
-package fk.prof.userapi.discovery;
+package fk.prof.userapi.api;
 
-import fk.prof.userapi.model.Profile;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
+import fk.prof.userapi.model.AggregatedProfileInfo;
+import fk.prof.userapi.model.FilteredProfiles;
+import io.vertx.core.Future;
 
+import java.time.ZonedDateTime;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Interface for DataStores containing aggregated profile data
  * Created by rohit.patiyal on 23/01/17.
  */
-public interface ProfileDiscoveryAPI {
+public interface ProfileStoreAPI {
     /**
      * Returns completable future which returns set of appIds from the DataStore filtered by the specified prefix
      *
      * @param appIdPrefix prefix to filter the appIds
      * @return completable future which returns set containing app ids
      */
-    CompletableFuture<Set<String>> getAppIdsWithPrefix(String appIdPrefix);
+    void getAppIdsWithPrefix(Future<Set<String>> appIds, String baseDir, String appIdPrefix);
 
     /**
      * Returns set of clusterIds of specified appId from the DataStore filtered by the specified prefix
@@ -25,7 +28,7 @@ public interface ProfileDiscoveryAPI {
      * @param clusterIdPrefix prefix to filter the clusterIds
      * @return completable future which returns set containing cluster ids
      */
-    CompletableFuture<Set<String>> getClusterIdsWithPrefix(String appId, String clusterIdPrefix);
+    void getClusterIdsWithPrefix(Future<Set<String>> clusterIds, String baseDir, String appId, String clusterIdPrefix);
 
     /**
      * Returns set of processes of specified appId and clusterId from the DataStore filtered by the specified prefix
@@ -35,7 +38,7 @@ public interface ProfileDiscoveryAPI {
      * @param procPrefix prefix to filter the processes
      * @return completable future which returns set containing process names
      */
-    CompletableFuture<Set<String>> getProcsWithPrefix(String appId, String clusterId, String procPrefix);
+    void getProcsWithPrefix(Future<Set<String>> procIds, String baseDir, String appId, String clusterId, String procPrefix);
 
     /**
      * Returns set of profiles of specified appId, clusterId and process from the DataStore filtered by the specified time interval and duration
@@ -47,5 +50,12 @@ public interface ProfileDiscoveryAPI {
      * @param durationInSeconds duration from startTime to filter the profiles
      * @return completable future which returns set containing profiles
      */
-    CompletableFuture<Set<Profile>> getProfilesInTimeWindow(String appId, String clusterId, String proc, String startTime, String durationInSeconds);
+    void getProfilesInTimeWindow(Future<Set<FilteredProfiles>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds);
+
+    /**
+     * Returns aggregated profile for the provided header
+     * @param future
+     * @param header
+     */
+    void load(Future<AggregatedProfileInfo> future, AggregatedProfileModel.Header header);
 }
