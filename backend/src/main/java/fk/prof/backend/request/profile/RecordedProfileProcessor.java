@@ -1,7 +1,12 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile;
 
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.model.profile.RecordedProfileHeader;
+import fk.prof.backend.model.profile.RecordedProfileIndexes;
+import fk.prof.backend.request.CompositeByteBufInputStream;
+import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
+import fk.prof.backend.request.profile.parser.WseParser;
 import fk.prof.backend.service.IProfileWorkService;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -37,12 +42,12 @@ public class RecordedProfileProcessor {
   }
 
   /**
-   * Returns true if header has been successfully parsed and no wse entry log is parsed partially
+   * Returns true if header has been successfully parsed to retrieve aggregation window and no wse entry log is processed partially
    *
-   * @return parsed a valid recorded profile object or not
+   * @return processed a valid recorded profile object or not
    */
-  public boolean isParsed() {
-    return headerParser.isParsed() && !intermediateWseEntry;
+  public boolean isProcessed() {
+    return aggregationWindow != null && !intermediateWseEntry;
   }
 
   /**
@@ -58,7 +63,7 @@ public class RecordedProfileProcessor {
     }
 
     try {
-      if (!headerParser.isParsed()) {
+      if (aggregationWindow == null) {
         headerParser.parse(inputStream);
 
         if (headerParser.isParsed()) {
@@ -78,7 +83,7 @@ public class RecordedProfileProcessor {
         }
       }
 
-      if (headerParser.isParsed()) {
+      if (aggregationWindow != null) {
         while (inputStream.available() > 0) {
           wseParser.parse(inputStream);
           if (wseParser.isParsed()) {
@@ -102,10 +107,10 @@ public class RecordedProfileProcessor {
    */
   public void close() throws AggregationFailure {
     try {
-      if (isParsed()) {
+      if (isProcessed()) {
         aggregationWindow.completeProfile(workId);
       } else {
-        if(aggregationWindow != null) {
+        if (aggregationWindow != null) {
           aggregationWindow.abandonProfile(workId);
         }
         throw new AggregationFailure(String.format("Invalid or incomplete payload received, aggregation failed for work_id=%d", workId));

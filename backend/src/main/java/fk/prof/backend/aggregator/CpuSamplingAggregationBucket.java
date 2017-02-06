@@ -1,12 +1,12 @@
 package fk.prof.backend.aggregator;
 
 import fk.prof.aggregation.FinalizableBuilder;
-import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.model.request.RecordedProfileIndexes;
 import fk.prof.aggregation.MethodIdLookup;
 import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
 import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
+import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
+import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.util.List;

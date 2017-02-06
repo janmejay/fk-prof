@@ -1,11 +1,11 @@
 package fk.prof.backend.aggregator;
 
-import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
-import fk.prof.aggregation.state.AggregationState;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
+import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.model.request.RecordedProfileIndexes;
+import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.time.LocalDateTime;
@@ -74,13 +74,22 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   public void abortOngoingProfiles() throws AggregationFailure {
     ensureEntityIsWriteable();
 
-    for (Map.Entry<Long, ProfileWorkInfo> entry: workInfoLookup.entrySet()) {
+    for (Map.Entry<Long, ProfileWorkInfo> entry : workInfoLookup.entrySet()) {
       try {
         entry.getValue().abortProfile();
       } catch (IllegalStateException ex) {
         throw new AggregationFailure(String.format("Error aborting profile for work_id=%d", entry.getKey()), ex);
       }
     }
+  }
+
+  public boolean hasProfileBeenStarted(long workId) {
+    ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
+    if (workInfo == null) {
+      throw new IllegalArgumentException(String.format("No profile for work_id=%d exists in the aggregation window",
+          workId));
+    }
+    return workInfo.hasProfileBeenStarted();
   }
 
   public void aggregate(Recorder.Wse wse, RecordedProfileIndexes indexes) throws AggregationFailure {

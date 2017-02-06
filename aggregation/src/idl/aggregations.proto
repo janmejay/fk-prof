@@ -10,7 +10,7 @@ message TraceCtxDetail {
 
 // List of all trace contexts. 
 message TraceCtxList {
-	repeated TraceCtxDetail traces = 1;
+	repeated TraceCtxDetail allTraceCtx = 1;
 }
 
 message ProfileSourceInfo {

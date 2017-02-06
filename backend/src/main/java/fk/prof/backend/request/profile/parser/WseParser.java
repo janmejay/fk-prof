@@ -1,8 +1,9 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile.parser;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.CompositeByteBufInputStream;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -61,26 +62,26 @@ public class WseParser {
     try {
       if (!wseParsed) {
         if (wseLength == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:wseLength from inputstream");
           }
           wseLength = CodedInputStream.readRawVarint32(firstByte, inputStream);
           if (wseLength < 1 || wseLength > maxAllowedBytesForWse) {
             throw new AggregationFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B");
           }
-          byte[] wseLengthBytes = inputStream.getBytesReadSinceMark();
+          byte[] wseLengthBytes = inputStream.getBytesReadSinceDiscardAndMark();
           wseChecksum.update(wseLengthBytes, 0, wseLengthBytes.length);
         }
 
         if (wse == null) {
-          if(inputStream.available() < wseLength) {
+          if (inputStream.available() < wseLength) {
             return;
           }
 
           try {
-            inputStream.mark(0);
+            inputStream.discardReadBytesAndMark();
             byte[] wseBytes = new byte[wseLength];
             inputStream.read(wseBytes, 0, wseLength);
             wse = Recorder.Wse.parseFrom(wseBytes);
@@ -92,9 +93,9 @@ public class WseParser {
         }
 
         if (checksumValue == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:checksum from inputstream");
           }
           checksumValue = CodedInputStream.readRawVarint32(firstByte, inputStream);
@@ -105,12 +106,13 @@ public class WseParser {
         }
       }
     } catch (IOException ex) {
-      if(!(ex instanceof InvalidProtocolBufferException)) {
+      if (!(ex instanceof InvalidProtocolBufferException)) {
         throw new AggregationFailure(ex);
       } else {
         try {
           inputStream.reset();
-        } catch (IOException ex1) {}
+        } catch (IOException ex1) {
+        }
         //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
       }
     }

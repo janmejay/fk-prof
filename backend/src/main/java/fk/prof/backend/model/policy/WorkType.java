@@ -1,4 +1,4 @@
-package fk.prof;
+package fk.prof.backend.model.policy;
 
 /**
  * @author gaurav.ashok

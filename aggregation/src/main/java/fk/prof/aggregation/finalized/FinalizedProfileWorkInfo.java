@@ -6,7 +6,6 @@ import fk.prof.aggregation.state.AggregationState;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Set;
 
 public class FinalizedProfileWorkInfo implements SerializableAggregationEntity {
   private final int recorderVersion;

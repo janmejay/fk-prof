@@ -1,12 +1,8 @@
 package fk.prof.aggregation.cpusampling;
 
 import fk.prof.aggregation.MethodIdLookup;
-import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
-import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.List;
 
 public class CpuSamplingTraceDetailTest {
   @Test

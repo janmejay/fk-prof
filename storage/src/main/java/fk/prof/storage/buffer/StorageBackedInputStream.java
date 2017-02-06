@@ -10,6 +10,11 @@ import org.slf4j.LoggerFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Exchanger;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * InputStream implementation which is backed by a {@link AsyncStorage} to fetch content
@@ -32,12 +37,18 @@ public class StorageBackedInputStream extends InputStream {
 
     private boolean eof;
 
+    /* variable to hold a future object in case the current thread gets interrupted while waiting on the
+     * storage.
+     */
+    private CompletableFuture<InputStream> futureInputStream;
+
     public StorageBackedInputStream(AsyncStorage storage, FileNamingStrategy fileNameStrategy) {
         this.storage = storage;
         this.fileNameStrategy = fileNameStrategy;
 
         this.part = 0;
         this.eof = false;
+        this.futureInputStream = null;
     }
 
     @Override
@@ -74,7 +85,13 @@ public class StorageBackedInputStream extends InputStream {
             int bytesRead = buf.read(b, off + (len - bytesToRead), bytesToRead);
 
             if(bytesRead == -1) {
-                fetchAndSwapBuffer();
+                try {
+                    fetchAndSwapBuffer();
+                }
+                catch (InterruptedIOException e) {
+                    e.bytesTransferred = len - bytesToRead;
+                    throw e;
+                }
                 continue;
             }
 
@@ -85,24 +102,36 @@ public class StorageBackedInputStream extends InputStream {
     }
 
     private void fetchAndSwapBuffer() throws IOException {
-        String nextFileName = fileNameStrategy.getFileName(part + 1);
+        String nextFileName = fileNameStrategy.getFileName(part);
+        if(buf != null) {
+            buf.close();
+        }
+        buf = null;
+
+        if(futureInputStream == null) {
+            futureInputStream = storage.fetchAsync(nextFileName);
+        }
+
         try {
-            if(buf != null) {
-                buf.close();
-            }
-            buf = storage.fetch(nextFileName);
+            buf = futureInputStream.get();
             part++;
+            futureInputStream = null;
         }
-        catch (ObjectNotFoundException e) {
-            // mark eof
-            eof = true;
-            final String msg = "File: " + nextFileName + " could not be found";
-            LOGGER.error(msg, e);
-            throw new FileNotFoundException(msg + ". Cause: " + e.getMessage());
+        catch (InterruptedException e) {
+            throw new InterruptedIOException(e.getMessage());
         }
-        catch (StorageException e) {
-            LOGGER.error("Unexpected error while fetching file: {}", nextFileName, e);
-            throw new IOException(e);
+        catch (ExecutionException e) {
+            if(e.getCause() instanceof ObjectNotFoundException) {
+                // mark eof
+                eof = true;
+                final String msg = "File: " + nextFileName + " could not be found";
+                LOGGER.error(msg, e);
+                throw new FileNotFoundException(msg + ". Cause: " + e.getMessage());
+            }
+            else {
+                LOGGER.error("Unexpected error while fetching file: {}", nextFileName, e);
+                throw new IOException(e);
+            }
         }
     }
 
@@ -126,6 +155,18 @@ public class StorageBackedInputStream extends InputStream {
     public void close() throws IOException {
         if(buf != null) {
             buf.close();
+        }
+        if(futureInputStream != null) {
+            futureInputStream.whenCompleteAsync((is, error) -> {
+                if(is != null) {
+                    try {
+                        is.close();
+                    }
+                    catch (IOException e) {
+                        LOGGER.error("couldn't close future stream", e);
+                    }
+                }
+            });
         }
     }
 }

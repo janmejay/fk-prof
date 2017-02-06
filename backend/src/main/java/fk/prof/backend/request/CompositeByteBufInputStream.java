@@ -1,4 +1,4 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
@@ -48,13 +48,13 @@ public class CompositeByteBufInputStream extends InputStream {
   @Override
   public long skip(long n) throws IOException {
     if (n > Integer.MAX_VALUE) {
-      return skipBytes(Integer.MAX_VALUE);
+      throw new IllegalArgumentException("Java byte arrays cannot be longer than Integer.MAX_VALUE, cannot continue with skip operation");
     } else {
       return skipBytes((int) n);
     }
   }
 
-  public int skipBytes(int n) throws IOException {
+  private int skipBytes(int n) throws IOException {
     int nBytes = Math.min(available(), n);
     buffer.skipBytes(nBytes);
     return nBytes;
@@ -65,21 +65,19 @@ public class CompositeByteBufInputStream extends InputStream {
     return buffer.readableBytes();
   }
 
+  // TODO: The mark and reset semantics for this stream are different from convention.
+  // Appropriately, markSupported returns false and there are separate methods for mark and reset with overloaded functionality
   @Override
   public boolean markSupported() {
-    return true;
+    return false;
   }
 
   /**
-   * Besides marking the current position, this method discards all the bytes read up until this point.
+   * Besides marking the current position, this method discards all the bytes read until this point.
    * Calling reset does not restore the discarded bytes
-   * Call mark() when you are sure you have read all previous bytes correctly and can be freed up
-   *
-   * Readlimit parameter is accepted as arg to comply with Inputstream abstract class but is not used or supported by this impl
-   * @param readlimit
+   * Call discardReadBytesAndMark() when you are sure you have read all previous bytes correctly and can be freed up
    */
-  @Override
-  public void mark(int readlimit) {
+  public void discardReadBytesAndMark() {
     //CompositeByteBuf::discardReadBytes method changes readerIndex position so calling this before storing readerIndex position
     buffer.discardReadBytes();
     buffer.markReaderIndex();
@@ -97,10 +95,10 @@ public class CompositeByteBufInputStream extends InputStream {
   }
 
   // NOTE: Use this method with caution.
-  // All bytes read since mark() was called on inputstream
-  // or from the start if mark() was never called prior to calling this method,
-  // until the current read position are copied in a new byte array
-  public byte[] getBytesReadSinceMark() {
+  // All bytes read since discardReadBytesAndMark() was called on inputstream
+  // or from the start if discardReadBytesAndMark() was never called prior to calling this method,
+  // till the current read position are copied in a new byte array
+  public byte[] getBytesReadSinceDiscardAndMark() {
     int readBytes = buffer.readerIndex() - readerIndexAtMark;
     byte[] bytesReadSinceMark = new byte[readBytes];
     buffer.getBytes(readerIndexAtMark, bytesReadSinceMark, 0, readBytes);
