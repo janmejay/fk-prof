@@ -6,16 +6,19 @@ import fk.prof.storage.FileNamingStrategy;
 import fk.prof.storage.ObjectNotFoundException;
 import fk.prof.storage.StorageException;
 
-
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * @author gaurav.ashok
  */
-public class Util {
+class Util {
 
     public static class TrivialFileNameStrategy implements FileNamingStrategy {
         @Override
@@ -26,7 +29,7 @@ public class Util {
 
     public static class StringStorage implements AsyncStorage {
 
-        public Map<String, String> writtenContent = new HashMap<>();
+        Map<String, String> writtenContent = new HashMap<>();
 
         // sync impl
         @Override
@@ -40,13 +43,12 @@ public class Util {
             finally {
                 try {
                     content.close();
-                }
-                catch (Exception e) {
+                } catch (Exception ignored) {
                 }
             }
         }
 
-        public InputStream fetch(String path) throws StorageException {
+        InputStream fetch(String path) throws StorageException {
             if(writtenContent.containsKey(path)) {
                 return new ByteArrayInputStream(writtenContent.get(path).getBytes());
             }
@@ -57,6 +59,11 @@ public class Util {
         @Override
         public CompletableFuture<InputStream> fetchAsync(String path) {
             return CompletableFuture.supplyAsync(() -> fetch(path));
+        }
+
+        @Override
+        public CompletableFuture<Set<String>> listAsync(String prefixPath, boolean recursive) {
+            return null;
         }
     }
 }

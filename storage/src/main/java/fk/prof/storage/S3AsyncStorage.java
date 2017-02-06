@@ -9,12 +9,17 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
@@ -23,11 +28,11 @@ import java.util.concurrent.ExecutorService;
  * @author gaurav.ashok
  */
 public class S3AsyncStorage implements AsyncStorage {
+    private static final String DELIMITER = "_";
     private static Logger LOGGER = LoggerFactory.getLogger(S3AsyncStorage.class);
     private static char PATH_SEPARATOR = '/';
     private static String NO_SUCH_KEY = "NoSuchKey";
     private static String NO_SUCH_BUCKET = "NoSuchBucket";
-
     private AmazonS3 client;
     private String endpoint;
     private String accessKey;
@@ -43,16 +48,16 @@ public class S3AsyncStorage implements AsyncStorage {
         this.endpoint = endpoint;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
-
         this.executorService = executorService;
+        initialize();
     }
 
-    public void initialize() {
+    private void initialize() {
         ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setProtocol(Protocol.HTTP);
 
         AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-        client = new AmazonS3Client(credentials,clientConfig);
+        client = new AmazonS3Client(credentials, clientConfig);
         client.setEndpoint(endpoint);
         client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
     }
@@ -80,13 +85,43 @@ public class S3AsyncStorage implements AsyncStorage {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getObject(objectPath.bucket, objectPath.fileName).getObjectContent();
-            }
-            catch (AmazonServiceException svcEx) {
+            } catch (AmazonServiceException svcEx) {
                 LOGGER.error("S3 getObject failed: {}", path, svcEx);
                 throw mapServiceException(svcEx);
-            }
-            catch (AmazonClientException clientEx) {
+            } catch (AmazonClientException clientEx) {
                 LOGGER.error("S3 getObject failed: {}", path, clientEx);
+                throw mapClientException(clientEx);
+            }
+        }, executorService);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listAsync(String prefixPath, boolean recursive) {
+        S3ObjectPath objectPath = new S3ObjectPath(prefixPath);
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Set<String> allObjects = new HashSet<>();
+                ObjectListing objects;
+                if (recursive) {
+                    objects = client.listObjects(new ListObjectsRequest().withBucketName(objectPath.bucket).withPrefix(objectPath.fileName));
+                } else {
+                    objects = client.listObjects(new ListObjectsRequest().withBucketName(objectPath.bucket).withDelimiter(DELIMITER).withPrefix(objectPath.fileName));
+                }
+
+                do {
+                    for (S3ObjectSummary objSummary : objects.getObjectSummaries()) {
+                        allObjects.add(objSummary.getKey());                    //All files with prefix with complete path
+                    }
+                    for (String commonPrefix : objects.getCommonPrefixes()) {   //Folders in current dir (if delimiter passed)
+                        allObjects.add(commonPrefix);                           //with complete path
+                    }
+                } while (objects.isTruncated());
+                return allObjects;
+            } catch (AmazonServiceException svcEx) {
+                LOGGER.error("S3 ListObjects failed: {}", prefixPath, svcEx);
+                throw mapServiceException(svcEx);
+            } catch (AmazonClientException clientEx) {
+                LOGGER.error("S3 ListObjects failed: {}", prefixPath, clientEx);
                 throw mapClientException(clientEx);
             }
         }, executorService);
@@ -98,10 +133,9 @@ public class S3AsyncStorage implements AsyncStorage {
 
     private StorageException mapServiceException(AmazonServiceException ex) {
         // map non existent bucket and non existent path to PathNotFound exception specifically
-        if(NO_SUCH_BUCKET.equals(ex.getErrorCode())) {
+        if (NO_SUCH_BUCKET.equals(ex.getErrorCode())) {
             return new ObjectNotFoundException(NO_SUCH_BUCKET + ": " + ex.getMessage(), ex);
-        }
-        else if(NO_SUCH_KEY.equals(ex.getErrorCode())) {
+        } else if (NO_SUCH_KEY.equals(ex.getErrorCode())) {
             return new ObjectNotFoundException(NO_SUCH_KEY + ": " + ex.getMessage(), ex);
         }
 
@@ -112,9 +146,9 @@ public class S3AsyncStorage implements AsyncStorage {
         final String bucket;
         final String fileName;
 
-        public S3ObjectPath(String fullPath) {
+        S3ObjectPath(String fullPath) {
             int bucketEnd = fullPath.indexOf(PATH_SEPARATOR);
-            if(bucketEnd == -1) {
+            if (bucketEnd == -1) {
                 throw new IllegalArgumentException("expecting object path in the format of {bucket}/{fileName}");
             }
 
