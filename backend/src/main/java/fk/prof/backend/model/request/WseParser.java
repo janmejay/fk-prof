@@ -61,7 +61,7 @@ public class WseParser {
     try {
       if (!wseParsed) {
         if (wseLength == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
           if(firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:wseLength from inputstream");
@@ -70,7 +70,7 @@ public class WseParser {
           if (wseLength < 1 || wseLength > maxAllowedBytesForWse) {
             throw new AggregationFailure("Allowed range for work-specific entry log length is 1B to " + maxAllowedBytesForWse + "B");
           }
-          byte[] wseLengthBytes = inputStream.getBytesReadSinceMark();
+          byte[] wseLengthBytes = inputStream.getBytesReadSinceDiscardAndMark();
           wseChecksum.update(wseLengthBytes, 0, wseLengthBytes.length);
         }
 
@@ -80,7 +80,7 @@ public class WseParser {
           }
 
           try {
-            inputStream.mark(0);
+            inputStream.discardReadBytesAndMark();
             byte[] wseBytes = new byte[wseLength];
             inputStream.read(wseBytes, 0, wseLength);
             wse = Recorder.Wse.parseFrom(wseBytes);
@@ -92,7 +92,7 @@ public class WseParser {
         }
 
         if (checksumValue == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
           if(firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:checksum from inputstream");

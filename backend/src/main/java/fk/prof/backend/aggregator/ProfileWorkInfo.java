@@ -71,6 +71,10 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
     return state;
   }
 
+  public boolean hasProfileBeenStarted() {
+    return state.isOngoing();
+  }
+
   private boolean processStateEvent(AggregationStateEvent stateEvent) {
     AggregationState newState = state.process(stateEvent);
     if(newState.equals(state)) {

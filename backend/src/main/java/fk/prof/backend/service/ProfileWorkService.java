@@ -35,6 +35,10 @@ public class ProfileWorkService implements IProfileWorkService {
       return this.windowLookup.get(workId);
     }
 
+    /**
+     * TODO: Untested
+     * @param workIds
+     */
     public void removeWorkIds(long[] workIds) {
       for (int i = 0; i < workIds.length; i++) {
         this.windowLookup.remove(workIds[i]);

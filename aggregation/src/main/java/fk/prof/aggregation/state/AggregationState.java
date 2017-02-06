@@ -3,7 +3,7 @@ package fk.prof.aggregation.state;
 
 //TODO: Add ascii-art here explaining the state machine with transitions
 public enum AggregationState {
-  SCHEDULED {
+  SCHEDULED(false, false) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       switch (stateEvent) {
@@ -14,7 +14,7 @@ public enum AggregationState {
       }
     }
   },
-  PARTIAL {
+  PARTIAL(false, false) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       switch (stateEvent) {
@@ -25,7 +25,7 @@ public enum AggregationState {
       }
     }
   },
-  ONGOING {
+  ONGOING(true, false) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       switch (stateEvent) {
@@ -40,7 +40,7 @@ public enum AggregationState {
       }
     }
   },
-  ONGOING_PARTIAL {
+  ONGOING_PARTIAL(true, false) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       switch (stateEvent) {
@@ -55,22 +55,19 @@ public enum AggregationState {
       }
     }
   },
-  //Terminal state
-  COMPLETED {
+  COMPLETED(false, true) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
     }
   },
-  //Terminal state
-  RETRIED {
+  RETRIED(false, true) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
     }
   },
-  //Terminal state
-  ABORTED {
+  ABORTED(false, true) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       return this;
@@ -78,4 +75,19 @@ public enum AggregationState {
   };
 
   public abstract AggregationState process(AggregationStateEvent stateEvent);
+
+  private boolean ongoing = false;
+  private boolean terminal = false;
+
+  AggregationState(boolean ongoing, boolean terminal) {
+    if(ongoing == true && terminal == true) {
+      throw new IllegalArgumentException("Aggregation state cannot be ongoing and terminal simultaneously");
+    }
+    this.ongoing = ongoing;
+    this.terminal = terminal;
+  }
+
+  public boolean isOngoing() {
+    return this.ongoing;
+  }
 }

@@ -37,12 +37,12 @@ public class RecordedProfileProcessor {
   }
 
   /**
-   * Returns true if header has been successfully parsed and no wse entry log is parsed partially
+   * Returns true if header has been successfully parsed to retrieve aggregation window and no wse entry log is processed partially
    *
-   * @return parsed a valid recorded profile object or not
+   * @return processed a valid recorded profile object or not
    */
-  public boolean isParsed() {
-    return headerParser.isParsed() && !intermediateWseEntry;
+  public boolean isProcessed() {
+    return aggregationWindow != null && !intermediateWseEntry;
   }
 
   /**
@@ -58,7 +58,7 @@ public class RecordedProfileProcessor {
     }
 
     try {
-      if (!headerParser.isParsed()) {
+      if (aggregationWindow == null) {
         headerParser.parse(inputStream);
 
         if (headerParser.isParsed()) {
@@ -78,7 +78,7 @@ public class RecordedProfileProcessor {
         }
       }
 
-      if (headerParser.isParsed()) {
+      if (aggregationWindow != null) {
         while (inputStream.available() > 0) {
           wseParser.parse(inputStream);
           if (wseParser.isParsed()) {
@@ -102,7 +102,7 @@ public class RecordedProfileProcessor {
    */
   public void close() throws AggregationFailure {
     try {
-      if (isParsed()) {
+      if (isProcessed()) {
         aggregationWindow.completeProfile(workId);
       } else {
         if(aggregationWindow != null) {

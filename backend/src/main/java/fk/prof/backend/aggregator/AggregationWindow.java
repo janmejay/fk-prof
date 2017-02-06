@@ -83,6 +83,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     }
   }
 
+  public boolean hasProfileBeenStarted(long workId) {
+    ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
+    if(workInfo == null) {
+      throw new IllegalArgumentException(String.format("No profile for work_id=%d exists in the aggregation window",
+          workId));
+    }
+    return workInfo.hasProfileBeenStarted();
+  }
+
   public void aggregate(Recorder.Wse wse, RecordedProfileIndexes indexes) throws AggregationFailure {
     ensureEntityIsWriteable();
 

@@ -54,19 +54,19 @@ public class RecordedProfileHeaderParser {
     try {
       if (!headerParsed) {
         if (encodedVersion == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
           if(firstByte == -1) {
             //NOTE: Wrapping this as invalid protocol buffer exception to indicate this is a case of incomplete protobuf-serialized bytes received
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:encodedVersion from inputstream");
           }
           encodedVersion = CodedInputStream.readRawVarint32(firstByte, inputStream);
-          byte[] encodedVersionBytes = inputStream.getBytesReadSinceMark();
+          byte[] encodedVersionBytes = inputStream.getBytesReadSinceDiscardAndMark();
           headerChecksum.update(encodedVersionBytes, 0, encodedVersionBytes.length);
         }
 
         if (headerLength == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
           if(firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:headerLength from inputstream");
@@ -75,7 +75,7 @@ public class RecordedProfileHeaderParser {
           if (headerLength < 1 || headerLength > maxAllowedBytesForRecordingHeader) {
             throw new AggregationFailure("Allowed range for recording header length is 1B to " + maxAllowedBytesForRecordingHeader + "B");
           }
-          byte[] headerLengthBytes = inputStream.getBytesReadSinceMark();
+          byte[] headerLengthBytes = inputStream.getBytesReadSinceDiscardAndMark();
           headerChecksum.update(headerLengthBytes, 0, headerLengthBytes.length);
         }
 
@@ -84,7 +84,7 @@ public class RecordedProfileHeaderParser {
             return;
           }
           try {
-            inputStream.mark(0);
+            inputStream.discardReadBytesAndMark();
             byte[] headerBytes = new byte[headerLength];
             inputStream.read(headerBytes, 0, headerLength);
             recordingHeader = Recorder.RecordingHeader.parseFrom(headerBytes);
@@ -96,7 +96,7 @@ public class RecordedProfileHeaderParser {
         }
 
         if (checksumValue == null) {
-          inputStream.mark(0);
+          inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
           if(firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:checksum from inputstream");
