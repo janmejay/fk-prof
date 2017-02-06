@@ -1,6 +1,7 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile.impl;
 
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.profile.ISingleProcessingOfProfileGate;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.shareddata.LocalMap;

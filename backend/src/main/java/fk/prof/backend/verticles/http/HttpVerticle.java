@@ -1,10 +1,10 @@
 package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
-import fk.prof.backend.model.request.SharedMapBasedSingleProcessingOfProfileGate;
-import fk.prof.backend.model.request.CompositeByteBufInputStream;
-import fk.prof.backend.model.request.RecordedProfileProcessor;
-import fk.prof.backend.model.request.RecordedProfileRequestHandler;
+import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
+import fk.prof.backend.request.CompositeByteBufInputStream;
+import fk.prof.backend.request.profile.RecordedProfileProcessor;
+import fk.prof.backend.request.profile.RecordedProfileRequestHandler;
 import fk.prof.backend.service.IProfileWorkService;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;

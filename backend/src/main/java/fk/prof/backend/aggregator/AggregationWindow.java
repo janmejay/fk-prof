@@ -5,7 +5,7 @@ import fk.prof.aggregation.state.AggregationState;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.model.request.RecordedProfileIndexes;
+import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.time.LocalDateTime;

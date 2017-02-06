@@ -1,12 +1,12 @@
-package fk.prof.backend.test;
+package fk.prof.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import fk.prof.WorkDetails;
-import fk.prof.WorkSchedule;
-import fk.prof.WorkType;
+import fk.prof.backend.model.policy.WorkDetails;
+import fk.prof.backend.model.policy.WorkSchedule;
+import fk.prof.backend.model.policy.WorkType;
 import org.junit.Test;
 
 import java.time.LocalDateTime;

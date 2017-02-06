@@ -1,4 +1,4 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.model.profile;
 
 import recording.Recorder;
 

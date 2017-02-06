@@ -1,8 +1,10 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile.parser;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.CompositeByteBufInputStream;
+import fk.prof.backend.model.profile.RecordedProfileHeader;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -46,6 +48,11 @@ public class RecordedProfileHeaderParser {
 
   /**
    * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
+   *
+   * NOTE: Do not rely on CodedInputStream::getTotalBytesRead() to determine remaining bytes to be parsed
+   * Example: CodedInputStream::readUInt32 can throw InvalidProtocolBufferEx if incomplete bytes have been received but it will update the totalBytesRead count
+   * This will result in un-parsed bytes getting discarded and not accounted for when next chunk is received
+   * Using custom mark/reset semantics on CompositeByteBufInputStream to determine read bytes
    *
    * @param inputStream
    * @return starting unread position in buffer

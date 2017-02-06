@@ -1,8 +1,9 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile.parser;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.CompositeByteBufInputStream;
 import recording.Recorder;
 
 import java.io.IOException;

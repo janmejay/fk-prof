@@ -1,7 +1,12 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile;
 
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.CompositeByteBufInputStream;
+import fk.prof.backend.model.profile.RecordedProfileHeader;
+import fk.prof.backend.model.profile.RecordedProfileIndexes;
+import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
+import fk.prof.backend.request.profile.parser.WseParser;
 import fk.prof.backend.service.IProfileWorkService;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;

@@ -1,4 +1,4 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request.profile;
 
 import fk.prof.backend.exception.AggregationFailure;
 

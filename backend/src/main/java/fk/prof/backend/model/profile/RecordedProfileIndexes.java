@@ -1,4 +1,4 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.model.profile;
 
 import com.koloboke.collect.map.hash.HashIntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;

@@ -1,4 +1,4 @@
-package fk.prof.backend.model.request;
+package fk.prof.backend.request;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
