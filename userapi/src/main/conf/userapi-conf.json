@@ -2,6 +2,7 @@
   "http.port": 8082,
   "http.instances": 1,
   "req.timeout": 2000,
+  "profile.retention.duration": 30,
   "storage": "S3",
   "S3": {
     "end.point": "http://10.47.2.3:80",
