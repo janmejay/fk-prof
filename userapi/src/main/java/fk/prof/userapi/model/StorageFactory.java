@@ -24,7 +24,6 @@ import java.util.concurrent.Executors;
  */
 public class StorageFactory {
 
-    private static final String ZK = "ZK";
     private static final String S3 = "S3";
     private static final String ACCESS_KEY = "access.key";
     private static final String SECRET_KEY = "secret.key";
@@ -32,7 +31,7 @@ public class StorageFactory {
 
     private static S3AsyncStorage s3AsyncStorage = null;
 
-    public static AsyncStorage getAsyncStorage(JsonObject config) {
+    synchronized public static AsyncStorage getAsyncStorage(JsonObject config) {
         switch (config.getString("storage")) {
             case S3:
                 return getS3AsyncInstance(config.getJsonObject(S3));

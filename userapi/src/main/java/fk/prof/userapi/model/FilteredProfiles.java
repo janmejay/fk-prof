@@ -1,28 +1,28 @@
 package fk.prof.userapi.model;
 
-import java.util.HashSet;
+import java.time.ZonedDateTime;
 import java.util.Set;
 
 /**
  * Represents profile to be returned in profile apis
  * Created by rohit.patiyal on 23/01/17.
  */
-public class Profile {
-    private String start;
-    private String end;
+public class FilteredProfiles {
+    private ZonedDateTime start;
+    private ZonedDateTime end;
     private Set<String> values;
 
-    public Profile(String start, String end) {
+    public FilteredProfiles(ZonedDateTime start, ZonedDateTime end, Set<String> values) {
         this.start = start;
         this.end = end;
-        this.values = new HashSet<>();
+        this.values = values;
     }
 
-    public String getStart() {
+    public ZonedDateTime getStart() {
         return start;
     }
 
-    public String getEnd() {
+    public ZonedDateTime getEnd() {
         return end;
     }
 
@@ -30,16 +30,12 @@ public class Profile {
         return values;
     }
 
-    public void setValues(Set<String> values) {
-        this.values = values;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        Profile profile = (Profile) o;
+        FilteredProfiles profile = (FilteredProfiles) o;
 
         if (!getStart().equals(profile.getStart())) return false;
         if (!getEnd().equals(profile.getEnd())) return false;

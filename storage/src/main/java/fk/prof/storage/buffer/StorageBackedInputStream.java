@@ -102,7 +102,7 @@ public class StorageBackedInputStream extends InputStream {
     }
 
     private void fetchAndSwapBuffer() throws IOException {
-        String nextFileName = fileNameStrategy.getFileName(part + 1);
+        String nextFileName = fileNameStrategy.getFileName(part);
         if(buf != null) {
             buf.close();
         }
