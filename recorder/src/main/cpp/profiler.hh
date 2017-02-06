@@ -13,6 +13,8 @@
 #include "stacktraces.hh"
 #include "processor.hh"
 #include "log_writer.hh"
+#include "perf_ctx.hh"
+#include "site_resolver.hh"
 
 using namespace std::chrono;
 using std::ofstream;
@@ -66,16 +68,23 @@ public:
     ~SimpleSpinLockGuard() {}
 };
 
-class ProfileSerializer : public QueueListener {
+class ProfileSerializingWriter : public QueueListener, public SiteResolver::MethodListener {
 private:
     ProfileWriter& w;
+    SiteResolver::MethodInfoResolver fir;
+    SiteResolver::LineNoResolver lnr;
+    PerfCtx::Registry& reg;
     
 public:
-    ProfileSerializer(ProfileWriter& _w) : w(_w) {}
+    ProfileSerializingWriter(ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr, PerfCtx::Registry& _reg) : w(_w), fir(_fir), lnr(_lnr), reg(_reg) {}
 
-    ~ProfileSerializer() {}
+    ~ProfileSerializingWriter() {}
 
     virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) {}
+
+    virtual void recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char *method_signature) {};
+
+    void flush() {};
 };
 
 class Profiler {
@@ -114,14 +123,10 @@ private:
 
     SignalHandler* handler;
 
-    ProfileSerializer* serializer;
+    ProfileSerializingWriter* serializer;
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
-
-    static bool lookup_frame_information(const JVMPI_CallFrame &frame,
-                                       jvmtiEnv *jvmti,
-                                       MethodListener &logWriter);
 
     void set_sampling_freq(std::uint32_t sampling_freq);
 

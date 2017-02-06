@@ -324,9 +324,9 @@ public class AssociationTest {
                 Recorder.PollRes.Builder builder = Recorder.PollRes.newBuilder()
                         .setLocalTime(nowString)
                         .setControllerId(2)
-                        .setControllerVersion(1)
-                        .setWorkDescription("no work for ya!");;
+                        .setControllerVersion(1);
                 builder.getAssignmentBuilder()
+                        .setDescription("no work for ya!")
                         .setWorkId(10)
                         .setDelay(0)
                         .setDuration(0)

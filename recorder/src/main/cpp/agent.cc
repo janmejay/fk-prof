@@ -197,7 +197,7 @@ void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread)
                 main_started = true;
             }
         }
-        threadMap.put(jni_env, thread_info.name);
+        threadMap.put(jni_env, thread_info.name, thread_info.priority, thread_info.is_daemon);
     }
     pthread_sigmask(SIG_UNBLOCK, &prof_signal_mask, NULL);
 }

@@ -158,7 +158,7 @@ public class CpuSamplingTest {
             assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.pre_start, Recorder.WorkResponse.WorkResult.unknown, 0);
         }
         for (int i = 4; i < 14; i++) {
-            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.start, Recorder.WorkResponse.WorkResult.unknown, i - 4);
+            assertWorkStateAndResultIs("i = " + i, pollReqs[i].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.running, Recorder.WorkResponse.WorkResult.unknown, i - 4);
         }
         assertWorkStateAndResultIs(pollReqs[14].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 10);
         for (int i = 15; i < pollReqs.length; i++) {
@@ -181,7 +181,7 @@ public class CpuSamplingTest {
                                         nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 5, Collections.emptySet()))),
                                 nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
                                         nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 5, Collections.emptySet())))))))))), 
+                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 5, Collections.emptySet())))))))))),
                 false);
 
         assertThat(profileCalledSecondTime.getValue(), is(false));
@@ -240,17 +240,19 @@ public class CpuSamplingTest {
             Recorder.StackSampleWse e = entry.getCpuSampleEntry();
             for (int i = 0; i < e.getStackSampleCount(); i++) {
                 Recorder.StackSample stackSample = e.getStackSample(i);
-                SampledStackNode currentNode = aggregations.get(stackSample.getTraceId());
-                for (int j = 0; j < stackSample.getFrameCount(); j++) {
-                    Recorder.Frame frame = stackSample.getFrame(j);
-                    long methodId = frame.getMethodId();
-                    int lineNo = frame.getLineNo();
-                    int bci = frame.getBci();
-                    MthdInfo mthdInfo = mthdInfoMap.get(methodId);
-                    currentNode = currentNode.findOrCreateChild(mthdInfo, lineNo, bci);
+                for (Integer traceId : stackSample.getTraceIdList()) {
+                    SampledStackNode currentNode = aggregations.get(stackSample.getTraceId(traceId));
+                    for (int j = 0; j < stackSample.getFrameCount(); j++) {
+                        Recorder.Frame frame = stackSample.getFrame(j);
+                        long methodId = frame.getMethodId();
+                        int lineNo = frame.getLineNo();
+                        int bci = frame.getBci();
+                        MthdInfo mthdInfo = mthdInfoMap.get(methodId);
+                        currentNode = currentNode.findOrCreateChild(mthdInfo, lineNo, bci);
+                    }
+                    currentNode.onCpuSampleCount++;
+                    totalSamples++;
                 }
-                currentNode.onCpuSampleCount++;
-                totalSamples++;
             }
         }
 

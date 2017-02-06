@@ -85,6 +85,8 @@ set(SOURCE_FILES
     ${SRC}/signal_handler.hh
     ${SRC}/processor.cc
     ${SRC}/processor.hh
+    ${SRC}/site_resolver.cc
+    ${SRC}/site_resolver.hh
     ${SRC}/profiler.cc
     ${SRC}/profiler.hh
     ${SRC}/stacktraces.hh
@@ -111,7 +113,7 @@ set(SOURCE_FILES
 set(TEST_FILES
     ${SRC_TEST}/fixtures.hh
     ${SRC_TEST}/test_circular_queue.cc
-    ${SRC_TEST}/test_log_writer.cc
+    ${SRC_TEST}/test_cpu_sampling_profile_serialization.cc
     ${SRC_TEST}/test_config.cc
     ${SRC_TEST}/test.hh
     ${SRC_TEST}/test_recording_serde.cc

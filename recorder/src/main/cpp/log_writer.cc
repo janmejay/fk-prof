@@ -118,7 +118,7 @@ void LogWriter::inspectMethod(const method_id methodId,
     }
 
     knownMethods.insert(methodId);
-    frameLookup_(frame, jvmti_, *this);
+    frameLookup_(frame.method_id, jvmti_, *this);
 }
 
 void LogWriter::recordTraceStart(const jint numFrames, const map::HashType threadId) {
@@ -150,8 +150,9 @@ void LogWriter::writeWithSize(const char *value) {
     output_.write(value, size);
 }
 
-void LogWriter::recordNewMethod(const map::HashType methodId, const char *fileName,
-        const char *className, const char *methodName) {
+void LogWriter::recordNewMethod(const jmethodID method_id, const char *fileName,
+                                const char *className, const char *methodName, const char* method_signature) {
+    map::HashType methodId = reinterpret_cast<map::HashType>(method_id);
     output_.put(NEW_METHOD);
     writeValue(methodId);
     writeWithSize(fileName);

@@ -15,5 +15,5 @@ TEST(ProbPct__should_hit_desired_pct_of_times) {
     for (auto i = 0; i < 2000; i++) {
         if (pp.on(i, 10)) hits++;
     }
-    CHECK_CLOSE(200, hits, 40);
+    CHECK_CLOSE(200, hits, 60);
 }

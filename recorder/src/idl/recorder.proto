@@ -106,8 +106,9 @@ message TraceContext {
   enum MergeSemantics {
     parent = 0;
     scoped = 1;
-    stack = 2;
-    duplicate = 3;
+    scoped_strict = 2;
+    stack = 3;
+    duplicate = 4;
   }
   required MergeSemantics merge = 4;
 }
@@ -152,7 +153,7 @@ message StackSample {
   required uint32 start_offset_micros = 1;
   required int64 thread_id = 2;
   repeated Frame frame = 3;
-  required uint32 trace_id = 4;
+  repeated uint32 trace_id = 4;
 }
 
 message Frame {

@@ -148,7 +148,8 @@ public class ProfileParsingTest {
             Recorder.StackSample ss1 = cse.getStackSample(i);
             assertThat(ss1.getStartOffsetMicros(), is(startOffsets[i]));
             assertThat(ss1.getThreadId(), is(threadIds[i]));
-            assertThat(ss1.getTraceId(), is(traceIds[i]));
+            assertThat(ss1.getTraceIdCount(), is(1));
+            assertThat(ss1.getTraceId(0), is(traceIds[i]));
             assertThat(ss1.getFrameCount(), is(frames[i].size()));
             List<String> callChain = new ArrayList<>();
             for (Recorder.Frame frame : ss1.getFrameList()) {

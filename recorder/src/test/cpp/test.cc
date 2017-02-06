@@ -1,7 +1,9 @@
 #include "test.hh"
+#include "../../main/cpp/prob_pct.hh"
 
 LoggerP logger(nullptr);
 PerfCtx::Registry* GlobalCtx::ctx_reg;
+ProbPct* GlobalCtx::prob_pct;
 
 std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms) {
     switch (ms) {
