@@ -64,7 +64,7 @@ public class WseParser {
         if (wseLength == null) {
           inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:wseLength from inputstream");
           }
           wseLength = CodedInputStream.readRawVarint32(firstByte, inputStream);
@@ -76,7 +76,7 @@ public class WseParser {
         }
 
         if (wse == null) {
-          if(inputStream.available() < wseLength) {
+          if (inputStream.available() < wseLength) {
             return;
           }
 
@@ -95,7 +95,7 @@ public class WseParser {
         if (checksumValue == null) {
           inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading WSE:checksum from inputstream");
           }
           checksumValue = CodedInputStream.readRawVarint32(firstByte, inputStream);
@@ -106,12 +106,13 @@ public class WseParser {
         }
       }
     } catch (IOException ex) {
-      if(!(ex instanceof InvalidProtocolBufferException)) {
+      if (!(ex instanceof InvalidProtocolBufferException)) {
         throw new AggregationFailure(ex);
       } else {
         try {
           inputStream.reset();
-        } catch (IOException ex1) {}
+        } catch (IOException ex1) {
+        }
         //NOTE: Ignore this exception. Can come because incomplete request has been received. Chunks can be received later
       }
     }

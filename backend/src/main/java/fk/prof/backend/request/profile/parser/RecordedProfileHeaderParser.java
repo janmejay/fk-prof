@@ -3,8 +3,8 @@ package fk.prof.backend.request.profile.parser;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.model.profile.RecordedProfileHeader;
+import fk.prof.backend.request.CompositeByteBufInputStream;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class RecordedProfileHeaderParser {
 
   /**
    * Reads buffer and updates internal state with parsed fields. Returns the starting unread position in outputstream
-   *
+   * <p>
    * NOTE: Do not rely on CodedInputStream::getTotalBytesRead() to determine remaining bytes to be parsed
    * Example: CodedInputStream::readUInt32 can throw InvalidProtocolBufferEx if incomplete bytes have been received but it will update the totalBytesRead count
    * This will result in un-parsed bytes getting discarded and not accounted for when next chunk is received
@@ -63,7 +63,7 @@ public class RecordedProfileHeaderParser {
         if (encodedVersion == null) {
           inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             //NOTE: Wrapping this as invalid protocol buffer exception to indicate this is a case of incomplete protobuf-serialized bytes received
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:encodedVersion from inputstream");
           }
@@ -75,7 +75,7 @@ public class RecordedProfileHeaderParser {
         if (headerLength == null) {
           inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:headerLength from inputstream");
           }
           headerLength = CodedInputStream.readRawVarint32(firstByte, inputStream);
@@ -87,7 +87,7 @@ public class RecordedProfileHeaderParser {
         }
 
         if (recordingHeader == null) {
-          if(inputStream.available() < headerLength) {
+          if (inputStream.available() < headerLength) {
             return;
           }
           try {
@@ -105,7 +105,7 @@ public class RecordedProfileHeaderParser {
         if (checksumValue == null) {
           inputStream.discardReadBytesAndMark();
           int firstByte = inputStream.read();
-          if(firstByte == -1) {
+          if (firstByte == -1) {
             throw new InvalidProtocolBufferException("EOF when reading RecordingHeader:checksum from inputstream");
           }
           checksumValue = CodedInputStream.readRawVarint32(firstByte, inputStream);
@@ -119,7 +119,8 @@ public class RecordedProfileHeaderParser {
       //NOTE: This exception can come because incomplete request has been received. Chunks can be received later
       try {
         inputStream.reset();
-      } catch (IOException ex1) {}
+      } catch (IOException ex1) {
+      }
     } catch (IOException ex) {
       throw new AggregationFailure(ex);
     }

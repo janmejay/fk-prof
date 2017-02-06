@@ -2,9 +2,9 @@ package fk.prof.backend.request.profile;
 
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.model.profile.RecordedProfileHeader;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
+import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
 import fk.prof.backend.request.profile.parser.WseParser;
 import fk.prof.backend.service.IProfileWorkService;
@@ -110,7 +110,7 @@ public class RecordedProfileProcessor {
       if (isProcessed()) {
         aggregationWindow.completeProfile(workId);
       } else {
-        if(aggregationWindow != null) {
+        if (aggregationWindow != null) {
           aggregationWindow.abandonProfile(workId);
         }
         throw new AggregationFailure(String.format("Invalid or incomplete payload received, aggregation failed for work_id=%d", workId));

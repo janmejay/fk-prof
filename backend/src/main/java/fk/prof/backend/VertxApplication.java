@@ -25,7 +25,7 @@ public class VertxApplication {
     JsonObject config = ConfigManager.loadFileAsJson(confPath);
     JsonObject vertxConfig = config.getJsonObject(ConfigManager.VERTX_OPTIONS_KEY);
     JsonObject deploymentConfig = config.getJsonObject(ConfigManager.DEPLOYMENT_OPTIONS_KEY);
-    if(deploymentConfig == null) {
+    if (deploymentConfig == null) {
       throw new RuntimeException("Deployment options are required to be present");
     }
 

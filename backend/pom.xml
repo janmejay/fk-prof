@@ -86,10 +86,10 @@
                 <include>src/idl/</include>
               </inputDirectories>
               <!--<outputTargets>-->
-                <!--<outputTarget>-->
-                  <!--<type>java</type>-->
-                  <!--<outputDirectory>src/main/java/</outputDirectory>-->
-                <!--</outputTarget>-->
+              <!--<outputTarget>-->
+              <!--<type>java</type>-->
+              <!--<outputDirectory>src/main/java/</outputDirectory>-->
+              <!--</outputTarget>-->
               <!--</outputTargets>-->
             </configuration>
           </execution>

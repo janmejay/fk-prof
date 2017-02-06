@@ -26,7 +26,7 @@ public class ProfileWorkService implements IProfileWorkService {
 
     public void add(long workId, AggregationWindow window) {
       AggregationWindow existingWindow = this.windowLookup.putIfAbsent(workId, window);
-      if(existingWindow != null) {
+      if (existingWindow != null) {
         throw new IllegalStateException(String.format("Aggregation window already associated with work_id=%d", workId));
       }
     }
@@ -37,6 +37,7 @@ public class ProfileWorkService implements IProfileWorkService {
 
     /**
      * TODO: Untested
+     *
      * @param workIds
      */
     public void removeWorkIds(long[] workIds) {

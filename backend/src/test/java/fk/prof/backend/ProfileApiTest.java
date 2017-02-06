@@ -2,6 +2,8 @@ package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
 import fk.prof.aggregation.MethodIdLookup;
+import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
+import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
 import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
 import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
 import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
@@ -11,8 +13,6 @@ import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.mock.MockProfileObjects;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
-import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
@@ -20,7 +20,9 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import recording.Recorder;
 
@@ -28,7 +30,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.zip.Adler32;
@@ -95,7 +100,7 @@ public class ProfileApiTest {
     });
   }
 
-  @Test(timeout =  5000)
+  @Test(timeout = 5000)
   public void testWithValidMultipleProfiles(TestContext context) {
     long workId1 = workIdCounter.incrementAndGet();
     long workId2 = workIdCounter.incrementAndGet();
@@ -315,7 +320,7 @@ public class ProfileApiTest {
 
   private void makeInvalidHeaderProfileRequest(TestContext context, HeaderPayloadStrategy payloadStrategy, String errorToGrep) {
     long workId = workIdCounter.incrementAndGet();
-    if(!payloadStrategy.equals(HeaderPayloadStrategy.INVALID_WORK_ID)) {
+    if (!payloadStrategy.equals(HeaderPayloadStrategy.INVALID_WORK_ID)) {
       profileWorkService.associateAggregationWindow(workId,
           new AggregationWindow("a", "c", "p", LocalDateTime.now(), 20, 60, new long[]{workId}));
     }
@@ -398,18 +403,31 @@ public class ProfileApiTest {
     CpuSamplingFrameNode d3 = c3.getOrAddChild(2, 10);
     CpuSamplingFrameNode f1 = e1.getOrAddChild(4, 10);
     CpuSamplingFrameNode c4 = f1.getOrAddChild(1, 10);
-    for(int i = 0;i < 3;i++) { y1.incrementOnStackSamples(); }
-    for(int i = 0;i < 3;i++) { c1.incrementOnStackSamples(); }
-    for(int i = 0;i < 3;i++) { d1.incrementOnStackSamples(); }
+    for (int i = 0; i < 3; i++) {
+      y1.incrementOnStackSamples();
+    }
+    for (int i = 0; i < 3; i++) {
+      c1.incrementOnStackSamples();
+    }
+    for (int i = 0; i < 3; i++) {
+      d1.incrementOnStackSamples();
+    }
     c2.incrementOnStackSamples();
-    d2.incrementOnStackSamples(); d2.incrementOnCpuSamples();
-    for(int i = 0;i < 2;i++) { e1.incrementOnStackSamples(); }
+    d2.incrementOnStackSamples();
+    d2.incrementOnCpuSamples();
+    for (int i = 0; i < 2; i++) {
+      e1.incrementOnStackSamples();
+    }
     c3.incrementOnStackSamples();
-    d3.incrementOnStackSamples(); d3.incrementOnCpuSamples();
+    d3.incrementOnStackSamples();
+    d3.incrementOnCpuSamples();
     f1.incrementOnStackSamples();
-    c4.incrementOnStackSamples(); c4.incrementOnCpuSamples();
+    c4.incrementOnStackSamples();
+    c4.incrementOnCpuSamples();
 
-    for(int i = 0;i < 3;i++) { expectedTraceDetail.incrementSamples(); }
+    for (int i = 0; i < 3; i++) {
+      expectedTraceDetail.incrementSamples();
+    }
     expectedTraceDetailLookup.put("1", expectedTraceDetail);
 
     FinalizedCpuSamplingAggregationBucket expected = new FinalizedCpuSamplingAggregationBucket(
@@ -457,13 +475,13 @@ public class ProfileApiTest {
     byte[] recordingHeaderBytes = recordingHeader.toByteArray();
     codedOutputStream.writeUInt32NoTag(encodedVersion);
 
-    if(payloadStrategy.equals(HeaderPayloadStrategy.INVALID_HEADER_LENGTH)) {
+    if (payloadStrategy.equals(HeaderPayloadStrategy.INVALID_HEADER_LENGTH)) {
       codedOutputStream.writeUInt32NoTag(Integer.MAX_VALUE);
     } else {
       codedOutputStream.writeUInt32NoTag(recordingHeaderBytes.length);
     }
 
-    if(payloadStrategy.equals(HeaderPayloadStrategy.INVALID_RECORDING_HEADER)) {
+    if (payloadStrategy.equals(HeaderPayloadStrategy.INVALID_RECORDING_HEADER)) {
       byte[] invalidArr = Arrays.copyOfRange(recordingHeaderBytes, 0, recordingHeaderBytes.length);
       invalidArr[0] = invalidArr[1] = invalidArr[3] = 0;
       invalidArr[invalidArr.length - 1] = invalidArr[invalidArr.length - 2] = invalidArr[invalidArr.length - 3] = 0;
@@ -487,7 +505,7 @@ public class ProfileApiTest {
   }
 
   private static void writeMockWseEntriesToRequest(List<Recorder.Wse> wseList, ByteArrayOutputStream requestStream, WsePayloadStrategy payloadStrategy) throws IOException {
-    if(wseList != null) {
+    if (wseList != null) {
       for (Recorder.Wse wse : wseList) {
         writeWseToRequest(wse, requestStream, payloadStrategy);
       }
@@ -499,13 +517,13 @@ public class ProfileApiTest {
     CodedOutputStream codedOutputStream = CodedOutputStream.newInstance(outputStream);
     byte[] wseBytes = wse.toByteArray();
 
-    if(payloadStrategy.equals(WsePayloadStrategy.INVALID_WSE_LENGTH)) {
+    if (payloadStrategy.equals(WsePayloadStrategy.INVALID_WSE_LENGTH)) {
       codedOutputStream.writeUInt32NoTag(Integer.MAX_VALUE);
     } else {
       codedOutputStream.writeUInt32NoTag(wseBytes.length);
     }
 
-    if(payloadStrategy.equals(WsePayloadStrategy.INVALID_WSE)) {
+    if (payloadStrategy.equals(WsePayloadStrategy.INVALID_WSE)) {
       byte[] invalidArr = Arrays.copyOfRange(wseBytes, 0, wseBytes.length);
       invalidArr[0] = invalidArr[1] = invalidArr[3] = 0;
       invalidArr[invalidArr.length - 1] = invalidArr[invalidArr.length - 2] = invalidArr[invalidArr.length - 3] = 0;
@@ -578,6 +596,7 @@ public class ProfileApiTest {
   public static class ResponsePayload {
     public Buffer buffer;
     public int statusCode;
+
     public ResponsePayload(int statusCode, Buffer buffer) {
       this.statusCode = statusCode;
       this.buffer = buffer;

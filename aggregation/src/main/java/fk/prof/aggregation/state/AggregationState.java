@@ -80,7 +80,7 @@ public enum AggregationState {
   private boolean terminal = false;
 
   AggregationState(boolean ongoing, boolean terminal) {
-    if(ongoing == true && terminal == true) {
+    if (ongoing == true && terminal == true) {
       throw new IllegalArgumentException("Aggregation state cannot be ongoing and terminal simultaneously");
     }
     this.ongoing = ongoing;
