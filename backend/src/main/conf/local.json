@@ -1,0 +1,19 @@
+{
+  "vertxOptions": {
+    "blockedThreadCheckInterval": 60000
+  },
+  "deploymentOptions": {
+    "http.instances": 2,
+    "config": {
+      "http.port": 9300,
+      "parser": {
+        "recordingheader.max.bytes": 1024,
+        "wse.max.bytes": 1048576
+      },
+      "aggregator": {
+        "window.duration.mins": 20,
+        "window.tolerance.secs": 60
+      }
+    }
+  }
+}
