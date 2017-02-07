@@ -20,7 +20,7 @@ public class ChecksumCalculatingInputStream extends FilterInputStream {
     @Override
     public int read() throws IOException {
         int byteRead = super.read();
-        if(byteRead != 1) {
+        if(byteRead != -1) {
             checksum.update(byteRead);
         }
         return byteRead;
@@ -29,7 +29,9 @@ public class ChecksumCalculatingInputStream extends FilterInputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int bytesRead = super.read(b, off, len);
-        checksum.update(b, off, bytesRead);
+        if(bytesRead != -1) {
+            checksum.update(b, off, bytesRead);
+        }
         return bytesRead;
     }
 }

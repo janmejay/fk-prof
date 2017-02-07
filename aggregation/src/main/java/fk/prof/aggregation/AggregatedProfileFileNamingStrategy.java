@@ -17,8 +17,9 @@ import java.time.temporal.ChronoUnit;
 public class AggregatedProfileFileNamingStrategy implements FileNamingStrategy {
 
     private static final String DELIMITER = "/";
-    private static final String FILE_FORMAT  = "v%04d/%s/%s/%s/%s/%d/%s";
+    private static final String FILE_FORMAT  = "%s/v%04d/%s/%s/%s/%s/%d/%s";
 
+    public String baseDir;
     public int version;
     public String appId;
     public String clusterId;
@@ -29,7 +30,8 @@ public class AggregatedProfileFileNamingStrategy implements FileNamingStrategy {
 
     private String fileNamePrefix;
 
-    public AggregatedProfileFileNamingStrategy(int version, String appId, String clusterId, String procId, ZonedDateTime startTime, int duration, AggregatedProfileModel.WorkType workType) {
+    public AggregatedProfileFileNamingStrategy(String baseDir, int version, String appId, String clusterId, String procId, ZonedDateTime startTime, int duration, AggregatedProfileModel.WorkType workType) {
+        this.baseDir = baseDir;
         this.version = version;
         this.appId = appId;
         this.clusterId = clusterId;
@@ -38,13 +40,13 @@ public class AggregatedProfileFileNamingStrategy implements FileNamingStrategy {
         this.duration = duration;
         this.workType = workType;
 
-        fileNamePrefix = String.format(FILE_FORMAT, version, encode(appId), encode(clusterId),
+        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode(appId), encode(clusterId),
                 procId, startTime, duration, workType.name());
     }
 
-    public AggregatedProfileFileNamingStrategy(AggregatedProfileModel.Header header) {
-        this(header.getFormatVersion(), header.getAppId(), header.getClusterId(), header.getProcId(),
-                ZonedDateTime.parse(header.getAggregationEndTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME),
+    public AggregatedProfileFileNamingStrategy(String baseDir, AggregatedProfileModel.Header header) {
+        this(baseDir, header.getFormatVersion(), header.getAppId(), header.getClusterId(), header.getProcId(),
+                ZonedDateTime.parse(header.getAggregationStartTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME),
                 getDurationFromHeader(header), header.getWorkType());
     }
 
@@ -59,9 +61,9 @@ public class AggregatedProfileFileNamingStrategy implements FileNamingStrategy {
         }
         String[] tokens = path.split(DELIMITER);
 
-        return new AggregatedProfileFileNamingStrategy(Integer.parseInt(tokens[0].substring(1)), tokens[1], tokens[2], tokens[3],
-                ZonedDateTime.parse(tokens[4], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[5]),
-                AggregatedProfileModel.WorkType.valueOf(tokens[6]));
+        return new AggregatedProfileFileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), tokens[2], tokens[3], tokens[4],
+                ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]),
+                AggregatedProfileModel.WorkType.valueOf(tokens[7]));
     }
 
     private static String encode(String str) {
