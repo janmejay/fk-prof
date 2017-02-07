@@ -12,4 +12,10 @@ public interface LeaderDiscoveryStore {
    * @return
    */
   String getLeaderAddress();
+
+  /**
+   * Returns true if self is leader, false otherwise
+   * @return
+   */
+  boolean isLeader();
 }

@@ -7,9 +7,6 @@ import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter
 import org.apache.curator.framework.state.ConnectionState;
 import org.apache.zookeeper.CreateMode;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private static Logger logger = LoggerFactory.getLogger(LeaderSelectorListenerImpl.class);
 
@@ -40,7 +37,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
           .create()
           .creatingParentsIfNeeded()
           .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-          .forPath(leaderWatchingPath + "/child_", getIPAddress());
+          .forPath(leaderWatchingPath + "/child_", IPAddressUtil.getIPAddressAsBytes());
 
       if(leaderElectedTask != null) {
         leaderElectedTask.run();
@@ -71,17 +68,6 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
       killBehavior.process();
     } catch(Exception ex) {
       logger.error(ex);
-    }
-  }
-
-  private static byte[] getIPAddress() {
-    InetAddress ip;
-    try {
-      ip = InetAddress.getLocalHost();
-      return ip.getAddress();
-    } catch (UnknownHostException ex) {
-      logger.error("Cannot determine ip address", ex);
-      return null;
     }
   }
 

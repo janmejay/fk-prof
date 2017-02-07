@@ -1,6 +1,7 @@
 package fk.prof.backend;
 
 import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.verticles.leader.election.IPAddressUtil;
 import fk.prof.backend.verticles.leader.election.LeaderDiscoveryStore;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -107,9 +108,12 @@ public class LeaderElectionTest {
     Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, true, null);
     LeaderDiscoveryStore leaderDiscoveryStore = new LeaderDiscoveryStore() {
       private String address = null;
+      private boolean self = false;
+
       @Override
       public void setLeaderAddress(String ipAddress) {
         address = ipAddress;
+        self = ipAddress != null && ipAddress.equals(IPAddressUtil.getIPAddressAsString());
         if(address != null) {
           latch.countDown();
         }
@@ -118,6 +122,11 @@ public class LeaderElectionTest {
       @Override
       public String getLeaderAddress() {
         return address;
+      }
+
+      @Override
+      public boolean isLeader() {
+        return self;
       }
     };
 
@@ -134,7 +143,8 @@ public class LeaderElectionTest {
     if(!released) {
       testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
     } else {
-      testContext.assertEquals(getIPAddress(), leaderDiscoveryStore.getLeaderAddress());
+      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderDiscoveryStore.getLeaderAddress());
+      testContext.assertTrue(leaderDiscoveryStore.isLeader());
     }
   }
 
@@ -185,6 +195,11 @@ public class LeaderElectionTest {
           return toWrap.getLeaderAddress();
         }
 
+        @Override
+        public boolean isLeader() {
+          return toWrap.isLeader();
+        }
+
         public LeaderDiscoveryStore initialize(LeaderDiscoveryStore toWrap) {
           this.toWrap = toWrap;
           return this;
@@ -216,16 +231,9 @@ public class LeaderElectionTest {
         testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
       } else {
         testContext.assertNotNull(defaultLeaderDiscoveryStore.getLeaderAddress());
+        testContext.assertTrue(defaultLeaderDiscoveryStore.isLeader());
       }
 
-    }
-  }
-
-  private static String getIPAddress() {
-    try {
-      return InetAddress.getLocalHost().getHostAddress();
-    } catch (Exception ex) {
-      return null;
     }
   }
 
