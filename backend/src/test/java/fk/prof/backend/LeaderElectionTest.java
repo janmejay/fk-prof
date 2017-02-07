@@ -14,13 +14,12 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
-import org.apache.curator.test.Timing;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -70,8 +69,11 @@ public class LeaderElectionTest {
     VertxManager.close(vertx).setHandler(result -> {
       System.out.println("Vertx shutdown");
       curatorClient.close();
-      try { testingServer.close(); } catch (IOException ex) {}
-      if(result.failed()) {
+      try {
+        testingServer.close();
+      } catch (IOException ex) {
+      }
+      if (result.failed()) {
         context.fail(result.cause());
       }
     });
@@ -96,7 +98,7 @@ public class LeaderElectionTest {
     );
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
-    if(!released) {
+    if (!released) {
       testContext.fail("Latch timed out but leader election task was not run");
     }
   }
@@ -114,7 +116,7 @@ public class LeaderElectionTest {
       public void setLeaderAddress(String ipAddress) {
         address = ipAddress;
         self = ipAddress != null && ipAddress.equals(IPAddressUtil.getIPAddressAsString());
-        if(address != null) {
+        if (address != null) {
           latch.countDown();
         }
       }
@@ -140,7 +142,7 @@ public class LeaderElectionTest {
     );
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
-    if(!released) {
+    if (!released) {
       testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
     } else {
       testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderDiscoveryStore.getLeaderAddress());
@@ -157,7 +159,7 @@ public class LeaderElectionTest {
     CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
     CountDownLatch aggDepLatch = new CountDownLatch(1);
     aggDepFut.setHandler(asyncResult -> {
-      if(asyncResult.succeeded()) {
+      if (asyncResult.succeeded()) {
         aggregatorDeployments.addAll(asyncResult.result().list());
         aggDepLatch.countDown();
       } else {
@@ -166,7 +168,7 @@ public class LeaderElectionTest {
     });
 
     boolean aggDepLatchReleased = aggDepLatch.await(10, TimeUnit.SECONDS);
-    if(!aggDepLatchReleased) {
+    if (!aggDepLatchReleased) {
       testContext.fail("Latch timed out but aggregation verticles were not deployed");
     } else {
 
@@ -182,10 +184,11 @@ public class LeaderElectionTest {
       LeaderDiscoveryStore defaultLeaderDiscoveryStore = VertxManager.getDefaultLeaderDiscoveryStore(vertx);
       LeaderDiscoveryStore wrappedLeaderDiscoveryStore = new LeaderDiscoveryStore() {
         private LeaderDiscoveryStore toWrap;
+
         @Override
         public void setLeaderAddress(String ipAddress) {
           toWrap.setLeaderAddress(ipAddress);
-          if(ipAddress != null) {
+          if (ipAddress != null) {
             leaderWatchedLatch.countDown();
           }
         }
@@ -217,17 +220,17 @@ public class LeaderElectionTest {
 
       boolean leaderElectionLatchReleased = leaderElectionLatch.await(10, TimeUnit.SECONDS);
       Thread.sleep(2000); //wait for some time for aggregator verticles to be undeployed
-      if(!leaderElectionLatchReleased) {
+      if (!leaderElectionLatchReleased) {
         testContext.fail("Latch timed out but leader election task was not run");
       } else {
         //Ensure aggregator verticles have been undeployed
-        for(String aggDep: aggregatorDeployments) {
+        for (String aggDep : aggregatorDeployments) {
           testContext.assertFalse(vertx.deploymentIDs().contains(aggDep));
         }
       }
 
       boolean leaderWatchedLatchReleased = leaderWatchedLatch.await(10, TimeUnit.SECONDS);
-      if(!leaderWatchedLatchReleased) {
+      if (!leaderWatchedLatchReleased) {
         testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
       } else {
         testContext.assertNotNull(defaultLeaderDiscoveryStore.getLeaderAddress());

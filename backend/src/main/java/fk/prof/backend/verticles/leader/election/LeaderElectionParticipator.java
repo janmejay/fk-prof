@@ -7,8 +7,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
 
-import java.util.List;
-
 public class LeaderElectionParticipator extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(LeaderElectionParticipator.class);
   private CuratorFramework curatorClient;

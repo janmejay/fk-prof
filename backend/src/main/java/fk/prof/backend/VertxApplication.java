@@ -8,7 +8,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class VertxApplication {
@@ -31,7 +30,7 @@ public class VertxApplication {
     JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
 
     JsonObject curatorConfig = ConfigManager.getCuratorConfig(config);
-    if(curatorConfig == null) {
+    if (curatorConfig == null) {
       throw new RuntimeException("Curator options are required");
     }
     CuratorFramework curatorClient = createCuratorClient(curatorConfig);

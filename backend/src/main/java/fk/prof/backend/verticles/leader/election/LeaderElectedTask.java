@@ -18,7 +18,7 @@ public class LeaderElectedTask implements Runnable {
   private LeaderElectedTask(Vertx vertx, List<String> aggregatorDeployments) {
     this.vertx = vertx;
 
-    if(aggregatorDeployments != null) {
+    if (aggregatorDeployments != null) {
       // NOTE: If aggregator deployments supplied, leader will not serve as aggregator and only do leader related operations
       this.aggregatorVerticlesUndeployer = () -> aggregatorDeployments.stream().forEach(deploymentId ->
           vertx.undeploy(deploymentId, result -> {
@@ -34,7 +34,7 @@ public class LeaderElectedTask implements Runnable {
 
   @Override
   public void run() {
-    if(this.aggregatorVerticlesUndeployer != null) {
+    if (this.aggregatorVerticlesUndeployer != null) {
       this.aggregatorVerticlesUndeployer.run();
     }
   }
@@ -43,7 +43,7 @@ public class LeaderElectedTask implements Runnable {
     private List<String> aggregatorDeployments = null;
 
     public Builder disableAggregation(List<String> aggregatorDeployments) {
-      if(aggregatorDeployments == null) {
+      if (aggregatorDeployments == null) {
         throw new IllegalArgumentException("Aggregator deployments are required to disable aggregation");
       }
       this.aggregatorDeployments = aggregatorDeployments;

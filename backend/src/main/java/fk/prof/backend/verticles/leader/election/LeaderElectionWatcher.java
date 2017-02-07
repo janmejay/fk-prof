@@ -62,7 +62,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
 
   private CuratorWatcher getChildWatcher() {
     return event -> {
-      if(event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
+      if (event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
         leaderUpdated(getChildrenAndSetWatch());
       } else {
         getChildrenAndSetWatch();
@@ -82,7 +82,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
       }
     }
 
-    if(childNodesList.size() > 1) {
+    if (childNodesList.size() > 1) {
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
     leaderDiscoveryStore.setLeaderAddress(null);

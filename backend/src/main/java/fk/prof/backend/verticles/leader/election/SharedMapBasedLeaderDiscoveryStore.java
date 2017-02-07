@@ -23,7 +23,7 @@ public class SharedMapBasedLeaderDiscoveryStore implements LeaderDiscoveryStore 
 
   @Override
   public void setLeaderAddress(String ipAddress) {
-    if(ipAddress == null) {
+    if (ipAddress == null) {
       String previousLeaderAddress = leaderLookupMap.remove(LEADER_ADDRESS_MAP_KEY);
       logger.info(String.format("Removed backend node as leader. Node IP = %s",
           previousLeaderAddress == null ? "" : previousLeaderAddress));

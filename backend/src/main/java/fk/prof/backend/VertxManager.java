@@ -1,8 +1,8 @@
 package fk.prof.backend;
 
 import fk.prof.backend.service.IProfileWorkService;
-import fk.prof.backend.verticles.http.AggregatorHttpVerticle;
 import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.verticles.http.AggregatorHttpVerticle;
 import fk.prof.backend.verticles.leader.election.*;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
@@ -39,7 +39,7 @@ public class VertxManager {
   public static Future<Void> close(Vertx vertx) {
     Future future = Future.future();
     vertx.close(closeResult -> {
-      if(closeResult.succeeded()) {
+      if (closeResult.succeeded()) {
         logger.info("Shutdown successful for vertx instance");
         future.complete();
       } else {
@@ -61,13 +61,13 @@ public class VertxManager {
 
     int verticleCount = aggregatorDeploymentOptions.getConfig().getInteger("http.instances", 1);
     List<Future> deployFutures = new ArrayList<>();
-    for(int i = 1;i <= verticleCount;i++) {
+    for (int i = 1; i <= verticleCount; i++) {
       Future<String> deployFuture = Future.future();
       deployFutures.add(deployFuture);
 
       Verticle httpVerticle = new AggregatorHttpVerticle(profileWorkService);
       vertx.deployVerticle(httpVerticle, aggregatorDeploymentOptions, deployResult -> {
-        if(deployResult.succeeded()) {
+        if (deployResult.succeeded()) {
           logger.info("Deployment of AggregatorHttpVerticle succeeded with deploymentId = " + deployResult.result());
           deployFuture.complete(deployResult.result());
         } else {
@@ -103,7 +103,7 @@ public class VertxManager {
 
   public static Runnable getDefaultLeaderElectedTask(Vertx vertx, boolean aggregationEnabled, List<String> aggregatorDeployments) {
     LeaderElectedTask.Builder builder = new LeaderElectedTask.Builder();
-    if(!aggregationEnabled) {
+    if (!aggregationEnabled) {
       builder.disableAggregation(aggregatorDeployments);
     }
     return builder.build(vertx);
@@ -115,12 +115,12 @@ public class VertxManager {
 
   public static Future<Void> launch(Vertx vertx, CuratorFramework curatorClient, JsonObject configOptions) {
     JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(configOptions);
-    if(aggregatorDeploymentConfig == null) {
+    if (aggregatorDeploymentConfig == null) {
       throw new RuntimeException("Aggregator deployment options are required to be present");
     }
 
     JsonObject leaderDeploymentConfig = ConfigManager.getLeaderDeploymentConfig(configOptions);
-    if(leaderDeploymentConfig == null) {
+    if (leaderDeploymentConfig == null) {
       throw new RuntimeException("Leader deployment options are required to be present");
     }
 
@@ -130,7 +130,7 @@ public class VertxManager {
 
     CompositeFuture aggregatorDeploymentFuture = deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
     aggregatorDeploymentFuture.setHandler(result -> {
-      if(result.succeeded()) {
+      if (result.succeeded()) {
         //Deploy leader related verticles
         List<String> aggregatorDeployments = result.result().list();
         DeploymentOptions leaderDeploymentOptions = new DeploymentOptions(leaderDeploymentConfig);

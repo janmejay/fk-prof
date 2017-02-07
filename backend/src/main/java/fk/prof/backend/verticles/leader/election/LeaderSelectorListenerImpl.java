@@ -16,10 +16,10 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private final Runnable leaderElectedTask;
 
   public LeaderSelectorListenerImpl(int sleepDurationInMs, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
-    if(leaderWatchingPath == null) {
+    if (leaderWatchingPath == null) {
       throw new IllegalArgumentException("Leader Watching path in zookeeper cannot be null");
     }
-    if(killBehavior == null) {
+    if (killBehavior == null) {
       throw new IllegalArgumentException("Kill behavior cannot be null");
     }
 
@@ -39,11 +39,11 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
           .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
           .forPath(leaderWatchingPath + "/child_", IPAddressUtil.getIPAddressAsBytes());
 
-      if(leaderElectedTask != null) {
+      if (leaderElectedTask != null) {
         leaderElectedTask.run();
       }
 
-      while(true) {
+      while (true) {
         Thread.sleep(sleepDurationInMs);
       }
     } catch (InterruptedException ex) {
@@ -66,7 +66,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private void cleanup() {
     try {
       killBehavior.process();
-    } catch(Exception ex) {
+    } catch (Exception ex) {
       logger.error(ex);
     }
   }
