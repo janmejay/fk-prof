@@ -113,7 +113,7 @@ public class LeaderElectionTest {
       private boolean self = false;
 
       @Override
-      public void setLeaderAddress(String ipAddress) {
+      public void setLeaderIPAddress(String ipAddress) {
         address = ipAddress;
         self = ipAddress != null && ipAddress.equals(IPAddressUtil.getIPAddressAsString());
         if (address != null) {
@@ -122,7 +122,7 @@ public class LeaderElectionTest {
       }
 
       @Override
-      public String getLeaderAddress() {
+      public String getLeaderIPAddress() {
         return address;
       }
 
@@ -145,7 +145,7 @@ public class LeaderElectionTest {
     if (!released) {
       testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
     } else {
-      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderDiscoveryStore.getLeaderAddress());
+      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderDiscoveryStore.getLeaderIPAddress());
       testContext.assertTrue(leaderDiscoveryStore.isLeader());
     }
   }
@@ -186,16 +186,16 @@ public class LeaderElectionTest {
         private LeaderDiscoveryStore toWrap;
 
         @Override
-        public void setLeaderAddress(String ipAddress) {
-          toWrap.setLeaderAddress(ipAddress);
+        public void setLeaderIPAddress(String ipAddress) {
+          toWrap.setLeaderIPAddress(ipAddress);
           if (ipAddress != null) {
             leaderWatchedLatch.countDown();
           }
         }
 
         @Override
-        public String getLeaderAddress() {
-          return toWrap.getLeaderAddress();
+        public String getLeaderIPAddress() {
+          return toWrap.getLeaderIPAddress();
         }
 
         @Override
@@ -233,7 +233,7 @@ public class LeaderElectionTest {
       if (!leaderWatchedLatchReleased) {
         testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
       } else {
-        testContext.assertNotNull(defaultLeaderDiscoveryStore.getLeaderAddress());
+        testContext.assertNotNull(defaultLeaderDiscoveryStore.getLeaderIPAddress());
         testContext.assertTrue(defaultLeaderDiscoveryStore.isLeader());
       }
 

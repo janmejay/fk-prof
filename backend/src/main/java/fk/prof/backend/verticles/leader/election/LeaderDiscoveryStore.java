@@ -6,14 +6,14 @@ public interface LeaderDiscoveryStore {
    *
    * @param ipAddress
    */
-  void setLeaderAddress(String ipAddress);
+  void setLeaderIPAddress(String ipAddress);
 
   /**
    * Returns null if leader has not been set in the store
    *
    * @return
    */
-  String getLeaderAddress();
+  String getLeaderIPAddress();
 
   /**
    * Returns true if self is leader, false otherwise

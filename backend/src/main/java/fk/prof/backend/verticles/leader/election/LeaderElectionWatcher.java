@@ -46,7 +46,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   @Override
   public void stop() {
     //This ensures that if this worker verticle is undeployed for whatever reason, leader is set as null and all other components dependent on leader will fail
-    leaderDiscoveryStore.setLeaderAddress(null);
+    leaderDiscoveryStore.setLeaderIPAddress(null);
   }
 
   private List<String> getChildrenAndSetWatch() {
@@ -75,7 +75,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
       try {
         byte[] ipAddressBytes = curatorClient.getData().forPath(leaderWatchingPath + "/" + childNodesList.get(0));
         String leaderIPAddress = InetAddress.getByAddress(ipAddressBytes).getHostAddress();
-        leaderDiscoveryStore.setLeaderAddress(leaderIPAddress);
+        leaderDiscoveryStore.setLeaderIPAddress(leaderIPAddress);
         return;
       } catch (Exception ex) {
         logger.error("Error encountered while fetching leader information", ex);
@@ -85,6 +85,6 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     if (childNodesList.size() > 1) {
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
-    leaderDiscoveryStore.setLeaderAddress(null);
+    leaderDiscoveryStore.setLeaderIPAddress(null);
   }
 }

@@ -10,7 +10,7 @@ public class SharedMapBasedLeaderDiscoveryStore implements LeaderDiscoveryStore 
   private static Logger logger = LoggerFactory.getLogger(SharedMapBasedLeaderDiscoveryStore.class);
 
   private static String DEFAULT_LEADER_STATE_MAP_NAME = "leaderState";
-  private static String LEADER_ADDRESS_MAP_KEY = "address";
+  private static String LEADER_IP_ADDRESS_MAP_KEY = "ipAddress";
 
   private LocalMap<String, String> leaderLookupMap;
 
@@ -23,25 +23,25 @@ public class SharedMapBasedLeaderDiscoveryStore implements LeaderDiscoveryStore 
   }
 
   @Override
-  public void setLeaderAddress(String ipAddress) {
+  public void setLeaderIPAddress(String ipAddress) {
     if (ipAddress == null) {
-      String previousLeaderAddress = leaderLookupMap.remove(LEADER_ADDRESS_MAP_KEY);
+      String previousLeaderAddress = leaderLookupMap.remove(LEADER_IP_ADDRESS_MAP_KEY);
       logger.info(String.format("Removed backend node as leader. Node IP = %s",
           previousLeaderAddress == null ? "" : previousLeaderAddress));
     } else {
-      leaderLookupMap.put(LEADER_ADDRESS_MAP_KEY, ipAddress);
+      leaderLookupMap.put(LEADER_IP_ADDRESS_MAP_KEY, ipAddress);
       logger.info(String.format("Set backend leader. Node IP = %s", ipAddress));
     }
   }
 
   @Override
-  public String getLeaderAddress() {
-    return leaderLookupMap.get(LEADER_ADDRESS_MAP_KEY);
+  public String getLeaderIPAddress() {
+    return leaderLookupMap.get(LEADER_IP_ADDRESS_MAP_KEY);
   }
 
   @Override
   public boolean isLeader() {
-    String leaderAddress = getLeaderAddress();
+    String leaderAddress = getLeaderIPAddress();
     return leaderAddress != null && leaderAddress.equals(IPAddressUtil.getIPAddressAsString());
   }
 }
