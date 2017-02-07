@@ -7,7 +7,7 @@ import fk.prof.aggregation.state.AggregationState;
 import fk.prof.aggregation.state.AggregationStateEvent;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
-import fk.prof.backend.ProtoUtil;
+import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.exception.AggregationFailure;
 import recording.Recorder;
 

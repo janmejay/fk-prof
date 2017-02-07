@@ -1,7 +1,7 @@
 package fk.prof.backend;
 
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.verticles.leader.election.IPAddressUtil;
+import fk.prof.backend.util.IPAddressUtil;
 import fk.prof.backend.verticles.leader.election.LeaderDiscoveryStore;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;

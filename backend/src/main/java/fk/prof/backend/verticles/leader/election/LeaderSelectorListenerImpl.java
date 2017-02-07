@@ -1,5 +1,6 @@
 package fk.prof.backend.verticles.leader.election;
 
+import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -39,6 +40,9 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
           .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
           .forPath(leaderWatchingPath + "/child_", IPAddressUtil.getIPAddressAsBytes());
 
+      // NOTE: There is a race here. Other backend nodes can be communicated about the new leader before leaderElectedTask has run
+      // If backend nodes talk to the new leader before leader has been primed and setup, its possible for leader to not respond.
+      // We are OK with this race issue as backend nodes can simply retry
       if (leaderElectedTask != null) {
         leaderElectedTask.run();
       }
