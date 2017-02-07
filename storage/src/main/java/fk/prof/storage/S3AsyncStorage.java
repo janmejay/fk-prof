@@ -28,9 +28,8 @@ import java.util.concurrent.ExecutorService;
  * @author gaurav.ashok
  */
 public class S3AsyncStorage implements AsyncStorage {
-    private static final String DELIMITER = "_";
+    private static final String DELIMITER = "/";
     private static Logger LOGGER = LoggerFactory.getLogger(S3AsyncStorage.class);
-    private static char PATH_SEPARATOR = '/';
     private static String NO_SUCH_KEY = "NoSuchKey";
     private static String NO_SUCH_BUCKET = "NoSuchBucket";
     private AmazonS3 client;
@@ -110,10 +109,10 @@ public class S3AsyncStorage implements AsyncStorage {
 
                 do {
                     for (S3ObjectSummary objSummary : objects.getObjectSummaries()) {
-                        allObjects.add(objSummary.getKey());                    //All files with prefix with complete path
+                        allObjects.add(objectPath.bucket + "/" + objSummary.getKey());                    //All files with prefix with complete path
                     }
                     for (String commonPrefix : objects.getCommonPrefixes()) {   //Folders in current dir (if delimiter passed)
-                        allObjects.add(commonPrefix);                           //with complete path
+                        allObjects.add(objectPath.bucket + "/" + commonPrefix);                           //with complete path
                     }
                 } while (objects.isTruncated());
                 return allObjects;
@@ -147,7 +146,7 @@ public class S3AsyncStorage implements AsyncStorage {
         final String fileName;
 
         S3ObjectPath(String fullPath) {
-            int bucketEnd = fullPath.indexOf(PATH_SEPARATOR);
+            int bucketEnd = fullPath.indexOf(DELIMITER);
             if (bucketEnd == -1) {
                 throw new IllegalArgumentException("expecting object path in the format of {bucket}/{fileName}");
             }

@@ -71,7 +71,7 @@ public class ParseProfileTest {
         Async async = context.async();
 
         S3AsyncStorage storage = mock(S3AsyncStorage.class);
-        String fileName = new AggregatedProfileFileNamingStrategy(buildHeader()).getFileName(0);
+        String fileName = new AggregatedProfileFileNamingStrategy("profiles", buildHeader()).getFileName(0);
         InputStream s3InputStream = buildDefaultS3DataStream();
 
         // for above filename return the inputStream
@@ -111,8 +111,8 @@ public class ParseProfileTest {
             }
         });
 
-        profileDiscoveryAPI.load(future1, buildHeader());
-        profileDiscoveryAPI.load(future2, buildHeader());
+        profileDiscoveryAPI.load(future1, new AggregatedProfileFileNamingStrategy("profiles", buildHeader()));
+        profileDiscoveryAPI.load(future2, new AggregatedProfileFileNamingStrategy("profiles", buildHeader()));
     }
 
     private void testEquality(TestContext context, AggregatedProfileInfo expected, AggregatedProfileInfo actual) {

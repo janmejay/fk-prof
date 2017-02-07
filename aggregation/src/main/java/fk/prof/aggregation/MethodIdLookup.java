@@ -5,15 +5,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class MethodIdLookup implements SerializableAggregationEntity {
   //-2 is reserved for placeholder global root method of all stack-trace
-  public final static int GLOBAL_ROOT_METHOD_ID = -2;
+  public final static int GLOBAL_ROOT_METHOD_ID = 0;
   public final static String GLOBAL_ROOT_METHOD_SIGNATURE = "~ ROOT ~.()";
   //-1 is reserved for placeholder unclassifiable roor method of all incomplete stack-traces
-  public final static int UNCLASSIFIABLE_ROOT_METHOD_ID = -1;
+  public final static int UNCLASSIFIABLE_ROOT_METHOD_ID = 1;
   public final static String UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE = "~ UNCLASSIFIABLE ~.()";
   public final static int DEFAULT_LINE_NUMBER = 0;
 
   //Counter to generate method ids in auto increment fashion
-  private final AtomicInteger counter = new AtomicInteger(0);
+  private final AtomicInteger counter = new AtomicInteger(2);
   private final ConcurrentHashMap<String, Integer> lookup = new ConcurrentHashMap<>();
 
   public MethodIdLookup() {
@@ -34,8 +34,8 @@ public class MethodIdLookup implements SerializableAggregationEntity {
    * NOTE: Make the access private if not required outside post serialization is implemented
    */
   public String[] generateReverseLookup() {
-    String[] reverseLookup = new String[counter.get() + 2];
-    lookup.entrySet().forEach(entry -> reverseLookup[entry.getValue() + 2] = entry.getKey());
+    String[] reverseLookup = new String[counter.get()];
+    lookup.entrySet().forEach(entry -> reverseLookup[entry.getValue()] = entry.getKey());
     return reverseLookup;
   }
 
@@ -52,5 +52,4 @@ public class MethodIdLookup implements SerializableAggregationEntity {
     return this.counter.get() == other.counter.get()
         && this.lookup.equals(other.lookup);
   }
-
 }
