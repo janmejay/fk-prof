@@ -1,5 +1,6 @@
 package fk.prof.backend.verticles.leader.election;
 
+import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.Vertx;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -8,8 +9,8 @@ import io.vertx.core.shareddata.LocalMap;
 public class SharedMapBasedLeaderDiscoveryStore implements LeaderDiscoveryStore {
   private static Logger logger = LoggerFactory.getLogger(SharedMapBasedLeaderDiscoveryStore.class);
 
-  public static String DEFAULT_LEADER_STATE_MAP_NAME = "leaderState";
-  public static String LEADER_ADDRESS_MAP_KEY = "address";
+  private static String DEFAULT_LEADER_STATE_MAP_NAME = "leaderState";
+  private static String LEADER_ADDRESS_MAP_KEY = "address";
 
   private LocalMap<String, String> leaderLookupMap;
 
