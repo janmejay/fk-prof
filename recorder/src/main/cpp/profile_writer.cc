@@ -94,9 +94,12 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
             std::uint8_t coverage_pct;
             PerfCtx::MergeSemantic m_sem;
             reg.resolve(trace_pt, name, is_generated, coverage_pct, m_sem);
+            new_ctx->set_is_generated(is_generated);
+            if (! is_generated) {
+                new_ctx->set_coverage_pct(coverage_pct);
+                new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
+            }
             new_ctx->set_trace_name(name);
-            new_ctx->set_coverage_pct(coverage_pct);
-            new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
             ss->add_trace_id(ctx_id);
         } else {
             ss->add_trace_id(known_ctx->second);

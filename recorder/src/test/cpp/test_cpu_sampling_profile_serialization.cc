@@ -93,12 +93,20 @@ jmethodID mid(std::uint64_t id) {
         CHECK_EQUAL(fn_sig, mthd_info.signature());                     \
     }
 
-#define ASSERT_TRACE_CTX_INFO_IS(trace_ctx, ctx_id, ctx_name, cov_pct, merge_semantics) \
+#define ASSERT_TRACE_CTX_INFO_IS(trace_ctx, ctx_id, ctx_name, cov_pct, merge_semantics, is_gen) \
     {                                                                   \
         CHECK_EQUAL(ctx_id, trace_ctx.trace_id());                      \
         CHECK_EQUAL(ctx_name, trace_ctx.trace_name());                  \
-        CHECK_EQUAL(cov_pct, trace_ctx.coverage_pct());                 \
-        CHECK_EQUAL(merge_semantics, trace_ctx.merge());                \
+        if (is_gen) {                                                   \
+            CHECK_EQUAL(true, trace_ctx.is_generated());                \
+            CHECK_EQUAL(false, trace_ctx.has_coverage_pct());           \
+            CHECK_EQUAL(false, trace_ctx.has_merge());                  \
+        } else {                                                        \
+            CHECK_EQUAL(true, trace_ctx.has_coverage_pct());            \
+            CHECK_EQUAL(true, trace_ctx.has_merge());                   \
+            CHECK_EQUAL(cov_pct, trace_ctx.coverage_pct());             \
+            CHECK_EQUAL(merge_semantics, trace_ctx.merge());            \
+        }                                                               \
     }
 
 typedef std::int64_t F_mid;
@@ -136,6 +144,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     Buff pw_buff;
     ProfileWriter pw(raw_w_ptr, pw_buff);
 
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+    
     std::int64_t y = 1, c = 2, d = 3, e = 4, f = 5;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
@@ -144,9 +155,11 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     stub(method_lookup_stub, line_no_lookup_stub, f, "x/F.class", "x.F", "fn_f", "(J)I");
 
     PerfCtx::Registry reg;
-    auto ctx_foo = reg.find_or_bind("foo", 20, 0);
-    auto ctx_bar = reg.find_or_bind("bar", 30, 0);
-    auto ctx_baz = reg.find_or_bind("baz", 40, 4);
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto dup_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::duplicate);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+    auto ctx_bar = reg.find_or_bind("bar", 30, to_parent_semantic);
+    auto ctx_baz = reg.find_or_bind("baz", 40, dup_semantic);
     
     ProbPct prob_pct;
     GlobalCtx::prob_pct = &prob_pct;
@@ -271,9 +284,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(4), f, "x/F.class", "x.F", "fn_f", "(J)I");
 
     CHECK_EQUAL(3, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 0);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 7, "baz", 40, 4);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 7, "baz", 40, 4, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -288,6 +301,118 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     auto s3_ctxs = {6};
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs);
 }
+
+TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
+    init_logger();
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+    ProfileWriter pw(raw_w_ptr, pw_buff);
+
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+
+    std::int64_t y = 1, c = 2;
+    stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
+
+    PerfCtx::Registry reg;
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto scoped_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::scoped);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+    auto ctx_bar = reg.find_or_bind("bar", 30, scoped_semantic);
+    
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg);
+
+    CircularQueue q(ps, 10);
+    
+    //const JVMPI_CallTrace item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr
+
+    STATIC_ARRAY(frames, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct;
+    ct.frames = frames;
+
+    frames[0].method_id = mid(c);
+    frames[0].lineno = 10;
+    frames[1].method_id = mid(y);
+    frames[1].lineno = 20;
+    ct.num_frames = 2;
+
+    ThreadBucket t25(25, "some thread", 8, false);
+    t25.ctx_tracker.enter(ctx_foo);
+    t25.ctx_tracker.enter(ctx_bar);
+    q.push(ct, &t25);
+    t25.ctx_tracker.exit(ctx_bar);
+    t25.ctx_tracker.exit(ctx_foo);
+
+    frames[0].method_id = mid(y);
+    frames[0].lineno = 10;
+    frames[1].method_id = mid(c);
+    frames[1].lineno = 20;
+    ct.num_frames = 2;
+
+    t25.ctx_tracker.enter(ctx_bar);
+    t25.ctx_tracker.enter(ctx_foo);
+    q.push(ct, &t25);
+    t25.ctx_tracker.exit(ctx_foo);
+    t25.ctx_tracker.exit(ctx_bar);
+
+    CHECK(q.pop());
+    CHECK(q.pop());
+    CHECK(! q.pop());//because only 2 samples were pushed
+
+    ps.flush();
+
+    buff.readonly();
+
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    CHECK(bytes_sz > 0);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    CHECK(cis.ReadVarint32(&len));
+
+    auto lim = cis.PushLimit(len);
+
+    recording::Wse wse;
+    CHECK(wse.ParseFromCodedStream(&cis));
+
+    cis.PopLimit(lim);
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse.w_type());
+    auto idx_data = wse.indexed_data();
+    CHECK_EQUAL(0, idx_data.monitor_info_size());
+    
+    CHECK_EQUAL(1, idx_data.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
+
+    CHECK_EQUAL(2, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+
+    CHECK_EQUAL(2, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo > bar", 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 1, false);
+
+    auto cse = wse.cpu_sample_entry();
+
+    CHECK_EQUAL(2, cse.stack_sample_size());
+    auto s1 = {fr(c, 10, 1), fr(y, 20, 2)};
+    auto s1_ctxs = {5};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs); //TODO: fix this to actually record time-offset, right now we are using zero
+    auto s2 = {fr(y, 10, 1), fr(c, 20, 2)};
+    auto s2_ctxs = {6};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 3, s2, s2_ctxs);
+}
+
 
 //test: should auto flush (when crosses buffering threshold)
 

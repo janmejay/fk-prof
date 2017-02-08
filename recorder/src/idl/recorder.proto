@@ -102,7 +102,8 @@ message IndexedData {
 message TraceContext {
   required uint32 trace_id = 1;
   required string trace_name = 2;
-  required uint32 coverage_pct = 3;
+  required bool is_generated = 3;
+  optional uint32 coverage_pct = 4;
   enum MergeSemantics {
     parent = 0;
     scoped = 1;
@@ -110,7 +111,7 @@ message TraceContext {
     stack = 3;
     duplicate = 4;
   }
-  required MergeSemantics merge = 4;
+  optional MergeSemantics merge = 5;
 }
 
 message MethodInfo {
