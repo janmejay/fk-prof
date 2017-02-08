@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "start": "node server.js",
+    "forever": "./node_modules/.bin/forever server.js",
     "lint": "./node_modules/.bin/eslint app/** webpack.config.js server.js",
     "prod-build": "NODE_ENV=production node_modules/.bin/webpack"
   },
