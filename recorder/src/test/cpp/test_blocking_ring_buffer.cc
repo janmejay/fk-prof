@@ -425,7 +425,7 @@ void write_to_ring_conditionally(BlockingRingBuffer& ring, std::uint8_t *buff, s
     while (! do_start.load(std::memory_order_relaxed));
     for (auto i = 0; i < times; i++) {
         for (auto offset = 0; offset < buff_len; ) {
-            auto len = min(batch_sz, buff_len - offset);
+            auto len = Util::min(batch_sz, buff_len - offset);
             if (! do_continue.load(std::memory_order_relaxed)) return;
             ring.write(buff, offset, len);
             offset += len;

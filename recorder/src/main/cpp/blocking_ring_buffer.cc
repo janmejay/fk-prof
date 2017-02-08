@@ -50,7 +50,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
     if ((read_idx < write_idx) ||
         (read_idx == write_idx &&
          available == 0)) {
-        auto copy_bytes = min(sz, capacity - write_idx);
+        auto copy_bytes = Util::min(sz, capacity - write_idx);
         std::memcpy(buff + write_idx, from + offset, copy_bytes);
         available += copy_bytes;
         logger->trace("Ring added {} available bytes", copy_bytes);
@@ -64,7 +64,7 @@ std::uint32_t BlockingRingBuffer::write_noblock(const std::uint8_t *from, std::u
     }
 
     auto bytes_copied = available - available_before;
-    auto copy_bytes = min(sz, read_idx - write_idx);
+    auto copy_bytes = Util::min(sz, read_idx - write_idx);
     if (copy_bytes > 0) {
         std::memcpy(buff + write_idx, from + offset, copy_bytes);
         write_idx += copy_bytes;
@@ -87,7 +87,7 @@ std::uint32_t BlockingRingBuffer::read_noblock(std::uint8_t *to, std::uint32_t& 
     if ((write_idx < read_idx) ||
         (read_idx == write_idx &&
          available == capacity)) {
-        auto copy_bytes = min(sz, capacity - read_idx);
+        auto copy_bytes = Util::min(sz, capacity - read_idx);
         std::memcpy(to + offset, buff + read_idx, copy_bytes);
         available -= copy_bytes;
         offset += copy_bytes;
@@ -100,7 +100,7 @@ std::uint32_t BlockingRingBuffer::read_noblock(std::uint8_t *to, std::uint32_t& 
     }
 
     auto bytes_copied = available_before - available;
-    auto copy_bytes = min(sz, write_idx - read_idx);
+    auto copy_bytes = Util::min(sz, write_idx - read_idx);
     if (copy_bytes > 0) {
         std::memcpy(to + offset, buff + read_idx, copy_bytes);
         read_idx += copy_bytes;

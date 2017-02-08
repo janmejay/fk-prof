@@ -87,14 +87,14 @@ typedef std::unique_ptr<struct curl_slist, void(*)(curl_slist*)> CurlHeader;
 static std::uint32_t backoff(std::uint32_t& seconds, std::uint32_t multiplier, std::uint32_t max_backoff_val) {
     auto current_backoff = seconds;
     logger->error("COMM failed, backing-off by {} seconds", seconds);
-    seconds = min(seconds * multiplier, max_backoff_val);
+    seconds = Util::min(seconds * multiplier, max_backoff_val);
     return current_backoff;
 }
 
 static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, void *send_buff) {
     auto buff = static_cast<Buff*>(send_buff);
     std::uint32_t out_capacity = size * nitems;
-    auto should_copy = min(out_capacity, buff->write_end - buff->read_end);
+    auto should_copy = Util::min(out_capacity, buff->write_end - buff->read_end);
     std::memcpy(out_buff, buff->buff + buff->read_end, should_copy);
     buff->read_end += should_copy;
     return should_copy;

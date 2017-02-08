@@ -219,7 +219,7 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
         t_ctx.exit(42); //now gibberish won't work, because ctx is tracking it
         CHECK(false); //should never reach here
     } catch (const IncorrectEnterExitPairing& e) {
-        CHECK_EQUAL(to_s("Expected ", SCOPED_MASK | 11, " got 42"), e.what());
+        CHECK_EQUAL(Util::to_s("Expected ", SCOPED_MASK | 11, " got 42"), e.what());
     }
     
     t_ctx.exit(SCOPED_MASK | 11);

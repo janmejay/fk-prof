@@ -10,6 +10,7 @@
 #include <concurrentqueue.h>
 #include "prob_pct.hh"
 #include <unordered_map>
+#include <functional>
 
 #ifndef PERF_CTX_H
 #define PERF_CTX_H
@@ -68,7 +69,7 @@ namespace PerfCtx {
 
     class UnknownCtx : public std::runtime_error {
     public:
-        UnknownCtx(TracePt pt) : runtime_error(to_s("Name dereference failed for unkonwn ctx: 0x", std::hex, pt)) {}
+        UnknownCtx(TracePt pt) : runtime_error(Util::to_s("Name dereference failed for unkonwn ctx: 0x", std::hex, pt)) {}
         virtual ~UnknownCtx() {}
     };
 
@@ -97,6 +98,7 @@ namespace PerfCtx {
         PtToName pt_to_name;
 
         void load_unused_primes(std::uint32_t count);
+        void name_for(TracePt pt, std::string& name) throw (UnknownCtx);
 
     public:
         Registry() : unused_prime_nos(MAX_USER_CTX_COUNT) {
@@ -106,12 +108,12 @@ namespace PerfCtx {
         
         TracePt find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (CtxCreationFailure);
         TracePt merge_bind(const std::vector<ThreadCtx>& parent, bool strict = false);
-        void name_for(TracePt pt, std::string& name) throw (UnknownCtx);
+        void resolve(TracePt pt, std::string& name, bool& is_generated, std::uint8_t& coverage_pct, MergeSemantic& m_sem) throw (UnknownCtx);
     };
 
     class IncorrectEnterExitPairing : public std::runtime_error {
     public:
-        IncorrectEnterExitPairing(const TracePt expected, const TracePt got) : runtime_error(to_s("Expected ", expected, " got ", got)) {};
+        IncorrectEnterExitPairing(const TracePt expected, const TracePt got) : runtime_error(Util::to_s("Expected ", expected, " got ", got)) {};
         virtual ~IncorrectEnterExitPairing() {}
     };
 

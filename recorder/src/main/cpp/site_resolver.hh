@@ -13,8 +13,8 @@ namespace SiteResolver {
     typedef bool (*MethodInfoResolver)(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener);
     bool method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener);
 
-    typedef jint (*LineNoResolver)(jint bci, jmethodID method_id);
-    jint line_no(jint bci, jmethodID method_id);
+    typedef jint (*LineNoResolver)(jint bci, jmethodID method_id, jvmtiEnv* jvmti);
+    jint line_no(jint bci, jmethodID method_id, jvmtiEnv* jvmti);
 }
 
 #endif

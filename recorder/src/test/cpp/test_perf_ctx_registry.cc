@@ -52,18 +52,45 @@ TEST(PerfCtx___should_issue_correctly_encoded__ctx_ids__and_remember_them) {
 
     //now check if it remembers
     std::string name;
-    r.name_for(v2, name);
+    bool is_generated;
+    std::uint8_t coverage_pct;
+    PerfCtx::MergeSemantic m_sem;
+
+    r.resolve(v2, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("foo", name);
-    r.name_for(v3, name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(10, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::to_parent, m_sem);
+
+    r.resolve(v3, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("bar", name);
-    r.name_for(v5, name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(7, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::scoped, m_sem);
+
+    r.resolve(v5, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("baz", name);
-    r.name_for(v7, name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(25, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::scoped_strict, m_sem);
+
+    r.resolve(v7, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("quux", name);
-    r.name_for(v11, name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(30, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::stack_up, m_sem);
+
+    r.resolve(v11, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("corge", name);
-    r.name_for(v13, name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(20, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::duplicate, m_sem);
+
+    r.resolve(v13, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("all", name);
+    CHECK_EQUAL(false, is_generated);
+    CHECK_EQUAL(100, coverage_pct);
+    CHECK_EQUAL(PerfCtx::MergeSemantic::to_parent, m_sem);
 
     CHECK_EQUAL(v2, r.find_or_bind("foo", 10, 0));
     CHECK_EQUAL(v3, r.find_or_bind("bar", 7, 1));
@@ -85,9 +112,9 @@ TEST(PerfCtx___should_not_allow_binding_too_many_ctxs) {
     auto i = 0;
     for (; i < 300; i++) {
         try {
-            last_pt = r.find_or_bind(to_s("foo-", i).c_str(), 5, 0);
+            last_pt = r.find_or_bind(Util::to_s("foo-", i).c_str(), 5, 0);
         } catch (const PerfCtx::CtxCreationFailure& e) {
-            CHECK_EQUAL(to_s("PerfCtx creation failed: Too many (~ ", i, ") ctxs have been created."), e.what());
+            CHECK_EQUAL(Util::to_s("PerfCtx creation failed: Too many (~ ", i, ") ctxs have been created."), e.what());
             break;
         }
     }
@@ -152,9 +179,15 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
         | 0;
     
     CHECK_EQUAL(m_2_3_5, r.merge_bind(stk));
+
     std::string name;
-    r.name_for(m_2_3_5, name);
+    bool is_generated;
+    std::uint8_t coverage_pct;
+    PerfCtx::MergeSemantic m_sem;
+
+    r.resolve(m_2_3_5, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("foo > bar > baz", name);
+    CHECK_EQUAL(true, is_generated);
 
     stk.clear();
     stk.emplace_back(v5, 0, 0, false);
@@ -167,8 +200,11 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
         | 5;
     
     CHECK_EQUAL(m_5_3_2, r.merge_bind(stk));
-    r.name_for(m_5_3_2, name);
+
+    r.resolve(m_5_3_2, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("baz > bar > foo", name);
+    CHECK_EQUAL(true, is_generated);
+    
 
     stk.emplace_back(v11, 0, 0, false);
     stk.emplace_back(v7, 0, 0, false);
@@ -178,8 +214,10 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
         | 55;
     
     CHECK_EQUAL(m_5_3_2_11_7, r.merge_bind(stk));
-    r.name_for(m_5_3_2_11_7, name);
+
+    r.resolve(m_5_3_2_11_7, name, is_generated, coverage_pct, m_sem);
     CHECK_EQUAL("baz > bar > foo > corge > quux", name);
+    CHECK_EQUAL(true, is_generated);
 }
 
 TEST(PerfCtx___ensures_rebind_attempts__match_existing_binding) {
@@ -213,7 +251,7 @@ void bind_some_ctxs(std::atomic<bool>& go, Registry& r) {
     auto i = 0;
     while (true) {
         try {
-            r.find_or_bind(to_s("foo-", i++).c_str(), 10, 1);
+            r.find_or_bind(Util::to_s("foo-", i++).c_str(), 10, 1);
         } catch (const CtxCreationFailure& e) {
             break;
         }
@@ -246,7 +284,7 @@ TEST(PerfCtx___does_not_leak_checked_out_prime_nos___in_face_of_concurrent_binds
     auto i = 0;
     while (true) {
         try {
-            auto pt = r.find_or_bind(to_s("foo-", i++).c_str(), 10, 1);
+            auto pt = r.find_or_bind(Util::to_s("foo-", i++).c_str(), 10, 1);
             auto prime_used = pt & USER_CREATED_CTX_ID_MASK;
             primes_used.push_back(prime_used);
         } catch (const CtxCreationFailure& e) {
@@ -255,7 +293,7 @@ TEST(PerfCtx___does_not_leak_checked_out_prime_nos___in_face_of_concurrent_binds
         }
     }
 
-    CHECK_EQUAL(to_s("PerfCtx creation failed: Too many (~ ", i - 1, ") ctxs have been created."), exception_msg);
+    CHECK_EQUAL(Util::to_s("PerfCtx creation failed: Too many (~ ", i - 1, ") ctxs have been created."), exception_msg);
 
     CHECK(i >= 200);
 }

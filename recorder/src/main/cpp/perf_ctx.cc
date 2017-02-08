@@ -138,7 +138,7 @@ static void assert_equal(const char* name, std::uint8_t cov_pct, std::uint8_t me
     auto old_cov_pct = (pt >> PerfCtx::COVERAGE_PCT_SHIFT) & PerfCtx::COVERAGE_PCT_MASK;
     auto old_merge_sem = (pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & PerfCtx::MERGE_SEMANTIIC_MASK;
     if ((old_cov_pct != cov_pct) || (old_merge_sem != merge_sem)) {
-        auto err_msg = to_s("New value (cov: ", static_cast<std::uint32_t>(cov_pct), "%, merge: ", static_cast<std::uint32_t>(merge_sem), ") for ctx 'foo' conflicts with old value (cov: ", static_cast<std::uint32_t>(old_cov_pct), "%, merge: ", static_cast<std::uint32_t>(old_merge_sem), ")");
+        auto err_msg = Util::to_s("New value (cov: ", static_cast<std::uint32_t>(cov_pct), "%, merge: ", static_cast<std::uint32_t>(merge_sem), ") for ctx 'foo' conflicts with old value (cov: ", static_cast<std::uint32_t>(old_cov_pct), "%, merge: ", static_cast<std::uint32_t>(old_merge_sem), ")");
         logger->warn("App tried to plug conflicting definitions of a ctx: {}", err_msg);
         throw PerfCtx::CtxCreationFailure(err_msg);
     }
@@ -155,7 +155,7 @@ PerfCtx::TracePt PerfCtx::Registry::find_or_bind(const char* name, std::uint8_t 
         auto sz = name_to_pt.size();
         logger->error("Ran out of context-space after creating ~ {} contexts, dumping the table.", sz);
         dump_table_to_logs(name_to_pt);
-        throw CtxCreationFailure(to_s("Too many (~ ", sz, ") ctxs have been created."));
+        throw CtxCreationFailure(Util::to_s("Too many (~ ", sz, ") ctxs have been created."));
     }
     assert(coverage_pct <= 100);
     assert(merge_type >= static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent));
@@ -247,8 +247,16 @@ PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx
 }
 
 void PerfCtx::Registry::name_for(TracePt pt, std::string& name) throw (PerfCtx::UnknownCtx) {
-    if (pt_to_name.find(pt, name)) return;
-    throw UnknownCtx(pt);
+    if (! pt_to_name.find(pt, name)) throw UnknownCtx(pt);
+}
+
+void PerfCtx::Registry::resolve(TracePt pt, std::string& name, bool& is_generated, std::uint8_t& coverage_pct, MergeSemantic& m_sem) throw (PerfCtx::UnknownCtx) {
+    name_for(pt, name);
+    is_generated = ((PerfCtx::MERGE_GENERATED_TYPE & pt) != 0);
+    if (! is_generated) {
+        m_sem = static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & PerfCtx::MERGE_SEMANTIIC_MASK);
+        coverage_pct = (pt >> PerfCtx::COVERAGE_PCT_SHIFT) & PerfCtx::COVERAGE_PCT_MASK;
+    }
 }
 
 JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject self, jstring name, jint coverage_pct, jint merge_type) {

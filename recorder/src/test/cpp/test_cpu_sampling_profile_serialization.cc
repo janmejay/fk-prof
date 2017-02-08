@@ -13,30 +13,43 @@
 #include "../../main/cpp/checksum.hh"
 #include <google/protobuf/io/coded_stream.h>
 
-bool test_frame_info_resolver(const jmethodID method_id, jvmtiEnv* jvmti, SiteResolver::MethodListener& listener) {
-    return true;
-}
-
-jint test_line_no_resolver(jint bci, jmethodID methodId) {
-    return 0;
-}
-
-typedef std::unordered_map<std::uint64_t, std::tuple<std::uint64_t, const char*, const char*, const char*, const char*>> FnStub;
-typedef std::unordered_map<std::tuple<std::uint64_t, jint>, jint> LineNoStub;
-
 namespace std {
-    template <> class hash<std::tuple<std::uint64_t, jint>> {
-        std::hash<std::uint64_t> u64_h;
+    template <> class hash<std::tuple<std::int64_t, jint>> {
+        std::hash<std::int64_t> i64_h;
         std::hash<jint> jint_h;
 
     public:
-        std::size_t operator()(const std::tuple<std::uint64_t, jint>& v) const {
-            return 13 * u64_h(std::get<0>(v)) + std::get<1>(v);
+        std::size_t operator()(const std::tuple<std::int64_t, jint>& v) const {
+            return 13 * i64_h(std::get<0>(v)) + std::get<1>(v);
         }
     };
 }
 
-void stub(FnStub& method_lookup_stub, LineNoStub& line_no_lookup_stub, std::uint64_t method_id, const char* file, const char* fqdn, const char* fn_name, const char* fn_sig) {
+typedef std::unordered_map<std::int64_t, std::tuple<std::int64_t, const char*, const char*, const char*, const char*>> FnStub;
+typedef std::unordered_map<std::tuple<std::int64_t, jint>, jint> LineNoStub;
+
+FnStub method_lookup_stub;
+LineNoStub line_no_lookup_stub;
+
+bool test_mthd_info_resolver(const jmethodID method_id, jvmtiEnv* jvmti, SiteResolver::MethodListener& listener) {
+    auto t = method_lookup_stub.find(reinterpret_cast<std::int64_t>(method_id));
+    if (t != method_lookup_stub.end()) {
+        const auto& identity = t->second;
+        listener.recordNewMethod(method_id, std::get<1>(identity), std::get<2>(identity), std::get<3>(identity), std::get<4>(identity));
+        return true;
+    }
+    return false;
+}
+
+jint test_line_no_resolver(jint bci, jmethodID method_id, jvmtiEnv* jvmti) {
+    auto t = line_no_lookup_stub.find(std::make_tuple(reinterpret_cast<int64_t>(method_id), bci));
+    if (t != line_no_lookup_stub.end()) {
+        return t->second;
+    }
+    return 0;
+}
+
+void stub(FnStub& method_lookup_stub, LineNoStub& line_no_lookup_stub, std::int64_t method_id, const char* file, const char* fqdn, const char* fn_name, const char* fn_sig) {
     method_lookup_stub.insert({method_id, std::make_tuple(method_id, file, fqdn, fn_name, fn_sig)});
     line_no_lookup_stub.insert({std::make_tuple(method_id, 10), 1});
     line_no_lookup_stub.insert({std::make_tuple(method_id, 20), 2});
@@ -52,7 +65,7 @@ struct AccumulatingRawWriter : public RawWriter {
     void write_unbuffered(const std::uint8_t* data, std::uint32_t sz, std::uint32_t offset) {
         auto wrote = buff.write(data, offset, sz, false);
         if (wrote < sz) {
-            throw std::runtime_error(to_s("Wrote too little to byte-buff, wanted to write ", sz, " but wrote only ", wrote));
+            throw std::runtime_error(Util::to_s("Wrote too little to byte-buff, wanted to write ", sz, " but wrote only ", wrote));
         }
     }
 };
@@ -62,12 +75,13 @@ jmethodID mid(std::uint64_t id) {
 }
 
 
-#define ASSERT_THREAD_INFO_IS(thd_info, thd_id, thd_name, thd_prio, thd_is_daemon) \
+#define ASSERT_THREAD_INFO_IS(thd_info, thd_id, thd_name, thd_prio, thd_is_daemon, thd_tid) \
     {                                                                   \
         CHECK_EQUAL(thd_id, thd_info.thread_id());                      \
         CHECK_EQUAL(thd_name, thd_info.thread_name());                  \
         CHECK_EQUAL(thd_prio, thd_info.priority());                     \
         CHECK_EQUAL(thd_is_daemon, thd_info.is_daemon());               \
+        CHECK_EQUAL(thd_tid, thd_info.tid());                           \
     }
 
 #define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig) \
@@ -121,10 +135,8 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
     ProfileWriter pw(raw_w_ptr, pw_buff);
-    FnStub method_lookup_stub;
-    LineNoStub line_no_lookup_stub;
 
-    std::uint64_t y = 1, c = 2, d = 3, e = 4, f = 5;
+    std::int64_t y = 1, c = 2, d = 3, e = 4, f = 5;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -140,7 +152,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     GlobalCtx::prob_pct = &prob_pct;
     GlobalCtx::ctx_reg = &reg;
 
-    ProfileSerializingWriter ps(pw, test_frame_info_resolver, test_line_no_resolver, reg);
+    jvmtiEnv* ti = nullptr;
+
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg);
 
     CircularQueue q(ps, 10);
     
@@ -158,8 +172,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[2].lineno = 20;
     frames[3].method_id = mid(c);
     frames[3].lineno = 20;
-    frames[3].method_id = mid(y);
-    frames[3].lineno = 30;
+    frames[4].method_id = mid(y);
+    frames[4].lineno = 30;
+    ct.num_frames = 5;
 
     ThreadBucket t25(25, "Thread No. 25", 5, true);
     t25.ctx_tracker.enter(ctx_foo);
@@ -180,6 +195,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[4].lineno = 30;
     frames[5].method_id = mid(y);
     frames[5].lineno = 30;
+    ct.num_frames = 6;
 
     ThreadBucket tmain(42, "main thread", 10, false);
     tmain.ctx_tracker.enter(ctx_bar);
@@ -199,6 +215,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[4].lineno = 30;
     frames[5].method_id = mid(y);
     frames[5].lineno = 30;
+    ct.num_frames = 6;
     q.push(ct, &tmain);
     
     tmain.ctx_tracker.exit(ctx_bar);
@@ -243,33 +260,33 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     CHECK_EQUAL(0, idx_data.monitor_info_size());
     
     CHECK_EQUAL(2, idx_data.thread_info_size());
-    ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 25, "Thread No. 25", 5, true);
-    ASSERT_THREAD_INFO_IS(idx_data.thread_info(1), 42, "main thread", 10, false);
+    ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
+    ASSERT_THREAD_INFO_IS(idx_data.thread_info(1), 4, "main thread", 10, false, 42);
 
     CHECK_EQUAL(5, idx_data.method_info_size());
     ASSERT_METHOD_INFO_IS(idx_data.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), y, "x/E.class", "x.E", "fn_e", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), y, "x/F.class", "x.F", "fn_f", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), e, "x/E.class", "x.E", "fn_e", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), f, "x/F.class", "x.F", "fn_f", "(J)I");
 
     CHECK_EQUAL(3, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 2, "foo", 20, 0);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 3, "bar", 30, 0);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 5, "baz", 40, 4);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 0);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 7, "baz", 40, 4);
 
     auto cse = wse.cpu_sample_entry();
 
     CHECK_EQUAL(3, cse.stack_sample_size());
     auto s1 = {fr(d, 10, 1), fr(c, 10, 1), fr(d, 20, 2), fr(c, 20, 2), fr(y, 30, 3)};
-    auto s1_ctxs = {ctx_foo};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 25, s1, s1_ctxs); //TODO: fix this to actually record time-offset, right now we are using zero
+    auto s1_ctxs = {5};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs); //TODO: fix this to actually record time-offset, right now we are using zero
     auto s2 = {fr(d, 10, 1), fr(c, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
-    auto s2_ctxs = {ctx_bar, ctx_baz};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 42, s2, s2_ctxs);
+    auto s2_ctxs = {6, 7};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 4, s2, s2_ctxs);
     auto s3 = {fr(c, 10, 1), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
-    auto s3_ctxs = {ctx_bar};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 42, s3, s3_ctxs);
+    auto s3_ctxs = {6};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs);
 }
 
 //test: should auto flush (when crosses buffering threshold)

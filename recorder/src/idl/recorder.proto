@@ -126,6 +126,7 @@ message ThreadInfo {
   required string thread_name = 2;
   required int32 priority = 3;
   required bool is_daemon = 4;
+  required int64 tid = 5;
 }
 
 message MonitorInfo {

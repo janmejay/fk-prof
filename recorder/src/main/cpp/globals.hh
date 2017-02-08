@@ -9,7 +9,6 @@
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
 
-#include "profile_writer.hh"
 #include "perf_ctx.hh"
 
 #ifndef GLOBALS_H
@@ -62,14 +61,6 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
 #else
   #define STATIC_ARRAY(NAME, TYPE, SIZE, MAXSZ) TYPE NAME[SIZE]
 #endif
-
-template <typename T> const T& min(const T& first, const T& second) {
-    return first > second ? second : first;
-}
-
-template <typename T> const T& max(const T& first, const T& second) {
-    return first < second ? second : first;
-}
 
 #define AGENTEXPORT __attribute__((visibility("default"))) JNIEXPORT
 
