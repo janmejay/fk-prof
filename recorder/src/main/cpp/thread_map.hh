@@ -10,7 +10,6 @@
 
 int gettid();
 
-
 template <typename PType>
 struct PointerHasher {
 	/* Numerical Recipes, 3rd Edition */
@@ -132,5 +131,6 @@ public:
 };
 
 typedef ThreadMapBase<map::ConcurrentMapProvider<PointerHasher<JNIEnv>, true> > ThreadMap;
+ThreadMap& get_thread_map();
 
 #endif

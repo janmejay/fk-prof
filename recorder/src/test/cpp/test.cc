@@ -1,9 +1,10 @@
 #include "test.hh"
 #include "../../main/cpp/prob_pct.hh"
+#include "../../main/cpp/thread_map.hh"
 
 LoggerP logger(nullptr);
-PerfCtx::Registry* GlobalCtx::ctx_reg;
-ProbPct* GlobalCtx::prob_pct;
+PerfCtx::Registry* GlobalCtx::ctx_reg = nullptr;
+ProbPct* GlobalCtx::prob_pct = nullptr;
 
 std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms) {
     switch (ms) {
@@ -36,8 +37,7 @@ void init_logger() {
     }
 }
 
-int main() {
-    auto ret = UnitTest::RunAllTests();
-    logger.reset();
-    return ret;
+static ThreadMap thread_map;
+ThreadMap& get_thread_map() {
+    return thread_map;
 }

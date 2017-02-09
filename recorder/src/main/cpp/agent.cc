@@ -198,6 +198,7 @@ void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread)
             }
         }
         threadMap.put(jni_env, thread_info.name, thread_info.priority, thread_info.is_daemon);
+        jvmti_env->Deallocate((unsigned char *) thread_info.name);
     }
     pthread_sigmask(SIG_UNBLOCK, &prof_signal_mask, NULL);
 }
@@ -323,4 +324,8 @@ void logError(const char *__restrict format, ...) {
     va_start(arg, format);
     vfprintf(stderr, format, arg);
     va_end(arg);
+}
+
+ThreadMap& get_thread_map() {
+    return threadMap;
 }

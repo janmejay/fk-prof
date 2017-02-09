@@ -3,6 +3,7 @@
 #include "perf_ctx.hh"
 #include "globals.hh"
 #include <sstream>
+#include "thread_map.hh"
 
 PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
     assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
@@ -274,16 +275,17 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
 }
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong ctx_id) {
-    // try {
-    //     //GlobalCtx::perf_ctx->exit(env, static_cast<PerfCtx::TracePt>(ctx_id));
-    // } catch (PerfCtx::IncorrectCtxScope& e) {
-    //     if (env->ThrowNew(env->FindClass("fk/prof/IncorrectContextException"), e.what()) == 0) return;
-    //     logger->warn("Incorrect ctx end was requested, details: {}", e.what());
-    // }
+    auto thd_info = get_thread_map().get(env);
+    try {
+        thd_info->ctx_tracker.exit(static_cast<PerfCtx::TracePt>(ctx_id));
+    } catch (const PerfCtx::IncorrectEnterExitPairing& e) {
+        env->ThrowNew(env->FindClass("fk/prof/IncorrectContextException"), e.what());
+    }
 }
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* env, jobject self, jlong ctx_id) {
-    //GlobalCtx::perf_ctx->enter(env, static_cast<PerfCtx::TracePt>(ctx_id));
+    auto thd_info = get_thread_map().get(env);
+    thd_info->ctx_tracker.enter(static_cast<PerfCtx::TracePt>(ctx_id));
 }
 
 

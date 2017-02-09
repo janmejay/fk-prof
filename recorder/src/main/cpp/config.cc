@@ -47,7 +47,7 @@ void ConfigurationOptions::load(const char* options) {
         const char *value = strchr(key, '=');
         next = strchr(key, ',');
         if (value == NULL) {
-            logError("WARN: No value for key %s\n", key);
+            logger->warn("WARN: No value for key {}", key);
             continue;
         } else {
             value++;
@@ -91,7 +91,7 @@ void ConfigurationOptions::load(const char* options) {
                 poll_itvl = (std::uint32_t) atoi(value);
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;
             } else {
-                logger->warn("Unknown configuration option: {}\n", key);
+                logger->warn("Unknown configuration option: {}", key);
             }
         }
     }

@@ -17,6 +17,7 @@ package fk.prof;
  * Purely technically, it is possible to track 100 statically created perf-ctx with upto 6 level depth using prime-numbers to represent each statically created ctx so multiplication of prime-numbers can be used to represent to scope with a unsigned 64-bit field being used to represent the ctx-id (along with merge-semantic (2 bits) and coverage-pct (7 bits), which is total of 9 bits overhead, leaving us a max width of 55 bits and 2^55 > 541^6, (541 is the 100th prime number), but it doesn't seem like anyone should need more than 64 contexts (in totality) except for when context nesting is buggy (not correctly done).
  */
 public class PerfCtx {
+    private static boolean noDepMode = false; 
     private final long ctxId;
     private final String stringRep;
     final String autoClosableStringRep;
@@ -40,7 +41,16 @@ public class PerfCtx {
         if (!(Character.isAlphabetic(c) || Character.isDigit(c))) {
             throw new IllegalArgumentException(String.format("Name '%s' has an invalid starting character, first-char must be alpha-numeric.", name));
         }
-        ctxId = registerCtx(name, coveragePct, mrgSem.getTypeId());
+
+        long ctxIdTmp = -2;//TODO: choose this value carefully, use a low enough composite number to build this, so it can never occur in reality
+        if (! noDepMode) {
+            try {
+                ctxIdTmp = registerCtx(name, coveragePct, mrgSem.getTypeId());
+            } catch (UnsatisfiedLinkError e) {
+                noDepMode = true;
+            }
+        } 
+        ctxId = ctxIdTmp;
         stringRep = String.format("PerfCtx(%s) {name: '%s', coverage: %s%%, merge_semantics: '%s'}", ctxId, name, coveragePct, mrgSem);
         autoClosableStringRep = "Closable" + stringRep;
     }
@@ -48,11 +58,11 @@ public class PerfCtx {
     private native long registerCtx(String name, int coveragePct, int typeId) throws ConflictingDefinitionException;
 
     public void end() throws IncorrectContextException {
-        end(ctxId);
+        if (! noDepMode) end(ctxId);
     }
 
     public void begin() {
-        begin(ctxId);
+        if (! noDepMode) begin(ctxId);
     }
 
     public ClosablePerfCtx open() {

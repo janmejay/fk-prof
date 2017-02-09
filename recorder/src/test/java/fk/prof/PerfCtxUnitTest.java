@@ -1,7 +1,11 @@
 package fk.prof;
 
+import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.lang.reflect.Field;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -15,36 +19,59 @@ public class PerfCtxUnitTest {
     public void setUp() {
         TestJni.loadJniLib();
         testJni = new TestJni();
+        testJni.setupPerfCtx();
+        testJni.setupThdTracker();
+    }
+    
+    @After
+    public void tearDown() {
+        testJni.teardownThdTracker();
+        testJni.teardownPerfCtx();
     }
 
     @Test
-    public void shouldUnderstandEquality_purelyAsAFunctionOf_CtxId() {
-        testJni.getAndStubCtxIdStart(10);
+    public void shouldUnderstandEquality() {
         PerfCtx foo = new PerfCtx("foo", 10);
-        testJni.getAndStubCtxIdStart(10);
         PerfCtx bar = new PerfCtx("bar", 15);
-        assertThat(foo, is(bar));
+        assertThat(foo, not(bar));
         PerfCtx baz = new PerfCtx("foo", 10);
-        assertThat(foo, not(baz));
+        assertThat(foo, is(baz));
     }
 
     @Test
     public void shouldTrackCtx() {
-        testJni.getAndStubCtxIdStart(4);
         PerfCtx foo = new PerfCtx("foo", 15);
-        assertThat(testJni.getCurrentCtx(), is(-1));
+        long[] ctxs = new long[5];
+        assertThat(testJni.getCurrentCtx(ctxs), is(0));
         foo.begin();
-        assertThat(testJni.getCurrentCtx(), is(4));
+        assertThat(testJni.getCurrentCtx(ctxs), is(1));
+        assertCtxIs(ctxs[0], "foo", 15, MergeSemantics.MERGE_TO_PARENT, false);
         foo.end();
-        assertThat(testJni.getCurrentCtx(), is(-1));
+        assertThat(testJni.getCurrentCtx(ctxs), is(0));
+    }
+
+    private void assertCtxIs(long ctx, final String name, final int cov, final MergeSemantics expectedMSem, final boolean generated) {
+        assertThat(testJni.getCtxName(ctx), is(name));
+        assertThat(testJni.getCtxCov(ctx), is(cov));
+        int mSem = testJni.getCtxMergeSemantic(ctx);
+        MergeSemantics semantic = null;
+        for (MergeSemantics potential : MergeSemantics.values()) {
+            if (potential.getTypeId() == mSem) {
+                semantic = potential;
+                break;
+            } 
+        }
+        assertThat(semantic, is(expectedMSem));
+        assertThat(testJni.isGenerated(ctx), is(generated));
     }
 
     @Test
-    public void shouldPassNameAndCoverage_whileRegistering() {
-        testJni.getAndStubCtxIdStart(8);
-        PerfCtx foo = new PerfCtx("foo", 15);
-        assertThat(testJni.getLastRegisteredCtxName(), is("foo"));
-        assertThat(testJni.getLastRegisteredCtxCoveragePct(), is(15));
+    public void shouldPassNameAndCoverage_whileRegistering() throws NoSuchFieldException, IllegalAccessException {
+        PerfCtx foo = new PerfCtx("foo", 15, MergeSemantics.DUPLICATE);
+        Field fieldCtxId = PerfCtx.class.getDeclaredField("ctxId");
+        fieldCtxId.setAccessible(true);
+        long ctxId = (long) fieldCtxId.get(foo);
+        assertCtxIs(ctxId, "foo", 15, MergeSemantics.DUPLICATE, false);
     }
 
     @Test
@@ -115,32 +142,31 @@ public class PerfCtxUnitTest {
     
     @Test
     public void shouldTrackContext_whenUsedIn_TryWithResources_Style() {
-        testJni.getAndStubCtxIdStart(105);
+        //testJni.getAndStubCtxIdStart(105);
         PerfCtx ctx = new PerfCtx("foo bar baz", 25);
-        assertThat(testJni.getCurrentCtx(), is(-1));
+        long[] ctxs = new long[5];
+        assertThat(testJni.getCurrentCtx(ctxs), is(0));
         try(ClosablePerfCtx x = ctx.open()) {
-            assertThat(testJni.getCurrentCtx(), is(105));            
+            assertThat(testJni.getCurrentCtx(ctxs), is(1));
+            assertCtxIs(ctxs[0], "foo bar baz", 25, MergeSemantics.MERGE_TO_PARENT, false);            
         }
-        assertThat(testJni.getCurrentCtx(), is(-1));
+        assertThat(testJni.getCurrentCtx(ctxs), is(0));
     }
     
     @Test
     public void shouldPrintUseful_ToString() {
-        testJni.getAndStubCtxIdStart(42);
         PerfCtx ctx = new PerfCtx("foo bar baz", 25);
-        assertThat(ctx.toString(), is("PerfCtx(42) {name: 'foo bar baz', coverage: 25%}"));
+        assertThat(ctx.toString(), is("PerfCtx(1801439850948198402) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
         ClosablePerfCtx open = ctx.open();
-        assertThat(open.toString(), is("ClosablePerfCtx(42) {name: 'foo bar baz', coverage: 25%}"));
+        assertThat(open.toString(), is("ClosablePerfCtx(1801439850948198402) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
     }
     
     @Test
     public void shouldUnderstandEqualityIn_ClosablePerfCtx_Interface() {
-        testJni.getAndStubCtxIdStart(10);
         PerfCtx ctx = new PerfCtx("foo bar baz", 25);
         ClosablePerfCtx open = ctx.open();
-        testJni.getAndStubCtxIdStart(10);
         PerfCtx ctx1 = new PerfCtx("foo bar baz", 25);
-        ClosablePerfCtx open1 = ctx.open();
+        ClosablePerfCtx open1 = ctx1.open();
         assertThat(open, is(open1));
         open.close();
         assertThat(open, is(open1));
@@ -150,8 +176,7 @@ public class PerfCtxUnitTest {
     
     @Test
     public void shouldDefaultParams_sensibly() {
-        testJni.getAndStubCtxIdStart(95);
         PerfCtx foo = new PerfCtx("foo");
-        assertThat(foo.toString(), is("PerfCtx(95) {name: 'foo', coverage: 10%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
+        assertThat(foo.toString(), is("PerfCtx(720575940379279362) {name: 'foo', coverage: 10%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
     }
 }

@@ -11,18 +11,23 @@ public class TestJni {
 
     public native boolean generateCpusampleSimpleProfile(String filePath);
         
-    public native int getAndStubCtxIdStart(int startValue);
-    
     public static void loadJniLib() {
         if (loaded.compareAndSet(false, true)) {
             String linkTargetPath = new File("build/libtestjni" + Platforms.getDynamicLibraryExtension()).getAbsolutePath();
             System.load(linkTargetPath);
+            setupLogger();
         }
     }
-
-    public native int getCurrentCtx();
-
-    public native String getLastRegisteredCtxName();
-
-    public native int getLastRegisteredCtxCoveragePct();
+    
+    private native static void setupLogger(); 
+    
+    public native void setupPerfCtx();
+    public native void teardownPerfCtx();
+    public native void setupThdTracker();
+    public native void teardownThdTracker();
+    public native int getCurrentCtx(long[] fill);
+    public native String getCtxName(long ctxid);
+    public native int getCtxCov(long ctxid);
+    public native int getCtxMergeSemantic(long ctxid);
+    public native boolean isGenerated(long ctxid);
 }
