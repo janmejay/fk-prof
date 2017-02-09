@@ -51,6 +51,15 @@ public:
     void flush();
 };
 
+typedef std::uint32_t FlushCtr;
+
+struct SerializationFlushThresholds {
+    FlushCtr cpu_samples;
+
+    SerializationFlushThresholds() : cpu_samples(100) {}
+    ~SerializationFlushThresholds() {}
+};
+
 class ProfileSerializingWriter : public QueueListener, public SiteResolver::MethodListener {
 private:
     jvmtiEnv* jvmti;
@@ -72,9 +81,12 @@ private:
     ThdId next_thd_id;
     std::unordered_map<PerfCtx::TracePt, CtxId> known_ctxs;
     CtxId next_ctx_id;
+
+    const SerializationFlushThresholds& sft;
+    FlushCtr cpu_samples_flush_ctr;
     
 public:
-    ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr, PerfCtx::Registry& _reg) : jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5) {}
+    ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr, PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft) : jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0) {}
 
     ~ProfileSerializingWriter() {}
 

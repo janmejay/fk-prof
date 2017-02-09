@@ -104,6 +104,7 @@ private:
 
     SignalHandler* handler;
 
+    SerializationFlushThresholds sft;
     ProfileSerializingWriter* serializer;
 
     // indicates change of internal state

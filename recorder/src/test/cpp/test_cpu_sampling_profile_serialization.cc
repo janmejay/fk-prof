@@ -167,12 +167,11 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     jvmtiEnv* ti = nullptr;
 
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg);
+    SerializationFlushThresholds sft;
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft);
 
     CircularQueue q(ps, 10);
     
-    //const JVMPI_CallTrace item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr
-
     STATIC_ARRAY(frames, JVMPI_CallFrame, 7, 7);
     JVMPI_CallTrace ct;
     ct.frames = frames;
@@ -328,7 +327,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     jvmtiEnv* ti = nullptr;
 
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg);
+    SerializationFlushThresholds sft;
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft);
 
     CircularQueue q(ps, 10);
     
@@ -414,8 +414,275 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 }
 
 
-//test: should auto flush (when crosses buffering threshold)
+TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
+    init_logger();
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+    ProfileWriter pw(raw_w_ptr, pw_buff);
 
-//test: incrementally streams out method-info, thread-info, ctx-info etc
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
 
-//test: when new ctx is created post first flush and used by some stack-sample in the second flush
+    std::int64_t y = 1, c = 2;
+    stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
+
+    PerfCtx::Registry reg;
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+    
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    SerializationFlushThresholds sft;
+    sft.cpu_samples = 10;
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft);
+
+    CircularQueue q(ps, 10);
+    
+    STATIC_ARRAY(frames, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct;
+    ct.frames = frames;
+
+    frames[0].method_id = mid(c);
+    frames[0].lineno = 10;
+    frames[1].method_id = mid(y);
+    frames[1].lineno = 20;
+    ct.num_frames = 2;
+
+    ThreadBucket t25(25, "some thread", 8, false);
+    t25.ctx_tracker.enter(ctx_foo);
+    for (auto i = 0; i < 10; i++) {
+        q.push(ct, &t25);
+        CHECK(q.pop());
+
+        std::uint8_t tmp;
+        CHECK_EQUAL(0, buff.read(&tmp, 0, 1, false));
+    }
+    q.push(ct, &t25);
+    t25.ctx_tracker.exit(ctx_foo);
+    CHECK(q.pop());
+
+    buff.readonly();
+
+    const std::size_t one_meg = 1024 * 1024;
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
+    CHECK(bytes_sz > 0);
+    CHECK(bytes_sz < one_meg);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    CHECK(cis.ReadVarint32(&len));
+
+    auto lim = cis.PushLimit(len);
+
+    recording::Wse wse;
+    CHECK(wse.ParseFromCodedStream(&cis));
+
+    cis.PopLimit(lim);
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse.w_type());
+    auto idx_data = wse.indexed_data();
+    CHECK_EQUAL(0, idx_data.monitor_info_size());
+    
+    CHECK_EQUAL(1, idx_data.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
+
+    CHECK_EQUAL(2, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+
+    CHECK_EQUAL(1, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
+
+    auto cse = wse.cpu_sample_entry();
+    CHECK_EQUAL(10, cse.stack_sample_size());
+
+    auto s1 = {fr(c, 10, 1), fr(y, 20, 2)};
+    auto s1_ctxs = {5};
+    for (auto i = 0; i < 10; i++) {
+        ASSERT_STACK_SAMPLE_IS(cse.stack_sample(i), 0, 3, s1, s1_ctxs);
+    }
+}
+
+TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_should_incrementally_push___index_data_mapping) {
+    init_logger();
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+    ProfileWriter pw(raw_w_ptr, pw_buff);
+
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+
+    std::int64_t y = 1, c = 2, d = 3;
+    stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
+    stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
+
+    PerfCtx::Registry reg;
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+    auto ctx_bar = reg.find_or_bind("bar", 30, to_parent_semantic);
+    
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    SerializationFlushThresholds sft;
+    sft.cpu_samples = 10;
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft);
+
+    CircularQueue q(ps, 10);
+    
+    STATIC_ARRAY(frames0, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct0;
+
+    frames0[0].method_id = mid(c);
+    frames0[0].lineno = 10;
+    frames0[1].method_id = mid(y);
+    frames0[1].lineno = 20;
+    ct0.frames = frames0;
+    ct0.num_frames = 2;
+
+    STATIC_ARRAY(frames1, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct1;
+    frames1[0].method_id = mid(d);
+    frames1[0].lineno = 10;
+    frames1[1].method_id = mid(y);
+    frames1[1].lineno = 20;
+    ct1.frames = frames1;
+    ct1.num_frames = 2;
+
+    ThreadBucket t25(25, "some thread", 8, false);
+    ThreadBucket t10(10, "some other thread", 6, true);
+    t25.ctx_tracker.enter(ctx_foo);
+    t10.ctx_tracker.enter(ctx_bar);
+    for (auto i = 0; i < 26; i++) {
+        if (i == 15) {
+            ps.flush();//check manual flush interleving
+        }
+        if (i < 15) {
+            q.push(ct0, &t25);
+        } else {
+            q.push(ct1, &t10);
+        }
+        CHECK(q.pop());
+    }
+    t25.ctx_tracker.exit(ctx_foo);
+    t10.ctx_tracker.exit(ctx_bar);
+
+    buff.readonly();
+
+    const std::size_t one_meg = 1024 * 1024;
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
+    CHECK(bytes_sz > 0);
+    CHECK(bytes_sz < one_meg);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    std::uint32_t csum;
+    Checksum c_calc;
+    recording::Wse wse0, wse1, wse2;
+
+    CHECK(cis.ReadVarint32(&len));
+    auto lim = cis.PushLimit(len);
+    CHECK(wse0.ParseFromCodedStream(&cis));
+    cis.PopLimit(lim);
+    auto pos = cis.CurrentPosition();
+    CHECK(cis.ReadVarint32(&csum));
+    auto computed_csum = c_calc.chksum(tmp_buff.get(), pos);
+    CHECK_EQUAL(computed_csum, csum);
+    auto next_record_start = cis.CurrentPosition();
+
+    CHECK(cis.ReadVarint32(&len));
+    lim = cis.PushLimit(len);
+    CHECK(wse1.ParseFromCodedStream(&cis));
+    cis.PopLimit(lim);
+    pos = cis.CurrentPosition();
+    CHECK(cis.ReadVarint32(&csum));
+    c_calc.reset();
+    computed_csum = c_calc.chksum(tmp_buff.get() + next_record_start, pos - next_record_start);
+    CHECK_EQUAL(computed_csum, csum);
+    next_record_start = cis.CurrentPosition();
+
+    CHECK(cis.ReadVarint32(&len));
+    lim = cis.PushLimit(len);
+    CHECK(wse2.ParseFromCodedStream(&cis));
+    cis.PopLimit(lim);
+    pos = cis.CurrentPosition();
+    CHECK(cis.ReadVarint32(&csum));
+    c_calc.reset();
+    computed_csum = c_calc.chksum(tmp_buff.get() + next_record_start, pos - next_record_start);
+    CHECK_EQUAL(computed_csum, csum);
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse0.w_type());
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse1.w_type());
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse2.w_type());
+
+    auto idx_data0 = wse0.indexed_data();
+    CHECK_EQUAL(0, idx_data0.monitor_info_size());
+    
+    CHECK_EQUAL(1, idx_data0.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
+
+    CHECK_EQUAL(2, idx_data0.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+
+    CHECK_EQUAL(1, idx_data0.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 5, "foo", 20, 0, false);
+
+    auto cse0 = wse0.cpu_sample_entry();
+    CHECK_EQUAL(10, cse0.stack_sample_size());
+
+    auto s0 = {fr(c, 10, 1), fr(y, 20, 2)};
+    auto s0_ctxs = {5};
+    for (auto i = 0; i < 10; i++) {
+        ASSERT_STACK_SAMPLE_IS(cse0.stack_sample(i), 0, 3, s0, s0_ctxs);
+    }
+
+    auto idx_data1 = wse1.indexed_data();
+    CHECK_EQUAL(0, idx_data1.monitor_info_size());
+    CHECK_EQUAL(0, idx_data1.thread_info_size());
+    CHECK_EQUAL(0, idx_data1.method_info_size());
+    CHECK_EQUAL(0, idx_data1.trace_ctx_size());
+    auto cse1 = wse1.cpu_sample_entry();
+
+    CHECK_EQUAL(5, cse1.stack_sample_size());
+    for (auto i = 0; i < 5; i++) {
+        ASSERT_STACK_SAMPLE_IS(cse1.stack_sample(i), 0, 3, s0, s0_ctxs);
+    }
+
+    auto idx_data2 = wse2.indexed_data();
+    CHECK_EQUAL(0, idx_data2.monitor_info_size());
+    
+    CHECK_EQUAL(1, idx_data2.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data2.thread_info(0), 4, "some other thread", 6, true, 10);
+
+    CHECK_EQUAL(1, idx_data2.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data2.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
+
+    CHECK_EQUAL(1, idx_data2.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data2.trace_ctx(0), 6, "bar", 30, 0, false);
+
+    auto cse2 = wse2.cpu_sample_entry();
+    CHECK_EQUAL(10, cse2.stack_sample_size());
+
+    auto s1 = {fr(d, 10, 1), fr(y, 20, 2)};
+    auto s1_ctxs = {6};
+    for (auto i = 0; i < 10; i++) {
+        ASSERT_STACK_SAMPLE_IS(cse2.stack_sample(i), 0, 4, s1, s1_ctxs);
+    }
+}
+

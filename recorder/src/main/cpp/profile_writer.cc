@@ -57,6 +57,9 @@ void ProfileWriter::append_wse(const recording::Wse& e) {
 }
 
 void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
+    if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
+    cpu_samples_flush_ctr++;
+    
     auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
     auto cse = cpu_sample_accumulator.mutable_cpu_sample_entry();
     auto ss = cse->add_stack_sample();
@@ -145,5 +148,7 @@ void ProfileSerializingWriter::recordNewMethod(const jmethodID method_id, const 
 void ProfileSerializingWriter::flush() {
     cpu_sample_accumulator.set_w_type(recording::WorkType::cpu_sample_work);
     w.append_wse(cpu_sample_accumulator);
+    cpu_sample_accumulator.Clear();
+    cpu_samples_flush_ctr = 0;
     w.flush();
 }

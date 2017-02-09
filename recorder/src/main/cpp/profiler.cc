@@ -112,7 +112,7 @@ void Profiler::set_max_stack_depth(std::uint32_t _max_stack_depth) {
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, NULL, *GlobalCtx::ctx_reg);
+    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, NULL, *GlobalCtx::ctx_reg, sft);
     
     buffer = new CircularQueue(*serializer, capture_stack_depth());
 
