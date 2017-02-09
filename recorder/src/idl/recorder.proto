@@ -177,3 +177,8 @@ message MonitorTrace {
   required uint64 delay_ns = 3;
 }
 
+message ProcessGroup {
+  required string app_id = 3;
+  required string cluster = 5;
+  required string proc_name = 7;
+}

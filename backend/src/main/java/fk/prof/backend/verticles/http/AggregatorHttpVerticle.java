@@ -36,7 +36,7 @@ public class AggregatorHttpVerticle extends AbstractVerticle {
   private Router setupRouting() {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
-    router.post(ApiPathConstants.API_POST_PROFILE).handler(this::handlePostProfile);
+    router.post(ApiPathConstants.AGGREGATOR_POST_PROFILE).handler(this::handlePostProfile);
     return router;
   }
 

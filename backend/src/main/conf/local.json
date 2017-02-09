@@ -29,7 +29,8 @@
       "aggregation.enabled": false,
       "leader.watching.path": "/leaderwatch",
       "leader.mutex.path": "/leader",
-      "leader.sleep.ms": 60000
+      "leader.sleep.ms": 60000,
+      "backend.association.path": "/association"
     }
   }
 }
