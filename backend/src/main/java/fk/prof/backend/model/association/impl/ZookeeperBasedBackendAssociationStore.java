@@ -3,6 +3,7 @@ package fk.prof.backend.model.association.impl;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
+import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -99,11 +100,12 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   public Future<String> getAssociatedBackend(Recorder.ProcessGroup processGroup) {
     Future<String> result = Future.future();
     String existingBackendIPAddress = processGroupToBackendLookup.get(processGroup);
-
     vertx.executeBlocking(future -> {
       if(existingBackendIPAddress != null
-          && backendDetailLookup.get(existingBackendIPAddress).isDefunct()) {
+          && !backendDetailLookup.get(existingBackendIPAddress).isDefunct()) {
         // Returning the existing assignment if some backend is something already assigned to this process group and it is not defunct
+        logger.debug(String.format("process_group=%s, existing backend=%s, available",
+            ProtoUtil.processGroupCompactRepr(processGroup), existingBackendIPAddress));
         future.complete(existingBackendIPAddress);
       } else {
         /**
@@ -113,6 +115,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
          *    this can arise because during assignment, backend is dequeued from available backend queue and enqueued again post assignment
          * => competing zookeeper requests to de-assign a defunct backend
          */
+        logger.debug(String.format("process_group=%s, existing backend=%s, defunct or null",
+            ProtoUtil.processGroupCompactRepr(processGroup), existingBackendIPAddress));
         try {
           boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
           if (acquired) {
@@ -125,6 +129,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                 } else {
                   try {
                     associateBackendWithProcessGroup(availableBackend, processGroup);
+                    logger.debug(String.format("process_group=%s, new backend=%s",
+                        ProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
+                    future.complete(availableBackend.getBackendIPAddress());
                   } catch (Exception ex) {
                     future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
                         availableBackend.getBackendIPAddress(), processGroup));
@@ -142,6 +149,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                  * Backend is not defunct, proceed with returning this assignment
                  * This is a double check, this condition is checked before acquiring the lock as well to avoid locking cost in majority of the cases
                  */
+                logger.debug(String.format("process_group=%s, existing backend=%s, available",
+                    ProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress()));
                 future.complete(existingBackendIPAddress);
               } else {
                 /**
@@ -153,12 +162,15 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                 try {
                   if (newBackend == null) {
                     logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
-                        existingBackendIPAddress, processGroup));
+                        existingBackendIPAddress, ProtoUtil.processGroupCompactRepr(processGroup)));
                     future.complete(existingBackendIPAddress);
                   } else {
                     try {
                       deAssociateBackendWithProcessGroup(existingBackend, processGroup);
                       associateBackendWithProcessGroup(newBackend, processGroup);
+                      logger.debug(String.format("process_group=%s, de-associating existing backend=%s, associating new backend=%s",
+                          ProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress(), newBackend.getBackendIPAddress()));
+                      future.complete(newBackend.getBackendIPAddress());
                     } catch (Exception ex) {
                       future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
                           newBackend.getBackendIPAddress(), processGroup));
@@ -196,7 +208,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         return availableBackend;
       }
     }
-    return availableBackend.isDefunct() ? null : availableBackend;
+    return (availableBackend == null || availableBackend.isDefunct()) ? null : availableBackend;
   }
 
   /**
