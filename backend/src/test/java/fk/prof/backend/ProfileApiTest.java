@@ -227,7 +227,7 @@ public class ProfileApiTest {
 
   @Test(timeout = 5000)
   public void testWithInvalidHeaderLength(TestContext context) {
-    makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_HEADER_LENGTH, "allowed range for recording header length");
+    makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_HEADER_LENGTH, "invalid length for recording header");
   }
 
   @Test(timeout = 5000)
@@ -245,19 +245,19 @@ public class ProfileApiTest {
     makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_WORK_ID, "not found, cannot continue receiving");
   }
 
-  @Test(timeout = 5000)
+  @Test(timeout = 50000)
   public void testWithInvalidWseLength(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE_LENGTH, "allowed range for work-specific entry log");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE_LENGTH, "invalid length for wse");
   }
 
   @Test(timeout = 5000)
   public void testWithInvalidWse(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE, "error while parsing work-specific entry log");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE, "error while parsing wse");
   }
 
   @Test(timeout = 5000)
   public void testWithInvalidWseChecksum(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_CHECKSUM, "checksum of work-specific entry log does not match");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_CHECKSUM, "checksum of wse does not match");
   }
 
   private Future<Buffer> makeValidProfileRequest(TestContext context, Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList) {
