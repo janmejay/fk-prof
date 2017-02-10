@@ -173,7 +173,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
+set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0") # -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
 # to enable tracing add: -DENABLE_TRACING
 set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} -I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 

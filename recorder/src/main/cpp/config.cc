@@ -87,6 +87,7 @@ void ConfigurationOptions::load(const char* options) {
             } else if (strstr(key, "logLvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
                 log_level = resolv_log_level(val);
+                logger->warn("Log-level set to: {}", log_level);
             } else if (strstr(key, "pollItvl") == key) {
                 poll_itvl = (std::uint32_t) atoi(value);
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;

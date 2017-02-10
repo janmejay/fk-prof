@@ -79,7 +79,7 @@ public class AgentRunner {
 
     private void startProcess() throws IOException {
         String java = System.getProperty("java.home") + "/bin/java";
-        String agentArg = "-agentpath:../recorder/build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
+        String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
 
         List<String> classpath = discoverClasspath(getClass());

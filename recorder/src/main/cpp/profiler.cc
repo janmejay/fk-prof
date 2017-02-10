@@ -33,9 +33,10 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     PerfCtx::ThreadTracker* ctx_tracker = nullptr;
     if (jniEnv != nullptr) {
         thread_info = thread_map.get(jniEnv);
-        assert(thread_info != nullptr);
-        ctx_tracker = &(thread_info->ctx_tracker);
-        if (! ctx_tracker->should_record()) return;
+        if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
+            ctx_tracker = &(thread_info->ctx_tracker);
+            if (! ctx_tracker->should_record()) return;
+        }
     }
     SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer
 
@@ -112,7 +113,7 @@ void Profiler::set_max_stack_depth(std::uint32_t _max_stack_depth) {
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, NULL, *GlobalCtx::ctx_reg, sft);
+    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft);
     
     buffer = new CircularQueue(*serializer, capture_stack_depth());
 

@@ -49,6 +49,9 @@ public class TestBackendServer {
             try {
                 byte[] resBytes = handlers[idx].apply(reqBytes);
                 resStrm.write(resBytes);
+            } catch (RuntimeException | Error e) {
+                e.printStackTrace();
+                throw e;
             } finally {
                 fut.complete(null);
             }

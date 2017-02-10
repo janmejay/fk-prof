@@ -351,7 +351,7 @@ public class WorkHandlingTest {
             csum.reset();
             csum.update(req, bytesAfterChksum, bytesBeforeChksum);
             int wseChksum = is.readUInt32();
-            assertThat(wseChksum, is(csum.getValue()));
+            assertThat(wseChksum, is((int) csum.getValue()));
             bytesAfterChksum = is.getTotalBytesRead();
             ///////////////////////
         }

@@ -287,7 +287,9 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
     const char* name_str = nullptr;
     try {
         name_str = env->GetStringUTFChars(name, nullptr);
+        SPDLOG_DEBUG(logger, "Attempting registration of perf-ctx {} (cov: {}, merge: {})", name_str, coverage_pct, merge_type);
         auto id = GlobalCtx::ctx_reg->find_or_bind(name_str, static_cast<std::uint8_t>(coverage_pct), static_cast<std::uint8_t>(merge_type));
+        SPDLOG_DEBUG(logger, "Registered perf-ctx {} as {}", name_str, id);
         return static_cast<jlong>(id);
     } catch (PerfCtx::CtxCreationFailure& e) {
         if (name_str != nullptr) env->ReleaseStringUTFChars(name, name_str);
@@ -300,6 +302,7 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong ctx_id) {
     auto thd_info = get_thread_map().get(env);
     try {
+        SPDLOG_TRACE(logger, "Ending perf-ctx {} for jniEnv: {}", ctx_id, reinterpret_cast<std::uint64_t>(env));
         thd_info->ctx_tracker.exit(static_cast<PerfCtx::TracePt>(ctx_id));
     } catch (const PerfCtx::IncorrectEnterExitPairing& e) {
         env->ThrowNew(env->FindClass("fk/prof/IncorrectContextException"), e.what());
@@ -308,6 +311,7 @@ JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* env, jobject self, jlong ctx_id) {
     auto thd_info = get_thread_map().get(env);
+    SPDLOG_TRACE(logger, "Begining perf-ctx {} for jniEnv: {}", ctx_id, reinterpret_cast<std::uint64_t>(env));
     thd_info->ctx_tracker.enter(static_cast<PerfCtx::TracePt>(ctx_id));
 }
 

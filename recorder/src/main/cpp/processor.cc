@@ -74,7 +74,7 @@ void Processor::start(JNIEnv *jniEnv) {
     std::cout << "Starting sampling\n";
     isRunning_.store(true, std::memory_order_relaxed);
     workerDone.test_and_set(std::memory_order_relaxed); // initial is true
-    jthread thread = newThread(jniEnv, "Honest Profiler Processing Thread");
+    jthread thread = newThread(jniEnv, "Fk-Prof Processing Thread");
     jvmtiStartFunction callback = callbackToRunProcessor;
     result = jvmti_->RunAgentThread(thread, callback, this, JVMTI_THREAD_NORM_PRIORITY);
 

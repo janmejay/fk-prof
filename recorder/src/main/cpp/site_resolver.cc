@@ -3,10 +3,12 @@
 bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener) {
     jint error;
     JvmtiScopedPtr<char> methodName(jvmti);
+    JvmtiScopedPtr<char> methodSig(jvmti);
 
-    error = jvmti->GetMethodName(method_id, methodName.GetRef(), NULL, NULL);
+    error = jvmti->GetMethodName(method_id, methodName.GetRef(), methodSig.GetRef(), NULL);
     if (error != JVMTI_ERROR_NONE) {
         methodName.AbandonBecauseOfError();
+        methodSig.AbandonBecauseOfError();
         if (error == JVMTI_ERROR_INVALID_METHODID) {
             static int once = 0;
             if (!once) {
@@ -44,7 +46,7 @@ bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, Metho
         fileName = source_name_ptr.Get();
     }
 
-    listener.recordNewMethod(method_id, fileName, signature_ptr2.Get(), methodName.Get(), NULL);
+    listener.recordNewMethod(method_id, fileName, signature_ptr2.Get(), methodName.Get(), methodSig.Get());
 
     return true;
 }

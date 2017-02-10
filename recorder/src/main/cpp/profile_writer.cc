@@ -56,6 +56,26 @@ void ProfileWriter::append_wse(const recording::Wse& e) {
     write_unchecked(csum);
 }
 
+recording::StackSample::Error translate_forte_error(jint num_frames_error) {
+    /** copied form forte.cpp, this is error-table we are trying to translate
+        enum {
+          ticks_no_Java_frame         =  0,
+          ticks_no_class_load         = -1,
+          ticks_GC_active             = -2,
+          ticks_unknown_not_Java      = -3,
+          ticks_not_walkable_not_Java = -4,
+          ticks_unknown_Java          = -5,
+          ticks_not_walkable_Java     = -6,
+          ticks_unknown_state         = -7,
+          ticks_thread_exit           = -8,
+          ticks_deopt                 = -9,
+          ticks_safepoint             = -10
+        };
+    **/
+    assert(num_frames_error <= 0);
+    return static_cast<recording::StackSample::Error>(-1 * num_frames_error);
+}
+
 void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
@@ -82,6 +102,8 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
         } else {
             ss->set_thread_id(known_thd->second);
         }
+    } else {
+        ss->set_error(translate_forte_error(trace.num_frames));
     }
 
     for (auto i = 0; i < ctx_len; i++) {

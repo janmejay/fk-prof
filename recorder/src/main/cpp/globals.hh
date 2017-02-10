@@ -83,14 +83,14 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
   {                                                                            \
     int err;                                                                   \
     if ((err = (error)) != JVMTI_ERROR_NONE) {                                 \
-      logError(message, err);                                                  \
+        logger->critical(message, err);                                        \
       cleanup;                                                                 \
       return (retval);                                                         \
     }                                                                          \
   }
 
 #define JVMTI_ERROR_CLEANUP_RET(error, retval, cleanup)                        \
-    JVMTI_ERROR_MESSAGE_CLEANUP_RET(error, "JVMTI error %d\n", retval, cleanup)
+    JVMTI_ERROR_MESSAGE_CLEANUP_RET(error, "JVMTI error {}", retval, cleanup)
 
 // Wrap JVMTI functions in this in functions that expect a return value.
 #define JVMTI_ERROR_RET(error, retval)                                           \

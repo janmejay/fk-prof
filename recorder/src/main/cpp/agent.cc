@@ -72,9 +72,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
         CreateJMethodIDsForClass(jvmti, klass);
     }
 
-#ifndef GETENV_NEW_THREAD_ASYNC_UNSAFE
     controller->start();
-#endif
 }
 
 void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
@@ -106,9 +104,7 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
     caps.can_get_bytecodes = 1;
     caps.can_get_constant_pool = 1;
     caps.can_generate_compiled_method_load_events = 1;
-#ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
     caps.can_generate_native_method_bind_events = 1;
-#endif
 
     jvmtiCapabilities all_caps;
     int error;
@@ -189,6 +185,7 @@ void JNICALL OnNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread th
 volatile bool main_started = false;
 
 void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread) {
+    SPDLOG_TRACE(logger, "Some thraed started");
     jvmtiThreadInfo thread_info;
     int error = jvmti_env->GetThreadInfo(thread, &thread_info);
     if (error == JNI_OK) {
@@ -227,30 +224,35 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     callbacks->ThreadStart = &OnThreadStart;
     callbacks->ThreadEnd = &OnThreadEnd;
 
-    JVMTI_ERROR_RET(
-            (jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))),
-            false);
+    JVMTI_ERROR_RET((jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))), false);
 
-    jvmtiEvent events[] = {JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE,
-            JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD
-#ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
-        ,JVMTI_EVENT_THREAD_START,
-        JVMTI_EVENT_THREAD_END,
-        JVMTI_EVENT_NATIVE_METHOD_BIND
-#endif
-    };
+    jvmtiEvent events[] = { JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT,
+                            JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE, JVMTI_EVENT_COMPILED_METHOD_LOAD,
+                            JVMTI_EVENT_THREAD_START, JVMTI_EVENT_THREAD_END, JVMTI_EVENT_NATIVE_METHOD_BIND };
 
     size_t num_events = sizeof(events) / sizeof(jvmtiEvent);
 
     // Enable the callbacks to be triggered when the events occur.
     // Events are enumerated in jvmstatagent.h
     for (int i = 0; i < num_events; i++) {
-        JVMTI_ERROR_RET(
-                (jvmti->SetEventNotificationMode(JVMTI_ENABLE, events[i], NULL)),
-                false);
+        JVMTI_ERROR_RET((jvmti->SetEventNotificationMode(JVMTI_ENABLE, events[i], NULL)), false);
+        SPDLOG_DEBUG(logger, "Initialized notification for ti-event = {} (which is {} / {})", events[i], i + 1, num_events);
     }
 
     return true;
+}
+
+#define LST "LOGGING-SELF-TEST: "
+
+void log_level_self_test() {
+    logger->trace(LST "*trace*");
+    SPDLOG_TRACE(logger, LST "*compile-time checked trace*");
+    logger->debug(LST "*debug*");
+    SPDLOG_DEBUG(logger, LST "*compile-time checked debug*");
+    logger->info(LST "*info*");
+    logger->warn(LST "*warn*");
+    logger->error(LST "*err*");
+    logger->critical(LST "*critical*");
 }
 
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
@@ -263,8 +265,8 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 
     logger->set_level(CONFIGURATION->log_level);
     logger->set_pattern("{%t} %+");//TODO: make this configurable
+    log_level_self_test();
     logger->info("======================= Starting fk-prof JVMTI agent =======================");
-
     
     if (! CONFIGURATION->valid()) return 1;
 
@@ -281,15 +283,17 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
         logError("JNI Error %d\n", err);
         return 1;
       }
-      */
+    */
+
+    logger->trace("Preparing TI");
 
     if (!PrepareJvmti(jvmti)) {
-        logError("ERROR: Failed to initialize JVMTI. Continuing...\n");
+        logger->critical("Failed to initialize JVMTI. Continuing...");
         return 0;
     }
 
     if (!RegisterJvmti(jvmti)) {
-        logError("ERROR: Failed to enable JVMTI events. Continuing...\n");
+        logger->critical("Failed to enable JVMTI events");
         // We fail hard here because we may have failed in the middle of
         // registering callbacks, which will leave the system in an
         // inconsistent state.

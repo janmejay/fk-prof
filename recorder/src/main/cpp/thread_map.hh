@@ -106,6 +106,7 @@ public:
 
 	void put(JNIEnv *jni_env, const char *name, int tid, jint priority, jboolean is_daemon) {
 		// constructor == call to acquire
+        logger->info("Thread started - '{}' (jniEnv: {}, tid: {}, priority: {}, is_daemon: {})", name, reinterpret_cast<std::uint64_t>(jni_env), tid, priority, is_daemon);
 		ThreadBucket *info = new ThreadBucket(tid, name, static_cast<std::uint32_t>(priority), static_cast<bool>(is_daemon));
         info->localEpoch = GCHelper::attach();
 		ThreadBucket *old = (ThreadBucket*)map.put((map::KeyType)jni_env, (map::ValueType)info);
@@ -124,6 +125,7 @@ public:
 	void remove(JNIEnv *jni_env) {
 		ThreadBucket *info = (ThreadBucket*)map.remove((map::KeyType)jni_env);
 		if (info != nullptr) {
+            logger->info("Thread stopped - '{}' (jniEnv: {}, tid: {}, priority: {}, is_daemon: {})", info->name, reinterpret_cast<std::uint64_t>(jni_env), info->tid, info->priority, info->is_daemon);
 			GCHelper::detach(info->localEpoch);
 			info->release();
 		}

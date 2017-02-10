@@ -686,3 +686,77 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     }
 }
 
+TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
+    init_logger();
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+    ProfileWriter pw(raw_w_ptr, pw_buff);
+
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+
+    PerfCtx::Registry reg;
+    
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    SerializationFlushThresholds sft;
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft);
+
+    CircularQueue q(ps, 10);
+    
+    //const JVMPI_CallTrace item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr
+
+    STATIC_ARRAY(frames, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct;
+    ct.frames = frames;
+
+    for (auto i = 0; i < 11; i++) {
+        ct.num_frames = -1 * i;
+        q.push(ct, nullptr);
+        CHECK(q.pop());
+    }
+
+    ps.flush();
+
+    buff.readonly();
+
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    CHECK(bytes_sz > 0);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    CHECK(cis.ReadVarint32(&len));
+
+    auto lim = cis.PushLimit(len);
+
+    recording::Wse wse;
+    CHECK(wse.ParseFromCodedStream(&cis));
+
+    cis.PopLimit(lim);
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse.w_type());
+    auto idx_data = wse.indexed_data();
+    CHECK_EQUAL(0, idx_data.monitor_info_size());
+    CHECK_EQUAL(0, idx_data.thread_info_size());
+    CHECK_EQUAL(0, idx_data.method_info_size());
+    CHECK_EQUAL(0, idx_data.trace_ctx_size());
+
+    auto cse = wse.cpu_sample_entry();
+
+    CHECK_EQUAL(11, cse.stack_sample_size());
+    for (auto i = 0; i < 11; i++) {
+        auto ss = cse.stack_sample(i);
+        CHECK_EQUAL(false, ss.has_thread_id());
+        CHECK_EQUAL(0, ss.frame_size());
+        CHECK_EQUAL(0, ss.trace_id_size());
+        CHECK_EQUAL(static_cast<recording::StackSample::Error>(i), ss.error());
+    }
+}
+
