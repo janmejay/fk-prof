@@ -260,6 +260,29 @@ void PerfCtx::Registry::resolve(TracePt pt, std::string& name, bool& is_generate
     }
 }
 
+std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms) {
+    switch (ms) {
+    case PerfCtx::MergeSemantic::to_parent:
+        os << "Merge_To_Parent";
+        break;
+    case PerfCtx::MergeSemantic::scoped:
+        os << "Parent_Scoped";
+        break;
+    case PerfCtx::MergeSemantic::scoped_strict:
+        os << "Parent_Scoped (Strict)";
+        break;
+    case PerfCtx::MergeSemantic::stack_up:
+        os << "Stack_up";
+        break;
+    case PerfCtx::MergeSemantic::duplicate:
+        os << "Duplicate";
+        break;
+    default:
+        os << "!!Unknown!!";
+    }
+    return os;
+}
+
 JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject self, jstring name, jint coverage_pct, jint merge_type) {
     const char* name_str = nullptr;
     try {
@@ -268,7 +291,7 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
         return static_cast<jlong>(id);
     } catch (PerfCtx::CtxCreationFailure& e) {
         if (name_str != nullptr) env->ReleaseStringUTFChars(name, name_str);
-        if (env->ThrowNew(env->FindClass("fk/prof/ConflictingDefinitionException"), e.what()) == 0) return -1;
+        if (env->ThrowNew(env->FindClass("fk/prof/PerfCtxInitException"), e.what()) == 0) return -1;
         logger->warn("Conflicting definition of perf-ctx ignored, details: {}", e.what());
         return -1;
     }

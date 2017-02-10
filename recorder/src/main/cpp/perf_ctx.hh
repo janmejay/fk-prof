@@ -151,4 +151,6 @@ namespace PerfCtx {
     };
 };
 
+std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms);
+
 #endif

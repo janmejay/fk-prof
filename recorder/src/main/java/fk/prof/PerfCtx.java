@@ -22,15 +22,15 @@ public class PerfCtx {
     private final String stringRep;
     final String autoClosableStringRep;
 
-    public PerfCtx(final String name) throws IllegalArgumentException, ConflictingDefinitionException {
+    public PerfCtx(final String name) throws IllegalArgumentException, PerfCtxInitException {
         this(name, 10);
     }
 
-    public PerfCtx(final String name, final int coveragePct) throws IllegalArgumentException, ConflictingDefinitionException {
+    public PerfCtx(final String name, final int coveragePct) throws IllegalArgumentException, PerfCtxInitException {
         this(name, coveragePct, MergeSemantics.MERGE_TO_PARENT);
     }
 
-    public PerfCtx(final String name, final int coveragePct, final MergeSemantics mrgSem) throws IllegalArgumentException, ConflictingDefinitionException {
+    public PerfCtx(final String name, final int coveragePct, final MergeSemantics mrgSem) throws IllegalArgumentException, PerfCtxInitException {
         if (coveragePct < 0 || coveragePct > 100) {
             throw new IllegalArgumentException(String.format("Coverage-percentage value %s is not valid, a valid value must be in the range [0, 100].", coveragePct));
         }
@@ -55,7 +55,7 @@ public class PerfCtx {
         autoClosableStringRep = "Closable" + stringRep;
     }
 
-    private native long registerCtx(String name, int coveragePct, int typeId) throws ConflictingDefinitionException;
+    private native long registerCtx(String name, int coveragePct, int typeId) throws PerfCtxInitException;
 
     public void end() throws IncorrectContextException {
         if (! noDepMode) end(ctxId);
