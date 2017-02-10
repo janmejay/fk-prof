@@ -1,8 +1,12 @@
 package fk.prof.backend;
 
+import fk.prof.backend.model.association.BackendAssociationStore;
+import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
+import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.backend.verticles.http.AggregatorHttpVerticle;
+import fk.prof.backend.verticles.http.LeaderHttpVerticle;
 import fk.prof.backend.verticles.leader.election.*;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
@@ -53,6 +57,7 @@ public class VertxManager {
 
   public static CompositeFuture deployAggregatorHttpVerticles(
       Vertx vertx,
+      int httpPort,
       DeploymentOptions aggregatorDeploymentOptions,
       IProfileWorkService profileWorkService) {
     assert vertx != null;
@@ -65,8 +70,8 @@ public class VertxManager {
       Future<String> deployFuture = Future.future();
       deployFutures.add(deployFuture);
 
-      Verticle httpVerticle = new AggregatorHttpVerticle(profileWorkService);
-      vertx.deployVerticle(httpVerticle, aggregatorDeploymentOptions, deployResult -> {
+      Verticle aggregatorHttpVerticle = new AggregatorHttpVerticle(httpPort, profileWorkService);
+      vertx.deployVerticle(aggregatorHttpVerticle, aggregatorDeploymentOptions, deployResult -> {
         if (deployResult.succeeded()) {
           logger.info("Deployment of AggregatorHttpVerticle succeeded with deploymentId = " + deployResult.result());
           deployFuture.complete(deployResult.result());
@@ -82,23 +87,38 @@ public class VertxManager {
 
   public static void deployLeaderElectionWorkerVerticles
       (Vertx vertx,
-       DeploymentOptions leaderDeploymentOptions,
+       DeploymentOptions leaderElectionDeploymentOptions,
        CuratorFramework curatorClient,
        Runnable leaderElectedTask,
        LeaderDiscoveryStore leaderDiscoveryStore) {
     assert vertx != null;
-    assert leaderDeploymentOptions != null;
+    assert leaderElectionDeploymentOptions != null;
     assert curatorClient != null;
     assert leaderElectedTask != null;
     assert leaderDiscoveryStore != null;
 
     Verticle leaderElectionParticipator = new LeaderElectionParticipator(curatorClient, leaderElectedTask);
-    vertx.deployVerticle(leaderElectionParticipator, leaderDeploymentOptions);
+    vertx.deployVerticle(leaderElectionParticipator, leaderElectionDeploymentOptions);
 
     Verticle leaderElectionWatcher = new LeaderElectionWatcher(
         curatorClient,
         leaderDiscoveryStore);
-    vertx.deployVerticle(leaderElectionWatcher, leaderDeploymentOptions);
+    vertx.deployVerticle(leaderElectionWatcher, leaderElectionDeploymentOptions);
+  }
+
+  public static void deployLeaderHttpVerticles
+      (Vertx vertx,
+       int httpPort,
+       DeploymentOptions leaderHttpDeploymentOptions,
+       CuratorFramework curatorClient,
+       BackendAssociationStore backendAssociationStore) {
+    assert vertx != null;
+    assert leaderHttpDeploymentOptions != null;
+    assert curatorClient != null;
+    assert backendAssociationStore != null;
+
+    Verticle leaderHttpVerticle = new LeaderHttpVerticle(httpPort, curatorClient, backendAssociationStore);
+    vertx.deployVerticle(leaderHttpVerticle, leaderHttpDeploymentOptions);
   }
 
   public static Runnable getDefaultLeaderElectedTask(Vertx vertx, boolean aggregationEnabled, List<String> aggregatorDeployments) {
@@ -113,14 +133,27 @@ public class VertxManager {
     return new SharedMapBasedLeaderDiscoveryStore(vertx);
   }
 
+  public static BackendAssociationStore getDefaultBackendAssociationStore(Vertx vertx, CuratorFramework curatorClient, String backendAssociationZKNodePath, int reportLoadFrequencyInSeconds, int maxAllowedSkips)
+      throws Exception {
+    ZookeeperBasedBackendAssociationStore.Builder builder = new ZookeeperBasedBackendAssociationStore.Builder();
+    return builder
+        .setCuratorClient(curatorClient)
+        .setBackendAssociationPath(backendAssociationZKNodePath)
+        .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())
+        .setReportingFrequencyInSeconds(reportLoadFrequencyInSeconds)
+        .setMaxAllowedSkips(maxAllowedSkips)
+        .build(vertx);
+  }
+
   public static Future<Void> launch(Vertx vertx, CuratorFramework curatorClient, JsonObject configOptions) {
+    int httpPort = ConfigManager.getHttpPort(configOptions);
     JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(configOptions);
     if (aggregatorDeploymentConfig == null) {
       throw new RuntimeException("Aggregator deployment options are required to be present");
     }
 
-    JsonObject leaderDeploymentConfig = ConfigManager.getLeaderDeploymentConfig(configOptions);
-    if (leaderDeploymentConfig == null) {
+    JsonObject leaderElectionDeploymentConfig = ConfigManager.getLeaderElectionDeploymentConfig(configOptions);
+    if (leaderElectionDeploymentConfig == null) {
       throw new RuntimeException("Leader deployment options are required to be present");
     }
 
@@ -128,18 +161,18 @@ public class VertxManager {
     DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
     ProfileWorkService profileWorkService = new ProfileWorkService();
 
-    CompositeFuture aggregatorDeploymentFuture = deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
+    CompositeFuture aggregatorDeploymentFuture = deployAggregatorHttpVerticles(vertx, httpPort, aggregatorDeploymentOptions, profileWorkService);
     aggregatorDeploymentFuture.setHandler(result -> {
       if (result.succeeded()) {
         //Deploy leader related verticles
         List<String> aggregatorDeployments = result.result().list();
-        DeploymentOptions leaderDeploymentOptions = new DeploymentOptions(leaderDeploymentConfig);
+        DeploymentOptions leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
         Runnable leaderElectedTask = getDefaultLeaderElectedTask(
             vertx,
-            leaderDeploymentOptions.getConfig().getBoolean("aggregation.enabled", true),
+            leaderElectionDeploymentOptions.getConfig().getBoolean("aggregation.enabled", true),
             aggregatorDeployments);
         LeaderDiscoveryStore leaderDiscoveryStore = getDefaultLeaderDiscoveryStore(vertx);
-        deployLeaderElectionWorkerVerticles(vertx, leaderDeploymentOptions, curatorClient, leaderElectedTask, leaderDiscoveryStore);
+        deployLeaderElectionWorkerVerticles(vertx, leaderElectionDeploymentOptions, curatorClient, leaderElectedTask, leaderDiscoveryStore);
 
       } else {
         future.fail(result.cause());

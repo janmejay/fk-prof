@@ -98,7 +98,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   protected FinalizedProfileWorkInfo buildFinalizedEntity() {
     Map<AggregatedProfileModel.WorkType, Integer> mappedWorkTypeSamples = new HashMap<>();
     for(Map.Entry<Recorder.WorkType, Integer> entry: workTypeSamples.entrySet()) {
-      AggregatedProfileModel.WorkType mappedWorkType = ProtoUtil.mapWorkType(entry.getKey());
+      AggregatedProfileModel.WorkType mappedWorkType = ProtoUtil.mapRecorderToAggregatorWorkType(entry.getKey());
       if(mappedWorkType == null) {
         throw new AggregationFailure(String.format("Unable to map recorder work_type=%s to corresponding aggregation work_type", entry.getKey()), true);
       }

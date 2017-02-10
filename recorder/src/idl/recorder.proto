@@ -178,7 +178,7 @@ message MonitorTrace {
 }
 
 message ProcessGroup {
-  required string app_id = 3;
-  required string cluster = 5;
-  required string proc_name = 7;
+  required string app_id = 1;
+  required string cluster = 2;
+  required string proc_name = 3;
 }

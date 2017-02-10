@@ -57,9 +57,9 @@ public class ProfileApiTest {
 
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     profileWorkService = new ProfileWorkService();
-    port = aggregatorDeploymentConfig.getJsonObject("config").getInteger("http.port");
+    port = ConfigManager.getHttpPort(config);
     DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
-    VertxManager.deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
+    VertxManager.deployAggregatorHttpVerticles(vertx, port, aggregatorDeploymentOptions, profileWorkService);
   }
 
   @AfterClass

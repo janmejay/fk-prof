@@ -1,11 +1,12 @@
 {
+  "http.port": 9300,
+  "load.report.interval.secs": 2,
   "vertxOptions": {
     "blockedThreadCheckInterval": 60000
   },
   "aggregatorOptions": {
     "config": {
       "http.instances": 2,
-      "http.port": 9300,
       "parser": {
         "recordingheader.max.bytes": 1024,
         "wse.max.bytes": 1048576
@@ -23,14 +24,17 @@
     "session.timeout.ms": 5000,
     "max.retries": 3
   },
-  "leaderOptions": {
+  "leaderElectionOptions": {
     "worker": true,
     "config": {
       "aggregation.enabled": false,
       "leader.watching.path": "/leaderwatch",
       "leader.mutex.path": "/leader",
-      "leader.sleep.ms": 60000,
-      "backend.association.path": "/association"
+      "leader.sleep.ms": 60000
     }
+  },
+  "leaderHttpOptions": {
+    "backend.association.path": "/association",
+    "allowed.report.skips": 1
   }
 }

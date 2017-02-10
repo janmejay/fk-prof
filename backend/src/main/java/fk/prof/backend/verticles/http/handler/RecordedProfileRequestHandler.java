@@ -1,7 +1,8 @@
-package fk.prof.backend.request.profile;
+package fk.prof.backend.verticles.http.handler;
 
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.request.CompositeByteBufInputStream;
+import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.verticles.http.HttpHelper;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;

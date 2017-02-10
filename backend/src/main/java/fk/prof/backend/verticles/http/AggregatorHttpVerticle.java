@@ -3,9 +3,9 @@ package fk.prof.backend.verticles.http;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
-import fk.prof.backend.request.profile.RecordedProfileRequestHandler;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.verticles.http.handler.RecordedProfileRequestHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -18,8 +18,10 @@ import io.vertx.ext.web.handler.LoggerHandler;
 public class AggregatorHttpVerticle extends AbstractVerticle {
   private final IProfileWorkService profileWorkService;
   private LocalMap<Long, Boolean> workIdsInPipeline;
+  private int httpPort;
 
-  public AggregatorHttpVerticle(IProfileWorkService profileWorkService) {
+  public AggregatorHttpVerticle(int httpPort, IProfileWorkService profileWorkService) {
+    this.httpPort = httpPort;
     this.profileWorkService = profileWorkService;
   }
 
@@ -29,8 +31,7 @@ public class AggregatorHttpVerticle extends AbstractVerticle {
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
     vertx.createHttpServer()
         .requestHandler(router::accept)
-        .listen(config().getInteger("http.port"),
-            http -> completeStartup(http, fut));
+        .listen(httpPort, http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {

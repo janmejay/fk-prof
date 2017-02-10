@@ -2,6 +2,7 @@ package fk.prof.backend;
 
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
+import fk.prof.backend.proto.BackendDTO;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,19 +15,19 @@ import java.util.PriorityQueue;
 public class ProcessGroupCountBasedBackendPriorityTest {
 
   PriorityQueue<BackendDetail> backendDetailPriorityQueue;
-  List<Recorder.ProcessGroup> mockProcessGroups;
+  List<BackendDTO.ProcessGroup> mockProcessGroups;
   List<BackendDetail> mockBackends;
 
   @Before
   public void setBefore() {
     backendDetailPriorityQueue = new PriorityQueue<>(new ProcessGroupCountBasedBackendComparator());
     mockProcessGroups = Arrays.asList(
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build(),
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p4").build(),
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p5").build(),
-        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p6").build()
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build(),
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p4").build(),
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p5").build(),
+        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p6").build()
     );
   }
 

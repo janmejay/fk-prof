@@ -1,6 +1,6 @@
 package fk.prof.backend.model.association;
 
-import recording.Recorder;
+import fk.prof.backend.proto.BackendDTO;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,7 +16,7 @@ public class BackendDetail {
   private final String backendIPAddress;
   private final int reportingFrequencyInSeconds;
   private final int maxAllowedSkips;
-  private final Set<Recorder.ProcessGroup> associatedProcessGroups;
+  private final Set<BackendDTO.ProcessGroup> associatedProcessGroups;
 
   private Double lastReportedLoad = null;
   //Last reported time is initialized with epochSecond=0 to ensure isDefunct returns true until backend reports its load to the leader
@@ -40,11 +40,11 @@ public class BackendDetail {
     this.lastReportedTime = LocalDateTime.now(Clock.systemUTC());
   }
 
-  public void associateProcessGroup(Recorder.ProcessGroup processGroup) {
+  public void associateProcessGroup(BackendDTO.ProcessGroup processGroup) {
     this.associatedProcessGroups.add(processGroup);
   }
 
-  public void deAssociateProcessGroup(Recorder.ProcessGroup processGroup) {
+  public void deAssociateProcessGroup(BackendDTO.ProcessGroup processGroup) {
     this.associatedProcessGroups.remove(processGroup);
   }
 
@@ -56,7 +56,7 @@ public class BackendDetail {
     return this.backendIPAddress;
   }
 
-  public Set<Recorder.ProcessGroup> getAssociatedProcessGroups() {
+  public Set<BackendDTO.ProcessGroup> getAssociatedProcessGroups() {
     return this.associatedProcessGroups;
   }
 
@@ -90,27 +90,27 @@ public class BackendDetail {
     return result;
   }
 
-  public static Set<Recorder.ProcessGroup> deserializeProcessGroups(byte[] rawBytes)
+  public static Set<BackendDTO.ProcessGroup> deserializeProcessGroups(byte[] rawBytes)
       throws IOException {
-    Set<Recorder.ProcessGroup> processGroups = new HashSet<>();
+    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>();
     if(rawBytes == null) {
       return processGroups;
     }
 
     ByteArrayInputStream inputStream = new ByteArrayInputStream(rawBytes);
-    Recorder.ProcessGroup processGroup;
+    BackendDTO.ProcessGroup processGroup;
 
-    while ((processGroup = Recorder.ProcessGroup.parseDelimitedFrom(inputStream)) != null) {
+    while ((processGroup = BackendDTO.ProcessGroup.parseDelimitedFrom(inputStream)) != null) {
       processGroups.add(processGroup);
     }
     return processGroups;
   }
 
-  public static byte[] serializeProcessGroups(Set<Recorder.ProcessGroup> processGroups)
+  public static byte[] serializeProcessGroups(Set<BackendDTO.ProcessGroup> processGroups)
       throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     if(processGroups != null) {
-      for (Recorder.ProcessGroup processGroup : processGroups) {
+      for (BackendDTO.ProcessGroup processGroup : processGroups) {
         processGroup.writeDelimitedTo(outputStream);
       }
     }

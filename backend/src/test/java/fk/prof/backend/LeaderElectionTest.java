@@ -31,7 +31,7 @@ public class LeaderElectionTest {
   private Vertx vertx;
   private Integer port;
   private JsonObject vertxConfig;
-  private DeploymentOptions leaderDeploymentOptions;
+  private DeploymentOptions leaderElectionDeploymentOptions;
   private DeploymentOptions aggregatorDeploymentOptions;
 
   private TestingServer testingServer;
@@ -43,17 +43,14 @@ public class LeaderElectionTest {
     JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
     vertxConfig = ConfigManager.getVertxConfig(config);
 
-    JsonObject leaderDeploymentConfig = ConfigManager.getLeaderDeploymentConfig(config);
-    assert leaderDeploymentConfig != null;
+    JsonObject leaderElectionDeploymentConfig = ConfigManager.getLeaderElectionDeploymentConfig(config);
+    assert leaderElectionDeploymentConfig != null;
 
     JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(config);
     assert aggregatorDeploymentConfig != null;
 
-    JsonObject curatorConfig = ConfigManager.getCuratorConfig(config);
-    assert curatorConfig != null;
-
-    port = leaderDeploymentConfig.getJsonObject("config").getInteger("http.port");
-    leaderDeploymentOptions = new DeploymentOptions(leaderDeploymentConfig);
+    port = ConfigManager.getHttpPort(config);
+    leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
     aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
 
     testingServer = new TestingServer();
@@ -91,7 +88,7 @@ public class LeaderElectionTest {
     Thread.sleep(1000);
     VertxManager.deployLeaderElectionWorkerVerticles(
         vertx,
-        leaderDeploymentOptions,
+        leaderElectionDeploymentOptions,
         curatorClient,
         leaderElectedTask,
         leaderDiscoveryStore
@@ -135,7 +132,7 @@ public class LeaderElectionTest {
     Thread.sleep(1000);
     VertxManager.deployLeaderElectionWorkerVerticles(
         vertx,
-        leaderDeploymentOptions,
+        leaderElectionDeploymentOptions,
         curatorClient,
         leaderElectedTask,
         leaderDiscoveryStore
@@ -156,7 +153,7 @@ public class LeaderElectionTest {
     ProfileWorkService profileWorkService = new ProfileWorkService();
     List<String> aggregatorDeployments = new ArrayList<>();
 
-    CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, aggregatorDeploymentOptions, profileWorkService);
+    CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, port, aggregatorDeploymentOptions, profileWorkService);
     CountDownLatch aggDepLatch = new CountDownLatch(1);
     aggDepFut.setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
@@ -212,7 +209,7 @@ public class LeaderElectionTest {
       Thread.sleep(1000);
       VertxManager.deployLeaderElectionWorkerVerticles(
           vertx,
-          leaderDeploymentOptions,
+          leaderElectionDeploymentOptions,
           curatorClient,
           wrappedLeaderElectedTask,
           wrappedLeaderDiscoveryStore
