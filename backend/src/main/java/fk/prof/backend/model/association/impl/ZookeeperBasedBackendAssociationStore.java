@@ -56,15 +56,15 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<Set<BackendDTO.ProcessGroup>> reportBackendLoad(String backendIPAddress, double loadFactor) {
-    Future<Set<BackendDTO.ProcessGroup>> result = Future.future();
+  public Future<BackendDTO.ProcessGroups> reportBackendLoad(String backendIPAddress, double loadFactor) {
+    Future<BackendDTO.ProcessGroups> result = Future.future();
     vertx.executeBlocking(future -> {
       try {
         BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(backendIPAddress, (key) -> {
           try {
             BackendDetail updatedBackendDetail = new BackendDetail(key, reportingFrequencyInSeconds, maxAllowedSkips);
             String zNodePath = getZNodePathForBackend(key);
-            ZookeeperUtil.writeZNode(curatorClient, zNodePath, updatedBackendDetail.getAssociatedProcessGroupsAsBytes(), true);
+            ZookeeperUtil.writeZNode(curatorClient, zNodePath, BackendDetail.serializeProcessGroups(updatedBackendDetail.getAssociatedProcessGroups()), true);
             return updatedBackendDetail;
           } catch (Exception ex) {
             throw new RuntimeException(ex);
@@ -87,7 +87,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             backendAssignmentLock.unlock();
           }
         }
-        future.complete(backendDetail.getAssociatedProcessGroups());
+        future.complete(BackendDetail.buildProcessGroupsProto(backendDetail.getAssociatedProcessGroups()));
       } catch (Exception ex) {
         future.fail(ex);
       }

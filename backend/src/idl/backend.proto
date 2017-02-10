@@ -13,6 +13,6 @@ message ProcessGroup {
     required string proc_name = 3;
 }
 
-message ProcessGroupList {
+message ProcessGroups {
     repeated ProcessGroup processGroup = 1;
 }

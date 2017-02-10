@@ -1,6 +1,7 @@
 package fk.prof.backend.model.association;
 
 import fk.prof.backend.proto.BackendDTO;
+import recording.Recorder;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,7 +33,15 @@ public class BackendDetail {
     this.backendIPAddress = backendIPAddress;
     this.reportingFrequencyInSeconds = reportingFrequencyInSeconds;
     this.maxAllowedSkips = maxAllowedSkips;
-    this.associatedProcessGroups = deserializeProcessGroups(processGroupsBytes);
+
+    BackendDTO.ProcessGroups processGroups = processGroupsBytes == null
+        ? BackendDTO.ProcessGroups.newBuilder().build()
+        : BackendDTO.ProcessGroups.parseFrom(processGroupsBytes);
+    if(processGroups != null) {
+      this.associatedProcessGroups = new HashSet<>(processGroups.getProcessGroupList());
+    } else {
+      this.associatedProcessGroups = new HashSet<>();
+    }
   }
 
   public void reportLoad(double loadFactor) {
@@ -60,11 +69,6 @@ public class BackendDetail {
     return this.associatedProcessGroups;
   }
 
-  public byte[] getAssociatedProcessGroupsAsBytes()
-      throws IOException {
-    return serializeProcessGroups(this.associatedProcessGroups);
-  }
-
   private long timeElapsedSinceLastReport(ChronoUnit chronoUnit) {
     return chronoUnit.between(lastReportedTime, LocalDateTime.now(Clock.systemUTC()));
   }
@@ -90,31 +94,14 @@ public class BackendDetail {
     return result;
   }
 
-  public static Set<BackendDTO.ProcessGroup> deserializeProcessGroups(byte[] rawBytes)
-      throws IOException {
-    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>();
-    if(rawBytes == null) {
-      return processGroups;
-    }
-
-    ByteArrayInputStream inputStream = new ByteArrayInputStream(rawBytes);
-    BackendDTO.ProcessGroup processGroup;
-
-    while ((processGroup = BackendDTO.ProcessGroup.parseDelimitedFrom(inputStream)) != null) {
-      processGroups.add(processGroup);
-    }
-    return processGroups;
-  }
-
   public static byte[] serializeProcessGroups(Set<BackendDTO.ProcessGroup> processGroups)
       throws IOException {
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    if(processGroups != null) {
-      for (BackendDTO.ProcessGroup processGroup : processGroups) {
-        processGroup.writeDelimitedTo(outputStream);
-      }
-    }
-    return outputStream.toByteArray();
+    BackendDTO.ProcessGroups processGroupsProto = buildProcessGroupsProto(processGroups);
+    return processGroupsProto.toByteArray();
+  }
+
+  public static BackendDTO.ProcessGroups buildProcessGroupsProto(Set<BackendDTO.ProcessGroup> processGroups) {
+    return BackendDTO.ProcessGroups.newBuilder().addAllProcessGroup(processGroups).build();
   }
 
 }

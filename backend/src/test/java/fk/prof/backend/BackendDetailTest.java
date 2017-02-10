@@ -70,36 +70,4 @@ public class BackendDetailTest {
     Thread.sleep(2000);
     Assert.assertTrue(backendDetail.isDefunct());
   }
-
-  @Test
-  public void testSerializationAndDeserializationOfProcessGroups()
-      throws IOException {
-    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    Set<BackendDTO.ProcessGroup> deserialized = BackendDetail.deserializeProcessGroups(serialized);
-    Assert.assertEquals(processGroups, deserialized);
-  }
-
-  @Test
-  public void testSerializationAndDeserializationOfEmptyProcessGroupList()
-      throws IOException {
-    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>();
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    Set<BackendDTO.ProcessGroup> deserialized = BackendDetail.deserializeProcessGroups(serialized);
-    Assert.assertEquals(processGroups, deserialized);
-  }
-
-  @Test
-  public void testSerializationOfNullProcessGroupList()
-      throws IOException {
-    byte[] serialized = BackendDetail.serializeProcessGroups(null);
-    Assert.assertEquals(0, serialized.length);
-  }
-
-  @Test
-  public void testDeserializationOfNullBytes()
-      throws IOException {
-    Set<BackendDTO.ProcessGroup> deserialized = BackendDetail.deserializeProcessGroups(null);
-    Assert.assertEquals(0, deserialized.size());
-  }
 }

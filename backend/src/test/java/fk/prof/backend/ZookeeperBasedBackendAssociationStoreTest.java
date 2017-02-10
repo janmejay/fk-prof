@@ -86,15 +86,15 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   @Test(timeout = 10000)
   public void testReportOfNewBackends(TestContext context) {
     final Async async = context.async();
-    Future<Set<BackendDTO.ProcessGroup>> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
-    Future<Set<BackendDTO.ProcessGroup>> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
+    Future<BackendDTO.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
+    Future<BackendDTO.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.cause());
       } else {
         List<Set<Recorder.ProcessGroup>> results = ar.result().list();
-        context.assertEquals(new HashSet<>(), results.get(0));
-        context.assertEquals(new HashSet<>(), results.get(1));
+        context.assertEquals(BackendDTO.ProcessGroups.newBuilder().build(), results.get(0));
+        context.assertEquals(BackendDTO.ProcessGroups.newBuilder().build(), results.get(1));
         async.complete();
       }
     });
@@ -103,8 +103,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   @Test(timeout = 10000)
   public void testAssociationOfBackendsWithNewProcessGroups(TestContext context) {
     final Async async = context.async();
-    Future<Set<BackendDTO.ProcessGroup>> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
-    Future<Set<BackendDTO.ProcessGroup>> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
+    Future<BackendDTO.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
+    Future<BackendDTO.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -132,8 +132,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   @Test(timeout = 10000)
   public void testReloadOfAssociationsFromZK(TestContext context) {
     final Async async = context.async();
-    Future<Set<BackendDTO.ProcessGroup>> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
-    Future<Set<BackendDTO.ProcessGroup>> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
+    Future<BackendDTO.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
+    Future<BackendDTO.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -179,8 +179,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   @Test(timeout = 10000)
   public void testAssociationOfBackendsWithExistingProcessGroups(TestContext context) {
     final Async async = context.async();
-    Future<Set<BackendDTO.ProcessGroup>> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
-    Future<Set<BackendDTO.ProcessGroup>> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
+    Future<BackendDTO.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
+    Future<BackendDTO.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -214,8 +214,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   @Test(timeout = 10000)
   public void testReAssociationOfBackendsWithDefunctBackend(TestContext context) {
     final Async async = context.async();
-    Future<Set<BackendDTO.ProcessGroup>> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
-    Future<Set<BackendDTO.ProcessGroup>> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
+    Future<BackendDTO.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad("1", 0.1);
+    Future<BackendDTO.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad("2", 0.2);
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
