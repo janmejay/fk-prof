@@ -245,7 +245,7 @@ public class ProfileApiTest {
     makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_WORK_ID, "not found, cannot continue receiving");
   }
 
-  @Test(timeout = 50000)
+  @Test(timeout = 5000)
   public void testWithInvalidWseLength(TestContext context) {
     makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE_LENGTH, "invalid length for wse");
   }
