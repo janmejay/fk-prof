@@ -1,6 +1,6 @@
 {
   "http.port": 9305,
-  "load.report.interval.secs": 2,
+  "load.report.interval.secs": 1,
   "vertxOptions": {
     "blockedThreadCheckInterval": 6000000
   },

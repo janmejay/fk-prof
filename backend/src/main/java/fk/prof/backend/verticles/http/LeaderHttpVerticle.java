@@ -8,7 +8,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.json.Json;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
@@ -16,6 +15,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.LoggerHandler;
 import org.apache.curator.framework.CuratorFramework;
+import recording.Recorder;
 
 public class LeaderHttpVerticle extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(LeaderHttpVerticle.class);
@@ -49,7 +49,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
         .handler(this::handlePostLoad);
 
     router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
-        .handler(BodyHandler.create().setBodyLimit(1024));
+        .handler(BodyHandler.create().setBodyLimit(1024 * 10));
     router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
         .handler(this::handlePutAssociation);
 
@@ -67,12 +67,12 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   private void handlePostLoad(RoutingContext context) {
     try {
       BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
-      backendAssociationStore.reportBackendLoad(payload).setHandler(result -> {
-        if(result.succeeded()) {
-          Buffer responseBuffer = Buffer.buffer(result.result().toByteArray());
+      backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
+        if(ar.succeeded()) {
+          Buffer responseBuffer = Buffer.buffer(ar.result().toByteArray());
           context.response().end(responseBuffer);
         } else {
-          HttpFailure httpFailure = HttpFailure.failure(result.cause());
+          HttpFailure httpFailure = HttpFailure.failure(ar.cause());
           HttpHelper.handleFailure(context, httpFailure);
         }
       });
@@ -84,13 +84,12 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private void handlePutAssociation(RoutingContext context) {
     try {
-      BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
-      backendAssociationStore.reportBackendLoad(payload).setHandler(result -> {
-        if(result.succeeded()) {
-          Buffer responseBuffer = Buffer.buffer(result.result().toByteArray());
-          context.response().end(responseBuffer);
+      Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
+      backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
+        if(ar.succeeded()) {
+          context.response().end(ar.result());
         } else {
-          HttpFailure httpFailure = HttpFailure.failure(result.cause());
+          HttpFailure httpFailure = HttpFailure.failure(ar.cause());
           HttpHelper.handleFailure(context, httpFailure);
         }
       });
