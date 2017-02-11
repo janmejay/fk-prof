@@ -2,10 +2,9 @@ package fk.prof.backend.model.association;
 
 import fk.prof.backend.proto.BackendDTO;
 import io.vertx.core.Future;
-
-import java.util.Set;
+import recording.Recorder;
 
 public interface BackendAssociationStore {
-  Future<BackendDTO.ProcessGroups> reportBackendLoad(String backendIPAddress, double loadFactor);
-  Future<String> getAssociatedBackend(BackendDTO.ProcessGroup processGroup);
+  Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload);
+  Future<String> getAssociatedBackend(Recorder.ProcessGroup processGroup);
 }

@@ -11,6 +11,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
+import recording.Recorder;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +28,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   private final int maxAllowedSkips;
 
   private final Map<String, BackendDetail> backendDetailLookup = new ConcurrentHashMap<>();
-  private final Map<BackendDTO.ProcessGroup, String> processGroupToBackendLookup = new ConcurrentHashMap<>();
+  private final Map<Recorder.ProcessGroup, String> processGroupToBackendLookup = new ConcurrentHashMap<>();
   private final PriorityQueue<BackendDetail> availableBackendsByPriority;
   private final ReentrantLock backendAssignmentLock = new ReentrantLock();
 
@@ -47,7 +48,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
     for(BackendDetail backendDetail: existingBackendsInZookeeper) {
       this.backendDetailLookup.put(backendDetail.getBackendIPAddress(), backendDetail);
-      for(BackendDTO.ProcessGroup processGroup: backendDetail.getAssociatedProcessGroups()) {
+      for(Recorder.ProcessGroup processGroup: backendDetail.getAssociatedProcessGroups()) {
         if (this.processGroupToBackendLookup.putIfAbsent(processGroup, backendDetail.getBackendIPAddress()) != null) {
           throw new IllegalStateException(String.format("Backend mapping already exists for process group=%s", processGroup));
         }
@@ -56,8 +57,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<BackendDTO.ProcessGroups> reportBackendLoad(String backendIPAddress, double loadFactor) {
-    Future<BackendDTO.ProcessGroups> result = Future.future();
+  public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
+    String backendIPAddress = payload.getIp();
+    Future<Recorder.ProcessGroups> result = Future.future();
     vertx.executeBlocking(future -> {
       try {
         BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(backendIPAddress, (key) -> {
@@ -72,7 +74,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         });
 
         boolean wasDefunct = backendDetail.isDefunct();
-        backendDetail.reportLoad(loadFactor);
+        backendDetail.reportLoad(payload.getLoad());
         if(wasDefunct) {
           try {
             boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
@@ -97,7 +99,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<String> getAssociatedBackend(BackendDTO.ProcessGroup processGroup) {
+  public Future<String> getAssociatedBackend(Recorder.ProcessGroup processGroup) {
     Future<String> result = Future.future();
     String existingBackendIPAddress = processGroupToBackendLookup.get(processGroup);
     vertx.executeBlocking(future -> {
@@ -218,9 +220,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
    * @param processGroup
    * @throws Exception
    */
-  private void associateBackendWithProcessGroup(BackendDetail backendDetail, BackendDTO.ProcessGroup processGroup)
+  private void associateBackendWithProcessGroup(BackendDetail backendDetail, Recorder.ProcessGroup processGroup)
       throws Exception {
-    Set<BackendDTO.ProcessGroup> associatedProcessGroups = new HashSet<>(backendDetail.getAssociatedProcessGroups());
+    Set<Recorder.ProcessGroup> associatedProcessGroups = new HashSet<>(backendDetail.getAssociatedProcessGroups());
     associatedProcessGroups.add(processGroup);
 
     String zNodePath = getZNodePathForBackend(backendDetail.getBackendIPAddress());
@@ -237,9 +239,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
    * @param processGroup
    * @throws Exception
    */
-  private void deAssociateBackendWithProcessGroup(BackendDetail backendDetail, BackendDTO.ProcessGroup processGroup)
+  private void deAssociateBackendWithProcessGroup(BackendDetail backendDetail, Recorder.ProcessGroup processGroup)
       throws Exception {
-    Set<BackendDTO.ProcessGroup> associatedProcessGroups = new HashSet<>(backendDetail.getAssociatedProcessGroups());
+    Set<Recorder.ProcessGroup> associatedProcessGroups = new HashSet<>(backendDetail.getAssociatedProcessGroups());
     associatedProcessGroups.remove(processGroup);
 
     String zNodePath = getZNodePathForBackend(backendDetail.getBackendIPAddress());

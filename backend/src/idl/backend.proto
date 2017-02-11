@@ -6,13 +6,3 @@ message LoadReportRequest {
     required string ip = 1;
     required float load = 2;
 }
-
-message ProcessGroup {
-    required string app_id = 1;
-    required string cluster = 2;
-    required string proc_name = 3;
-}
-
-message ProcessGroups {
-    repeated ProcessGroup processGroup = 1;
-}

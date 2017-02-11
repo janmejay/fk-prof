@@ -2,11 +2,11 @@ package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
-import fk.prof.backend.model.association.ReportLoadPayload;
-import fk.prof.backend.verticles.http.handler.ReportLoadHandler;
+import fk.prof.backend.proto.BackendDTO;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.Json;
 import io.vertx.core.logging.Logger;
@@ -42,14 +42,17 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   private Router setupRouting() {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
+
     router.post(ApiPathConstants.LEADER_POST_LOAD)
-        .consumes("*/json")
-        .produces("application/json")
         .handler(BodyHandler.create().setBodyLimit(64));
     router.post(ApiPathConstants.LEADER_POST_LOAD)
-        .consumes("*/json")
-        .produces("application/json")
         .handler(this::handlePostLoad);
+
+    router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
+        .handler(BodyHandler.create().setBodyLimit(1024));
+    router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
+        .handler(this::handlePutAssociation);
+
     return router;
   }
 
@@ -63,8 +66,34 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private void handlePostLoad(RoutingContext context) {
     try {
-      ReportLoadPayload payload = Json.decodeValue(context.getBodyAsString(), ReportLoadPayload.class);
-      context.response().end(Json.encode(payload));
+      BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
+      backendAssociationStore.reportBackendLoad(payload).setHandler(result -> {
+        if(result.succeeded()) {
+          Buffer responseBuffer = Buffer.buffer(result.result().toByteArray());
+          context.response().end(responseBuffer);
+        } else {
+          HttpFailure httpFailure = HttpFailure.failure(result.cause());
+          HttpHelper.handleFailure(context, httpFailure);
+        }
+      });
+    } catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    }
+  }
+
+  private void handlePutAssociation(RoutingContext context) {
+    try {
+      BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
+      backendAssociationStore.reportBackendLoad(payload).setHandler(result -> {
+        if(result.succeeded()) {
+          Buffer responseBuffer = Buffer.buffer(result.result().toByteArray());
+          context.response().end(responseBuffer);
+        } else {
+          HttpFailure httpFailure = HttpFailure.failure(result.cause());
+          HttpHelper.handleFailure(context, httpFailure);
+        }
+      });
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);

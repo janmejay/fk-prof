@@ -1,10 +1,7 @@
 package fk.prof.backend.model.association;
 
-import fk.prof.backend.proto.BackendDTO;
 import recording.Recorder;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -17,7 +14,7 @@ public class BackendDetail {
   private final String backendIPAddress;
   private final int reportingFrequencyInSeconds;
   private final int maxAllowedSkips;
-  private final Set<BackendDTO.ProcessGroup> associatedProcessGroups;
+  private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
   private Double lastReportedLoad = null;
   //Last reported time is initialized with epochSecond=0 to ensure isDefunct returns true until backend reports its load to the leader
@@ -34,9 +31,9 @@ public class BackendDetail {
     this.reportingFrequencyInSeconds = reportingFrequencyInSeconds;
     this.maxAllowedSkips = maxAllowedSkips;
 
-    BackendDTO.ProcessGroups processGroups = processGroupsBytes == null
-        ? BackendDTO.ProcessGroups.newBuilder().build()
-        : BackendDTO.ProcessGroups.parseFrom(processGroupsBytes);
+    Recorder.ProcessGroups processGroups = processGroupsBytes == null
+        ? Recorder.ProcessGroups.newBuilder().build()
+        : Recorder.ProcessGroups.parseFrom(processGroupsBytes);
     if(processGroups != null) {
       this.associatedProcessGroups = new HashSet<>(processGroups.getProcessGroupList());
     } else {
@@ -49,11 +46,11 @@ public class BackendDetail {
     this.lastReportedTime = LocalDateTime.now(Clock.systemUTC());
   }
 
-  public void associateProcessGroup(BackendDTO.ProcessGroup processGroup) {
+  public void associateProcessGroup(Recorder.ProcessGroup processGroup) {
     this.associatedProcessGroups.add(processGroup);
   }
 
-  public void deAssociateProcessGroup(BackendDTO.ProcessGroup processGroup) {
+  public void deAssociateProcessGroup(Recorder.ProcessGroup processGroup) {
     this.associatedProcessGroups.remove(processGroup);
   }
 
@@ -65,7 +62,7 @@ public class BackendDetail {
     return this.backendIPAddress;
   }
 
-  public Set<BackendDTO.ProcessGroup> getAssociatedProcessGroups() {
+  public Set<Recorder.ProcessGroup> getAssociatedProcessGroups() {
     return this.associatedProcessGroups;
   }
 
@@ -94,14 +91,14 @@ public class BackendDetail {
     return result;
   }
 
-  public static byte[] serializeProcessGroups(Set<BackendDTO.ProcessGroup> processGroups)
+  public static byte[] serializeProcessGroups(Set<Recorder.ProcessGroup> processGroups)
       throws IOException {
-    BackendDTO.ProcessGroups processGroupsProto = buildProcessGroupsProto(processGroups);
+    Recorder.ProcessGroups processGroupsProto = buildProcessGroupsProto(processGroups);
     return processGroupsProto.toByteArray();
   }
 
-  public static BackendDTO.ProcessGroups buildProcessGroupsProto(Set<BackendDTO.ProcessGroup> processGroups) {
-    return BackendDTO.ProcessGroups.newBuilder().addAllProcessGroup(processGroups).build();
+  public static Recorder.ProcessGroups buildProcessGroupsProto(Set<Recorder.ProcessGroup> processGroups) {
+    return Recorder.ProcessGroups.newBuilder().addAllProcessGroup(processGroups).build();
   }
 
 }

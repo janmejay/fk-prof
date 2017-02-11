@@ -15,19 +15,19 @@ import java.util.PriorityQueue;
 public class ProcessGroupCountBasedBackendPriorityTest {
 
   PriorityQueue<BackendDetail> backendDetailPriorityQueue;
-  List<BackendDTO.ProcessGroup> mockProcessGroups;
+  List<Recorder.ProcessGroup> mockProcessGroups;
   List<BackendDetail> mockBackends;
 
   @Before
   public void setBefore() {
     backendDetailPriorityQueue = new PriorityQueue<>(new ProcessGroupCountBasedBackendComparator());
     mockProcessGroups = Arrays.asList(
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p4").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p5").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p6").build()
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p4").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p5").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p6").build()
     );
   }
 

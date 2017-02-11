@@ -11,21 +11,21 @@ import java.io.IOException;
 import java.util.*;
 
 public class BackendDetailTest {
-  List<BackendDTO.ProcessGroup> mockProcessGroups;
+  List<Recorder.ProcessGroup> mockProcessGroups;
 
   @Before
   public void setBefore() {
     mockProcessGroups = Arrays.asList(
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
-        BackendDTO.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build()
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p2").build(),
+        Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p3").build()
     );
   }
 
   @Test
   public void testEqualityOfBackendOnIPAddress()
     throws IOException {
-    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
+    Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
     byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
     BackendDetail b1 = new BackendDetail("1", 1, 2, serialized);
     BackendDetail b2 = new BackendDetail("1", 1, 2);
@@ -37,7 +37,7 @@ public class BackendDetailTest {
   @Test
   public void testInitializationOfBackendWithProcessGroupBytes()
       throws IOException {
-    Set<BackendDTO.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
+    Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
     byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
     BackendDetail backendDetail = new BackendDetail("1", 1, 2, serialized);
     Assert.assertEquals("1", backendDetail.getBackendIPAddress());

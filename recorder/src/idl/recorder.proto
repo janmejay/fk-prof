@@ -182,3 +182,7 @@ message ProcessGroup {
   required string cluster = 2;
   required string proc_name = 3;
 }
+
+message ProcessGroups {
+  repeated ProcessGroup processGroup = 1;
+}

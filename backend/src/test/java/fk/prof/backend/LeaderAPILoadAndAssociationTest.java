@@ -1,7 +1,6 @@
 package fk.prof.backend;
 
 import fk.prof.backend.model.association.BackendAssociationStore;
-import fk.prof.backend.model.association.ReportLoadPayload;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -93,7 +92,7 @@ public class LeaderAPILoadAndAssociationTest {
             async.complete();
           });
         });
-    request.end(Json.encode(new ReportLoadPayload(0.5)));
+//    request.end(Json.encode(new ReportLoadPayload(0.5)));
   }
 
 }
