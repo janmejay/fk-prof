@@ -10,6 +10,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.LocalMap;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -18,10 +19,10 @@ import io.vertx.ext.web.handler.LoggerHandler;
 public class AggregatorHttpVerticle extends AbstractVerticle {
   private final IProfileWorkService profileWorkService;
   private LocalMap<Long, Boolean> workIdsInPipeline;
-  private int httpPort;
+  private JsonObject httpServerConfig;
 
-  public AggregatorHttpVerticle(int httpPort, IProfileWorkService profileWorkService) {
-    this.httpPort = httpPort;
+  public AggregatorHttpVerticle(JsonObject httpServerConfig, IProfileWorkService profileWorkService) {
+    this.httpServerConfig = httpServerConfig;
     this.profileWorkService = profileWorkService;
   }
 
@@ -29,9 +30,9 @@ public class AggregatorHttpVerticle extends AbstractVerticle {
   public void start(Future<Void> fut) {
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    vertx.createHttpServer()
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(httpServerConfig))
         .requestHandler(router::accept)
-        .listen(httpPort, http -> completeStartup(http, fut));
+        .listen(httpServerConfig.getInteger("port"), http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {

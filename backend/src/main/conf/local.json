@@ -1,5 +1,15 @@
 {
-  "http.port": 9300,
+  "http.server": {
+    "port": 9300,
+    "idle.timeout.secs": 60
+  },
+  "http.client": {
+    "connect.timeout.ms": 5000,
+    "idle.timeout.secs": 10,
+    "max.attempts": 3,
+    "keepalive": true,
+    "compression": true
+  },
   "load.report.interval.secs": 2,
   "vertxOptions": {
     "blockedThreadCheckInterval": 60000
@@ -15,6 +25,11 @@
         "window.duration.mins": 20,
         "window.tolerance.secs": 60
       }
+    }
+  },
+  "leaderProxyOptions": {
+    "config": {
+      "http.instances": 2
     }
   },
   "curatorOptions": {

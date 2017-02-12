@@ -67,8 +67,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
     curatorClient.create().forPath(backendAssociationPath);
 
-    ZookeeperBasedBackendAssociationStore.Builder builder = new ZookeeperBasedBackendAssociationStore.Builder();
-    backendAssociationStore = builder
+    backendAssociationStore = ZookeeperBasedBackendAssociationStore.newBuilder()
         .setCuratorClient(curatorClient)
         .setBackendAssociationPath(backendAssociationPath)
         .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())
@@ -153,8 +152,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
           } else {
             List<String> associations = ar2.result().list();
             try {
-              ZookeeperBasedBackendAssociationStore.Builder builder = new ZookeeperBasedBackendAssociationStore.Builder();
-              BackendAssociationStore anotherAssociationStore = builder
+              BackendAssociationStore anotherAssociationStore = ZookeeperBasedBackendAssociationStore.newBuilder()
                   .setCuratorClient(curatorClient)
                   .setBackendAssociationPath(backendAssociationPath)
                   .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())

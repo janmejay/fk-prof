@@ -8,7 +8,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
@@ -57,7 +56,9 @@ public class LeaderAPILoadAndAssociationTest {
     JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
 
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
-    port = ConfigManager.getHttpPort(config);
+    JsonObject httpServerConfig = ConfigManager.getHttpServerConfig(config);
+    assert httpServerConfig != null;
+    port = httpServerConfig.getInteger("port");
 
     JsonObject leaderHttpConfig = ConfigManager.getLeaderHttpDeploymentConfig(config);
     assert leaderHttpConfig != null;
@@ -73,7 +74,7 @@ public class LeaderAPILoadAndAssociationTest {
         leaderHttpConfig.getInteger("allowed.report.skips")
     );
 
-    VertxManager.deployLeaderHttpVerticles(vertx, port, leaderHttpDeploymentOptions, curatorClient, backendAssociationStore);
+    VertxManager.deployLeaderHttpVerticles(vertx, httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
   }
 
   @After

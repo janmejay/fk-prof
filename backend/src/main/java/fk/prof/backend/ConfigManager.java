@@ -9,10 +9,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 public class ConfigManager {
-  public static final String HTTP_PORT_KEY = "http.port";
+  public static final String HTTP_SERVER_OPTIONS_KEY = "http.server";
+  public static final String HTTP_CLIENT_OPTIONS_KEY = "http.client";
   public static final String LOAD_REPORT_INTERVAL_KEY = "load.report.interval.secs";
   public static final String VERTX_OPTIONS_KEY = "vertxOptions";
   public static final String AGGREGATOR_DEPLOYMENT_OPTIONS_KEY = "aggregatorOptions";
+  public static final String LEADER_PROXY_DEPLOYMENT_OPTIONS_KEY = "leaderProxyOptions";
   public static final String CURATOR_OPTIONS_KEY = "curatorOptions";
   public static final String LEADER_ELECTION_DEPLOYMENT_OPTIONS_KEY = "leaderElectionOptions";
   public static final String LEADER_HTTP_DEPLOYMENT_OPTIONS_KEY = "leaderHttpOptions";
@@ -26,8 +28,12 @@ public class ConfigManager {
         new File(confPath), StandardCharsets.UTF_8));
   }
 
-  public static int getHttpPort(JsonObject config) {
-    return config.getInteger(HTTP_PORT_KEY);
+  public static JsonObject getHttpServerConfig(JsonObject config) {
+    return config.getJsonObject(HTTP_SERVER_OPTIONS_KEY);
+  }
+
+  public static JsonObject getHttpClientConfig(JsonObject config) {
+    return config.getJsonObject(HTTP_CLIENT_OPTIONS_KEY);
   }
 
   public static int getLoadReportIntervalInSeconds(JsonObject config) {
@@ -40,6 +46,10 @@ public class ConfigManager {
 
   public static JsonObject getAggregatorDeploymentConfig(JsonObject config) {
     return config.getJsonObject(AGGREGATOR_DEPLOYMENT_OPTIONS_KEY);
+  }
+
+  public static JsonObject getLeaderProxyDeploymentConfig(JsonObject config) {
+    return config.getJsonObject(LEADER_PROXY_DEPLOYMENT_OPTIONS_KEY);
   }
 
   public static JsonObject getCuratorConfig(JsonObject config) {

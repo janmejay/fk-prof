@@ -1,5 +1,15 @@
 {
-  "http.port": 9305,
+  "http.server": {
+    "port": 9305,
+    "idle.timeout.secs": 60
+  },
+  "http.client": {
+    "connect.timeout.ms": 5000,
+    "idle.timeout.secs": 10,
+    "max.attempts": 2,
+    "keepalive": true,
+    "compression": true
+  },
   "load.report.interval.secs": 1,
   "vertxOptions": {
     "blockedThreadCheckInterval": 6000000
@@ -17,6 +27,11 @@
       }
     }
   },
+  "leaderProxyOptions": {
+    "config": {
+      "http.instances": 2
+    }
+  },
   "curatorOptions": {
     "connection.url": "",
     "namespace": "fkprof",
@@ -28,6 +43,7 @@
     "worker": true,
     "config": {
       "aggregation.enabled": false,
+      "http.enabled": true,
       "leader.watching.path": "/leaderwatch",
       "leader.mutex.path": "/leader",
       "leader.sleep.ms": 60000,

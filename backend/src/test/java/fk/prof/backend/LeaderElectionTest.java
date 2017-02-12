@@ -30,6 +30,7 @@ public class LeaderElectionTest {
 
   private Vertx vertx;
   private Integer port;
+  private JsonObject httpServerConfig;
   private JsonObject vertxConfig;
   private DeploymentOptions leaderElectionDeploymentOptions;
   private DeploymentOptions aggregatorDeploymentOptions;
@@ -49,7 +50,9 @@ public class LeaderElectionTest {
     JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(config);
     assert aggregatorDeploymentConfig != null;
 
-    port = ConfigManager.getHttpPort(config);
+    httpServerConfig = ConfigManager.getHttpServerConfig(config);
+    assert httpServerConfig != null;
+    port = httpServerConfig.getInteger("port");
     leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
     aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
 
@@ -104,7 +107,7 @@ public class LeaderElectionTest {
   public void leaderDiscoveryUpdateOnLeaderElection(TestContext testContext) throws InterruptedException {
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     CountDownLatch latch = new CountDownLatch(1);
-    Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, true, null);
+    Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, true, null, false, null, null, null);
     LeaderDiscoveryStore leaderDiscoveryStore = new LeaderDiscoveryStore() {
       private String address = null;
       private boolean self = false;
@@ -148,12 +151,12 @@ public class LeaderElectionTest {
   }
 
   @Test(timeout = 20000)
-  public void leaderElectionAssertionsWithDefaults(TestContext testContext) throws InterruptedException {
+  public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     ProfileWorkService profileWorkService = new ProfileWorkService();
     List<String> aggregatorDeployments = new ArrayList<>();
 
-    CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, port, aggregatorDeploymentOptions, profileWorkService);
+    CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, httpServerConfig, aggregatorDeploymentOptions, profileWorkService);
     CountDownLatch aggDepLatch = new CountDownLatch(1);
     aggDepFut.setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
@@ -172,7 +175,9 @@ public class LeaderElectionTest {
       CountDownLatch leaderElectionLatch = new CountDownLatch(1);
       CountDownLatch leaderWatchedLatch = new CountDownLatch(1);
 
-      Runnable defaultLeaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, false, aggregatorDeployments);
+      Runnable defaultLeaderElectedTask = VertxManager.getDefaultLeaderElectedTask(
+          vertx, false, aggregatorDeployments,
+          false, null, null, null);
       Runnable wrappedLeaderElectedTask = () -> {
         defaultLeaderElectedTask.run();
         leaderElectionLatch.countDown();
