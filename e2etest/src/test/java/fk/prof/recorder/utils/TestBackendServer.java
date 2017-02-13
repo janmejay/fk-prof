@@ -50,6 +50,7 @@ public class TestBackendServer {
                 byte[] resBytes = handlers[idx].apply(reqBytes);
                 resStrm.write(resBytes);
             } catch (RuntimeException | Error e) {
+                System.err.println("Failed to handle request for: " + req.getPathInfo());
                 e.printStackTrace();
                 throw e;
             } finally {

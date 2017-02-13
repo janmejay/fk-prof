@@ -174,14 +174,15 @@ public class CpuSamplingTest {
                 .build();
         assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[]{w});
 
-        assertCpuProfileEntriesAre(profileEntries, Collections.singletonMap("inferno",
+        assertCpuProfileEntriesAre(profileEntries, Collections.singletonMap(5,
                 rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
                         nodeMatcher(Burn20And80PctCpu.class, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
-                                nodeMatcher(Burn20Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 5, Collections.emptySet()))),
-                                nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
-                                        nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 5, Collections.emptySet())))))))))),
+                                nodeMatcher(Burn20And80PctCpu.class, "burnCpu", "()V", 0, 1, childrenMatcher(
+                                        nodeMatcher(Burn20Of100.class, "burn", "()V", 0, 1, childrenMatcher(
+                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 10, Collections.emptySet()))),
+                                        nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
+                                                nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
+                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))),
                 false);
 
         assertThat(profileCalledSecondTime.getValue(), is(false));
@@ -211,7 +212,7 @@ public class CpuSamplingTest {
         }
     }
 
-    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes) {
+    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<Integer, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes) {
         //first let us build the tree
         Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
@@ -230,7 +231,7 @@ public class CpuSamplingTest {
                 int id = traceEntry.getTraceId();
                 assertThat(traceInfoMap.containsKey(id), is(false));
                 traceInfoMap.put(id, new TraceInfo(traceEntry.getTraceName(), traceEntry.getCoveragePct()));
-                aggregations.put(id, new SampledStackNode(DUMMY_ROOT_NODE_CLASS_NAME, DUMMY_ROOT_NODE_CLASS_NAME, DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>()));
+                aggregations.put(id, new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>()));
             }
             for (Recorder.MethodInfo mthdEntry : idxData.getMethodInfoList()) {
                 long id = mthdEntry.getMethodId();
@@ -241,9 +242,9 @@ public class CpuSamplingTest {
             for (int i = 0; i < e.getStackSampleCount(); i++) {
                 Recorder.StackSample stackSample = e.getStackSample(i);
                 for (Integer traceId : stackSample.getTraceIdList()) {
-                    SampledStackNode currentNode = aggregations.get(stackSample.getTraceId(traceId));
-                    for (int j = 0; j < stackSample.getFrameCount(); j++) {
-                        Recorder.Frame frame = stackSample.getFrame(j);
+                    SampledStackNode currentNode = aggregations.get(traceId);
+                    for (int j = stackSample.getFrameCount(); j > 0; j--) {
+                        Recorder.Frame frame = stackSample.getFrame(j - 1);
                         long methodId = frame.getMethodId();
                         int lineNo = frame.getLineNo();
                         int bci = frame.getBci();
@@ -257,7 +258,7 @@ public class CpuSamplingTest {
         }
 
         //now let us match it
-        for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {
+        for (Map.Entry<Integer, StackNodeMatcher> expectedEntry : expected.entrySet()) {
             SampledStackNode node = aggregations.get(expectedEntry.getKey());
             assertThat(node, notNullValue());
             assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
@@ -266,8 +267,8 @@ public class CpuSamplingTest {
     }
 
     private void assertTreesMatch(SampledStackNode node, StackNodeMatcher value, int totalSamples) {
-        assertThat(node.file, containsString(value.klassSimpleName + ".class"));
-        assertThat(node.klass, is(value.getClass().getCanonicalName()));
+        assertThat(node.file, containsString(value.klassSimpleName + ".java"));
+        assertThat(node.klass, is(value.klass));
         assertThat(node.fnName, is(value.fnName));
         assertThat(node.fnSig, is(value.fnSig));
         //TODO: uncomment me!!
@@ -275,15 +276,16 @@ public class CpuSamplingTest {
         //assertThat(node.bci, is(value.bci));
         int childrenMatched = 0;
         for (StackNodeMatcher child : value.children) {
-            Set<SampledStackNode> matchingChildren = node.findChildrenLike(child);
-            childrenMatched += matchingChildren.size();
-            int actualSampleCount = 0;
-            for (SampledStackNode matchingChild : matchingChildren) {
-                actualSampleCount += matchingChild.onCpuSampleCount;
+            SampledStackNode matchingChild = node.findChildLike(child);
+            childrenMatched ++;
+            assertThat(matchingChild, notNullValue());
+            if (matchingChild.onCpuSampleCount > 0) {
+                int actualSampleCount = matchingChild.onCpuSampleCount;
+                int expectedSamples = child.expectedOncpuPct * totalSamples / 100;
+                int toleranceInSamples = child.pctMatchTolerance * totalSamples / 100;
+                assertThat((long) actualSampleCount, approximately((long) expectedSamples, (long) toleranceInSamples));
             }
-            int expectedSamples = child.expectedOncpuPct * totalSamples / 100;
-            int toleranceInSamples = child.pctMatchTolerance * totalSamples / 100;
-            assertThat((long) actualSampleCount, approximately((long) expectedSamples, (long) toleranceInSamples));
+            assertTreesMatch(matchingChild, child, totalSamples);
         }
         assertThat(childrenMatched, is(node.children.size()));
     }
@@ -318,16 +320,27 @@ public class CpuSamplingTest {
 
         @Override
         public String toString() {
-            return "StackNode{" +
-                    "klass=" + klass +
-                    ", file=" + file +
-                    ", fnName='" + fnName + '\'' +
-                    ", fnSig='" + fnSig + '\'' +
-                    ", lineNo=" + lineNo +
-                    ", bci=" + bci +
-                    ", onCpuSampleCount=" + onCpuSampleCount +
-                    ", children=" + children +
+            return "{\"type\": \"Sampled\"," +
+                    "\"klass\":\"" + klass + "\"" +
+                    ", \"file\":\"" + file + "\"" +
+                    ", \"fnName\":\"" + fnName + "\"" +
+                    ", \"fnSig\":\"" + fnSig + '\"' +
+//                    ", \"lineNo\":" + lineNo +
+//                    ", \"bci\":" + bci +
+                    ", \"onCpuSampleCount\":" + onCpuSampleCount +
+                    ", \"children\":" + childrenArray(children) +
                     '}';
+        }
+
+        private String childrenArray(Map<SampledStackNode, SampledStackNode> children) {
+            StringBuilder b = new StringBuilder();
+            b.append("[");
+            for (SampledStackNode node : children.keySet()) {
+                if (b.length() > 1) b.append(",");
+                b.append(node);
+            }
+            b.append("]");
+            return b.toString();
         }
 
         @Override
@@ -337,8 +350,8 @@ public class CpuSamplingTest {
 
             SampledStackNode that = (SampledStackNode) o;
 
-            if (lineNo != that.lineNo) return false;
-            if (bci != that.bci) return false;
+//            if (lineNo != that.lineNo) return false;
+//            if (bci != that.bci) return false;
             if (klass != null ? !klass.equals(that.klass) : that.klass != null) return false;
             if (file != null ? !file.equals(that.file) : that.file != null) return false;
             if (fnName != null ? !fnName.equals(that.fnName) : that.fnName != null) return false;
@@ -352,8 +365,8 @@ public class CpuSamplingTest {
             result = 31 * result + (file != null ? file.hashCode() : 0);
             result = 31 * result + (fnName != null ? fnName.hashCode() : 0);
             result = 31 * result + (fnSig != null ? fnSig.hashCode() : 0);
-            result = 31 * result + lineNo;
-            result = 31 * result + bci;
+//            result = 31 * result + lineNo;
+//            result = 31 * result + bci;
             return result;
         }
 
@@ -366,11 +379,23 @@ public class CpuSamplingTest {
             }
             return existingNode;
         }
+        
+        public SampledStackNode findChildLike(StackNodeMatcher like) {
+            for (SampledStackNode child : children.keySet()) {
+                if (child.klass.equals(like.klass) &&
+                        child.fnName.equals(like.fnName) &&
+                        child.fnSig.equals(like.fnSig)) {
+                    return child;
+                }
+            }
+            return null;
+        }
 
         public Set<SampledStackNode> findChildrenLike(StackNodeMatcher like) {
             Set<SampledStackNode> matched = new HashSet<>();
+            String targetKlassName = "L" + like.klass.replaceAll("\\.", "/") + ";";
             for (SampledStackNode child : children.keySet()) {
-                if (child.klass.equals(like.klass) &&
+                if (child.klass.equals(targetKlassName) &&
                         child.fnName.equals(like.fnName) &&
                         child.fnSig.equals(like.fnSig)) {
                     matched.add(child);
@@ -395,7 +420,7 @@ public class CpuSamplingTest {
 
         public StackNodeMatcher(String simpleName, String klass, String fnName, String fnSig, int onCpuPct, int pctMatchTolerance, Set<StackNodeMatcher> children) {
             this.klassSimpleName = simpleName;
-            this.klass = klass;
+            this.klass = "L" + klass.replaceAll("\\.", "/") + ";";
             this.fnName = fnName;
             this.fnSig = fnSig;
             this.expectedOncpuPct = onCpuPct;
@@ -405,13 +430,13 @@ public class CpuSamplingTest {
 
         @Override
         public String toString() {
-            return "StackNode{" +
-                    "klass=" + klass +
-                    ", fnName='" + fnName + '\'' +
-                    ", fnSig='" + fnSig + '\'' +
-                    ", expectedOncpuPct=" + expectedOncpuPct +
-                    ", pctMatchTolerance=" + pctMatchTolerance +
-                    ", children=" + children +
+            return "{\"type\": \"Matcher\"," +
+                    "\"klass\":\"" + klass + "\"" +
+                    ", \"fnName\":\"" + fnName + "\"" +
+                    ", \"fnSig\":\"" + fnSig + '\"' +
+                    ", \"expectedOncpuPct\":" + expectedOncpuPct +
+                    ", \"pctMatchTolerance\":" + pctMatchTolerance +
+                    ", \"children\":" + children +
                     '}';
         }
 
