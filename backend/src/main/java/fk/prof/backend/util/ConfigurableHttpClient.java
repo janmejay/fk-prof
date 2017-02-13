@@ -29,37 +29,40 @@ public class ConfigurableHttpClient {
     this.maxAttempts = maxAttempts;
   }
 
-  public Future<ResponseWithStatusTuple> requestAsync(HttpMethod httpMethod,
-                                                      String host, int port, String path) {
-    return requestAsync(httpMethod, host, port, path, null);
+  public Future<ResponseWithStatusTuple> requestAsyncWithRetry(HttpMethod httpMethod,
+                                                               String host, int port, String path,
+                                                               Buffer payload) {
+    return executeRequestWithRetry(0, httpMethod, host, port, path, payload, true);
   }
 
   public Future<ResponseWithStatusTuple> requestAsync(HttpMethod httpMethod,
-                                                      String host, int port, String path,
-                                                      Buffer payload) {
-    return executeRequestWithRetry(0, httpMethod, host, port, path, payload);
+                                                      String host, int port, String path, Buffer payload) {
+    return executeRequestWithRetry(0, httpMethod, host, port, path, payload, false);
   }
 
   private Future<ResponseWithStatusTuple> executeRequestWithRetry(
       int attemptsMade,
       HttpMethod httpMethod,
       String host, int port, String path,
-      Buffer payload) {
+      Buffer payload,
+      boolean enableRetries) {
 
     Future<ResponseWithStatusTuple> result = Future.future();
     Future<ResponseWithStatusTuple> responseFut = executeRequestAsync(httpMethod, host, port, path, payload);
-    if(responseFut.succeeded()) {
-      result.complete(responseFut.result());
-    } else {
-      if((attemptsMade + 1) < maxAttempts) {
-        int delayInSeconds = (int)Math.pow(2, attemptsMade + 1) - 1;
-        vertx.setTimer(delayInSeconds * 1000, timerId -> {
-          executeRequestWithRetry(attemptsMade + 1, httpMethod, host, port, path, payload).setHandler(result.completer());
-        });
+    responseFut.setHandler(asyncResult -> {
+      if(asyncResult.succeeded()) {
+        result.complete(asyncResult.result());
       } else {
-        result.fail(responseFut.cause());
+        if(enableRetries && (attemptsMade + 1) < maxAttempts) {
+          int delayInSeconds = (int)Math.pow(2, attemptsMade + 1) - 1;
+          vertx.setTimer(delayInSeconds * 1000, timerId -> {
+            executeRequestWithRetry(attemptsMade + 1, httpMethod, host, port, path, payload, enableRetries).setHandler(result.completer());
+          });
+        } else {
+          result.fail(asyncResult.cause());
+        }
       }
-    }
+    });
 
     return result;
   }

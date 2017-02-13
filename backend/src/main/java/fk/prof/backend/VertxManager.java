@@ -3,11 +3,12 @@ package fk.prof.backend;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
+import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.model.election.impl.InMemoryLeaderDiscoveryStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.verticles.http.AggregatorHttpVerticle;
+import fk.prof.backend.verticles.http.BackendHttpVerticle;
 import fk.prof.backend.verticles.http.LeaderHttpVerticle;
-import fk.prof.backend.verticles.http.LeaderProxyVerticle;
 import fk.prof.backend.verticles.leader.election.*;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
@@ -21,7 +22,6 @@ import org.apache.curator.framework.CuratorFramework;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * TODO: Deployment process is liable to changes later
@@ -57,59 +57,32 @@ public class VertxManager {
     return future;
   }
 
-  public static CompositeFuture deployAggregatorHttpVerticles(
+  public static CompositeFuture deployBackendHttpVerticles(
       Vertx vertx,
-      JsonObject httpServerOptions,
-      DeploymentOptions aggregatorDeploymentOptions,
+      JsonObject backendHttpServerConfig,
+      JsonObject httpClientConfig,
+      int leaderPort,
+      DeploymentOptions backendDeploymentOptions,
+      LeaderDiscoveryStore leaderDiscoveryStore,
       IProfileWorkService profileWorkService) {
     assert vertx != null;
-    assert aggregatorDeploymentOptions != null;
+    assert backendDeploymentOptions != null;
     assert profileWorkService != null;
-
-    int verticleCount = aggregatorDeploymentOptions.getConfig().getInteger("http.instances", 1);
-    List<Future> deployFutures = new ArrayList<>();
-    for (int i = 1; i <= verticleCount; i++) {
-      Future<String> deployFuture = Future.future();
-      deployFutures.add(deployFuture);
-
-      Verticle aggregatorHttpVerticle = new AggregatorHttpVerticle(httpServerOptions, profileWorkService);
-      vertx.deployVerticle(aggregatorHttpVerticle, aggregatorDeploymentOptions, deployResult -> {
-        if (deployResult.succeeded()) {
-          logger.info("Deployment of AggregatorHttpVerticle succeeded with deploymentId = " + deployResult.result());
-          deployFuture.complete(deployResult.result());
-        } else {
-          logger.error("Deployment of AggregatorHttpVerticle failed", deployResult.cause());
-          deployFuture.fail(deployResult.cause());
-        }
-      });
-    }
-
-    return CompositeFuture.all(deployFutures);
-  }
-
-  public static CompositeFuture deployLeaderProxyVerticles
-      (Vertx vertx,
-       JsonObject httpServerConfig,
-       JsonObject httpClientConfig,
-       DeploymentOptions leaderProxyDeploymentOptions,
-       LeaderDiscoveryStore leaderDiscoveryStore) {
-    assert vertx != null;
-    assert leaderProxyDeploymentOptions != null;
     assert leaderDiscoveryStore != null;
 
-    int verticleCount = leaderProxyDeploymentOptions.getConfig().getInteger("http.instances", 1);
+    int verticleCount = backendDeploymentOptions.getConfig().getInteger("http.instances", 1);
     List<Future> deployFutures = new ArrayList<>();
     for (int i = 1; i <= verticleCount; i++) {
       Future<String> deployFuture = Future.future();
       deployFutures.add(deployFuture);
 
-      Verticle leaderProxyVerticle = new LeaderProxyVerticle(httpServerConfig, httpClientConfig, leaderDiscoveryStore);
-      vertx.deployVerticle(leaderProxyVerticle, leaderProxyDeploymentOptions, deployResult -> {
+      Verticle backendHttpVerticle = new BackendHttpVerticle(backendHttpServerConfig, httpClientConfig, leaderPort, leaderDiscoveryStore, profileWorkService);
+      vertx.deployVerticle(backendHttpVerticle, backendDeploymentOptions, deployResult -> {
         if (deployResult.succeeded()) {
-          logger.info("Deployment of LeaderProxyVerticle succeeded with deploymentId = " + deployResult.result());
+          logger.info("Deployment of BackendHttpVerticle succeeded with deploymentId = " + deployResult.result());
           deployFuture.complete(deployResult.result());
         } else {
-          logger.error("Deployment of LeaderProxyVerticle failed", deployResult.cause());
+          logger.error("Deployment of BackendHttpVerticle failed", deployResult.cause());
           deployFuture.fail(deployResult.cause());
         }
       });
@@ -141,14 +114,14 @@ public class VertxManager {
 
   public static void deployLeaderHttpVerticles
       (Vertx vertx,
-       JsonObject httpServerConfig,
+       JsonObject leaderHttpServerConfig,
        DeploymentOptions leaderHttpDeploymentOptions,
        BackendAssociationStore backendAssociationStore) {
     assert vertx != null;
     assert leaderHttpDeploymentOptions != null;
     assert backendAssociationStore != null;
 
-    Verticle leaderHttpVerticle = new LeaderHttpVerticle(httpServerConfig, backendAssociationStore);
+    Verticle leaderHttpVerticle = new LeaderHttpVerticle(leaderHttpServerConfig, backendAssociationStore);
     vertx.deployVerticle(leaderHttpVerticle, leaderHttpDeploymentOptions);
   }
 
@@ -156,7 +129,7 @@ public class VertxManager {
                                                      boolean aggregationEnabled,
                                                      List<String> backendDeployments,
                                                      boolean leaderHttpEnabled,
-                                                     JsonObject httpServerConfig,
+                                                     JsonObject leaderHttpServerConfig,
                                                      DeploymentOptions leaderHttpDeploymentOptions,
                                                      BackendAssociationStore backendAssociationStore) {
     LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
@@ -164,13 +137,13 @@ public class VertxManager {
       builder.disableBackend(backendDeployments);
     }
     if(leaderHttpEnabled) {
-      builder.enableLeaderHttp(httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
+      builder.enableLeaderHttp(leaderHttpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
     }
     return builder.build(vertx);
   }
 
   public static LeaderDiscoveryStore getDefaultLeaderDiscoveryStore(Vertx vertx) {
-    return new SharedMapBasedLeaderDiscoveryStore(vertx);
+    return new InMemoryLeaderDiscoveryStore();
   }
 
   public static BackendAssociationStore getDefaultBackendAssociationStore(Vertx vertx, CuratorFramework curatorClient, String backendAssociationZKNodePath, int reportLoadFrequencyInSeconds, int maxAllowedSkips)
@@ -185,19 +158,20 @@ public class VertxManager {
   }
 
   public static Future<Void> launch(Vertx vertx, CuratorFramework curatorClient, JsonObject configOptions) {
-    JsonObject httpServerConfig = ConfigManager.getHttpServerConfig(configOptions);
-    if (httpServerConfig == null) {
-      throw new RuntimeException("Http server options are required");
+    JsonObject backendHttpServerConfig = ConfigManager.getBackendHttpServerConfig(configOptions);
+    if (backendHttpServerConfig == null) {
+      throw new RuntimeException("Backend http server options are required");
     }
 
-    JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(configOptions);
-    if (aggregatorDeploymentConfig == null) {
-      throw new RuntimeException("Aggregator deployment options are required");
+    JsonObject leaderHttpServerConfig = ConfigManager.getLeaderHttpServerConfig(configOptions);
+    if (backendHttpServerConfig == null) {
+      throw new RuntimeException("Leader http server options are required");
     }
+    int leaderPort = leaderHttpServerConfig.getInteger("port");
 
-    JsonObject leaderProxyDeploymentConfig = ConfigManager.getLeaderProxyDeploymentConfig(configOptions);
-    if (leaderProxyDeploymentConfig == null) {
-      throw new RuntimeException("Leader proxy deployment options are required");
+    JsonObject backendDeploymentConfig = ConfigManager.getBackendHttpDeploymentConfig(configOptions);
+    if (backendDeploymentConfig == null) {
+      throw new RuntimeException("Backend deployment options are required");
     }
 
     JsonObject httpClientConfig = ConfigManager.getHttpClientConfig(configOptions);
@@ -216,21 +190,19 @@ public class VertxManager {
     }
 
     Future future = Future.future();
-    DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
-    DeploymentOptions leaderProxyDeploymentOptions = new DeploymentOptions(leaderProxyDeploymentConfig);
+    int loadReportIntervalInSeconds = ConfigManager.getLoadReportIntervalInSeconds(configOptions);
+    DeploymentOptions backendDeploymentOptions = new DeploymentOptions(backendDeploymentConfig);
     ProfileWorkService profileWorkService = new ProfileWorkService();
     LeaderDiscoveryStore leaderDiscoveryStore = getDefaultLeaderDiscoveryStore(vertx);
 
-    CompositeFuture aggregatorDeploymentFuture = deployAggregatorHttpVerticles(vertx, httpServerConfig, aggregatorDeploymentOptions, profileWorkService);
-    CompositeFuture leaderProxyDeploymentFuture = deployLeaderProxyVerticles(vertx, httpServerConfig, httpClientConfig, leaderProxyDeploymentOptions, leaderDiscoveryStore);
-    CompositeFuture backendDeployFuture = CompositeFuture.all(aggregatorDeploymentFuture, leaderProxyDeploymentFuture);
+    CompositeFuture backendHttpDeploymentFuture = deployBackendHttpVerticles(
+        vertx, backendHttpServerConfig, httpClientConfig,
+        leaderPort, backendDeploymentOptions, leaderDiscoveryStore, profileWorkService);
 
-    backendDeployFuture.setHandler(result -> {
+    backendHttpDeploymentFuture.setHandler(result -> {
       if (result.succeeded()) {
         //Deploy leader related verticles
-        List<String> backendDeployments = result.result().list().stream()
-            .flatMap(deployments -> ((List<String>)deployments).stream())
-            .collect(Collectors.toList());
+        List<String> backendDeployments = result.result().list();
         DeploymentOptions leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
         DeploymentOptions leaderHttpDeploymentOptions = new DeploymentOptions(leaderHttpDeploymentConfig);
 
@@ -246,7 +218,7 @@ public class VertxManager {
               leaderElectionDeploymentOptions.getConfig().getBoolean("aggregation.enabled", true),
               backendDeployments,
               leaderElectionDeploymentOptions.getConfig().getBoolean("http.enabled", true),
-              httpServerConfig,
+              leaderHttpServerConfig,
               leaderHttpDeploymentOptions,
               backendAssociationStore
           );

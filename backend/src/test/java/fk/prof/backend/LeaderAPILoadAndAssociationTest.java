@@ -52,11 +52,11 @@ public class LeaderAPILoadAndAssociationTest {
     curatorClient.start();
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
 
-    JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
+    JsonObject config = ConfigManager.loadFileAsJson(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
     JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
-
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
-    JsonObject httpServerConfig = ConfigManager.getHttpServerConfig(config);
+
+    JsonObject httpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
     assert httpServerConfig != null;
     port = httpServerConfig.getInteger("port");
 

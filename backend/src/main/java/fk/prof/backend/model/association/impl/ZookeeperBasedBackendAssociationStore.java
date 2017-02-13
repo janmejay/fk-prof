@@ -73,12 +73,16 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
           }
         });
 
+        /**
+         * If backend was defunct earlier, acquire lock on available backend queue and add this backend there along with reporting load
+         * If backend was available, don't incur cost of acquiring lock since backend will already be in queue, which is the case mostly. Report load and get out
+         */
         boolean wasDefunct = backendDetail.isDefunct();
-        backendDetail.reportLoad(payload.getLoad());
         if(wasDefunct) {
           try {
             boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
             if (acquired) {
+              backendDetail.reportLoad(payload.getLoad());
               availableBackendsByPriority.offer(backendDetail);
             } else {
               logger.warn("Timeout while acquiring lock on backend queue for reporting backend=" + backendIPAddress);
@@ -88,6 +92,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
           } finally {
             backendAssignmentLock.unlock();
           }
+        } else {
+          backendDetail.reportLoad(payload.getLoad());
         }
         future.complete(BackendDetail.buildProcessGroupsProto(backendDetail.getAssociatedProcessGroups()));
       } catch (Exception ex) {

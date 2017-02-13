@@ -1,4 +1,4 @@
-package fk.prof.backend.verticles.leader.election;
+package fk.prof.backend.model.election;
 
 public interface LeaderDiscoveryStore {
   /**

@@ -9,12 +9,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 public class ConfigManager {
-  public static final String HTTP_SERVER_OPTIONS_KEY = "http.server";
+  public static final String BACKEND_HTTP_SERVER_OPTIONS_KEY = "backend.http.server";
+  public static final String LEADER_HTTP_SERVER_OPTIONS_KEY = "leader.http.server";
   public static final String HTTP_CLIENT_OPTIONS_KEY = "http.client";
   public static final String LOAD_REPORT_INTERVAL_KEY = "load.report.interval.secs";
   public static final String VERTX_OPTIONS_KEY = "vertxOptions";
-  public static final String AGGREGATOR_DEPLOYMENT_OPTIONS_KEY = "aggregatorOptions";
-  public static final String LEADER_PROXY_DEPLOYMENT_OPTIONS_KEY = "leaderProxyOptions";
+  public static final String BACKEND_HTTP_DEPLOYMENT_OPTIONS_KEY = "backendHttpOptions";
   public static final String CURATOR_OPTIONS_KEY = "curatorOptions";
   public static final String LEADER_ELECTION_DEPLOYMENT_OPTIONS_KEY = "leaderElectionOptions";
   public static final String LEADER_HTTP_DEPLOYMENT_OPTIONS_KEY = "leaderHttpOptions";
@@ -28,8 +28,12 @@ public class ConfigManager {
         new File(confPath), StandardCharsets.UTF_8));
   }
 
-  public static JsonObject getHttpServerConfig(JsonObject config) {
-    return config.getJsonObject(HTTP_SERVER_OPTIONS_KEY);
+  public static JsonObject getBackendHttpServerConfig(JsonObject config) {
+    return config.getJsonObject(BACKEND_HTTP_SERVER_OPTIONS_KEY);
+  }
+
+  public static JsonObject getLeaderHttpServerConfig(JsonObject config) {
+    return config.getJsonObject(LEADER_HTTP_SERVER_OPTIONS_KEY);
   }
 
   public static JsonObject getHttpClientConfig(JsonObject config) {
@@ -44,12 +48,8 @@ public class ConfigManager {
     return config.getJsonObject(VERTX_OPTIONS_KEY);
   }
 
-  public static JsonObject getAggregatorDeploymentConfig(JsonObject config) {
-    return config.getJsonObject(AGGREGATOR_DEPLOYMENT_OPTIONS_KEY);
-  }
-
-  public static JsonObject getLeaderProxyDeploymentConfig(JsonObject config) {
-    return config.getJsonObject(LEADER_PROXY_DEPLOYMENT_OPTIONS_KEY);
+  public static JsonObject getBackendHttpDeploymentConfig(JsonObject config) {
+    return config.getJsonObject(BACKEND_HTTP_DEPLOYMENT_OPTIONS_KEY);
   }
 
   public static JsonObject getCuratorConfig(JsonObject config) {

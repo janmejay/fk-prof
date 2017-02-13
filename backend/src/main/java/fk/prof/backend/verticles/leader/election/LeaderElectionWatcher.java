@@ -1,5 +1,6 @@
 package fk.prof.backend.verticles.leader.election;
 
+import fk.prof.backend.model.election.LeaderDiscoveryStore;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;

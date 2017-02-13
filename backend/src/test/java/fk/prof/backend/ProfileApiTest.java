@@ -52,17 +52,27 @@ public class ProfileApiTest {
     ConfigManager.setDefaultSystemProperties();
     JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
     JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
-    JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(config);
-    assert aggregatorDeploymentConfig != null;
+    JsonObject backendHttpDeploymentConfig = ConfigManager.getBackendHttpDeploymentConfig(config);
+    assert backendHttpDeploymentConfig != null;
 
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     profileWorkService = new ProfileWorkService();
 
-    JsonObject httpServerConfig = ConfigManager.getHttpServerConfig(config);
-    assert httpServerConfig != null;
-    port = httpServerConfig.getInteger("port");
-    DeploymentOptions aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
-    VertxManager.deployAggregatorHttpVerticles(vertx, httpServerConfig, aggregatorDeploymentOptions, profileWorkService);
+    JsonObject backendHttpServerConfig = ConfigManager.getBackendHttpServerConfig(config);
+    assert backendHttpServerConfig != null;
+    port = backendHttpServerConfig.getInteger("port");
+
+    JsonObject httpClientConfig = ConfigManager.getHttpClientConfig(config);
+    assert httpClientConfig != null;
+
+    JsonObject leaderHttpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
+    assert leaderHttpServerConfig != null;
+    int leaderPort = leaderHttpServerConfig.getInteger("port");
+
+    DeploymentOptions backendHttpDeploymentOptions = new DeploymentOptions(backendHttpDeploymentConfig);
+    VertxManager.deployBackendHttpVerticles(vertx, backendHttpServerConfig, httpClientConfig,
+        leaderPort, backendHttpDeploymentOptions,
+        VertxManager.getDefaultLeaderDiscoveryStore(vertx), profileWorkService);
   }
 
   @AfterClass

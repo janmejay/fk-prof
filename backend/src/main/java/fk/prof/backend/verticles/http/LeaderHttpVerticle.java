@@ -6,7 +6,6 @@ import fk.prof.backend.proto.BackendDTO;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
@@ -14,24 +13,23 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.LoggerHandler;
-import org.apache.curator.framework.CuratorFramework;
 import recording.Recorder;
 
 public class LeaderHttpVerticle extends AbstractVerticle {
   private BackendAssociationStore backendAssociationStore;
-  private JsonObject httpServerConfig;
+  private JsonObject leaderHttpServerConfig;
 
-  public LeaderHttpVerticle(JsonObject httpServerConfig, BackendAssociationStore backendAssociationStore) {
-    this.httpServerConfig = httpServerConfig;
+  public LeaderHttpVerticle(JsonObject leaderHttpServerConfig, BackendAssociationStore backendAssociationStore) {
+    this.leaderHttpServerConfig = leaderHttpServerConfig;
     this.backendAssociationStore = backendAssociationStore;
   }
 
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(httpServerConfig))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(leaderHttpServerConfig))
         .requestHandler(router::accept)
-        .listen(httpServerConfig.getInteger("port"),
+        .listen(leaderHttpServerConfig.getInteger("port"),
             http -> completeStartup(http, fut));
   }
 

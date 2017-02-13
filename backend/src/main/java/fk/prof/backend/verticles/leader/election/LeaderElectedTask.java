@@ -21,7 +21,7 @@ public class LeaderElectedTask implements Runnable {
 
   private LeaderElectedTask(Vertx vertx,
                             List<String> backendDeployments,
-                            JsonObject httpServerConfig,
+                            JsonObject leaderHttpServerConfig,
                             DeploymentOptions leaderHttpDeploymentOptions,
                             BackendAssociationStore backendAssociationStore) {
 
@@ -38,9 +38,9 @@ public class LeaderElectedTask implements Runnable {
       );
     }
 
-    if (httpServerConfig != null && leaderHttpDeploymentOptions != null && backendAssociationStore != null) {
+    if (leaderHttpServerConfig != null && leaderHttpDeploymentOptions != null && backendAssociationStore != null) {
       this.leaderHttpVerticlesDeployer = () ->
-          VertxManager.deployLeaderHttpVerticles(vertx, httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
+          VertxManager.deployLeaderHttpVerticles(vertx, leaderHttpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
     }
   }
 
@@ -60,7 +60,7 @@ public class LeaderElectedTask implements Runnable {
 
   public static class Builder {
     private List<String> backendDeployments = null;
-    private JsonObject httpServerConfig;
+    private JsonObject leaderHttpServerConfig;
     private DeploymentOptions leaderHttpDeploymentOptions;
     private BackendAssociationStore backendAssociationStore;
 
@@ -72,11 +72,11 @@ public class LeaderElectedTask implements Runnable {
       return this;
     }
 
-    public Builder enableLeaderHttp(JsonObject httpServerConfig,
+    public Builder enableLeaderHttp(JsonObject leaderHttpServerConfig,
                                     DeploymentOptions leaderHttpDeploymentOptions,
                                     BackendAssociationStore backendAssociationStore) {
-      if(httpServerConfig == null) {
-        throw new IllegalStateException("HTTP server options are required");
+      if(leaderHttpServerConfig == null) {
+        throw new IllegalStateException("Leader HTTP server options are required");
       }
       if(leaderHttpDeploymentOptions == null) {
         throw new IllegalStateException("Leader http deployment options are required");
@@ -85,7 +85,7 @@ public class LeaderElectedTask implements Runnable {
         throw new IllegalStateException("Backend association store is required");
       }
 
-      this.httpServerConfig = httpServerConfig;
+      this.leaderHttpServerConfig = leaderHttpServerConfig;
       this.leaderHttpDeploymentOptions = leaderHttpDeploymentOptions;
       this.backendAssociationStore = backendAssociationStore;
       return this;
@@ -96,7 +96,7 @@ public class LeaderElectedTask implements Runnable {
         throw new IllegalStateException("Vertx instance is required");
       }
 
-      return new LeaderElectedTask(vertx, backendDeployments, httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
+      return new LeaderElectedTask(vertx, backendDeployments, leaderHttpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
     }
   }
 }

@@ -2,7 +2,7 @@ package fk.prof.backend;
 
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.backend.util.IPAddressUtil;
-import fk.prof.backend.verticles.leader.election.LeaderDiscoveryStore;
+import fk.prof.backend.model.election.LeaderDiscoveryStore;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
@@ -29,11 +29,11 @@ import java.util.concurrent.TimeUnit;
 public class LeaderElectionTest {
 
   private Vertx vertx;
-  private Integer port;
-  private JsonObject httpServerConfig;
+  private Integer leaderPort;
+  private JsonObject leaderHttpServerConfig;
+  private JsonObject config;
   private JsonObject vertxConfig;
   private DeploymentOptions leaderElectionDeploymentOptions;
-  private DeploymentOptions aggregatorDeploymentOptions;
 
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
@@ -41,25 +41,20 @@ public class LeaderElectionTest {
   @Before
   public void setUp(TestContext context) throws Exception {
     ConfigManager.setDefaultSystemProperties();
-    JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
+    config = ConfigManager.loadFileAsJson(LeaderElectionTest.class.getClassLoader().getResource("config.json").getFile());
     vertxConfig = ConfigManager.getVertxConfig(config);
 
     JsonObject leaderElectionDeploymentConfig = ConfigManager.getLeaderElectionDeploymentConfig(config);
     assert leaderElectionDeploymentConfig != null;
 
-    JsonObject aggregatorDeploymentConfig = ConfigManager.getAggregatorDeploymentConfig(config);
-    assert aggregatorDeploymentConfig != null;
-
-    httpServerConfig = ConfigManager.getHttpServerConfig(config);
-    assert httpServerConfig != null;
-    port = httpServerConfig.getInteger("port");
+    leaderHttpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
+    assert leaderHttpServerConfig != null;
+    leaderPort = leaderHttpServerConfig.getInteger("port");
     leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
-    aggregatorDeploymentOptions = new DeploymentOptions(aggregatorDeploymentConfig);
 
     testingServer = new TestingServer();
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));
     curatorClient.start();
-//    curatorClient = curatorClient.usingNamespace("fkprof");
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
   }
 
@@ -154,13 +149,17 @@ public class LeaderElectionTest {
   public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     ProfileWorkService profileWorkService = new ProfileWorkService();
-    List<String> aggregatorDeployments = new ArrayList<>();
+    List<String> backendDeployments = new ArrayList<>();
 
-    CompositeFuture aggDepFut = VertxManager.deployAggregatorHttpVerticles(vertx, httpServerConfig, aggregatorDeploymentOptions, profileWorkService);
+    CompositeFuture aggDepFut = VertxManager.deployBackendHttpVerticles(
+        vertx, ConfigManager.getBackendHttpServerConfig(config), ConfigManager.getHttpClientConfig(config),
+        leaderPort, new DeploymentOptions(ConfigManager.getBackendHttpDeploymentConfig(config)),
+        VertxManager.getDefaultLeaderDiscoveryStore(vertx), profileWorkService);
+
     CountDownLatch aggDepLatch = new CountDownLatch(1);
     aggDepFut.setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
-        aggregatorDeployments.addAll(asyncResult.result().list());
+        backendDeployments.addAll(asyncResult.result().list());
         aggDepLatch.countDown();
       } else {
         testContext.fail(asyncResult.cause());
@@ -176,7 +175,7 @@ public class LeaderElectionTest {
       CountDownLatch leaderWatchedLatch = new CountDownLatch(1);
 
       Runnable defaultLeaderElectedTask = VertxManager.getDefaultLeaderElectedTask(
-          vertx, false, aggregatorDeployments,
+          vertx, false, backendDeployments,
           false, null, null, null);
       Runnable wrappedLeaderElectedTask = () -> {
         defaultLeaderElectedTask.run();
@@ -226,7 +225,7 @@ public class LeaderElectionTest {
         testContext.fail("Latch timed out but leader election task was not run");
       } else {
         //Ensure aggregator verticles have been undeployed
-        for (String aggDep : aggregatorDeployments) {
+        for (String aggDep : backendDeployments) {
           testContext.assertFalse(vertx.deploymentIDs().contains(aggDep));
         }
       }
