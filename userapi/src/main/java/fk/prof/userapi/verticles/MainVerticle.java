@@ -1,8 +1,15 @@
 package fk.prof.userapi.verticles;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
 import fk.prof.userapi.model.StorageFactory;
+import fk.prof.userapi.model.json.ProtoSerializers;
 import io.vertx.core.*;
+import io.vertx.core.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +31,10 @@ import java.util.List;
 public class MainVerticle extends AbstractVerticle {
     @Override
     public void start(Future<Void> startFuture) throws Exception {
+        // register serializers
+        registerSerializers(Json.mapper);
+        registerSerializers(Json.prettyMapper);
+
         int numInstances = config().getInteger("http.instances");
         int profileRetentionDuration = config().getInteger("profile.retention.duration");
 
@@ -41,5 +52,16 @@ public class MainVerticle extends AbstractVerticle {
                 startFuture.fail(event.cause());
             }
         });
+    }
+
+    public void registerSerializers(ObjectMapper mapper) {
+        // protobuf
+        ProtoSerializers.registerSerializers(mapper);
+
+        // java 8, datetime
+        mapper.registerModule(new Jdk8Module());
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
     }
 }

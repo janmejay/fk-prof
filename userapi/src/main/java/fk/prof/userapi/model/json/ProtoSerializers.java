@@ -24,7 +24,7 @@ public class ProtoSerializers {
         module.addSerializer(AggregatedProfileModel.Header.class, new HeaderSerializer());
         module.addSerializer(AggregatedProfileModel.ProfileSourceInfo.class, new ProfileSourceInfoSerializer());
         module.addSerializer(AggregatedProfileModel.ProfileWorkInfo.class, new ProfileWorkInfoSerializer());
-
+        module.addSerializer(AggregatedProfileModel.TraceCtxDetail.class, new TraceCtxDetailsSerializer());
         om.registerModule(module);
     }
 
@@ -38,13 +38,31 @@ public class ProtoSerializers {
         public void serialize(AggregatedProfileModel.FrameNode value, JsonGenerator gen, SerializerProvider serializers) throws IOException, JsonProcessingException {
             gen.writeStartArray();
             gen.writeNumber(value.getMethodId());
-            gen.writeNumber(value.getLineNo());
             gen.writeNumber(value.getChildCount());
+            gen.writeNumber(value.getLineNo());
             if(value.getCpuSamplingProps() != null) {
                 JsonSerializer cpuSamplesPropsSerializer = serializers.findValueSerializer(AggregatedProfileModel.CPUSamplingNodeProps.class);
                 cpuSamplesPropsSerializer.serialize(value.getCpuSamplingProps(), gen, serializers);
             }
             gen.writeEndArray();
+        }
+    }
+
+    static class TraceCtxDetailsSerializer extends StdSerializer<AggregatedProfileModel.TraceCtxDetail> {
+
+        public TraceCtxDetailsSerializer() {
+            super(AggregatedProfileModel.TraceCtxDetail.class);
+        }
+
+        @Override
+        public void serialize(AggregatedProfileModel.TraceCtxDetail value, JsonGenerator gen, SerializerProvider serializers) throws IOException, JsonProcessingException {
+            gen.writeStartObject();
+            gen.writeStringField("name", value.getName());
+            gen.writeFieldName("props");
+            gen.writeStartObject();
+            gen.writeNumberField("samples", value.getSampleCount());
+            gen.writeEndObject();
+            gen.writeEndObject();
         }
     }
 
@@ -72,12 +90,12 @@ public class ProtoSerializers {
         @Override
         public void serialize(AggregatedProfileModel.Header header, JsonGenerator gen, SerializerProvider serializers) throws IOException {
             gen.writeStartObject();
-            gen.writeStringField("appId", header.getAppId());
-            gen.writeStringField("clusterId", header.getClusterId());
-            gen.writeStringField("procId", header.getProcId());
-            gen.writeStringField("aggregationStartTime", header.getAggregationStartTime());
-            gen.writeStringField("aggregationEndTime", header.getAggregationEndTime());
-            gen.writeStringField("workType", header.getWorkType().name());
+            gen.writeStringField("app_id", header.getAppId());
+            gen.writeStringField("cluster_id", header.getClusterId());
+            gen.writeStringField("proc_id", header.getProcId());
+            gen.writeStringField("aggregation_startTime", header.getAggregationStartTime());
+            gen.writeStringField("aggregation_end_time", header.getAggregationEndTime());
+            gen.writeStringField("work_type", header.getWorkType().name());
             gen.writeEndObject();
         }
     }
@@ -92,9 +110,9 @@ public class ProtoSerializers {
             gen.writeStartObject();
             gen.writeStringField("ip", value.getIp());
             gen.writeStringField("hostname", value.getHostname());
-            gen.writeStringField("processName", value.getProcessName());
+            gen.writeStringField("process_name", value.getProcessName());
             gen.writeStringField("zone", value.getZone());
-            gen.writeStringField("instanceType", value.getInstanceType());
+            gen.writeStringField("instance_type", value.getInstanceType());
             gen.writeEndObject();
         }
     }
@@ -107,12 +125,12 @@ public class ProtoSerializers {
         @Override
         public void serialize(AggregatedProfileModel.ProfileWorkInfo value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
             gen.writeStartObject();
-            gen.writeNumberField("startOffset", value.getStartOffset());
+            gen.writeNumberField("start_offset", value.getStartOffset());
             gen.writeNumberField("duration", value.getDuration());
-            gen.writeNumberField("recorderVersion", value.getRecorderVersion());
-            gen.writeNumberField("sampleCount", value.getSampleCount());
+            gen.writeNumberField("recorder_version", value.getRecorderVersion());
+            gen.writeNumberField("sample_count", value.getSampleCount());
             gen.writeStringField("status", value.getStatus().name());
-            gen.writeArrayFieldStart("traceCoverageMap");
+            gen.writeArrayFieldStart("trace_coverage_map");
             for(AggregatedProfileModel.TraceCtxToCoveragePctMap keyValue: value.getTraceCoverageMapList()) {
                 gen.writeStartArray();
                 gen.writeNumber(keyValue.getTraceCtxIdx());

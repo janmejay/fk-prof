@@ -5,13 +5,10 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.io.BaseEncoding;
 import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
-import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.AsyncStorage;
-import fk.prof.storage.FileNamingStrategy;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.*;
-import org.apache.commons.codec.binary.Base32;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
@@ -28,12 +25,12 @@ import java.util.stream.Collectors;
  */
 public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
-    private static final String VERSION = "v001";
+    private static final String VERSION = "v0001";
     private static final String DELIMITER = "/";
 
     public static final String WORKER_POOL_NAME = "aggregation.loader.pool";
     public static final int WORKER_POOL_SIZE = 10;
-    public static final int DEFAULT_LOAD_TIMEOUT = 3000;   // in ms
+    public static final int DEFAULT_LOAD_TIMEOUT = 10000;   // in ms
     private int loadTimeout = DEFAULT_LOAD_TIMEOUT;
 
     private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(ProfileStoreAPIImpl.class);
@@ -78,10 +75,9 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             Set<String> objs = new HashSet<>();
             for (String commonPrefix : commonPrefixes) {
                 String objName = getLastFromCommonPrefix(commonPrefix);
-                if (encoded) {
-                    objName = new String(new Base32().decode(objName.getBytes()));
-                }
-                if (objName.indexOf(objPrefix) == 0) {
+                objName = encoded ? decode(objName) : objName;
+
+                if (objName.startsWith(objPrefix)) {
                     objs.add(objName);
                 }
             }
@@ -128,9 +124,8 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     @Override
-    synchronized public void load(Future<AggregatedProfileInfo> future, AggregatedProfileModel.Header header) {
-        FileNamingStrategy fileNamingStrategy = new AggregatedProfileFileNamingStrategy(header);
-        String fileNameKey = fileNamingStrategy.getFileName(0);
+    synchronized public void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename) {
+        String fileNameKey = filename.getFileName(0);
 
         AggregatedProfileInfo cachedProfileInfo = cache.getIfPresent(fileNameKey);
         if(cachedProfileInfo == null) {
@@ -141,7 +136,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
 
             if(!fileLoadInProgress) {
-                workerExecutor.executeBlocking((Future<AggregatedProfileInfo> f) -> profileLoader.load(f, header),
+                workerExecutor.executeBlocking((Future<AggregatedProfileInfo> f) -> profileLoader.load(f, filename),
                         true,
                         result -> completeAggregatedProfileLoading(result, fileNameKey));
             }
@@ -194,6 +189,10 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     private String encode(String str) {
         return BaseEncoding.base32().encode(str.getBytes(Charset.forName("utf-8")));
+    }
+
+    private String decode(String str) {
+        return new String(BaseEncoding.base32().decode(str), Charset.forName("utf-8"));
     }
 
     private static Pair<ZonedDateTime, ZonedDateTime> getInterval(AggregatedProfileFileNamingStrategy fileName) {

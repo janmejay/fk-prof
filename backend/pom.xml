@@ -16,7 +16,6 @@
 
   <properties>
     <vertx.version>3.3.3</vertx.version>
-    <jackson.version>2.7.4</jackson.version>
   </properties>
 
   <dependencies>

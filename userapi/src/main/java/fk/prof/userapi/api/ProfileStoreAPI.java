@@ -1,5 +1,6 @@
 package fk.prof.userapi.api;
 
+import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.FilteredProfiles;
@@ -55,7 +56,7 @@ public interface ProfileStoreAPI {
     /**
      * Returns aggregated profile for the provided header
      * @param future
-     * @param header
+     * @param filename
      */
-    void load(Future<AggregatedProfileInfo> future, AggregatedProfileModel.Header header);
+    void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename);
 }

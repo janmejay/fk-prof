@@ -4,7 +4,6 @@ import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
 import fk.prof.aggregation.Constants;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.AsyncStorage;
-import fk.prof.storage.FileNamingStrategy;
 import fk.prof.storage.buffer.StorageBackedInputStream;
 import fk.prof.userapi.Deserializer;
 import fk.prof.userapi.model.*;
@@ -16,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.Adler32;
+import java.util.zip.Checksum;
 
 /**
  * @author gaurav.ashok
@@ -28,14 +29,15 @@ public class AggregatedProfileLoader {
         this.asyncStorage = asyncStorage;
     }
 
-    public void load(Future<AggregatedProfileInfo> future, AggregatedProfileModel.Header header) {
-        if(header.getFormatVersion() != 1) {
+    public void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename) {
+        if(filename.version != 1) {
             future.fail("file format version is not supported");
             return;
         }
 
-        FileNamingStrategy fileNamingStrategy = new AggregatedProfileFileNamingStrategy(header);
-        StorageBackedInputStream in = new StorageBackedInputStream(asyncStorage, fileNamingStrategy);
+        Adler32 checksum = new Adler32();
+        InputStream in = new StorageBackedInputStream(asyncStorage, filename);
+        in = new ChecksumCalculatingInputStream(checksum, in);
 
         try {
             int magicNum = Deserializer.readFixedInt32(in);
@@ -46,24 +48,29 @@ public class AggregatedProfileLoader {
             }
 
             // read header
+            checksumReset(checksum);
             AggregatedProfileModel.Header parsedHeader = AggregatedProfileModel.Header.parseDelimitedFrom(in);
-            Deserializer.readFixedInt32(in);
+            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error header");
 
             // read traceCtx list
+            checksumReset(checksum);
             AggregatedProfileModel.TraceCtxList traceCtxList = AggregatedProfileModel.TraceCtxList.parseDelimitedFrom(in);
-            Deserializer.readFixedInt32(in);
+            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error traceCtxList");
 
             // read profiles summary
+            checksumReset(checksum);
             AggregatedProfileModel.ProfilesSummary profilesSummary = AggregatedProfileModel.ProfilesSummary.parseDelimitedFrom(in);
-            Deserializer.readFixedInt32(in);
+            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error profileSummary");
 
             // read method lookup table
+            checksumReset(checksum);
             AggregatedProfileModel.MethodLookUp methodLookUp = AggregatedProfileModel.MethodLookUp.parseDelimitedFrom(in);
-            Deserializer.readFixedInt32(in);
+            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error methodLookup");
 
             Map<String, AggregatedSamplesPerTraceCtx> samplesPerTrace = new HashMap<>();
 
-            switch (header.getWorkType()) {
+            checksumReset(checksum);
+            switch (filename.workType) {
                 case cpu_sample_work:
                     for(AggregatedProfileModel.TraceCtxDetail traceCtx: traceCtxList.getAllTraceCtxList()) {
                         samplesPerTrace.put(traceCtx.getName(),
@@ -73,6 +80,8 @@ public class AggregatedProfileLoader {
                 default:
                     break;
             }
+
+            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error cpusample stacktrace");
 
             AggregatedProfileInfo profileInfo = new AggregatedProfileInfo(parsedHeader,
                     new ScheduledProfilesSummary(traceCtxList, profilesSummary), samplesPerTrace);
@@ -92,12 +101,19 @@ public class AggregatedProfileLoader {
         }
     }
 
+    private void checksumReset(Checksum checksum) {
+        checksum.reset();
+    }
+
+    private void checksumVerify(Checksum checksum, int value, String msg) {
+        assert value == (int)checksum.getValue() : msg;
+    }
+
     private StacktraceTreeIterable parseStacktraceTree(InputStream in) throws IOException {
         // tree is serialized in DFS manner. First node being the root.
-        int nodeCount = 1;  // 1 for root node
+        int nodeCount = 1; // for root node
         int parsedNodeCount = 0;
         List<AggregatedProfileModel.FrameNodeList> parsedFrameNodes = new ArrayList<>();
-
         do {
             AggregatedProfileModel.FrameNodeList frameNodeList = AggregatedProfileModel.FrameNodeList.parseDelimitedFrom(in);
             for(AggregatedProfileModel.FrameNode node: frameNodeList.getFrameNodesList()) {
