@@ -1,5 +1,8 @@
 package fk.prof.backend;
 
+import fk.prof.backend.leader.election.LeaderElectedTask;
+import fk.prof.backend.leader.election.LeaderElectionParticipator;
+import fk.prof.backend.leader.election.LeaderElectionWatcher;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
@@ -7,9 +10,8 @@ import fk.prof.backend.model.election.LeaderDiscoveryStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderDiscoveryStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.verticles.http.BackendHttpVerticle;
-import fk.prof.backend.verticles.http.LeaderHttpVerticle;
-import fk.prof.backend.verticles.leader.election.*;
+import fk.prof.backend.http.BackendHttpVerticle;
+import fk.prof.backend.http.LeaderHttpVerticle;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;

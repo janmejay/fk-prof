@@ -3,7 +3,7 @@ package fk.prof.backend;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.util.ConfigurableHttpClient;
+import fk.prof.backend.http.ConfigurableHttpClient;
 import fk.prof.backend.model.election.LeaderDiscoveryStore;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
