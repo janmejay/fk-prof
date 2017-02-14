@@ -103,9 +103,9 @@ public class PerfCtxNoDepsUnitTest {
     @Test
     public void shouldNotFailTo_PrintUseful_ToString() {
         PerfCtx ctx = new PerfCtx("foo bar baz", 25);
-        assertThat(ctx.toString(), is("PerfCtx(-2) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
+        assertThat(ctx.toString(), is("PerfCtx(0) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
         ClosablePerfCtx open = ctx.open();
-        assertThat(open.toString(), is("ClosablePerfCtx(-2) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
+        assertThat(open.toString(), is("ClosablePerfCtx(0) {name: 'foo bar baz', coverage: 25%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
     }
     
     @Test
@@ -124,6 +124,6 @@ public class PerfCtxNoDepsUnitTest {
     @Test
     public void shouldNotFailTo_DefaultParams_sensibly() {
         PerfCtx foo = new PerfCtx("foo");
-        assertThat(foo.toString(), is("PerfCtx(-2) {name: 'foo', coverage: 10%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
+        assertThat(foo.toString(), is("PerfCtx(0) {name: 'foo', coverage: 10%, merge_semantics: 'MergeSemantics{typeId=0} MERGE_TO_PARENT'}"));
     }
 }

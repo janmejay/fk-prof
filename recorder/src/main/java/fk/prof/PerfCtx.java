@@ -42,7 +42,7 @@ public class PerfCtx {
             throw new IllegalArgumentException(String.format("Name '%s' has an invalid starting character, first-char must be alpha-numeric.", name));
         }
 
-        long ctxIdTmp = -2;//TODO: choose this value carefully, use a low enough composite number to build this, so it can never occur in reality
+        long ctxIdTmp = 0;
         if (! noDepMode) {
             try {
                 ctxIdTmp = registerCtx(name, coveragePct, mrgSem.getTypeId());

@@ -17,6 +17,6 @@ public class Matchers {
 
     public static Matcher<Long> approximatelyBetween(long start, long end) {
         long err = start / 100;
-        return allOf(greaterThan(start - err), lessThan(end + err));
+        return allOf(greaterThanOrEqualTo(start - err), lessThanOrEqualTo(end + err));
     }
 }

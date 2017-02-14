@@ -16,7 +16,6 @@ import recording.Recorder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -30,6 +29,7 @@ import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.collection.IsArray.array;
 import static org.junit.Assert.assertThat;
 
 public class WorkHandlingTest {
@@ -54,7 +54,6 @@ public class WorkHandlingTest {
         associateServer = new TestBackendServer(8090);
         assocAction = server.register("/association", association);
         pollAction = associateServer.register("/poll", poll);
-        profileAction = associateServer.register("/profile", profile);
         runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
                 "ip=10.20.30.40," +
                 "host=foo-host," +
@@ -71,6 +70,10 @@ public class WorkHandlingTest {
                 "pollItvl=1," +
                 "logLvl=trace"
         );
+    }
+
+    private void wireUpProfileAction(final boolean waitForReqBytes) {
+        profileAction = associateServer.register("/profile", profile, waitForReqBytes);
     }
 
     @After
@@ -124,6 +127,7 @@ public class WorkHandlingTest {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
         MutableBoolean profileCalled = new MutableBoolean(false);
         association[0] = pointToAssociate(recInfo, 8090);
+        wireUpProfileAction(false);
         profile[0] = (req) -> {
             profileCalled.setTrue();
             return null;
@@ -183,6 +187,8 @@ public class WorkHandlingTest {
         MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
         List<Recorder.Wse> profileEntries = new ArrayList<>();
 
+        wireUpProfileAction(true);
+
         profile[0] = (req) -> {
             recordProfile(req, hdr, profileEntries);
             return new byte[0];
@@ -238,7 +244,7 @@ public class WorkHandlingTest {
     @Test
     public void should_Abort_CpuProfileWork_When_Profile_Upload_Fails() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
-        boolean[] profileCalled = {false, false};
+        Boolean[] profileCalled = {false, false};
         association[0] = pointToAssociate(recInfo, 8090);
         PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
         poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
@@ -249,6 +255,7 @@ public class WorkHandlingTest {
         }
         MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
 
+        wireUpProfileAction(false);
         profile[0] = (req) -> {
             profileCalled[0] = true;
             throw new RuntimeException("Ouch! something went wrong.");
@@ -286,7 +293,7 @@ public class WorkHandlingTest {
             assertWorkStateAndResultIs(pollReqs[i].req.getWorkLastIssued(), i + 99, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         }
 
-        assertThat(Arrays.asList(profileCalled), is(Arrays.asList(true, false)));
+        assertThat(profileCalled, is(array(equalTo(true), equalTo(false))));
     }
     
     public static void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {

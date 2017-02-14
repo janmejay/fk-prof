@@ -34,18 +34,27 @@ public class TestBackendServer {
         final CompletableFuture<Void> fut;
         private final Function<byte[], byte[]>[] handlers;
         private final int idx;
+        private final boolean waitForReqBytes;
 
-        public HandlerStub(Function<byte[], byte[]>[] handlers, int idx) {
+        public HandlerStub(Function<byte[], byte[]>[] handlers, int idx, boolean waitForReqBytes) {
             this.handlers = handlers;
             this.idx = idx;
+            this.waitForReqBytes = waitForReqBytes;
             this.fut = new CompletableFuture<Void>();
         }
 
+        public HandlerStub(Function<byte[], byte[]>[] handlers, int idx) {
+            this(handlers, idx, true);
+        }
+
         public void handle(Request req, OutputStream resStrm) throws IOException {
-            ServletInputStream inputStream = req.getInputStream();
-            ByteArrayOutputStream os = new ByteArrayOutputStream();
-            IOUtils.copy(inputStream, os);
-            byte[] reqBytes = os.toByteArray();
+            byte[] reqBytes = null;
+            if (waitForReqBytes) {
+                ServletInputStream inputStream = req.getInputStream();
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                IOUtils.copy(inputStream, os);
+                reqBytes = os.toByteArray();
+            }
             try {
                 byte[] resBytes = handlers[idx].apply(reqBytes);
                 resStrm.write(resBytes);
@@ -125,6 +134,10 @@ public class TestBackendServer {
     }
 
     public Future[] register(String path, Function<byte[], byte[]>[] handler) {
+        return register(path, handler, true);
+    }
+
+    public Future[] register(String path, Function<byte[], byte[]>[] handler, boolean waitForReqBytes) {
         Queue<HandlerStub> handlerStubs = actions.get(path);
         if (handlerStubs == null) {
             handlerStubs = new ConcurrentLinkedQueue<>();
@@ -133,7 +146,7 @@ public class TestBackendServer {
         }
         Future[] arr = new Future[handler.length];
         for (int i = 0; i < handler.length; i++) {
-            HandlerStub hStub = new HandlerStub(handler, i);
+            HandlerStub hStub = new HandlerStub(handler, i, waitForReqBytes);
             handlerStubs.offer(hStub);
             arr[i] = hStub.fut;
         }
