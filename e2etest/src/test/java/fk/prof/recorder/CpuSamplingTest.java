@@ -4,6 +4,7 @@ import fk.prof.recorder.cpuburn.Burn20Of100;
 import fk.prof.recorder.cpuburn.Burn80Of100;
 import fk.prof.recorder.cpuburn.WrapperA;
 import fk.prof.recorder.main.Burn20And80PctCpu;
+import fk.prof.recorder.main.Burn50And50PctCpu;
 import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
@@ -39,6 +40,21 @@ public class CpuSamplingTest {
     public static final String DUMMY_ROOT_NODE_CLASS_NAME = "ROOT";
     public static final String DUMMY_ROOT_NODE_FN_NAME = "~ root ~";
     public static final String DUMMY_ROOT_NOTE_FN_SIGNATURE = "()V";
+    private static final String USUAL_RECORDER_ARGS = "service_endpoint=http://127.0.0.1:8080," +
+            "ip=10.20.30.40," +
+            "host=foo-host," +
+            "appid=bar-app," +
+            "igrp=baz-grp," +
+            "cluster=quux-cluster," +
+            "instid=corge-iid," +
+            "proc=grault-proc," +
+            "vmid=garply-vmid," +
+            "zone=waldo-zone," +
+            "ityp=c0.small," +
+            "backoffStart=2," +
+            "backoffMax=5," +
+            "pollItvl=1," +
+            "logLvl=trace";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];
     private Function<byte[], byte[]>[] poll = new Function[18];
@@ -56,22 +72,6 @@ public class CpuSamplingTest {
         assocAction = server.register("/association", association);
         pollAction = associateServer.register("/poll", poll);
         profileAction = associateServer.register("/profile", profile);
-        runner = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
-                "ip=10.20.30.40," +
-                "host=foo-host," +
-                "appid=bar-app," +
-                "igrp=baz-grp," +
-                "cluster=quux-cluster," +
-                "instid=corge-iid," +
-                "proc=grault-proc," +
-                "vmid=garply-vmid," +
-                "zone=waldo-zone," +
-                "ityp=c0.small," +
-                "backoffStart=2," +
-                "backoffMax=5," +
-                "pollItvl=1," +
-                "logLvl=trace"
-        );
     }
 
     @After
@@ -90,6 +90,7 @@ public class CpuSamplingTest {
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
 
+        runner = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), USUAL_RECORDER_ARGS);
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -112,18 +113,92 @@ public class CpuSamplingTest {
 
     @Test
     public void should_Track_And_Retire_CpuProfileWork() throws ExecutionException, InterruptedException, IOException, TimeoutException {
-        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
         MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
-        association[0] = pointToAssociate(recInfo, 8090);
-        WorkHandlingTest.PollReqWithTime pollReqs[] = new WorkHandlingTest.PollReqWithTime[poll.length];
-        poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
         String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime);
+
+        runner = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollIntervalIsGood(pollReqs, prevTime);
+
+        assertPolledInStatusIsGood(pollReqs);
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
+
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, Collections.singletonMap("inferno",
+                rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
+                        nodeMatcher(Burn20And80PctCpu.class, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
+                                nodeMatcher(Burn20And80PctCpu.class, "burnCpu", "()V", 0, 1, childrenMatcher(
+                                        nodeMatcher(Burn20Of100.class, "burn", "()V", 0, 1, childrenMatcher(
+                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 10, Collections.emptySet()))),
+                                        nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
+                                                nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
+                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))));
+    }
+
+    @Test
+    public void should_respect_Coverage_and_MergeSemantic() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime);
+
+        runner = new AgentRunner(Burn50And50PctCpu.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollIntervalIsGood(pollReqs, prevTime);
+
+        assertPolledInStatusIsGood(pollReqs);
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
+        
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>(){{
+            Class klass = Burn50And50PctCpu.class;
+            put("100_pct_single_inferno", generateStackSampleMatcher(66, klass));
+            put("50_pct_duplicate_inferno", generateStackSampleMatcher(33, klass));
+            put("50_pct_duplicate_inferno_child", generateStackSampleMatcher(33, klass));
+        }});
+    }
+
+    private StackNodeMatcher generateStackSampleMatcher(final int expectedOncpuPct, final Class klass) {
+        return rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
+                nodeMatcher(klass, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
+                        nodeMatcher(klass, "immolate", "(I)V", 0, 1, childrenMatcher(
+                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", expectedOncpuPct, 25, Collections.emptySet())))))));
+    }
+
+    private PollReqWithTime[] stubRecorderInteraction(List<Recorder.Wse> profileEntries, MutableObject<Recorder.RecordingHeader> hdr, MutableBoolean profileCalledSecondTime, String cpuSamplingWorkIssueTime) {
+        PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
+
+        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+
+        association[0] = pointToAssociate(recInfo, 8090);
+
+        poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
+
         poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID);
         for (int i = 2; i < poll.length; i++) {
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
-        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
-        List<Recorder.Wse> profileEntries = new ArrayList<>();
+
 
         profile[0] = (req) -> {
             recordProfile(req, hdr, profileEntries);
@@ -133,25 +208,10 @@ public class CpuSamplingTest {
             profileCalledSecondTime.setTrue();
             return null;
         };
+        return pollReqs;
+    }
 
-        runner.start();
-
-        assocAction[0].get(4, TimeUnit.SECONDS);
-        long prevTime = System.currentTimeMillis();
-
-        assertThat(assocAction[0].isDone(), is(true));
-        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
-
-        long idx = 0;
-        for (WorkHandlingTest.PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
-            if (idx > 0) {
-                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
-            }
-            prevTime = prwt.time;
-            idx++;
-        }
-
+    private void assertPolledInStatusIsGood(PollReqWithTime[] pollReqs) {
         assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         for (int i = 2; i < 4; i++) {
@@ -164,7 +224,21 @@ public class CpuSamplingTest {
         for (int i = 15; i < pollReqs.length; i++) {
             assertWorkStateAndResultIs(pollReqs[i].req.getWorkLastIssued(), i + 99, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         }
+    }
 
+    private void assertPollIntervalIsGood(PollReqWithTime[] pollReqs, long prevTime) {
+        long idx = 0;
+        for (PollReqWithTime prwt : pollReqs) {
+            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            if (idx > 0) {
+                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
+            }
+            prevTime = prwt.time;
+            idx++;
+        }
+    }
+
+    private void assertRecordingHeaderIsGood(String cpuSamplingWorkIssueTime, MutableObject<Recorder.RecordingHeader> hdr) {
         Recorder.Work w = Recorder.Work.newBuilder()
                 .setWType(Recorder.WorkType.cpu_sample_work)
                 .setCpuSample(Recorder.CpuSampleWork.newBuilder()
@@ -172,17 +246,11 @@ public class CpuSamplingTest {
                         .setFrequency(CPU_SAMPLING_FREQ)
                         .build())
                 .build();
-        assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[]{w});
+        WorkHandlingTest.assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[]{w});
+    }
 
-        assertCpuProfileEntriesAre(profileEntries, Collections.singletonMap(5,
-                rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
-                        nodeMatcher(Burn20And80PctCpu.class, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
-                                nodeMatcher(Burn20And80PctCpu.class, "burnCpu", "()V", 0, 1, childrenMatcher(
-                                        nodeMatcher(Burn20Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 10, Collections.emptySet()))),
-                                        nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
-                                                nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))),
+    private void assertProfileCallAndContent(MutableBoolean profileCalledSecondTime, List<Recorder.Wse> profileEntries, Map<String, StackNodeMatcher> expectedContent) {
+        assertCpuProfileEntriesAre(profileEntries, expectedContent,
                 false);
 
         assertThat(profileCalledSecondTime.getValue(), is(false));
@@ -195,6 +263,14 @@ public class CpuSamplingTest {
         private TraceInfo(String name, int coverage) {
             this.name = name;
             this.coverage = coverage;
+        }
+
+        @Override
+        public String toString() {
+            return "TraceInfo{" +
+                    "name='" + name + '\'' +
+                    ", coverage=" + coverage +
+                    '}';
         }
     }
 
@@ -212,11 +288,11 @@ public class CpuSamplingTest {
         }
     }
 
-    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<Integer, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes) {
+    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes) {
         //first let us build the tree
         Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
-        Map<Integer, SampledStackNode> aggregations = new HashMap<>();
+        Map<String, SampledStackNode> aggregations = new HashMap<>();
         int totalSamples = 0;
         for (Recorder.Wse entry : entries) {
             if (!ignoreOtherWseTypes) {
@@ -230,8 +306,9 @@ public class CpuSamplingTest {
             for (Recorder.TraceContext traceEntry : idxData.getTraceCtxList()) {
                 int id = traceEntry.getTraceId();
                 assertThat(traceInfoMap.containsKey(id), is(false));
-                traceInfoMap.put(id, new TraceInfo(traceEntry.getTraceName(), traceEntry.getCoveragePct()));
-                aggregations.put(id, new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>()));
+                String name = traceEntry.getTraceName();
+                traceInfoMap.put(id, new TraceInfo(name, traceEntry.getCoveragePct()));
+                aggregations.put(name, new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>()));
             }
             for (Recorder.MethodInfo mthdEntry : idxData.getMethodInfoList()) {
                 long id = mthdEntry.getMethodId();
@@ -242,7 +319,8 @@ public class CpuSamplingTest {
             for (int i = 0; i < e.getStackSampleCount(); i++) {
                 Recorder.StackSample stackSample = e.getStackSample(i);
                 for (Integer traceId : stackSample.getTraceIdList()) {
-                    SampledStackNode currentNode = aggregations.get(traceId);
+                    TraceInfo traceInfo = traceInfoMap.get(traceId);
+                    SampledStackNode currentNode = aggregations.get(traceInfo.name);
                     for (int j = stackSample.getFrameCount(); j > 0; j--) {
                         Recorder.Frame frame = stackSample.getFrame(j - 1);
                         long methodId = frame.getMethodId();
@@ -258,7 +336,7 @@ public class CpuSamplingTest {
         }
 
         //now let us match it
-        for (Map.Entry<Integer, StackNodeMatcher> expectedEntry : expected.entrySet()) {
+        for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {
             SampledStackNode node = aggregations.get(expectedEntry.getKey());
             assertThat(node, notNullValue());
             assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
@@ -275,19 +353,24 @@ public class CpuSamplingTest {
         //assertThat(node.lineNo, is(value.lineNo));
         //assertThat(node.bci, is(value.bci));
         int childrenMatched = 0;
+        int totalSamplesAccountedFor = 0;
         for (StackNodeMatcher child : value.children) {
             SampledStackNode matchingChild = node.findChildLike(child);
-            childrenMatched ++;
+            childrenMatched++;
             assertThat(matchingChild, notNullValue());
             if (matchingChild.onCpuSampleCount > 0) {
                 int actualSampleCount = matchingChild.onCpuSampleCount;
+                totalSamplesAccountedFor += actualSampleCount;
                 int expectedSamples = child.expectedOncpuPct * totalSamples / 100;
                 int toleranceInSamples = child.pctMatchTolerance * totalSamples / 100;
                 assertThat((long) actualSampleCount, approximately((long) expectedSamples, (long) toleranceInSamples));
             }
             assertTreesMatch(matchingChild, child, totalSamples);
         }
-        assertThat(childrenMatched, is(node.children.size()));
+        int immediateChildrenSampleCount = node.immediateChildrenSampleCount();
+        if (immediateChildrenSampleCount > 5) {
+            assertThat((long) totalSamplesAccountedFor, approximately(immediateChildrenSampleCount));    
+        }
     }
 
     private static final class SampledStackNode {
@@ -379,7 +462,7 @@ public class CpuSamplingTest {
             }
             return existingNode;
         }
-        
+
         public SampledStackNode findChildLike(StackNodeMatcher like) {
             for (SampledStackNode child : children.keySet()) {
                 if (child.klass.equals(like.klass) &&
@@ -402,6 +485,14 @@ public class CpuSamplingTest {
                 }
             }
             return matched;
+        }
+
+        public int immediateChildrenSampleCount() {
+            int count = 0;
+            for (SampledStackNode stackNode : children.keySet()) {
+                count += stackNode.onCpuSampleCount;
+            }
+            return count;
         }
     }
 

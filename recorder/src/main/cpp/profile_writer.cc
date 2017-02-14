@@ -106,6 +106,8 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
         ss->set_error(translate_forte_error(trace.num_frames));
     }
 
+    SPDLOG_DEBUG(logger, "Ctx-len count: {}", ctx_len);
+
     for (auto i = 0; i < ctx_len; i++) {
         auto trace_pt = ctx->at(i);
         auto known_ctx = known_ctxs.find(trace_pt);
@@ -126,6 +128,7 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
             }
             new_ctx->set_trace_name(name);
             ss->add_trace_id(ctx_id);
+            SPDLOG_DEBUG(logger, "Reporting trace named '{}', cov {}% as ctx-id: {}", name, coverage_pct, ctx_id);
         } else {
             ss->add_trace_id(known_ctx->second);
         }

@@ -29,7 +29,7 @@ void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
     }
     assert(actual_stack.size() < PerfCtx::MAX_NESTING);
     assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
-    bool start_recording = false;
+    bool start_recording = record;
     switch (ms) {
     case PerfCtx::MergeSemantic::to_parent:
     case PerfCtx::MergeSemantic::scoped:
@@ -110,6 +110,7 @@ int PerfCtx::ThreadTracker::current(PerfCtx::ThreadTracker::EffectiveCtx& curr) 
     for (auto i = 0; i < len; i++) {
         curr[i] = effective[i + effective_start];
     }
+    SPDLOG_DEBUG(logger, "De-referencing thread's perf-ctx, found len: {}", len);
     return len;
 }
 

@@ -35,7 +35,10 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         thread_info = thread_map.get(jniEnv);
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
-            if (! ctx_tracker->should_record()) return;
+            if (! ctx_tracker->should_record()) {
+                SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
+                return;
+            }
         }
     }
     SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer

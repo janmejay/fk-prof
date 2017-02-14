@@ -173,7 +173,11 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0") # -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
+set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
+SET(VERBOSE_LOGS "n" CACHE STRING "Test variable defaulting to 'n'")
+if (${VERBOSE_LOGS} MATCHES "y")
+  set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
+endif()
 # to enable tracing add: -DENABLE_TRACING
 set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} -I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_WARNINGS} ${GLOBAL_COPTS} -pthread -std=c++0x")
 
