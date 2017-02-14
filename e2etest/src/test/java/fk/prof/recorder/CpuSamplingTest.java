@@ -1,10 +1,13 @@
 package fk.prof.recorder;
 
+import fk.prof.MergeSemantics;
 import fk.prof.recorder.cpuburn.Burn20Of100;
 import fk.prof.recorder.cpuburn.Burn80Of100;
 import fk.prof.recorder.cpuburn.WrapperA;
 import fk.prof.recorder.main.Burn20And80PctCpu;
 import fk.prof.recorder.main.Burn50And50PctCpu;
+import fk.prof.recorder.main.CpuBurningRunnable;
+import fk.prof.recorder.main.MultiThreadedCpuBurner;
 import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
@@ -143,7 +146,7 @@ public class CpuSamplingTest {
                                                 nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 10, Collections.emptySet()))),
                                         nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
                                                 nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))));
+                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))), new TraceIdPivotResolver(), new HashMap<Integer, TraceInfo>(), new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>());
     }
 
     @Test
@@ -169,20 +172,69 @@ public class CpuSamplingTest {
         assertPolledInStatusIsGood(pollReqs);
 
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
-        
-        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>(){{
+
+        HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = Burn50And50PctCpu.class;
-            put("100_pct_single_inferno", generateStackSampleMatcher(66, klass));
-            put("50_pct_duplicate_inferno", generateStackSampleMatcher(33, klass));
-            put("50_pct_duplicate_inferno_child", generateStackSampleMatcher(33, klass));
-        }});
+            put("100_pct_single_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(66, klass));
+            put("50_pct_duplicate_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
+            put("50_pct_duplicate_inferno_child", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
+        }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>());
+        assertThat(traceInfoMap.get(5), is(new TraceInfo("100_pct_single_inferno", 100, MergeSemantics.MERGE_TO_PARENT)));
+        assertThat(traceInfoMap.get(6), is(new TraceInfo("50_pct_duplicate_inferno", 50, MergeSemantics.MERGE_TO_PARENT)));
+        assertThat(traceInfoMap.get(7), is(new TraceInfo("50_pct_duplicate_inferno_child", 50, MergeSemantics.DUPLICATE)));
     }
 
-    private StackNodeMatcher generateStackSampleMatcher(final int expectedOncpuPct, final Class klass) {
+    private StackNodeMatcher generate_Main_Burn_Immolate_BacktraceMatcher(final int expectedOncpuPct, final Class klass) {
         return rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
                 nodeMatcher(klass, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
                         nodeMatcher(klass, "immolate", "(I)V", 0, 1, childrenMatcher(
                                 nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", expectedOncpuPct, 25, Collections.emptySet())))))));
+    }
+
+    @Test
+    public void shouldReport_Threads() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime);
+
+        runner = new AgentRunner(MultiThreadedCpuBurner.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollIntervalIsGood(pollReqs, prevTime);
+
+        assertPolledInStatusIsGood(pollReqs);
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
+
+        HashMap<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
+        HashMap<Long, MthdInfo> mthdInfoMap = new HashMap<>();
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
+            Class klass = Burn50And50PctCpu.class;
+            put("foo-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
+            put("bar-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
+        }}, new ThreadIdPivotResolver(), new HashMap<Integer, TraceInfo>(), thdInfoMap, mthdInfoMap);
+        
+        assertThat(thdInfoMap.values(), hasItems(new ThreadInfo("foo-the-thd", 6, false), new ThreadInfo("bar-the-thd", 5, true)));
+        assertThat(mthdInfoMap.values(), hasItems(
+                new MthdInfo("Lfk/prof/recorder/main/CpuBurningRunnable;", "run", "()V", "CpuBurningRunnable.java"),
+                new MthdInfo("Lorg/openjdk/jmh/infra/Blackhole;", "consumeCPU", "(J)V", "Blackhole.java")));
+    }
+    
+    private StackNodeMatcher generate_Thread_Runnable_Immolate_BacktraceMatcher(final int expectedOncpuPct) {
+        return rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
+                nodeMatcher(Thread.class, "run", "()V", 0, 1, childrenMatcher(
+                        nodeMatcher(CpuBurningRunnable.class, "run", "()V", 0, 1, childrenMatcher(
+                                nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", expectedOncpuPct, 20, Collections.emptySet())))))));
     }
 
     private PollReqWithTime[] stubRecorderInteraction(List<Recorder.Wse> profileEntries, MutableObject<Recorder.RecordingHeader> hdr, MutableBoolean profileCalledSecondTime, String cpuSamplingWorkIssueTime) {
@@ -198,7 +250,6 @@ public class CpuSamplingTest {
         for (int i = 2; i < poll.length; i++) {
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
-
 
         profile[0] = (req) -> {
             recordProfile(req, hdr, profileEntries);
@@ -249,9 +300,9 @@ public class CpuSamplingTest {
         WorkHandlingTest.assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[]{w});
     }
 
-    private void assertProfileCallAndContent(MutableBoolean profileCalledSecondTime, List<Recorder.Wse> profileEntries, Map<String, StackNodeMatcher> expectedContent) {
+    private void assertProfileCallAndContent(MutableBoolean profileCalledSecondTime, List<Recorder.Wse> profileEntries, Map<String, StackNodeMatcher> expectedContent, final PivotResolver pivotResolver, final HashMap<Integer, TraceInfo> traceInfoMap, final HashMap<Integer, ThreadInfo> thdInfoMap, final HashMap<Long, MthdInfo> mthdInfoMap) {
         assertCpuProfileEntriesAre(profileEntries, expectedContent,
-                false);
+                false, pivotResolver, traceInfoMap, thdInfoMap, mthdInfoMap);
 
         assertThat(profileCalledSecondTime.getValue(), is(false));
     }
@@ -259,10 +310,12 @@ public class CpuSamplingTest {
     private static class TraceInfo {
         final String name;
         final int coverage;
+        private final MergeSemantics mSem;
 
-        private TraceInfo(String name, int coverage) {
+        private TraceInfo(String name, int coverage, MergeSemantics mSem) {
             this.name = name;
             this.coverage = coverage;
+            this.mSem = mSem;
         }
 
         @Override
@@ -270,7 +323,69 @@ public class CpuSamplingTest {
             return "TraceInfo{" +
                     "name='" + name + '\'' +
                     ", coverage=" + coverage +
+                    ", mSem=" + mSem +
                     '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            TraceInfo traceInfo = (TraceInfo) o;
+
+            if (coverage != traceInfo.coverage) return false;
+            if (name != null ? !name.equals(traceInfo.name) : traceInfo.name != null) return false;
+            return mSem == traceInfo.mSem;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name != null ? name.hashCode() : 0;
+            result = 31 * result + coverage;
+            result = 31 * result + (mSem != null ? mSem.hashCode() : 0);
+            return result;
+        }
+    }
+
+    private static class ThreadInfo {
+        final String name;
+        final int priority;
+        final boolean isDaemon;
+
+        private ThreadInfo(String name, int priority, boolean isDaemon) {
+            this.name = name;
+            this.priority = priority;
+            this.isDaemon = isDaemon;
+        }
+
+        @Override
+        public String toString() {
+            return "ThreadInfo{" +
+                    "name='" + name + '\'' +
+                    ", priority=" + priority +
+                    ", isDaemon=" + isDaemon +
+                    '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ThreadInfo that = (ThreadInfo) o;
+
+            if (priority != that.priority) return false;
+            if (isDaemon != that.isDaemon) return false;
+            return name != null ? name.equals(that.name) : that.name == null;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name != null ? name.hashCode() : 0;
+            result = 31 * result + priority;
+            result = 31 * result + (isDaemon ? 1 : 0);
+            return result;
         }
     }
 
@@ -279,19 +394,49 @@ public class CpuSamplingTest {
         final String name;
         final String sig;
         final String fileName;
-
+        
         private MthdInfo(String klass, String name, String sig, String fileName) {
             this.klass = klass;
             this.name = name;
             this.sig = sig;
             this.fileName = fileName;
         }
+
+        @Override
+        public String toString() {
+            return "MthdInfo{" +
+                    "klass='" + klass + '\'' +
+                    ", name='" + name + '\'' +
+                    ", sig='" + sig + '\'' +
+                    ", fileName='" + fileName + '\'' +
+                    '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            MthdInfo mthdInfo = (MthdInfo) o;
+
+            if (klass != null ? !klass.equals(mthdInfo.klass) : mthdInfo.klass != null) return false;
+            if (name != null ? !name.equals(mthdInfo.name) : mthdInfo.name != null) return false;
+            if (sig != null ? !sig.equals(mthdInfo.sig) : mthdInfo.sig != null) return false;
+            return fileName != null ? fileName.equals(mthdInfo.fileName) : mthdInfo.fileName == null;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = klass != null ? klass.hashCode() : 0;
+            result = 31 * result + (name != null ? name.hashCode() : 0);
+            result = 31 * result + (sig != null ? sig.hashCode() : 0);
+            result = 31 * result + (fileName != null ? fileName.hashCode() : 0);
+            return result;
+        }
     }
 
-    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes) {
+    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes, final PivotResolver pivotResolver, final Map<Integer, TraceInfo> traceInfoMap, final Map<Integer, ThreadInfo> thdInfoMap, final Map<Long, MthdInfo> mthdInfoMap) {
         //first let us build the tree
-        Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
-        Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
         Map<String, SampledStackNode> aggregations = new HashMap<>();
         int totalSamples = 0;
         for (Recorder.Wse entry : entries) {
@@ -302,13 +447,22 @@ public class CpuSamplingTest {
             }
             assertThat(entry.hasCpuSampleEntry(), is(true));
             Recorder.IndexedData idxData = entry.getIndexedData();
-            //TODO: add support for thread too
+            for (Recorder.ThreadInfo thdEntry : idxData.getThreadInfoList()) {
+                int id = (int) thdEntry.getThreadId();
+                assertThat(thdInfoMap.containsKey(id), is(false));
+                String name = thdEntry.getThreadName();
+                thdInfoMap.put(id, new ThreadInfo(name, thdEntry.getPriority(), thdEntry.getIsDaemon()));
+                if (pivotResolver.aggregateByThd()) 
+                    aggregations.put(name, makeRootNode());
+            }
+
             for (Recorder.TraceContext traceEntry : idxData.getTraceCtxList()) {
                 int id = traceEntry.getTraceId();
                 assertThat(traceInfoMap.containsKey(id), is(false));
                 String name = traceEntry.getTraceName();
-                traceInfoMap.put(id, new TraceInfo(name, traceEntry.getCoveragePct()));
-                aggregations.put(name, new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>()));
+                traceInfoMap.put(id, new TraceInfo(name, traceEntry.getCoveragePct(), translateMergeSemantic(traceEntry)));
+                if (pivotResolver.aggregateByCtx()) 
+                    aggregations.put(name, makeRootNode());
             }
             for (Recorder.MethodInfo mthdEntry : idxData.getMethodInfoList()) {
                 long id = mthdEntry.getMethodId();
@@ -318,9 +472,9 @@ public class CpuSamplingTest {
             Recorder.StackSampleWse e = entry.getCpuSampleEntry();
             for (int i = 0; i < e.getStackSampleCount(); i++) {
                 Recorder.StackSample stackSample = e.getStackSample(i);
-                for (Integer traceId : stackSample.getTraceIdList()) {
-                    TraceInfo traceInfo = traceInfoMap.get(traceId);
-                    SampledStackNode currentNode = aggregations.get(traceInfo.name);
+                for (Integer pivotId : pivotResolver.getAggregatingPivotIds(stackSample)) {
+                    String name = pivotResolver.getAggregatingPivotName(traceInfoMap, thdInfoMap, pivotId);
+                    SampledStackNode currentNode = aggregations.get(name);
                     for (int j = stackSample.getFrameCount(); j > 0; j--) {
                         Recorder.Frame frame = stackSample.getFrame(j - 1);
                         long methodId = frame.getMethodId();
@@ -342,6 +496,18 @@ public class CpuSamplingTest {
             assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
         }
         assertThat(aggregations.size(), is(expected.size()));
+    }
+
+    private MergeSemantics translateMergeSemantic(Recorder.TraceContext traceEntry) {
+        Recorder.TraceContext.MergeSemantics merge = traceEntry.getMerge();
+        for (MergeSemantics value : MergeSemantics.values()) {
+            if (value.getTypeId() == merge.getNumber()) return value;
+        }
+        throw new IllegalStateException("No mapping merge-semantic type exists");
+    }
+
+    private SampledStackNode makeRootNode() {
+        return new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>());
     }
 
     private void assertTreesMatch(SampledStackNode node, StackNodeMatcher value, int totalSamples) {
@@ -369,7 +535,7 @@ public class CpuSamplingTest {
         }
         int immediateChildrenSampleCount = node.immediateChildrenSampleCount();
         if (immediateChildrenSampleCount > 5) {
-            assertThat((long) totalSamplesAccountedFor, approximately(immediateChildrenSampleCount));    
+            assertThat((long) totalSamplesAccountedFor, approximately(immediateChildrenSampleCount));
         }
     }
 
@@ -569,5 +735,63 @@ public class CpuSamplingTest {
             children.add(node);
         }
         return children;
+    }
+
+    public static interface PivotResolver {
+        List<Integer> getAggregatingPivotIds(Recorder.StackSample stackSample);
+
+        String getAggregatingPivotName(Map<Integer, TraceInfo> traceInfoMap, Map<Integer, ThreadInfo> thdInfoMap, Integer traceId);
+
+        boolean aggregateByThd();
+
+        boolean aggregateByCtx();
+    }
+
+    private class TraceIdPivotResolver implements PivotResolver {
+        @Override
+        public List<Integer> getAggregatingPivotIds(Recorder.StackSample stackSample) {
+            return stackSample.getTraceIdList();
+        }
+
+        @Override
+        public String getAggregatingPivotName(Map<Integer, TraceInfo> traceInfoMap, Map<Integer, ThreadInfo> thdInfoMap, Integer traceId) {
+            return traceInfoMap.get(traceId).name;
+        }
+
+        @Override
+        public boolean aggregateByThd() {
+            return false;
+        }
+
+        @Override
+        public boolean aggregateByCtx() {
+            return true;
+        }
+    }
+
+    private class ThreadIdPivotResolver implements PivotResolver {
+        @Override
+        public List<Integer> getAggregatingPivotIds(Recorder.StackSample stackSample) {
+            List<Integer> ids = new ArrayList<>();
+            if (stackSample.hasThreadId()) {
+                ids.add((int) stackSample.getThreadId());//this is downward-cast a hack that is not meant for production
+            }
+            return ids;
+        }
+
+        @Override
+        public String getAggregatingPivotName(Map<Integer, TraceInfo> traceInfoMap, Map<Integer, ThreadInfo> thdInfoMap, Integer thdId) {
+            return thdInfoMap.get(thdId).name;
+        }
+
+        @Override
+        public boolean aggregateByThd() {
+            return true;
+        }
+
+        @Override
+        public boolean aggregateByCtx() {
+            return false;
+        }
     }
 }
