@@ -241,7 +241,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     buff.readonly();
 
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
     CHECK(bytes_sz > 0);
 
