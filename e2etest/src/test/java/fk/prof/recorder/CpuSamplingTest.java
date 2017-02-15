@@ -4,14 +4,13 @@ import fk.prof.MergeSemantics;
 import fk.prof.recorder.cpuburn.Burn20Of100;
 import fk.prof.recorder.cpuburn.Burn80Of100;
 import fk.prof.recorder.cpuburn.WrapperA;
-import fk.prof.recorder.main.Burn20And80PctCpu;
-import fk.prof.recorder.main.Burn50And50PctCpu;
-import fk.prof.recorder.main.CpuBurningRunnable;
-import fk.prof.recorder.main.MultiThreadedCpuBurner;
+import fk.prof.recorder.main.*;
 import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
@@ -33,6 +32,7 @@ import static fk.prof.recorder.WorkHandlingTest.*;
 import static fk.prof.recorder.utils.Matchers.approximately;
 import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertThat;
 
 public class CpuSamplingTest {
@@ -146,7 +146,7 @@ public class CpuSamplingTest {
                                                 nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 20, 10, Collections.emptySet()))),
                                         nodeMatcher(WrapperA.class, "burnSome", "(S)V", 0, 1, childrenMatcher(
                                                 nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
-                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))), new TraceIdPivotResolver(), new HashMap<Integer, TraceInfo>(), new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>());
+                                                        nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet())))))))))))), new TraceIdPivotResolver(), new HashMap<Integer, TraceInfo>(), new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
     }
 
     @Test
@@ -174,15 +174,60 @@ public class CpuSamplingTest {
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
 
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        HashMap<String, SampledStackNode> aggregations = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = Burn50And50PctCpu.class;
             put("100_pct_single_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(66, klass));
             put("50_pct_duplicate_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
             put("50_pct_duplicate_inferno_child", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
-        }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>());
-        assertThat(traceInfoMap.get(5), is(new TraceInfo("100_pct_single_inferno", 100, MergeSemantics.MERGE_TO_PARENT)));
-        assertThat(traceInfoMap.get(6), is(new TraceInfo("50_pct_duplicate_inferno", 50, MergeSemantics.MERGE_TO_PARENT)));
-        assertThat(traceInfoMap.get(7), is(new TraceInfo("50_pct_duplicate_inferno_child", 50, MergeSemantics.DUPLICATE)));
+        }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), aggregations);
+        
+        assertThat(traceInfoMap.values(), hasItems(new TraceInfo("100_pct_single_inferno", 100, MergeSemantics.MERGE_TO_PARENT), new TraceInfo("50_pct_duplicate_inferno", 50, MergeSemantics.MERGE_TO_PARENT), new TraceInfo("50_pct_duplicate_inferno_child", 50, MergeSemantics.DUPLICATE)));
+        
+        //check BCI and Line-no was posted correctly, blackhole consumeCPU call should almost always be on stack 
+
+        Map<ImmutablePair<Integer, Integer>, MutableInt> bci_lineNo_Histo = new HashMap<>();
+        for (SampledStackNode node : aggregations.values()) {
+            buildBciLineNoHistogram(node, bci_lineNo_Histo, Burn50And50PctCpu.class, "immolate", "(I)V");
+        }
+        Set<ImmutablePair<Integer, Integer>> blackholeConsumeCpuCallSites = new HashSet<ImmutablePair<Integer, Integer>>() {{
+            add(new ImmutablePair<Integer, Integer>(24, 45));
+            add(new ImmutablePair<Integer, Integer>(147, 52));//later we should have a javap call here and should decide bci from java-disassembly, because different compiler versions may generate slightly different number of instructions or order or instructions, which will mess up this hard-coded value
+        }};
+        int blackholeCallSites = 0, allCallSites = 0;
+        for (Map.Entry<ImmutablePair<Integer, Integer>, MutableInt> entry : bci_lineNo_Histo.entrySet()) {
+            Integer ctr = entry.getValue().getValue();
+            if (blackholeConsumeCpuCallSites.contains(entry.getKey())) {
+                blackholeCallSites += ctr;
+            }
+            allCallSites += ctr;
+        }
+        
+        double ratio = (double) blackholeCallSites /  allCallSites;
+        assertThat(ratio, greaterThan(0.9));
+    }
+
+    private void buildBciLineNoHistogram(SampledStackNode node, Map<ImmutablePair<Integer, Integer>, MutableInt> bci_lineNo_histo, Class klass, String fnName, String sig) {
+        buildBciLineNoHistogram(node, bci_lineNo_histo, fnName, sig, makeClassName(klass.getCanonicalName()), makeKlassFileName(klass.getSimpleName()));
+    }
+
+    private String makeKlassFileName(String klassSimpleName) {
+        return klassSimpleName + ".java";
+    }
+
+    private void buildBciLineNoHistogram(SampledStackNode node, Map<ImmutablePair<Integer, Integer>, MutableInt> bci_lineNo_histo, String fnName, String sig, String klassName, final String klassFileName) {
+        if (fnName.equals(node.fnName) && sig.equals(node.fnSig) && klassName.equals(node.klass) && klassFileName.equals(node.file)) {
+            ImmutablePair<Integer, Integer> key = new ImmutablePair<>(node.bci, node.lineNo);
+            MutableInt sampleCount = bci_lineNo_histo.get(key);
+            if (sampleCount == null) {
+                bci_lineNo_histo.put(key, new MutableInt(node.onStackSampleCount));
+            } else {
+                sampleCount.add(node.onStackSampleCount);
+            }
+        }
+        for (SampledStackNode child : node.children.values()) {
+            buildBciLineNoHistogram(child, bci_lineNo_histo, fnName, sig, klassName, klassFileName);
+        }
     }
 
     private StackNodeMatcher generate_Main_Burn_Immolate_BacktraceMatcher(final int expectedOncpuPct, final Class klass) {
@@ -219,17 +264,88 @@ public class CpuSamplingTest {
         HashMap<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
         HashMap<Long, MthdInfo> mthdInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            Class klass = Burn50And50PctCpu.class;
             put("foo-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
             put("bar-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
-        }}, new ThreadIdPivotResolver(), new HashMap<Integer, TraceInfo>(), thdInfoMap, mthdInfoMap);
-        
+        }}, new ThreadIdPivotResolver(), new HashMap<Integer, TraceInfo>(), thdInfoMap, mthdInfoMap, new HashMap<String, SampledStackNode>());
+
         assertThat(thdInfoMap.values(), hasItems(new ThreadInfo("foo-the-thd", 6, false), new ThreadInfo("bar-the-thd", 5, true)));
         assertThat(mthdInfoMap.values(), hasItems(
                 new MthdInfo("Lfk/prof/recorder/main/CpuBurningRunnable;", "run", "()V", "CpuBurningRunnable.java"),
                 new MthdInfo("Lorg/openjdk/jmh/infra/Blackhole;", "consumeCPU", "(J)V", "Blackhole.java")));
     }
-    
+
+    @Test
+    public void should_HandleCtxScoping() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime);
+
+        runner = new AgentRunner(BurnCpuScoped.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollIntervalIsGood(pollReqs, prevTime);
+
+        assertPolledInStatusIsGood(pollReqs);
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
+
+        HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
+            Class klass = BurnCpuScoped.class;
+            put("p100", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
+            put("p100 > c1", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
+            put("p100 > c1 > c2", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass));
+        }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
+        assertThat(traceInfoMap.values(), hasItems(
+                new TraceInfo("p100", 100, MergeSemantics.STACK_UP),
+                TraceInfo.mergedTraceInfo("p100 > c1"),
+                TraceInfo.mergedTraceInfo("p100 > c1 > c2")));
+    }
+
+    @Test
+    public void should_HandleCtxStacking() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime);
+
+        runner = new AgentRunner(BurnCpuStacked.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollIntervalIsGood(pollReqs, prevTime);
+
+        assertPolledInStatusIsGood(pollReqs);
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr);
+
+        HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
+            Class klass = BurnCpuStacked.class;
+            put("p50", generate_Main_Burn_Immolate_BacktraceMatcher(25, klass));
+            put("c100", generate_Main_Burn_Immolate_BacktraceMatcher(50, klass));
+        }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
+        assertThat(traceInfoMap.values(), hasItems(
+                new TraceInfo("p50", 50, MergeSemantics.PARENT_SCOPED),
+                new TraceInfo("c100", 100, MergeSemantics.STACK_UP)));
+    }
+
     private StackNodeMatcher generate_Thread_Runnable_Immolate_BacktraceMatcher(final int expectedOncpuPct) {
         return rootMatcher(DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 1, childrenMatcher(
                 nodeMatcher(Thread.class, "run", "()V", 0, 1, childrenMatcher(
@@ -300,9 +416,8 @@ public class CpuSamplingTest {
         WorkHandlingTest.assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[]{w});
     }
 
-    private void assertProfileCallAndContent(MutableBoolean profileCalledSecondTime, List<Recorder.Wse> profileEntries, Map<String, StackNodeMatcher> expectedContent, final PivotResolver pivotResolver, final HashMap<Integer, TraceInfo> traceInfoMap, final HashMap<Integer, ThreadInfo> thdInfoMap, final HashMap<Long, MthdInfo> mthdInfoMap) {
-        assertCpuProfileEntriesAre(profileEntries, expectedContent,
-                false, pivotResolver, traceInfoMap, thdInfoMap, mthdInfoMap);
+    private void assertProfileCallAndContent(MutableBoolean profileCalledSecondTime, List<Recorder.Wse> profileEntries, Map<String, StackNodeMatcher> expectedContent, final PivotResolver pivotResolver, final HashMap<Integer, TraceInfo> traceInfoMap, final HashMap<Integer, ThreadInfo> thdInfoMap, final HashMap<Long, MthdInfo> mthdInfoMap, final HashMap<String, SampledStackNode> aggregations) {
+        assertCpuProfileEntriesAre(profileEntries, expectedContent, false, pivotResolver, traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
 
         assertThat(profileCalledSecondTime.getValue(), is(false));
     }
@@ -311,11 +426,21 @@ public class CpuSamplingTest {
         final String name;
         final int coverage;
         private final MergeSemantics mSem;
+        private final boolean isGenerated;
+
+        private static TraceInfo mergedTraceInfo(String name) {
+            return new TraceInfo(name, 0, null, true);
+        }
 
         private TraceInfo(String name, int coverage, MergeSemantics mSem) {
+            this(name, coverage, mSem, false);
+        }
+
+        private TraceInfo(String name, int coverage, MergeSemantics mSem, boolean isGenerated) {
             this.name = name;
             this.coverage = coverage;
             this.mSem = mSem;
+            this.isGenerated = isGenerated;
         }
 
         @Override
@@ -324,6 +449,7 @@ public class CpuSamplingTest {
                     "name='" + name + '\'' +
                     ", coverage=" + coverage +
                     ", mSem=" + mSem +
+                    ", isGenerated=" + isGenerated +
                     '}';
         }
 
@@ -335,6 +461,7 @@ public class CpuSamplingTest {
             TraceInfo traceInfo = (TraceInfo) o;
 
             if (coverage != traceInfo.coverage) return false;
+            if (isGenerated != traceInfo.isGenerated) return false;
             if (name != null ? !name.equals(traceInfo.name) : traceInfo.name != null) return false;
             return mSem == traceInfo.mSem;
         }
@@ -394,7 +521,7 @@ public class CpuSamplingTest {
         final String name;
         final String sig;
         final String fileName;
-        
+
         private MthdInfo(String klass, String name, String sig, String fileName) {
             this.klass = klass;
             this.name = name;
@@ -435,9 +562,8 @@ public class CpuSamplingTest {
         }
     }
 
-    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes, final PivotResolver pivotResolver, final Map<Integer, TraceInfo> traceInfoMap, final Map<Integer, ThreadInfo> thdInfoMap, final Map<Long, MthdInfo> mthdInfoMap) {
+    private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes, final PivotResolver pivotResolver, final Map<Integer, TraceInfo> traceInfoMap, final Map<Integer, ThreadInfo> thdInfoMap, final Map<Long, MthdInfo> mthdInfoMap, final Map<String, SampledStackNode> aggregations) {
         //first let us build the tree
-        Map<String, SampledStackNode> aggregations = new HashMap<>();
         int totalSamples = 0;
         for (Recorder.Wse entry : entries) {
             if (!ignoreOtherWseTypes) {
@@ -452,7 +578,7 @@ public class CpuSamplingTest {
                 assertThat(thdInfoMap.containsKey(id), is(false));
                 String name = thdEntry.getThreadName();
                 thdInfoMap.put(id, new ThreadInfo(name, thdEntry.getPriority(), thdEntry.getIsDaemon()));
-                if (pivotResolver.aggregateByThd()) 
+                if (pivotResolver.aggregateByThd())
                     aggregations.put(name, makeRootNode());
             }
 
@@ -460,8 +586,13 @@ public class CpuSamplingTest {
                 int id = traceEntry.getTraceId();
                 assertThat(traceInfoMap.containsKey(id), is(false));
                 String name = traceEntry.getTraceName();
-                traceInfoMap.put(id, new TraceInfo(name, traceEntry.getCoveragePct(), translateMergeSemantic(traceEntry)));
-                if (pivotResolver.aggregateByCtx()) 
+                if (traceEntry.getIsGenerated()) {
+                    traceInfoMap.put(id, TraceInfo.mergedTraceInfo(name));
+                } else {
+                    traceInfoMap.put(id, new TraceInfo(name, traceEntry.getCoveragePct(), translateMergeSemantic(traceEntry)));
+                }
+
+                if (pivotResolver.aggregateByCtx())
                     aggregations.put(name, makeRootNode());
             }
             for (Recorder.MethodInfo mthdEntry : idxData.getMethodInfoList()) {
@@ -481,6 +612,7 @@ public class CpuSamplingTest {
                         int lineNo = frame.getLineNo();
                         int bci = frame.getBci();
                         MthdInfo mthdInfo = mthdInfoMap.get(methodId);
+                        currentNode.onStackSampleCount++;
                         currentNode = currentNode.findOrCreateChild(mthdInfo, lineNo, bci);
                     }
                     currentNode.onCpuSampleCount++;
@@ -507,11 +639,15 @@ public class CpuSamplingTest {
     }
 
     private SampledStackNode makeRootNode() {
-        return new SampledStackNode("L" + DUMMY_ROOT_NODE_CLASS_NAME.replaceAll("\\.", "/") + ";", DUMMY_ROOT_NODE_CLASS_NAME + ".java", DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, 0, new HashSet<>());
+        return new SampledStackNode(makeClassName(DUMMY_ROOT_NODE_CLASS_NAME), makeKlassFileName(DUMMY_ROOT_NODE_CLASS_NAME), DUMMY_ROOT_NODE_FN_NAME, DUMMY_ROOT_NOTE_FN_SIGNATURE, 0, 0, new HashSet<>(), 0, 0);
+    }
+
+    private static String makeClassName(final String dummyRootNodeClassName) {
+        return "L" + dummyRootNodeClassName.replaceAll("\\.", "/") + ";";
     }
 
     private void assertTreesMatch(SampledStackNode node, StackNodeMatcher value, int totalSamples) {
-        assertThat(node.file, containsString(value.klassSimpleName + ".java"));
+        assertThat(node.file, containsString(makeKlassFileName(value.klassSimpleName)));
         assertThat(node.klass, is(value.klass));
         assertThat(node.fnName, is(value.fnName));
         assertThat(node.fnSig, is(value.fnSig));
@@ -548,14 +684,16 @@ public class CpuSamplingTest {
         private int onCpuSampleCount;
         private final int bci;
         private final Map<SampledStackNode, SampledStackNode> children;
+        public int onStackSampleCount;
 
-        public SampledStackNode(String klass, String file, String fnName, String fnSig, int onCpuSampleCount, int lineNo, int bci, Set<SampledStackNode> children) {
+        public SampledStackNode(String klass, String file, String fnName, String fnSig, int lineNo, int bci, Set<SampledStackNode> children, int onCpuSampleCount, final int onStackSampleCount) {
             this.klass = klass;
             this.file = file;
             this.fnName = fnName;
             this.fnSig = fnSig;
             this.lineNo = lineNo;
             this.onCpuSampleCount = onCpuSampleCount;
+            this.onStackSampleCount = onStackSampleCount;
             this.bci = bci;
             this.children = new HashMap<>();
             for (SampledStackNode child : children) {
@@ -564,7 +702,7 @@ public class CpuSamplingTest {
         }
 
         public SampledStackNode(MthdInfo mthdInfo, int lineNo, int bci) {
-            this(mthdInfo.klass, mthdInfo.fileName, mthdInfo.name, mthdInfo.sig, 0, lineNo, bci, Collections.emptySet());
+            this(mthdInfo.klass, mthdInfo.fileName, mthdInfo.name, mthdInfo.sig, lineNo, bci, Collections.emptySet(), 0, 0);
         }
 
         @Override
@@ -574,8 +712,8 @@ public class CpuSamplingTest {
                     ", \"file\":\"" + file + "\"" +
                     ", \"fnName\":\"" + fnName + "\"" +
                     ", \"fnSig\":\"" + fnSig + '\"' +
-//                    ", \"lineNo\":" + lineNo +
-//                    ", \"bci\":" + bci +
+                    ", \"lineNo\":" + lineNo +
+                    ", \"bci\":" + bci +
                     ", \"onCpuSampleCount\":" + onCpuSampleCount +
                     ", \"children\":" + childrenArray(children) +
                     '}';
@@ -642,7 +780,7 @@ public class CpuSamplingTest {
 
         public Set<SampledStackNode> findChildrenLike(StackNodeMatcher like) {
             Set<SampledStackNode> matched = new HashSet<>();
-            String targetKlassName = "L" + like.klass.replaceAll("\\.", "/") + ";";
+            String targetKlassName = makeClassName(like.klass);
             for (SampledStackNode child : children.keySet()) {
                 if (child.klass.equals(targetKlassName) &&
                         child.fnName.equals(like.fnName) &&
@@ -677,7 +815,7 @@ public class CpuSamplingTest {
 
         public StackNodeMatcher(String simpleName, String klass, String fnName, String fnSig, int onCpuPct, int pctMatchTolerance, Set<StackNodeMatcher> children) {
             this.klassSimpleName = simpleName;
-            this.klass = "L" + klass.replaceAll("\\.", "/") + ";";
+            this.klass = makeClassName(klass);
             this.fnName = fnName;
             this.fnSig = fnSig;
             this.expectedOncpuPct = onCpuPct;

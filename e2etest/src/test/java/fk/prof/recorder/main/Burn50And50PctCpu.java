@@ -22,8 +22,8 @@ public class Burn50And50PctCpu {
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
-                System.out.println("firstHalfBurnTime = " + firstHalfBurnTime);
-                System.out.println("secondHalfBurnTime = " + secondHalfBurnTime);
+                System.out.println("firstBurnTime = " + firstHalfBurnTime);
+                System.out.println("secondBurnTime = " + secondHalfBurnTime);
                 System.out.println("val = " + val);
             }
         }));
