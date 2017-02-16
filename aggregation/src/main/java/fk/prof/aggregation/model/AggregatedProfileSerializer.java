@@ -14,17 +14,19 @@ import java.util.zip.Checksum;
 /**
  * @author gaurav.ashok
  */
-public class AggregatedProfileSerializer implements Serializer<FinalizedAggregationWindow> {
+public class AggregatedProfileSerializer implements Serializer {
 
     private static final int VERSION = 1;
     private AggregatedProfileModel.WorkType workType;
+    private FinalizedAggregationWindow aggregation;
 
-    public AggregatedProfileSerializer(AggregatedProfileModel.WorkType workType) {
+    public AggregatedProfileSerializer(FinalizedAggregationWindow aggregation, AggregatedProfileModel.WorkType workType) {
+        this.aggregation = aggregation;
         this.workType = workType;
     }
 
     @Override
-    public void serialize(FinalizedAggregationWindow aggregation, OutputStream out) throws IOException {
+    public void serialize(OutputStream out) throws IOException {
         Checksum checksum = new Adler32();
         CheckedOutputStream cout = new CheckedOutputStream(out, checksum);
 
@@ -50,19 +52,22 @@ public class AggregatedProfileSerializer implements Serializer<FinalizedAggregat
 
         switch (workType) {
             case cpu_sample_work:
-                new CpuSamplingAggregatedSamplesSerializer(traces).serialize(aggregation.cpuSamplingAggregationBucket, out);
+                new CpuSamplingAggregatedSamplesSerializer(aggregation.cpuSamplingAggregationBucket, traces).serialize(out);
         }
     }
 
-    private static class CpuSamplingAggregatedSamplesSerializer implements Serializer<FinalizedCpuSamplingAggregationBucket> {
+    private static class CpuSamplingAggregatedSamplesSerializer implements Serializer {
 
+        private FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation;
         private AggregatedProfileModel.TraceCtxList traces;
-        public CpuSamplingAggregatedSamplesSerializer(AggregatedProfileModel.TraceCtxList traces) {
+
+        public CpuSamplingAggregatedSamplesSerializer(FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation, AggregatedProfileModel.TraceCtxList traces) {
+            this.cpuSamplingAggregation = cpuSamplingAggregation;
             this.traces = traces;
         }
 
         @Override
-        public void serialize(FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation, OutputStream out) throws IOException {
+        public void serialize(OutputStream out) throws IOException {
 
             Checksum checksum = new Adler32();
             CheckedOutputStream cout = new CheckedOutputStream(out, checksum);

@@ -13,9 +13,9 @@ import java.util.zip.Checksum;
  * Utility methods for serializers.
  * @author gaurav.ashok
  */
-public interface Serializer<T> {
+public interface Serializer {
 
-    void serialize(T object, OutputStream out) throws IOException;
+    void serialize(OutputStream out) throws IOException;
 
     static void writeFixedWidthInt32(int value, OutputStream os) throws IOException {
         byte[] bytes = {(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value};
