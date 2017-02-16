@@ -55,7 +55,7 @@ public class FinalizedAggregationWindow {
         && this.cpuSamplingAggregationBucket.equals(other.cpuSamplingAggregationBucket);
   }
 
-  protected Header buildHeader(int version, WorkType workType) {
+  protected Header buildHeaderProto(int version, WorkType workType) {
     return Header.newBuilder()
         .setFormatVersion(version)
         .setWorkType(workType)
@@ -66,14 +66,14 @@ public class FinalizedAggregationWindow {
         .setProcId(procId).build();
   }
 
-  protected ProfilesSummary buildProfileSummary(WorkType workType, TraceCtxList traces) {
+  protected ProfilesSummary buildProfileSummaryProto(WorkType workType, TraceCtxList traces) {
     ProfilesSummary.Builder summaryBuilder = ProfilesSummary.newBuilder();
     // TODO group summaries by different visit sources.
     PerSourceProfileSummary.Builder defaultSourceSummaryBuilder = PerSourceProfileSummary.newBuilder();
     defaultSourceSummaryBuilder.setSourceInfo(ProfileSourceInfo.getDefaultInstance());
 
     for(Long id: workInfoLookup.keySet()) {
-      ProfileWorkInfo profileInfo = workInfoLookup.get(id).buildProfileWorkInfo(workType, start, traces);
+      ProfileWorkInfo profileInfo = workInfoLookup.get(id).buildProfileWorkInfoProto(workType, start, traces);
       if(profileInfo != null) {
         defaultSourceSummaryBuilder.addProfiles(profileInfo);
       }

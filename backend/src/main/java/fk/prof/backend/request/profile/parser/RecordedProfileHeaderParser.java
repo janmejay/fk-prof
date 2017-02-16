@@ -14,10 +14,10 @@ public class RecordedProfileHeaderParser {
 
   private Adler32 checksum = new Adler32();
   private boolean parsed = false;
-  private int maxMessageSize;
+  private int maxMessageSizeInBytes;
 
-  public RecordedProfileHeaderParser(int maxMessageSize) {
-    this.maxMessageSize = maxMessageSize;
+  public RecordedProfileHeaderParser(int maxMessageSizeInBytes) {
+    this.maxMessageSizeInBytes = maxMessageSizeInBytes;
   }
 
   /**
@@ -50,7 +50,7 @@ public class RecordedProfileHeaderParser {
       if(recordingHeader == null) {
         in.markAndDiscardRead();
         encodingVersion = MessageParser.readRawVariantInt(in, "encodingVersion");
-        recordingHeader = MessageParser.readDelimited(Recorder.RecordingHeader.parser(), in, maxMessageSize, "recording header");
+        recordingHeader = MessageParser.readDelimited(Recorder.RecordingHeader.parser(), in, maxMessageSizeInBytes, "recording header");
         in.updateChecksumSinceMarked(checksum);
       }
       in.markAndDiscardRead();

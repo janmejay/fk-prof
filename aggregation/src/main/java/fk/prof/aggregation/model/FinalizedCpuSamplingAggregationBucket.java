@@ -30,7 +30,7 @@ public class FinalizedCpuSamplingAggregationBucket {
         && this.traceDetailLookup.equals(other.traceDetailLookup);
   }
 
-  protected TraceCtxList buildTraceCtxList() {
+  protected TraceCtxList buildTraceCtxListProto() {
     TraceCtxList.Builder builder = TraceCtxList.newBuilder();
     for(String trace: traceDetailLookup.keySet()) {
       builder.addAllTraceCtx(TraceCtxDetail.newBuilder()
@@ -62,7 +62,7 @@ public class FinalizedCpuSamplingAggregationBucket {
         // clear this batch of nodes
         builder.clearFrameNodes();
       }
-      builder.addFrameNodes(node.buildFrameNode());
+      builder.addFrameNodes(node.buildFrameNodeProto());
     }
 
     protected void end() throws IOException {

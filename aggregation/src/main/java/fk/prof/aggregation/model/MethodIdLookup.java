@@ -56,7 +56,7 @@ public class MethodIdLookup {
         && this.lookup.equals(other.lookup);
   }
 
-  protected AggregatedProfileModel.MethodLookUp buildMethodIdLookup() {
+  protected AggregatedProfileModel.MethodLookUp buildMethodIdLookupProto() {
     return AggregatedProfileModel.MethodLookUp.newBuilder().addAllFqdn(Arrays.asList(generateReverseLookup())).build();
   }
 }

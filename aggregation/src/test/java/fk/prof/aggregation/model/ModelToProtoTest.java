@@ -31,7 +31,7 @@ public class ModelToProtoTest {
                 null
                 );
 
-        ProfilesSummary s = window.buildProfileSummary(WorkType.cpu_sample_work, buildTraceList("trace1", 500, "trace2", 600));
+        ProfilesSummary s = window.buildProfileSummaryProto(WorkType.cpu_sample_work, buildTraceList("trace1", 500, "trace2", 600));
 
         assertNotNull(s);
 
@@ -72,7 +72,7 @@ public class ModelToProtoTest {
                 buildMap("trace1", 5, "trace2", 10, "trace3", 15),
                 buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80));
 
-        ProfileWorkInfo workInfo = wi1.buildProfileWorkInfo(WorkType.cpu_sample_work, now, buildTraceList("trace1", 50, "trace2", 50));
+        ProfileWorkInfo workInfo = wi1.buildProfileWorkInfoProto(WorkType.cpu_sample_work, now, buildTraceList("trace1", 50, "trace2", 50));
 
         assertEquals(workInfo.getDuration(), 60);
         assertEquals(workInfo.getRecorderVersion(), 1);
@@ -137,6 +137,12 @@ public class ModelToProtoTest {
         assertThat(nextNodes.getFrameNodes(1).getMethodId(), is(4));
 
         assertThat(in.available(), is(0));
+    }
+
+    @Test
+    public void genTestFile() {
+        MethodIdLookup idLookup = new MethodIdLookup();
+        CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
     }
 
     private TraceCtxDetail buildTraceCtxDetails(String name, int count) {

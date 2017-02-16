@@ -12,10 +12,10 @@ public class WseParser {
 
   private Adler32 wseChecksum = new Adler32();
   private boolean wseParsed = false;
-  private int maxMessageSize;
+  private int maxMessageSizeInBytes;
 
-  public WseParser(int maxMessageSize) {
-    this.maxMessageSize = maxMessageSize;
+  public WseParser(int maxMessageSizeInBytes) {
+    this.maxMessageSizeInBytes = maxMessageSizeInBytes;
   }
 
   /**
@@ -54,7 +54,7 @@ public class WseParser {
     try {
       if (wse == null) {
         in.markAndDiscardRead();
-        wse = MessageParser.readDelimited(Recorder.Wse.parser(), in, maxMessageSize, "WSE");
+        wse = MessageParser.readDelimited(Recorder.Wse.parser(), in, maxMessageSizeInBytes, "WSE");
         in.updateChecksumSinceMarked(wseChecksum);
       }
       in.markAndDiscardRead();

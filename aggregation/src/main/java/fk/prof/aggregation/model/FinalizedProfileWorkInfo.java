@@ -58,14 +58,14 @@ public class FinalizedProfileWorkInfo {
         && this.samples.equals(other.samples);
   }
 
-  protected ProfileWorkInfo buildProfileWorkInfo(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxList traces) {
+  protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxList traces) {
     if(samples.containsKey(workType)) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
               .setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS))
               .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
               .setSampleCount(samples.getOrDefault(workType, 0))
-              .setStatus(toAggregationStatus(state));
+              .setStatus(toAggregationStatusProto(state));
 
       int index = 0;
       for(TraceCtxDetail traceDetail: traces.getAllTraceCtxList()) {
@@ -80,7 +80,7 @@ public class FinalizedProfileWorkInfo {
     return null;
   }
 
-  private AggregationStatus toAggregationStatus(AggregationState status) {
+  private AggregationStatus toAggregationStatusProto(AggregationState status) {
     switch (status) {
       case ABORTED: return AggregationStatus.Aborted;
       case COMPLETED: return AggregationStatus.Completed;

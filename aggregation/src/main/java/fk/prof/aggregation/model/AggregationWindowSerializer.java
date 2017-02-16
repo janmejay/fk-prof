@@ -14,13 +14,13 @@ import java.util.zip.Checksum;
 /**
  * @author gaurav.ashok
  */
-public class AggregatedProfileSerializer implements Serializer {
+public class AggregationWindowSerializer implements Serializer {
 
     private static final int VERSION = 1;
     private AggregatedProfileModel.WorkType workType;
     private FinalizedAggregationWindow aggregation;
 
-    public AggregatedProfileSerializer(FinalizedAggregationWindow aggregation, AggregatedProfileModel.WorkType workType) {
+    public AggregationWindowSerializer(FinalizedAggregationWindow aggregation, AggregatedProfileModel.WorkType workType) {
         this.aggregation = aggregation;
         this.workType = workType;
     }
@@ -33,12 +33,12 @@ public class AggregatedProfileSerializer implements Serializer {
         Serializer.writeFixedWidthInt32(Constants.AGGREGATION_FILE_MAGIC_NUM, cout);
 
         // header
-        Serializer.writeCheckedDelimited(aggregation.buildHeader(VERSION, AggregatedProfileModel.WorkType.cpu_sample_work), cout);
+        Serializer.writeCheckedDelimited(aggregation.buildHeaderProto(VERSION, AggregatedProfileModel.WorkType.cpu_sample_work), cout);
 
         AggregatedProfileModel.TraceCtxList traces;
         switch (workType) {
             case cpu_sample_work:
-                traces = aggregation.cpuSamplingAggregationBucket.buildTraceCtxList();
+                traces = aggregation.cpuSamplingAggregationBucket.buildTraceCtxListProto();
                 break;
             default:
                 throw new IllegalArgumentException(workType.name() + " not supported");
@@ -48,7 +48,7 @@ public class AggregatedProfileSerializer implements Serializer {
         Serializer.writeCheckedDelimited(traces, cout);
 
         // profiles summary
-        Serializer.writeCheckedDelimited(aggregation.buildProfileSummary(workType, traces), cout);
+        Serializer.writeCheckedDelimited(aggregation.buildProfileSummaryProto(workType, traces), cout);
 
         switch (workType) {
             case cpu_sample_work:
@@ -73,7 +73,7 @@ public class AggregatedProfileSerializer implements Serializer {
             CheckedOutputStream cout = new CheckedOutputStream(out, checksum);
 
             // method lookup
-            Serializer.writeCheckedDelimited(cpuSamplingAggregation.methodIdLookup.buildMethodIdLookup(), cout);
+            Serializer.writeCheckedDelimited(cpuSamplingAggregation.methodIdLookup.buildMethodIdLookupProto(), cout);
 
             // stacktrace tree
             checksum.reset();

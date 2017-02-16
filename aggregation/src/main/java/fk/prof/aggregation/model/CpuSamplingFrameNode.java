@@ -80,7 +80,7 @@ public class CpuSamplingFrameNode extends StacktraceFrameNode<CpuSamplingFrameNo
     return result;
   }
 
-  protected AggregatedProfileModel.FrameNode buildFrameNode() {
+  protected AggregatedProfileModel.FrameNode buildFrameNodeProto() {
     return AggregatedProfileModel.FrameNode.newBuilder()
       .setMethodId(methodId)
       .setChildCount(children.size())
