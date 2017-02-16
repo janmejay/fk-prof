@@ -271,7 +271,7 @@ public class RouterVerticleTest {
     @Test
     public void TestGetProcRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
-        String pPrefixSet = "(^$|p|pr|pro|proc|proce|proces|visit|process1)";
+        String pPrefixSet = "(^$|p|pr|pro|proc|proce|proces|process|process1)";
         String npPrefixSet = "(m|ma|mai|main)";
 
         doAnswer(invocation -> {
