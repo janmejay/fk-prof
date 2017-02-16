@@ -48,12 +48,12 @@ public class RecordedProfileHeaderParser {
   public void parse(CompositeByteBufInputStream in) throws AggregationFailure {
     try {
       if(recordingHeader == null) {
-        in.mark(maxMessageSize);
+        in.markAndDiscardRead();
         encodingVersion = MessageParser.readRawVariantInt(in, "encodingVersion");
         recordingHeader = MessageParser.readDelimited(Recorder.RecordingHeader.parser(), in, maxMessageSize, "recording header");
         in.updateChecksumSinceMarked(checksum);
       }
-      in.mark(maxMessageSize);
+      in.markAndDiscardRead();
       int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
       if(checksumValue != ((int)checksum.getValue())) {
         throw new AggregationFailure("Checksum of header does not match");
@@ -62,7 +62,7 @@ public class RecordedProfileHeaderParser {
     }
     catch (UnexpectedEOFException e) {
       try {
-        in.reset();
+        in.resetMark();
       }
       catch (IOException resetEx) {
         throw new AggregationFailure(resetEx);

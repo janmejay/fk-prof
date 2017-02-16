@@ -65,20 +65,13 @@ public class CompositeByteBufInputStream extends InputStream {
   public int available() throws IOException {
     return buffer.readableBytes();
   }
-
-  @Override
-  public boolean markSupported() {
-    return true;
-  }
-
-  @Override
-  public synchronized void mark(int readlimit) {
+  
+  public synchronized void markAndDiscardRead() {
     buffer.markReaderIndex();
     buffer.discardReadBytes();
   }
 
-  @Override
-  public void reset() throws IOException {
+  public void resetMark() throws IOException {
     buffer.resetReaderIndex();
   }
 

@@ -53,11 +53,11 @@ public class WseParser {
   public void parse(CompositeByteBufInputStream in) throws AggregationFailure {
     try {
       if (wse == null) {
-        in.mark(maxMessageSize);
+        in.markAndDiscardRead();
         wse = MessageParser.readDelimited(Recorder.Wse.parser(), in, maxMessageSize, "WSE");
         in.updateChecksumSinceMarked(wseChecksum);
       }
-      in.mark(maxMessageSize);
+      in.markAndDiscardRead();
       int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
       if (checksumValue != ((int) wseChecksum.getValue())) {
         throw new AggregationFailure("Checksum of wse does not match");
@@ -66,7 +66,7 @@ public class WseParser {
     }
     catch (UnexpectedEOFException e) {
       try {
-        in.reset();
+        in.resetMark();
       }
       catch (IOException resetEx) {
         throw new AggregationFailure(resetEx);
