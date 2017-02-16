@@ -1,13 +1,16 @@
-package fk.prof.aggregation;
+package fk.prof.aggregation.model;
 
+import fk.prof.aggregation.proto.AggregatedProfileModel;
+
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MethodIdLookup implements SerializableAggregationEntity {
-  //-2 is reserved for placeholder global root method of all stack-trace
+public class MethodIdLookup {
+  //0 is reserved for placeholder global root method of all stack-trace
   public final static int GLOBAL_ROOT_METHOD_ID = 0;
   public final static String GLOBAL_ROOT_METHOD_SIGNATURE = "~ ROOT ~.()";
-  //-1 is reserved for placeholder unclassifiable roor method of all incomplete stack-traces
+  //1 is reserved for placeholder unclassifiable root method of all incomplete stack-traces
   public final static int UNCLASSIFIABLE_ROOT_METHOD_ID = 1;
   public final static String UNCLASSIFIABLE_ROOT_METHOD_SIGNATURE = "~ UNCLASSIFIABLE ~.()";
   public final static int DEFAULT_LINE_NUMBER = 0;
@@ -26,11 +29,11 @@ public class MethodIdLookup implements SerializableAggregationEntity {
   }
 
   /**
-   * Generates a reverse lookup array where array index corresponds to methodId + 2
+   * Generates a reverse lookup array where array index corresponds to methodId
    * We are assured of a 1:1 relationship between K and V because of an atomic counter being used to generate sequential lookup values.
    * Therefore, reverse lookup is modelled as an array
    *
-   * @return 2-indexed array where arr[idx] = method signature and idx-2 = corresponding method id
+   * @return indexed array where arr[idx] = method signature and idx = corresponding method id
    * NOTE: Make the access private if not required outside post serialization is implemented
    */
   public String[] generateReverseLookup() {
@@ -51,5 +54,9 @@ public class MethodIdLookup implements SerializableAggregationEntity {
     MethodIdLookup other = (MethodIdLookup) o;
     return this.counter.get() == other.counter.get()
         && this.lookup.equals(other.lookup);
+  }
+
+  protected AggregatedProfileModel.MethodLookUp buildMethodIdLookupProto() {
+    return AggregatedProfileModel.MethodLookUp.newBuilder().addAllFqdn(Arrays.asList(generateReverseLookup())).build();
   }
 }

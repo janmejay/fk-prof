@@ -1,12 +1,12 @@
 package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
-import fk.prof.aggregation.MethodIdLookup;
-import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
-import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
-import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
-import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.model.MethodIdLookup;
+import fk.prof.aggregation.model.CpuSamplingFrameNode;
+import fk.prof.aggregation.model.CpuSamplingTraceDetail;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
+import fk.prof.aggregation.model.FinalizedCpuSamplingAggregationBucket;
+import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -227,7 +227,7 @@ public class ProfileApiTest {
 
   @Test(timeout = 5000)
   public void testWithInvalidHeaderLength(TestContext context) {
-    makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_HEADER_LENGTH, "allowed range for recording header length");
+    makeInvalidHeaderProfileRequest(context, HeaderPayloadStrategy.INVALID_HEADER_LENGTH, "invalid length for recording header");
   }
 
   @Test(timeout = 5000)
@@ -247,17 +247,17 @@ public class ProfileApiTest {
 
   @Test(timeout = 5000)
   public void testWithInvalidWseLength(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE_LENGTH, "allowed range for work-specific entry log");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE_LENGTH, "invalid length for wse");
   }
 
   @Test(timeout = 5000)
   public void testWithInvalidWse(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE, "error while parsing work-specific entry log");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_WSE, "error while parsing wse");
   }
 
   @Test(timeout = 5000)
   public void testWithInvalidWseChecksum(TestContext context) {
-    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_CHECKSUM, "checksum of work-specific entry log does not match");
+    makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_CHECKSUM, "checksum of wse does not match");
   }
 
   private Future<Buffer> makeValidProfileRequest(TestContext context, Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList) {
@@ -393,16 +393,16 @@ public class ProfileApiTest {
     CpuSamplingTraceDetail expectedTraceDetail = new CpuSamplingTraceDetail();
 
     CpuSamplingFrameNode expectedRoot = expectedTraceDetail.getUnclassifiableRoot();
-    CpuSamplingFrameNode y1 = expectedRoot.getOrAddChild(0, 10);
-    CpuSamplingFrameNode c1 = y1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d1 = c1.getOrAddChild(2, 10);
-    CpuSamplingFrameNode c2 = d1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d2 = c2.getOrAddChild(2, 10);
-    CpuSamplingFrameNode e1 = d1.getOrAddChild(3, 10);
-    CpuSamplingFrameNode c3 = e1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d3 = c3.getOrAddChild(2, 10);
-    CpuSamplingFrameNode f1 = e1.getOrAddChild(4, 10);
-    CpuSamplingFrameNode c4 = f1.getOrAddChild(1, 10);
+    CpuSamplingFrameNode y1 = expectedRoot.getOrAddChild(2, 10);
+    CpuSamplingFrameNode c1 = y1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d1 = c1.getOrAddChild(4, 10);
+    CpuSamplingFrameNode c2 = d1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d2 = c2.getOrAddChild(4, 10);
+    CpuSamplingFrameNode e1 = d1.getOrAddChild(5, 10);
+    CpuSamplingFrameNode c3 = e1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d3 = c3.getOrAddChild(4, 10);
+    CpuSamplingFrameNode f1 = e1.getOrAddChild(6, 10);
+    CpuSamplingFrameNode c4 = f1.getOrAddChild(3, 10);
     for (int i = 0; i < 3; i++) {
       y1.incrementOnStackSamples();
     }

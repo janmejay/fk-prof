@@ -1,4 +1,4 @@
-package fk.prof.userapi.model;
+package fk.prof.userapi;
 
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;

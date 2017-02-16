@@ -1,4 +1,4 @@
-package fk.prof.aggregation.cpusampling;
+package fk.prof.aggregation.model;
 
 import org.junit.Assert;
 import org.junit.Test;

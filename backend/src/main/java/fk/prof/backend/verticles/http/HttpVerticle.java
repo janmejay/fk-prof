@@ -55,7 +55,7 @@ public class HttpVerticle extends AbstractVerticle {
         profileWorkService,
         new SharedMapBasedSingleProcessingOfProfileGate(workIdsInPipeline),
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
-        config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024 * 1024));
+        config().getJsonObject("parser").getInteger("wse.max.bytes", 1024 * 1024));
 
     RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, inputStream, profileProcessor);
     context.request()

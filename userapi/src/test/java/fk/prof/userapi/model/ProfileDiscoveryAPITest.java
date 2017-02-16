@@ -45,10 +45,10 @@ public class ProfileDiscoveryAPITest {
 
     private Set<String> getObjList(String prefix, boolean recursive) {
         String objects[] = {
-                "v001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
-                "v001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
-                "v001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
-                "v001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
+                "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
+                "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
+                "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
+                "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
         };
         Set<String> resultObjects = new HashSet<>();
         for (String obj : objects) {
@@ -76,9 +76,8 @@ public class ProfileDiscoveryAPITest {
 
         when(asyncStorage.listAsync(anyString(), anyBoolean())).thenAnswer(invocation -> {
             String path1 = invocation.getArgument(0);
-            String fileName = path1.substring(path1.indexOf('/') + 1);
             Boolean recursive = invocation.getArgument(1);
-            return CompletableFuture.supplyAsync(() -> getObjList(fileName, recursive));
+            return CompletableFuture.supplyAsync(() -> getObjList(path1, recursive));
         });
     }
 

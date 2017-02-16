@@ -1,8 +1,8 @@
 package fk.prof.backend.aggregator;
 
 import fk.prof.aggregation.FinalizableBuilder;
-import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
-import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
+import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;

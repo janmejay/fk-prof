@@ -1,12 +1,9 @@
-package fk.prof.aggregation.cpusampling;
-
-import fk.prof.aggregation.MethodIdLookup;
-import fk.prof.aggregation.SerializableAggregationEntity;
+package fk.prof.aggregation.model;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class CpuSamplingTraceDetail implements SerializableAggregationEntity {
-  private final AtomicInteger samples = new AtomicInteger(0);
+public class CpuSamplingTraceDetail {
+  private final AtomicInteger sampleCount = new AtomicInteger(0);
   private final CpuSamplingFrameNode globalRoot;
   private final CpuSamplingFrameNode unclassifiableRoot;
 
@@ -24,7 +21,7 @@ public class CpuSamplingTraceDetail implements SerializableAggregationEntity {
   }
 
   public void incrementSamples() {
-    this.samples.incrementAndGet();
+    this.sampleCount.incrementAndGet();
   }
 
   @Override
@@ -37,7 +34,11 @@ public class CpuSamplingTraceDetail implements SerializableAggregationEntity {
     }
 
     CpuSamplingTraceDetail other = (CpuSamplingTraceDetail) o;
-    return this.samples.get() == other.samples.get()
+    return this.sampleCount.get() == other.sampleCount.get()
         && this.globalRoot.equals(other.globalRoot);
+  }
+
+  protected int getSampleCount() {
+    return sampleCount.get();
   }
 }

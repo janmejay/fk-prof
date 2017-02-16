@@ -50,7 +50,7 @@ message PerSourceProfileSummary {
 }
 
 message ProfilesSummary {
-	repeated PerSourceProfileSummary allProfiles = 1;
+	repeated PerSourceProfileSummary profiles = 1;
 }
 
 message MethodLookUp {
