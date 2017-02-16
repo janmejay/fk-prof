@@ -1,13 +1,14 @@
 package fk.prof.userapi.model;
 
-import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.Constants;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
-import fk.prof.aggregation.serialize.ChecksumCalculatingOutputStream;
 import fk.prof.aggregation.serialize.Serializer;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.ObjectNotFoundException;
 import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.buffer.StorageBackedInputStream;
+import fk.prof.userapi.Deserializer;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
 import fk.prof.userapi.model.json.ProtoSerializers;
@@ -33,6 +34,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
+import java.util.zip.CheckedOutputStream;
+import java.util.zip.Checksum;
 
 import static org.mockito.Mockito.*;
 
@@ -66,12 +70,16 @@ public class ParseProfileTest {
         vertx.close(context.asyncAssertSuccess());
     }
 
+    private void checksumVerify(Checksum checksum, int value, String msg) {
+        assert value == (int)checksum.getValue() : msg;
+    }
+
     @Test
     public void testAggregatedProfileStoreS3Impl(TestContext context) throws Exception {
         Async async = context.async();
 
         S3AsyncStorage storage = mock(S3AsyncStorage.class);
-        String fileName = new AggregatedProfileFileNamingStrategy("profiles", buildHeader()).getFileName(0);
+        String fileName = new AggregatedProfileNamingStrategy("profiles", buildHeader()).getFileName(0);
         InputStream s3InputStream = buildDefaultS3DataStream();
 
         // for above filename return the inputStream
@@ -111,8 +119,8 @@ public class ParseProfileTest {
             }
         });
 
-        profileDiscoveryAPI.load(future1, new AggregatedProfileFileNamingStrategy("profiles", buildHeader()));
-        profileDiscoveryAPI.load(future2, new AggregatedProfileFileNamingStrategy("profiles", buildHeader()));
+        profileDiscoveryAPI.load(future1, new AggregatedProfileNamingStrategy("profiles", buildHeader()));
+        profileDiscoveryAPI.load(future2, new AggregatedProfileNamingStrategy("profiles", buildHeader()));
     }
 
     private void testEquality(TestContext context, AggregatedProfileInfo expected, AggregatedProfileInfo actual) {
@@ -165,7 +173,7 @@ public class ParseProfileTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Adler32 adler32 = new Adler32();
 
-        ChecksumCalculatingOutputStream cout = new ChecksumCalculatingOutputStream(adler32, out);
+        CheckedOutputStream cout = new CheckedOutputStream(out, adler32);
 
         Serializer.writeFixedWidthInt32(Constants.AGGREGATION_FILE_MAGIC_NUM, cout);
 
@@ -270,7 +278,7 @@ public class ParseProfileTest {
 
     private AggregatedProfileModel.ProfilesSummary buildProfilesSummary() {
         return AggregatedProfileModel.ProfilesSummary.newBuilder()
-                .addAllProfiles(
+                .addProfiles(
                         AggregatedProfileModel.PerSourceProfileSummary.newBuilder()
                             .setSourceInfo(AggregatedProfileModel.ProfileSourceInfo.newBuilder()
                             .setZone("chennai-1")
@@ -290,7 +298,7 @@ public class ParseProfileTest {
                                 .addTraceCoverageMap(AggregatedProfileModel.TraceCtxToCoveragePctMap.newBuilder()
                                         .setTraceCtxIdx(1)
                                         .setCoveragePct(10))))
-                .addAllProfiles(
+                .addProfiles(
                         AggregatedProfileModel.PerSourceProfileSummary.newBuilder()
                                 .setSourceInfo(AggregatedProfileModel.ProfileSourceInfo.newBuilder()
                                         .setZone("chennai-1")

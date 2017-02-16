@@ -1,6 +1,6 @@
 package fk.prof.userapi.api;
 
-import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.Constants;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.AsyncStorage;
@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
 /**
@@ -29,7 +30,7 @@ public class AggregatedProfileLoader {
         this.asyncStorage = asyncStorage;
     }
 
-    public void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename) {
+    public void load(Future<AggregatedProfileInfo> future, AggregatedProfileNamingStrategy filename) {
         if(filename.version != 1) {
             future.fail("file format version is not supported");
             return;
@@ -37,7 +38,7 @@ public class AggregatedProfileLoader {
 
         Adler32 checksum = new Adler32();
         InputStream in = new StorageBackedInputStream(asyncStorage, filename);
-        in = new ChecksumCalculatingInputStream(checksum, in);
+        in = new CheckedInputStream(in, checksum);
 
         try {
             int magicNum = Deserializer.readFixedInt32(in);
@@ -50,22 +51,22 @@ public class AggregatedProfileLoader {
             // read header
             checksumReset(checksum);
             AggregatedProfileModel.Header parsedHeader = AggregatedProfileModel.Header.parseDelimitedFrom(in);
-            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error header");
+            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error header");
 
             // read traceCtx list
             checksumReset(checksum);
             AggregatedProfileModel.TraceCtxList traceCtxList = AggregatedProfileModel.TraceCtxList.parseDelimitedFrom(in);
-            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error traceCtxList");
+            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error traceCtxList");
 
             // read profiles summary
             checksumReset(checksum);
             AggregatedProfileModel.ProfilesSummary profilesSummary = AggregatedProfileModel.ProfilesSummary.parseDelimitedFrom(in);
-            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error profileSummary");
+            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error profileSummary");
 
             // read method lookup table
             checksumReset(checksum);
             AggregatedProfileModel.MethodLookUp methodLookUp = AggregatedProfileModel.MethodLookUp.parseDelimitedFrom(in);
-            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error methodLookup");
+            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error methodLookup");
 
             Map<String, AggregatedSamplesPerTraceCtx> samplesPerTrace = new HashMap<>();
 
@@ -81,7 +82,7 @@ public class AggregatedProfileLoader {
                     break;
             }
 
-            checksumVerify(checksum, Deserializer.readFixedInt32(in), "checksum error cpusample stacktrace");
+            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error " + filename.workType.name() + " aggregated samples");
 
             AggregatedProfileInfo profileInfo = new AggregatedProfileInfo(parsedHeader,
                     new ScheduledProfilesSummary(traceCtxList, profilesSummary), samplesPerTrace);
@@ -105,8 +106,8 @@ public class AggregatedProfileLoader {
         checksum.reset();
     }
 
-    private void checksumVerify(Checksum checksum, int value, String msg) {
-        assert value == (int)checksum.getValue() : msg;
+    private void checksumVerify(int actualChecksum, int expectedChecksum, String msg) {
+        assert actualChecksum == expectedChecksum : msg;
     }
 
     private StacktraceTreeIterable parseStacktraceTree(InputStream in) throws IOException {

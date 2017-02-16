@@ -1,6 +1,5 @@
-package fk.prof.aggregation.cpusampling;
+package fk.prof.aggregation.model;
 
-import fk.prof.aggregation.MethodIdLookup;
 import org.junit.Assert;
 import org.junit.Test;
 

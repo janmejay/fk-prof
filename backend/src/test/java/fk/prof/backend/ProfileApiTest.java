@@ -1,12 +1,12 @@
 package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
-import fk.prof.aggregation.MethodIdLookup;
-import fk.prof.aggregation.cpusampling.CpuSamplingFrameNode;
-import fk.prof.aggregation.cpusampling.CpuSamplingTraceDetail;
-import fk.prof.aggregation.finalized.FinalizedAggregationWindow;
-import fk.prof.aggregation.finalized.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.model.MethodIdLookup;
+import fk.prof.aggregation.model.CpuSamplingFrameNode;
+import fk.prof.aggregation.model.CpuSamplingTraceDetail;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
+import fk.prof.aggregation.model.FinalizedCpuSamplingAggregationBucket;
+import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -393,16 +393,16 @@ public class ProfileApiTest {
     CpuSamplingTraceDetail expectedTraceDetail = new CpuSamplingTraceDetail();
 
     CpuSamplingFrameNode expectedRoot = expectedTraceDetail.getUnclassifiableRoot();
-    CpuSamplingFrameNode y1 = expectedRoot.getOrAddChild(0, 10);
-    CpuSamplingFrameNode c1 = y1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d1 = c1.getOrAddChild(2, 10);
-    CpuSamplingFrameNode c2 = d1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d2 = c2.getOrAddChild(2, 10);
-    CpuSamplingFrameNode e1 = d1.getOrAddChild(3, 10);
-    CpuSamplingFrameNode c3 = e1.getOrAddChild(1, 10);
-    CpuSamplingFrameNode d3 = c3.getOrAddChild(2, 10);
-    CpuSamplingFrameNode f1 = e1.getOrAddChild(4, 10);
-    CpuSamplingFrameNode c4 = f1.getOrAddChild(1, 10);
+    CpuSamplingFrameNode y1 = expectedRoot.getOrAddChild(2, 10);
+    CpuSamplingFrameNode c1 = y1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d1 = c1.getOrAddChild(4, 10);
+    CpuSamplingFrameNode c2 = d1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d2 = c2.getOrAddChild(4, 10);
+    CpuSamplingFrameNode e1 = d1.getOrAddChild(5, 10);
+    CpuSamplingFrameNode c3 = e1.getOrAddChild(3, 10);
+    CpuSamplingFrameNode d3 = c3.getOrAddChild(4, 10);
+    CpuSamplingFrameNode f1 = e1.getOrAddChild(6, 10);
+    CpuSamplingFrameNode c4 = f1.getOrAddChild(3, 10);
     for (int i = 0; i < 3; i++) {
       y1.incrementOnStackSamples();
     }

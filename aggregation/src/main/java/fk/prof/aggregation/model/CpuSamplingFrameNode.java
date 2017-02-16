@@ -1,13 +1,14 @@
-package fk.prof.aggregation.cpusampling;
+package fk.prof.aggregation.model;
 
-import fk.prof.aggregation.SerializableAggregationEntity;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
+import fk.prof.aggregation.stacktrace.StacktraceFrameNode;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class CpuSamplingFrameNode implements SerializableAggregationEntity {
+public class CpuSamplingFrameNode extends StacktraceFrameNode<CpuSamplingFrameNode> {
   private final int methodId;
   private final int lineNumber;
   private final List<CpuSamplingFrameNode> children = new ArrayList<>();
@@ -77,5 +78,20 @@ public class CpuSamplingFrameNode implements SerializableAggregationEntity {
     result = result * PRIME + methodId;
     result = result * PRIME + lineNumber;
     return result;
+  }
+
+  protected AggregatedProfileModel.FrameNode buildFrameNode() {
+    return AggregatedProfileModel.FrameNode.newBuilder()
+      .setMethodId(methodId)
+      .setChildCount(children.size())
+      .setLineNo(lineNumber)
+      .setCpuSamplingProps(AggregatedProfileModel.CPUSamplingNodeProps.newBuilder()
+          .setOnCpuSamples(onCpuSamples.get()).setOnStackSamples(onStackSamples.get()))
+      .build();
+  }
+
+  @Override
+  protected Iterable<CpuSamplingFrameNode> children() {
+    return children;
   }
 }

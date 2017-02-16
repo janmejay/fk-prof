@@ -20,6 +20,6 @@ public class ScheduledProfilesSummary {
     }
 
     public Iterable<AggregatedProfileModel.PerSourceProfileSummary> getProfilesSummary() {
-        return profileSummary.getAllProfilesList();
+        return profileSummary.getProfilesList();
     }
 }

@@ -1,11 +1,36 @@
 package fk.prof.aggregation.stacktrace;
 
+import java.util.Iterator;
+
 /**
- * Interface for a Stacktrace tree node giving it a tree like structure by exposing
- * callee count and list of callees.
+ * A generic traverser for a stacktrace tree.
  * @author gaurav.ashok
  */
-public interface StacktraceFrameNode<T> {
-    int calleeCount();
-    Iterable<T> callees();
+public abstract class StacktraceFrameNode<T extends StacktraceFrameNode<T>> {
+
+    protected abstract Iterable<T> children();
+
+    public void traverse(NodeVisitor<T> visitor) throws Exception {
+        new DFSTraversal(visitor).traverse(this);
+    }
+
+    private static class DFSTraversal<T extends StacktraceFrameNode<T>> {
+        private NodeVisitor<T> visitor;
+        public DFSTraversal(NodeVisitor<T> visitor) {
+            this.visitor = visitor;
+        }
+
+        public void traverse(T node) throws Exception {
+            visitor.visit(node);
+            Iterator<T> children = node.children().iterator();
+            while(children.hasNext()) {
+                T child = children.next();
+                traverse(child);
+            }
+        }
+    }
+
+    public interface NodeVisitor<T> {
+        void visit(T obj) throws Exception;
+    }
 }

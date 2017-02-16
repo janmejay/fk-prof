@@ -1,7 +1,6 @@
 package fk.prof.userapi.api;
 
-import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
-import fk.prof.aggregation.proto.AggregatedProfileModel;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.Future;
@@ -58,5 +57,5 @@ public interface ProfileStoreAPI {
      * @param future
      * @param filename
      */
-    void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename);
+    void load(Future<AggregatedProfileInfo> future, AggregatedProfileNamingStrategy filename);
 }

@@ -4,7 +4,7 @@ package fk.prof.userapi.api;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.io.BaseEncoding;
-import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.FilteredProfiles;
@@ -112,7 +112,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             ZonedDateTime end = startTime.plusSeconds(durationInSeconds + 1);
 
             return allObjects.stream()
-                    .map(AggregatedProfileFileNamingStrategy::fromFileName)
+                    .map(AggregatedProfileNamingStrategy::fromFileName)
                     // filter by time
                     .filter(s -> s.startTime.isAfter(start) && s.startTime.isBefore(end))
                     //Groups all strings by their time interval (as profiles) and collects the corresponding worktypes in a set as its value.
@@ -124,13 +124,13 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     @Override
-    synchronized public void load(Future<AggregatedProfileInfo> future, AggregatedProfileFileNamingStrategy filename) {
+    synchronized public void load(Future<AggregatedProfileInfo> future, AggregatedProfileNamingStrategy filename) {
         String fileNameKey = filename.getFileName(0);
 
         AggregatedProfileInfo cachedProfileInfo = cache.getIfPresent(fileNameKey);
         if(cachedProfileInfo == null) {
             boolean fileLoadInProgress = futuresForLoadingFiles.containsKey(fileNameKey);
-            // save the future, so that it can be notified when the loading process finishes
+            // save the future, so that it can be notified when the loading visit finishes
             saveRequestedFuture(fileNameKey, future);
             // set the timeout for this future
             vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
@@ -195,7 +195,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         return new String(BaseEncoding.base32().decode(str), Charset.forName("utf-8"));
     }
 
-    private static Pair<ZonedDateTime, ZonedDateTime> getInterval(AggregatedProfileFileNamingStrategy fileName) {
+    private static Pair<ZonedDateTime, ZonedDateTime> getInterval(AggregatedProfileNamingStrategy fileName) {
         return new Pair(fileName.startTime, fileName.startTime.plusSeconds(fileName.duration));
     }
 

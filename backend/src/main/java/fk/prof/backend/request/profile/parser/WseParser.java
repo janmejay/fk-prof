@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.util.zip.Adler32;
 
 public class WseParser {
-  private Integer wseLength = null;
   private Recorder.Wse wse = null;
 
   private Adler32 wseChecksum = new Adler32();
@@ -42,7 +41,6 @@ public class WseParser {
    * Note: If {@link #get()} is not performed before reset, previous parsed entry will be lost
    */
   public void reset() {
-    this.wseLength = null;
     this.wse = null;
     this.wseParsed = false;
     this.wseChecksum.reset();
@@ -65,13 +63,16 @@ public class WseParser {
         throw new AggregationFailure("Checksum of wse does not match");
       }
       wseParsed = true;
-    } catch (UnexpectedEOFException e) {
+    }
+    catch (UnexpectedEOFException e) {
       try {
         in.reset();
-      } catch (IOException resetEx) {
+      }
+      catch (IOException resetEx) {
         throw new AggregationFailure(resetEx);
       }
-    } catch (IOException e) {
+    }
+    catch (IOException e) {
       throw new AggregationFailure(e);
     }
   }

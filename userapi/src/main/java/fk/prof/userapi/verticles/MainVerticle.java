@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
-import fk.prof.userapi.model.StorageFactory;
+import fk.prof.userapi.StorageFactory;
 import fk.prof.userapi.model.json.ProtoSerializers;
 import io.vertx.core.*;
 import io.vertx.core.json.Json;
