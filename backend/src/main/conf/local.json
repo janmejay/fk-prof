@@ -20,6 +20,7 @@
   },
   "backendHttpOptions": {
     "config": {
+      "backend.version": 1,
       "http.instances": 2,
       "report.load": true,
       "parser": {

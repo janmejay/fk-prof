@@ -5,15 +5,15 @@ import fk.prof.backend.proto.BackendDTO;
 import recording.Recorder;
 
 public class ProtoUtil {
-  public static AggregatedProfileModel.WorkType mapRecorderToAggregatorWorkType(Recorder.WorkType recorderWorkType) {
+  public static AggregatedProfileModel.WorkType mapRecorderWorkTypeToAggregatorWorkType(Recorder.WorkType recorderWorkType) {
     return AggregatedProfileModel.WorkType.forNumber(recorderWorkType.getNumber());
   }
 
-  public static Recorder.ProcessGroup mapRecorderToBackendProcessGroup(Recorder.ProcessGroup recorderProcessGroup) {
+  public static Recorder.ProcessGroup mapRecorderInfoToProcessGroup(Recorder.RecorderInfo recorderInfo) {
     return Recorder.ProcessGroup.newBuilder()
-        .setAppId(recorderProcessGroup.getAppId())
-        .setCluster(recorderProcessGroup.getCluster())
-        .setProcName(recorderProcessGroup.getProcName())
+        .setAppId(recorderInfo.getAppId())
+        .setCluster(recorderInfo.getCluster())
+        .setProcName(recorderInfo.getProcName())
         .build();
   }
 

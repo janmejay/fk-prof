@@ -28,10 +28,10 @@ message PollReq {
 
 message PollRes {
   required string local_time = 1;
-  required WorkAssignment assignment = 2;
-  required string work_description = 3;
   required uint32 controller_id = 4;
   required uint32 controller_version = 5;
+  optional WorkAssignment assignment = 2;
+  optional string work_description = 3;
 }
 
 message WorkResponse {

@@ -1,17 +1,23 @@
 package fk.prof.backend.http;
 
+import com.google.common.primitives.Ints;
 import fk.prof.backend.exception.HttpFailure;
+import fk.prof.backend.model.assignment.WorkAssignmentManager;
+import fk.prof.backend.model.assignment.WorkAssignmentManagerImpl;
 import fk.prof.backend.model.election.LeaderDiscoveryStore;
-import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.http.handler.RecordedProfileRequestHandler;
+import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.eventbus.Message;
+import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -27,13 +33,13 @@ import recording.Recorder;
 
 public class BackendHttpVerticle extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
+  private static int REPLY_TIMEOUT_SECONDS = 2;
 
   private final JsonObject backendHttpServerConfig;
   private final JsonObject httpClientConfig;
   private final LeaderDiscoveryStore leaderDiscoveryStore;
   private final IProfileWorkService profileWorkService;
   private final int leaderPort;
-  private Long loadReportTimer = null;
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ConfigurableHttpClient httpClient;
@@ -78,14 +84,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
     router.post(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
         .handler(this::handlePutAssociation);
 
-    return router;
-  }
+    router.post(ApiPathConstants.BACKEND_POST_POLL)
+        .handler(BodyHandler.create().setBodyLimit(1024 * 100));
+    router.post(ApiPathConstants.BACKEND_POST_POLL)
+        .handler(this::handlePostPoll);
 
-  @Override
-  public void stop() throws Exception {
-    if(loadReportTimer != null) {
-      vertx.cancelTimer(loadReportTimer);
-    }
+    return router;
   }
 
   private void completeStartup(AsyncResult<HttpServer> http, Future<Void> fut) {
@@ -124,6 +128,28 @@ public class BackendHttpVerticle extends AbstractVerticle {
         });
   }
 
+  private void handlePostPoll(RoutingContext context) {
+    DeliveryOptions replyDeliveryOptions = new DeliveryOptions();
+    replyDeliveryOptions.setSendTimeout(REPLY_TIMEOUT_SECONDS * 1000);
+
+    vertx.eventBus().send("recorder.poll", replyDeliveryOptions, (AsyncResult<Message<byte[]>> ar) -> {
+      //TODO: See how error code and message is propagated to reply handler and act accordingly
+      if(ar.succeeded()) {
+        try {
+          Recorder.PollRes pollRes = Recorder.PollRes.parseFrom(ar.result().body());
+          context.response().end(Buffer.buffer(pollRes.toByteArray()));
+        } catch (Exception ex) {
+          HttpFailure httpFailure = HttpFailure.failure(ex);
+          HttpHelper.handleFailure(context, httpFailure);
+        }
+      } else {
+        HttpFailure httpFailure = HttpFailure.failure(ar.cause());
+        HttpHelper.handleFailure(context, httpFailure);
+      }
+    });
+  }
+
+  // /association API is requested over ELB, routed to some backend which in turns proxies it to a leader
   private void handlePutAssociation(RoutingContext context) {
     String leaderIPAddress = getLeaderAddressOrAbortRequest(context.response());
     if (leaderIPAddress != null) {
@@ -165,13 +191,6 @@ public class BackendHttpVerticle extends AbstractVerticle {
     return httpClient.requestAsyncWithRetry(
         HttpMethod.POST,
         leaderIPAddress, leaderPort, ApiPathConstants.LEADER_PUT_ASSOCIATION,
-        Buffer.buffer(payload.toByteArray()));
-  }
-
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestPostLoad(String leaderIPAddress, BackendDTO.LoadReportRequest payload) {
-    return httpClient.requestAsync(
-        HttpMethod.POST,
-        leaderIPAddress, leaderPort, ApiPathConstants.LEADER_POST_LOAD,
         Buffer.buffer(payload.toByteArray()));
   }
 }

@@ -11,5 +11,6 @@ public final class ApiPathConstants {
   public static final String LEADER_PUT_ASSOCIATION = "/leader/association";
 
   public static final String BACKEND_PUT_ASSOCIATION = "/association";
+  public static final String BACKEND_POST_POLL = "/poll";
 
 }

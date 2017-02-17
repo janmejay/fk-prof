@@ -20,7 +20,7 @@
   },
   "backendHttpOptions": {
     "config": {
-      "http.instances": 2,
+      "http.instances": 1,
       "report.load": true,
       "parser": {
         "recordingheader.max.bytes": 1024,
