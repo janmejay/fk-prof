@@ -7,6 +7,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.CuratorWatcher;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 
 import java.net.InetAddress;
@@ -19,6 +20,14 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   private final CuratorFramework curatorClient;
   private final LeaderDiscoveryStore leaderDiscoveryStore;
   private String leaderWatchingPath;
+
+  private Watcher childWatcher = event -> {
+    if (event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
+      leaderUpdated(getChildrenAndSetWatch());
+    } else {
+      getChildrenAndSetWatch();
+    }
+  };
 
   public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderDiscoveryStore leaderDiscoveryStore) {
     this.curatorClient = curatorClient;
@@ -47,28 +56,19 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   @Override
   public void stop() {
     //This ensures that if this worker verticle is undeployed for whatever reason, leader is set as null and all other components dependent on leader will fail
+    curatorClient.clearWatcherReferences(childWatcher);
     leaderDiscoveryStore.setLeaderIPAddress(null);
   }
 
   private List<String> getChildrenAndSetWatch() {
     try {
-      return curatorClient.getChildren().usingWatcher(getChildWatcher()).forPath(leaderWatchingPath);
+      return curatorClient.getChildren().usingWatcher(childWatcher).forPath(leaderWatchingPath);
     } catch (Exception ex) {
       logger.error(ex);
       // If there is an error getting leader info from zookeeper, unset leader for this backend node.
       // Sending an empty list will take care of that
       return new ArrayList<>();
     }
-  }
-
-  private CuratorWatcher getChildWatcher() {
-    return event -> {
-      if (event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
-        leaderUpdated(getChildrenAndSetWatch());
-      } else {
-        getChildrenAndSetWatch();
-      }
-    };
   }
 
   private void leaderUpdated(List<String> childNodesList) {
