@@ -44,3 +44,10 @@ Testing
 .attach_pid*
 TAGS
 cscope.*
+
+# ui
+npm-debug.log
+ui/public/*
+
+#Ignore logs directory
+backend/logs/

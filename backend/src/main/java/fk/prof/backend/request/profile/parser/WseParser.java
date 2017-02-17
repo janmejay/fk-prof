@@ -1,0 +1,79 @@
+package fk.prof.backend.request.profile.parser;
+
+import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.request.CompositeByteBufInputStream;
+import recording.Recorder;
+
+import java.io.IOException;
+import java.util.zip.Adler32;
+
+public class WseParser {
+  private Recorder.Wse wse = null;
+
+  private Adler32 wseChecksum = new Adler32();
+  private boolean wseParsed = false;
+  private int maxMessageSizeInBytes;
+
+  public WseParser(int maxMessageSizeInBytes) {
+    this.maxMessageSizeInBytes = maxMessageSizeInBytes;
+  }
+
+  /**
+   * Returns true if wse has been read and checksum validated, false otherwise
+   *
+   * @return returns if wse has been parsed or not
+   */
+  public boolean isParsed() {
+    return this.wseParsed;
+  }
+
+  /**
+   * Returns {@link Recorder.Wse} if {@link #isParsed()} is true, null otherwise
+   *
+   * @return
+   */
+  public Recorder.Wse get() {
+    return this.wse;
+  }
+
+  /**
+   * Resets internal fields of the parser
+   * Note: If {@link #get()} is not performed before reset, previous parsed entry will be lost
+   */
+  public void reset() {
+    this.wse = null;
+    this.wseParsed = false;
+    this.wseChecksum.reset();
+  }
+
+  /**
+   * Reads buffer and updates internal state with parsed fields.
+   * @param in
+   */
+  public void parse(CompositeByteBufInputStream in) throws AggregationFailure {
+    try {
+      if (wse == null) {
+        in.markAndDiscardRead();
+        wse = MessageParser.readDelimited(Recorder.Wse.parser(), in, maxMessageSizeInBytes, "WSE");
+        in.updateChecksumSinceMarked(wseChecksum);
+      }
+      in.markAndDiscardRead();
+      int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
+      if (checksumValue != ((int) wseChecksum.getValue())) {
+        throw new AggregationFailure("Checksum of wse does not match");
+      }
+      wseParsed = true;
+    }
+    catch (UnexpectedEOFException e) {
+      try {
+        in.resetMark();
+      }
+      catch (IOException resetEx) {
+        throw new AggregationFailure(resetEx);
+      }
+    }
+    catch (IOException e) {
+      throw new AggregationFailure(e);
+    }
+  }
+}
