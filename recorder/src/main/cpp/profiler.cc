@@ -110,13 +110,12 @@ void Profiler::set_sampling_freq(std::uint32_t sampling_freq) {
     logger->warn("Chose CPU sampling interval range [{0:06d}, {1:06d}) for requested sampling freq {2:d} Hz", itvl_min, itvl_max, sampling_freq);
 }
 
-void Profiler::set_max_stack_depth(std::uint32_t _max_stack_depth) {
-    max_stack_depth = (_max_stack_depth > 0 && _max_stack_depth < (MAX_FRAMES_TO_CAPTURE - 1)) ?
-        _max_stack_depth : DEFAULT_MAX_FRAMES_TO_CAPTURE;
+std::uint32_t Profiler::calculate_max_stack_depth(std::uint32_t _max_stack_depth) {
+    return (_max_stack_depth > 0 && _max_stack_depth < (MAX_FRAMES_TO_CAPTURE - 1)) ? _max_stack_depth : DEFAULT_MAX_FRAMES_TO_CAPTURE;
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft);
+    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts);
     
     buffer = new CircularQueue(*serializer, capture_stack_depth());
 

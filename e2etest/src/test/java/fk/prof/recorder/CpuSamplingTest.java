@@ -204,7 +204,8 @@ public class CpuSamplingTest {
         }
         
         double ratio = (double) blackholeCallSites /  allCallSites;
-        assertThat(ratio, greaterThan(0.9));
+        double expectedMin = 0.9;
+        assertThat("The line-no/bci distribution was somehow not right (expected " + expectedMin + "x calls to be on hot fn call-site, but it was only " + ratio + "x (details: "  + bci_lineNo_Histo + ")", ratio, greaterThan(expectedMin));
     }
 
     private void buildBciLineNoHistogram(SampledStackNode node, Map<ImmutablePair<Integer, Integer>, MutableInt> bci_lineNo_histo, Class klass, String fnName, String sig) {

@@ -1,6 +1,7 @@
 #include "profile_writer.hh"
 #include "buff.hh"
 #include "globals.hh"
+#include "util.hh"
 
 //for buff, no one uses read-end here, so it is inconsistent
 
@@ -134,7 +135,11 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
         }
     }
 
-    for (auto i = 0; i < trace.num_frames; i++) {
+    ss->set_snipped(trace.num_frames > trunc_thresholds.cpu_samples_max_stack_sz);
+
+    if (trace.num_frames < 0) return;
+
+    for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
         auto f = ss->add_frame();
         auto& jvmpi_cf = trace.frames[i];
         //find method
