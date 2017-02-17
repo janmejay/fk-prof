@@ -1,7 +1,7 @@
 #ifndef BUFF_H
 #define BUFF_H
 
-#include "globals.h"
+#include "globals.hh"
 #include <algorithm>
 
 struct Buff { //TODO: test me
