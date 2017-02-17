@@ -35,7 +35,6 @@ public class LeaderElectionParticipator extends AbstractVerticle {
 
   private LeaderSelectorListener createLeaderSelectorListener() {
     return new LeaderSelectorListenerImpl(
-        config().getInteger("leader.sleep.ms"),
         config().getString("leader.watching.path"),
         KillBehavior.valueOf(config().getString("kill.behavior", "DO_NOTHING")),
         leaderElectedTask);
