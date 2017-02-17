@@ -1,0 +1,33 @@
+extends: airbnb
+plugins:
+  - import
+env:
+  browser: true
+globals:
+  __DEV__: false
+settings:
+  import/extensions:
+        - .js
+  import/resolver:
+    webpack:
+      config: webpack.config.js
+rules:
+  import/no-extraneous-dependencies: 0
+  import/no-unresolved: 1
+  import/extensions: 1
+  jsx-a11y/no-static-element-interactions: 0
+  react/prop-types: 2
+  no-unused-expressions: 0
+  react/jsx-filename-extension: 0
+  react/jsx-no-bind: 0
+  no-plusplus: 0
+  react/forbid-prop-types: 0
+  space-before-function-paren: [
+    2,
+    'always',
+  ]
+  no-restricted-syntax: 0
+  dot-notation: 0
+  import/no-webpack-loader-syntax: 0
+  import/first: 0
+  global-require: 0
