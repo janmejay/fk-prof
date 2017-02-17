@@ -8,6 +8,7 @@ import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.http.handler.RecordedProfileRequestHandler;
+import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -24,6 +25,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.LoggerHandler;
 import recording.Recorder;
+
+import java.io.IOException;
 
 public class BackendHttpVerticle extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
@@ -130,6 +133,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       try {
         //Deserialize to proto message to catch payload related errors early
         Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
+        //TODO: Check if backend already knows about this process group and send self as the association, rather than proxying to leader
         makeRequestGetAssociation(leaderIPAddress, processGroup).setHandler(ar -> {
           if(ar.succeeded()) {
             context.response().setStatusCode(ar.result().getStatusCode());
@@ -161,17 +165,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(String leaderIPAddress, Recorder.ProcessGroup payload) {
+  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(String leaderIPAddress, Recorder.ProcessGroup payload)
+      throws IOException {
+    Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(
         HttpMethod.POST,
         leaderIPAddress, leaderPort, ApiPathConstants.LEADER_PUT_ASSOCIATION,
-        Buffer.buffer(payload.toByteArray()));
-  }
-
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestPostLoad(String leaderIPAddress, BackendDTO.LoadReportRequest payload) {
-    return httpClient.requestAsync(
-        HttpMethod.POST,
-        leaderIPAddress, leaderPort, ApiPathConstants.LEADER_POST_LOAD,
-        Buffer.buffer(payload.toByteArray()));
+        payloadAsBuffer);
   }
 }

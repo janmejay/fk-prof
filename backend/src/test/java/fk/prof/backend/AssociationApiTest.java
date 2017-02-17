@@ -5,6 +5,7 @@ import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.backend.http.ConfigurableHttpClient;
 import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -100,7 +101,8 @@ public class AssociationApiTest {
   }
 
   @Test
-  public void getAssociationWhenLeaderNotElected(TestContext context) {
+  public void getAssociationWhenLeaderNotElected(TestContext context)
+      throws IOException {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
     makeRequestGetAssociation(processGroup).setHandler(ar -> {
@@ -114,7 +116,7 @@ public class AssociationApiTest {
   }
 
   @Test
-  public void getAssociationWhenLeaderIsSelf(TestContext context) throws InterruptedException {
+  public void getAssociationWhenLeaderIsSelf(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
     Runnable leaderElectedTask = () -> {
@@ -157,7 +159,7 @@ public class AssociationApiTest {
    * @throws InterruptedException
    */
   @Test
-  public void getAssociationProxiedToLeader(TestContext context) throws InterruptedException {
+  public void getAssociationProxiedToLeader(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
     Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(
@@ -183,24 +185,33 @@ public class AssociationApiTest {
     makeRequestGetAssociation(processGroup).setHandler(ar -> {
       if(ar.succeeded()) {
         context.assertEquals(500, ar.result().getStatusCode());
-        makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build())
-            .setHandler(ar1 -> {
-              context.assertTrue(ar1.succeeded());
-              makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
-                context.assertTrue(ar2.succeeded());
-                System.out.println(ar2.result());
-                context.assertEquals(200, ar2.result().getStatusCode());
-                context.assertEquals("1", ar2.result().getResponse().toString());
-                async.complete();
+        try {
+          makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build())
+              .setHandler(ar1 -> {
+                context.assertTrue(ar1.succeeded());
+                try {
+                  makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+                    context.assertTrue(ar2.succeeded());
+                    System.out.println(ar2.result());
+                    context.assertEquals(200, ar2.result().getStatusCode());
+                    context.assertEquals("1", ar2.result().getResponse().toString());
+                    async.complete();
+                  });
+                } catch (IOException ex) {
+                  context.fail(ex);
+                }
               });
-            });
+        } catch (IOException ex) {
+          context.fail(ex);
+        }
       } else {
         context.fail(ar.cause());
       }
     });
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload) {
+  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+    throws IOException {
     Future<ConfigurableHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
           .post(port, "localhost", "/association")
@@ -213,11 +224,12 @@ public class AssociationApiTest {
             }
           });
         }).exceptionHandler(ex -> future.fail(ex));
-    request.end(Buffer.buffer(payload.toByteArray()));
+    request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestReportLoad(BackendDTO.LoadReportRequest payload) {
+  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestReportLoad(BackendDTO.LoadReportRequest payload)
+      throws IOException {
     Future<ConfigurableHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
         .post(leaderPort, "localhost", "/leader/load")
@@ -232,7 +244,7 @@ public class AssociationApiTest {
         }).exceptionHandler(ex -> {
           future.fail(ex);
         });
-    request.end(Buffer.buffer(payload.toByteArray()));
+    request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
   }
 

@@ -3,6 +3,7 @@ package fk.prof.backend.http;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -14,6 +15,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.LoggerHandler;
 import recording.Recorder;
+
+import java.io.IOException;
 
 public class LeaderHttpVerticle extends AbstractVerticle {
   private BackendAssociationStore backendAssociationStore;
@@ -63,8 +66,13 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
       backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
         if(ar.succeeded()) {
-          Buffer responseBuffer = Buffer.buffer(ar.result().toByteArray());
-          context.response().end(responseBuffer);
+          try {
+            Buffer responseBuffer = ProtoUtil.buildBufferFromProto(ar.result());
+            context.response().end(responseBuffer);
+          } catch (IOException ex) {
+            HttpFailure httpFailure = HttpFailure.failure(ar.cause());
+            HttpHelper.handleFailure(context, httpFailure);
+          }
         } else {
           HttpFailure httpFailure = HttpFailure.failure(ar.cause());
           HttpHelper.handleFailure(context, httpFailure);

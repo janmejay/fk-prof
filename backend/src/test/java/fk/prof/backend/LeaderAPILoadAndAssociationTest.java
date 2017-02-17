@@ -2,6 +2,7 @@ package fk.prof.backend;
 
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -94,7 +95,7 @@ public class LeaderAPILoadAndAssociationTest {
   }
 
   @Test(timeout = 5000)
-  public void reportNewBackendLoad(TestContext context) {
+  public void reportNewBackendLoad(TestContext context) throws IOException {
     makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build())
         .setHandler(ar -> {
           if(ar.succeeded()) {
@@ -118,7 +119,7 @@ public class LeaderAPILoadAndAssociationTest {
    * @param context
    */
   @Test(timeout = 5000)
-  public void getAssociationForProcessGroups(TestContext context) {
+  public void getAssociationForProcessGroups(TestContext context) throws IOException {
     final Async async = context.async();
     BackendDTO.LoadReportRequest loadRequest1 = BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build();
     BackendDTO.LoadReportRequest loadRequest2 = BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.5f).build();
@@ -126,62 +127,85 @@ public class LeaderAPILoadAndAssociationTest {
     makeRequestReportLoad(loadRequest1)
         .setHandler(ar1 -> {
           if(ar1.succeeded()) {
-            makeRequestGetAssociation(mockProcessGroups.get(0))
-                .setHandler(ar2 -> {
-                  if(ar2.succeeded()) {
-                    context.assertEquals("1", ar2.result());
-                    makeRequestGetAssociation(mockProcessGroups.get(1))
-                        .setHandler(ar3 -> {
-                          if(ar3.succeeded()) {
-                            context.assertEquals("1", ar3.result());
-                            makeRequestReportLoad(loadRequest2)
-                                .setHandler(ar4 -> {
-                                  if(ar4.succeeded()) {
-                                    makeRequestGetAssociation(mockProcessGroups.get(2))
-                                        .setHandler(ar5 -> {
-                                          if(ar5.succeeded()) {
-                                            context.assertEquals("2", ar5.result());
-                                            vertx.setTimer(3000, timerId -> {
-                                              makeRequestReportLoad(loadRequest1)
-                                                  .setHandler(ar6 -> {
-                                                    if(ar6.succeeded()) {
-                                                      makeRequestGetAssociation(mockProcessGroups.get(2))
-                                                          .setHandler(ar7 -> {
-                                                            if(ar7.succeeded()) {
-                                                              context.assertEquals("1", ar7.result());
-                                                              async.complete();
-                                                            } else {
-                                                              context.fail(ar7.cause());
-                                                            }
-                                                          });
-                                                    } else {
-                                                      context.fail(ar6.cause());
-                                                    }
-                                                  });
-                                            });
-                                          } else {
-                                            context.fail(ar5.cause());
+            try {
+              makeRequestGetAssociation(mockProcessGroups.get(0))
+                  .setHandler(ar2 -> {
+                    if (ar2.succeeded()) {
+                      context.assertEquals("1", ar2.result());
+                      try {
+                        makeRequestGetAssociation(mockProcessGroups.get(1))
+                            .setHandler(ar3 -> {
+                              if (ar3.succeeded()) {
+                                context.assertEquals("1", ar3.result());
+                                try {
+                                  makeRequestReportLoad(loadRequest2)
+                                      .setHandler(ar4 -> {
+                                        if (ar4.succeeded()) {
+                                          try {
+                                            makeRequestGetAssociation(mockProcessGroups.get(2))
+                                                .setHandler(ar5 -> {
+                                                  if (ar5.succeeded()) {
+                                                    context.assertEquals("2", ar5.result());
+                                                    vertx.setTimer(3000, timerId -> {
+                                                      try {
+                                                        makeRequestReportLoad(loadRequest1)
+                                                            .setHandler(ar6 -> {
+                                                              if (ar6.succeeded()) {
+                                                                try {
+                                                                  makeRequestGetAssociation(mockProcessGroups.get(2))
+                                                                      .setHandler(ar7 -> {
+                                                                        if (ar7.succeeded()) {
+                                                                          context.assertEquals("1", ar7.result());
+                                                                          async.complete();
+                                                                        } else {
+                                                                          context.fail(ar7.cause());
+                                                                        }
+                                                                      });
+                                                                } catch (IOException ex) {
+                                                                  context.fail(ex);
+                                                                }
+                                                              } else {
+                                                                context.fail(ar6.cause());
+                                                              }
+                                                            });
+                                                      } catch (IOException ex) {
+                                                        context.fail(ex);
+                                                      }
+                                                    });
+                                                  } else {
+                                                    context.fail(ar5.cause());
+                                                  }
+                                                });
+                                          } catch (IOException ex) {
+                                            context.fail(ex);
                                           }
-                                        });
-                                  } else {
-                                    context.fail(ar4.cause());
-                                  }
-                                });
-                          } else {
-                            context.fail(ar3.cause());
-                          }
-                        });
-                  } else {
-                    context.fail(ar2.cause());
-                  }
-                });
+                                        } else {
+                                          context.fail(ar4.cause());
+                                        }
+                                      });
+                                } catch (IOException ex) {
+                                  context.fail(ex);
+                                }
+                              } else {
+                                context.fail(ar3.cause());
+                              }
+                            });
+                      } catch (IOException ex) {
+                        context.fail(ex);
+                      }
+                    } else {
+                      context.fail(ar2.cause());
+                    }
+                  });
+            } catch (IOException ex) { context.fail(ex); }
           } else {
             context.fail(ar1.cause());
           }
         });
   }
 
-  private Future<Recorder.ProcessGroups> makeRequestReportLoad(BackendDTO.LoadReportRequest payload) {
+  private Future<Recorder.ProcessGroups> makeRequestReportLoad(BackendDTO.LoadReportRequest payload)
+      throws IOException {
     Future<Recorder.ProcessGroups> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
         .post(port, "localhost", "/leader/load")
@@ -197,11 +221,12 @@ public class LeaderAPILoadAndAssociationTest {
         }).exceptionHandler(ex -> {
           future.fail(ex);
         });
-    request.end(Buffer.buffer(payload.toByteArray()));
+    request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
   }
 
-  private Future<String> makeRequestGetAssociation(Recorder.ProcessGroup payload) {
+  private Future<String> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+      throws IOException {
     Future<String> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
         .post(port, "localhost", "/leader/association")
@@ -214,7 +239,7 @@ public class LeaderAPILoadAndAssociationTest {
             }
           });
         }).exceptionHandler(ex -> future.fail(ex));
-    request.end(Buffer.buffer(payload.toByteArray()));
+    request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
   }
 
