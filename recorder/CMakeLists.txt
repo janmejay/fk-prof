@@ -60,52 +60,52 @@ endif()
 include_directories("/usr/include/i386-linux-gnu/c++/4.8/")
 
 set(SOURCE_FILES
-    ${SRC}/agent.cpp
-    ${SRC}/checksum.cpp
-    ${SRC}/checksum.h
-    ${SRC}/circular_queue.cpp
-    ${SRC}/circular_queue.h
-    ${SRC}/common.cpp
-    ${SRC}/common.h
-    ${SRC}/controller.cpp
-    ${SRC}/controller.h
-    ${SRC}/globals.h
-    ${SRC}/log_writer.cpp
-    ${SRC}/log_writer.h
-    ${SRC}/signal_handler.cpp
-    ${SRC}/signal_handler.h
-    ${SRC}/processor.cpp
-    ${SRC}/processor.h
-    ${SRC}/profiler.cpp
-    ${SRC}/profiler.h
-    ${SRC}/stacktraces.h
-    ${SRC}/trace.h
-    ${SRC}/thread_map.h
-    ${SRC}/thread_map.cpp
-    ${SRC}/concurrent_map.h
-    ${SRC}/concurrent_map.cpp
-    ${SRC}/profile_writer.cpp
-    ${SRC}/profile_writer.h
+    ${SRC}/agent.cc
+    ${SRC}/checksum.cc
+    ${SRC}/checksum.hh
+    ${SRC}/circular_queue.cc
+    ${SRC}/circular_queue.hh
+    ${SRC}/common.cc
+    ${SRC}/common.hh
+    ${SRC}/controller.cc
+    ${SRC}/controller.hh
+    ${SRC}/globals.hh
+    ${SRC}/log_writer.cc
+    ${SRC}/log_writer.hh
+    ${SRC}/signal_handler.cc
+    ${SRC}/signal_handler.hh
+    ${SRC}/processor.cc
+    ${SRC}/processor.hh
+    ${SRC}/profiler.cc
+    ${SRC}/profiler.hh
+    ${SRC}/stacktraces.hh
+    ${SRC}/trace.hh
+    ${SRC}/thread_map.hh
+    ${SRC}/thread_map.cc
+    ${SRC}/concurrent_map.hh
+    ${SRC}/concurrent_map.cc
+    ${SRC}/profile_writer.cc
+    ${SRC}/profile_writer.hh
     ${SRC}/config.hh
     ${SRC}/config.cc)
 
 set(TEST_FILES
-    ${SRC_TEST}/fixtures.h
-    ${SRC_TEST}/test_circular_queue.cpp
-    ${SRC_TEST}/test_log_writer.cpp
-    ${SRC_TEST}/test_agent.cpp
-    ${SRC_TEST}/test.h
-    ${SRC_TEST}/test_recording_serde.cpp
-    ${SRC_TEST}/test_checksum.cpp
-    ${SRC_TEST}/test_maps.cpp)
+    ${SRC_TEST}/fixtures.hh
+    ${SRC_TEST}/test_circular_queue.cc
+    ${SRC_TEST}/test_log_writer.cc
+    ${SRC_TEST}/test_agent.cc
+    ${SRC_TEST}/test.hh
+    ${SRC_TEST}/test_recording_serde.cc
+    ${SRC_TEST}/test_checksum.cc
+    ${SRC_TEST}/test_maps.cc)
 
 set(TEST_UTIL_FILES
-    ${SRC_TEST}/test_profile.h
-    ${SRC_TEST}/test_profile.cpp)
+    ${SRC_TEST}/test_profile.hh
+    ${SRC_TEST}/test_profile.cc)
 
 set(TEST_JNI_FILES
-    ${SRC_TEST}/test_jni.h
-    ${SRC_TEST}/test_jni.cpp)
+    ${SRC_TEST}/test_jni.hh
+    ${SRC_TEST}/test_jni.cc)
 
 ##########################################################
 # Compiler Options
@@ -156,7 +156,7 @@ else()
 endif()
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
-add_executable(unitTests ${TEST_FILES} ${SRC_TEST}/test.cpp)
+add_executable(unitTests ${TEST_FILES} ${SRC_TEST}/test.cc)
 add_library(testjni SHARED ${TEST_JNI_FILES})
 
 if (DEFINED ENV{UNITTEST_LIBRARIES})
