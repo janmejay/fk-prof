@@ -103,7 +103,7 @@ static int write_to_curl_request(char *out_buff, size_t size, size_t nitems, voi
 static int read_from_curl_response(char *in_buff, size_t size, size_t nmemb, void *recv_buff) {
     auto buff = static_cast<Buff*>(recv_buff);
     auto available = size * nmemb;
-    buff->ensure_capacity(available);
+    buff->ensure_free(available);
     memcpy(buff->buff + buff->write_end, in_buff, available);
     buff->write_end += available;
     return available;
@@ -177,7 +177,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
             });
 
         auto serialized_size = p_req.ByteSize();
-        send.ensure_capacity(serialized_size);
+        send.ensure_free(serialized_size);
         p_req.SerializeToArray(send.buff, send.capacity);
         send.read_end = 0;
         send.write_end = serialized_size;
@@ -235,7 +235,7 @@ void Controller::run() {
         recording::RecorderInfo ri;
         populate_recorder_info(ri, cfg, start_time);
         auto serialized_size = ri.ByteSize();
-        send.ensure_capacity(serialized_size);
+        send.ensure_free(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);
         send.write_end = serialized_size;
         send.read_end = 0;

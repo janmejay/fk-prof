@@ -1,6 +1,9 @@
 #ifndef BUFF_H
 #define BUFF_H
 
+#include "globals.hh"
+#include <algorithm>
+
 struct Buff { //TODO: test me
     static const std::uint32_t BUFF_SZ = 0xFFFF;
     std::uint8_t *buff;
@@ -16,14 +19,14 @@ struct Buff { //TODO: test me
         delete[] buff;
     }
 
-    inline void ensure_capacity(std::uint32_t min) {
+    inline void ensure_free(std::uint32_t min_available) {
         assert(write_end >= read_end);
-        if (capacity < min) {
-            std::uint32_t new_capacity = min * 2;
+        if ((capacity - write_end) < min_available) {
+            std::uint32_t new_capacity = std::max(capacity, min_available) * 2;
             std::uint8_t* bigger_buff = new std::uint8_t[new_capacity];
             assert(bigger_buff != nullptr);
             if ((write_end - read_end) > 0) {
-                memcpy(bigger_buff, buff, write_end - read_end);
+                memcpy(bigger_buff, buff + read_end, write_end - read_end);
                 write_end = write_end - read_end;
                 read_end = 0;
             } else {

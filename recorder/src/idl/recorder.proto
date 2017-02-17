@@ -156,6 +156,7 @@ message StackSample {
   optional int64 thread_id = 2;
   repeated Frame frame = 3;
   repeated uint32 trace_id = 4;
+  required bool snipped = 5;
   enum Error {
     ticks_no_Java_frame         = 0;
     ticks_no_class_load         = 1;
@@ -169,7 +170,7 @@ message StackSample {
     ticks_deopt                 = 9;
     ticks_safepoint             = 10;
   }
-  optional Error error = 5;
+  optional Error error = 6;
 }
 
 message Frame {

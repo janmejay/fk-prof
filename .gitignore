@@ -47,3 +47,9 @@ cscope.*
 
 .#*
 core
+# ui
+npm-debug.log
+ui/public/*
+
+#Ignore logs directory
+backend/logs/

@@ -1,7 +1,7 @@
 package fk.prof.recorder.main;
 
 public class SleepForever {
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         //noinspection InfiniteLoopStatement
         while (true) {
             try {
