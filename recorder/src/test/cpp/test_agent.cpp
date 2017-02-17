@@ -5,47 +5,77 @@
 #include "test.h"
 #include "../../main/cpp/agent.cpp"
 
-TEST(ParseSetsDefaultOptions) {
-    ConfigurationOptions options;
-    parseArguments((char*) NULL, options);
-    CHECK_EQUAL(options.samplingIntervalMin, DEFAULT_SAMPLING_INTERVAL);
-    CHECK_EQUAL(options.samplingIntervalMax, DEFAULT_SAMPLING_INTERVAL);
-    CHECK(!options.logFilePath);
+TEST(ParsesAllOptions) {
+    std::string str("service_endpoint=http://10.20.30.40:9070,"
+                    "ip=50.60.70.80,"
+                    "host=foo.host,"
+                    "appid=bar_app,"
+                    "igrp=baz_grp,"
+                    "cluster=quux_cluster,"
+                    "instid=corge_iid,"
+                    "proc=grault_proc,"
+                    "vmid=garply_vmid,"
+                    "zone=waldo_zone,"
+                    "ityp=c0.medium,"
+                    "backoffStart=2,"
+                    "backoffMultiplier=3,"
+                    "maxRetries=7,"
+                    "backoffMax=15,"
+                    "logLvl=warn,"
+                    "pollItvl=30");
+    
+    ConfigurationOptions options(str.c_str());
+    CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
+    CHECK_EQUAL("50.60.70.80", options.ip);
+    CHECK_EQUAL("foo.host", options.host);
+    CHECK_EQUAL("bar_app", options.app_id);
+    CHECK_EQUAL("baz_grp", options.inst_grp);
+    CHECK_EQUAL("quux_cluster", options.cluster);
+    CHECK_EQUAL("corge_iid", options.inst_id);
+    CHECK_EQUAL("grault_proc", options.proc);
+    CHECK_EQUAL("garply_vmid", options.vm_id);
+    CHECK_EQUAL("waldo_zone", options.zone);
+    CHECK_EQUAL("c0.medium", options.inst_typ);
+    CHECK_EQUAL(2, options.backoff_start);
+    CHECK_EQUAL(3, options.backoff_multiplier);
+    CHECK_EQUAL(7, options.max_retries);
+    CHECK_EQUAL(15, options.backoff_max);
+    CHECK_EQUAL(spdlog::level::warn, options.log_level);
+    CHECK_EQUAL(30, options.poll_itvl);
+
 }
 
-TEST(ParsesSamplingInterval) {
-    ConfigurationOptions options;
-    parseArguments((char *) "interval=10", options);
-    CHECK_EQUAL(10, options.samplingIntervalMin);
-    CHECK_EQUAL(10, options.samplingIntervalMax);
-
-    parseArguments((char *) "intervalMin=12,intervalMax=17", options);
-    CHECK_EQUAL(12, options.samplingIntervalMin);
-    CHECK_EQUAL(17, options.samplingIntervalMax);
-}
-
-TEST(ParsesLogPath) {
-    ConfigurationOptions options;
-    char* string = (char *) "logPath=/home/richard/log.hpl";
-    parseArguments(string, options);
-    CHECK(options.logFilePath > (string + strlen(string)));
-    CHECK_EQUAL("/home/richard/log.hpl", options.logFilePath);
-}
-
-TEST(ParsesMultipleArguments) {
-    ConfigurationOptions options;
-    char* string = (char *) "interval=10,logPath=/home/richard/log.hpl";
-    parseArguments(string, options);
-    CHECK_EQUAL(10, options.samplingIntervalMin);
-    CHECK_EQUAL(10, options.samplingIntervalMax);
-    CHECK_EQUAL("/home/richard/log.hpl", options.logFilePath);
-    safe_free_string(options.logFilePath);
-
-    string = (char *) "logPath=/home/richard/log.hpl,interval=10";
-    parseArguments(string, options);
-    CHECK_EQUAL(10, options.samplingIntervalMin);
-    CHECK_EQUAL(10, options.samplingIntervalMax);
-    CHECK_EQUAL("/home/richard/log.hpl", options.logFilePath);
+TEST(DefaultAppropriately) {
+    std::string str("service_endpoint=http://10.20.30.40:9070,"
+                    "ip=50.60.70.80,"
+                    "host=foo.host,"
+                    "appid=bar_app,"
+                    "igrp=baz_grp,"
+                    "cluster=quux_cluster,"
+                    "instid=corge_iid,"
+                    "proc=grault_proc,"
+                    "vmid=garply_vmid,"
+                    "zone=waldo_zone,"
+                    "ityp=c0.medium");
+    
+    ConfigurationOptions options(str.c_str());
+    CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
+    CHECK_EQUAL("50.60.70.80", options.ip);
+    CHECK_EQUAL("foo.host", options.host);
+    CHECK_EQUAL("bar_app", options.app_id);
+    CHECK_EQUAL("baz_grp", options.inst_grp);
+    CHECK_EQUAL("quux_cluster", options.cluster);
+    CHECK_EQUAL("corge_iid", options.inst_id);
+    CHECK_EQUAL("grault_proc", options.proc);
+    CHECK_EQUAL("garply_vmid", options.vm_id);
+    CHECK_EQUAL("waldo_zone", options.zone);
+    CHECK_EQUAL("c0.medium", options.inst_typ);
+    CHECK_EQUAL(5, options.backoff_start);
+    CHECK_EQUAL(2, options.backoff_multiplier);
+    CHECK_EQUAL(3, options.max_retries);
+    CHECK_EQUAL(10 * 60, options.backoff_max);
+    CHECK_EQUAL(spdlog::level::info, options.log_level);
+    CHECK_EQUAL(60, options.poll_itvl);
 }
 
 TEST(SafelyTerminatesStrings) {

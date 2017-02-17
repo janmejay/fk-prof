@@ -14,41 +14,60 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <jvmti.h>
+#include <atomic>
+#include "profile_writer.h"
+#include "config.hh"
+#include <functional>
 
 #define MAX_DATA_SIZE 100
 
 class Controller {
 public:
-    explicit Controller(JavaVM *jvm, jvmtiEnv *jvmti, Profiler *profiler, ConfigurationOptions *configuration) :
-            jvm_(jvm), jvmti_(jvmti), profiler_(profiler), configuration_(configuration), isRunning_(false) {
-
+    explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
+        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), running(false) {
+        current_work.set_work_id(0);
+        current_work_state = recording::WorkResponse::complete;
+        current_work_result = recording::WorkResponse::success;
     }
 
     void start();
 
     void stop();
 
-    void run();
+    bool is_running() const;
 
-    bool isRunning() const;
+    friend void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 
 private:
-    JavaVM *jvm_;
-    jvmtiEnv *jvmti_;
-    Profiler *profiler_;
-    ConfigurationOptions *configuration_;
-    std::atomic_bool isRunning_;
-
+    JavaVM *jvm;
+    jvmtiEnv *jvmti;
+    ThreadMap& thread_map;
+    ConfigurationOptions& cfg;
+    Profiler *profiler;
+    std::atomic_bool running;
+    Buff buff;
+    ProfileWriter *writer;
+    
+    std::mutex current_work_mtx;
+    typedef recording::WorkAssignment W;
+    typedef recording::WorkResponse::WorkState WSt;
+    typedef recording::WorkResponse::WorkResult WRes;
+    W current_work;
+    WSt current_work_state;
+    WRes current_work_result;
+    std::string current_work_description;
 
     void startSampling();
 
     void stopSampling();
 
-    void reportStatus(int clientConnection);
+    void run();
+    
+    void run_with_associate(const Buff& associate_response_buff, const std::chrono::time_point<std::chrono::steady_clock>& start_time);
 
-    void getProfilerParam(int clientConnection, char *param);
+    void accept_work(Buff& poll_response_buff);
 
-    void setProfilerParam(char *paramDesc);
+    void with_current_work(std::function<void(W&, WSt&, WRes&, std::string&)> proc);
 };
 
 #endif

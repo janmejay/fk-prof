@@ -38,7 +38,7 @@ message WorkResponse {
   required uint64 work_id = 1;
   enum WorkState {
     pre_start = 0;
-    start = 1;
+    running = 1;
     complete = 2;
   }
   required WorkState work_state = 2;
@@ -48,7 +48,6 @@ message WorkResponse {
     failure = 2;
   }
   required WorkResult work_result = 3;
-  required string data_payload_key = 4;
   required uint32 elapsed_time = 5;
 }
 

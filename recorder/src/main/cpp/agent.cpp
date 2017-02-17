@@ -5,6 +5,7 @@
 #include <jvmti.h>
 
 #include "globals.h"
+#include "config.hh"
 #include "thread_map.h"
 #include "profiler.h"
 #include "controller.h"
@@ -13,10 +14,11 @@
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
 #endif
 
+LoggerP logger(nullptr);
 static ConfigurationOptions* CONFIGURATION;
-static Profiler* prof;
 static Controller* controller;
 static ThreadMap threadMap;
+
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -68,9 +70,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     }
 
 #ifndef GETENV_NEW_THREAD_ASYNC_UNSAFE
-    if (CONFIGURATION->host != NULL && CONFIGURATION->port != NULL) {
-        controller->start();
-    }
+    controller->start();
 #endif
 }
 
@@ -89,8 +89,7 @@ void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
 
-    if (prof->isRunning())
-        prof->stop();
+    controller->stop();
 }
 
 static bool PrepareJvmti(jvmtiEnv *jvmti) {
@@ -195,9 +194,6 @@ void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread)
         if (!main_started) {
             if (strcmp(thread_info.name, "main") == 0) {
                 main_started = true;
-                if (CONFIGURATION->start) {
-                    prof->start(jni_env);
-                }
             }
         }
         threadMap.put(jni_env, thread_info.name);
@@ -266,42 +262,9 @@ char *safe_copy_string(const char *value, const char *next) {
 }
 
 void safe_free_string(char *&value) {
-    /** Prevent Profiler from calling delete/free explicitly when string goes
-     *  out of the scope. */
-    free(value);
-    value = NULL;
-}
-
-static void parseArguments(char *options, ConfigurationOptions &configuration) {
-    char* next = options;
-    for (char *key = options; next != NULL; key = next + 1) {
-        char *value = strchr(key, '=');
-        next = strchr(key, ',');
-        if (value == NULL) {
-            logError("WARN: No value for key %s\n", key);
-            continue;
-        } else {
-            value++;
-            if (strstr(key, "intervalMin") == key) {
-                configuration.samplingIntervalMin = atoi(value);
-            } else if (strstr(key, "intervalMax") == key) {
-                configuration.samplingIntervalMax = atoi(value);
-            } else if (strstr(key, "interval") == key) {
-                configuration.samplingIntervalMin = configuration.samplingIntervalMax = atoi(value);
-            } else if (strstr(key, "logPath") == key) {
-                configuration.logFilePath = safe_copy_string(value, next);
-            } else if (strstr(key, "start") == key) {
-                configuration.start = atoi(value);
-            } else if (strstr(key, "host") == key) {
-                configuration.host = safe_copy_string(value, next);
-            } else if (strstr(key, "port") == key) {
-                configuration.port = safe_copy_string(value, next);
-            } else if (strstr(key, "maxFrames") == key) {
-                configuration.maxFramesToCapture = atoi(value);
-            } else {
-                logError("WARN: Unknown configuration option: %s\n", key);
-            }
-        }
+    if (value != NULL) {
+        free(value);
+        value = NULL;
     }
 }
 
@@ -309,8 +272,14 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     IMPLICITLY_USE(reserved);
     int err;
     jvmtiEnv *jvmti;
-    CONFIGURATION = new ConfigurationOptions();
-    parseArguments(options, *CONFIGURATION);
+    logger = spdlog::syslog_logger("syslog", "fk-prof-rec", LOG_PID);
+    
+    CONFIGURATION = new ConfigurationOptions(options);
+
+    logger->set_level(CONFIGURATION->log_level);
+
+    
+    if (! CONFIGURATION->valid()) return 1;
 
     if ((err = (jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION))) !=
             JNI_OK) {
@@ -343,8 +312,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     Asgct::SetAsgct(Accessors::GetJvmFunction<ASGCTType>("AsyncGetCallTrace"));
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
 
-    prof = new Profiler(jvm, jvmti, CONFIGURATION, threadMap);
-    controller = new Controller(jvm, jvmti, prof, CONFIGURATION);
+    controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
     return 0;
 }
@@ -352,16 +320,10 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
     IMPLICITLY_USE(vm);
 
-    if (controller->isRunning())
-        controller->stop();
+    controller->stop();
 
     delete controller;
-    delete prof;
     delete CONFIGURATION;
-}
-
-void bootstrapHandle(int signum, siginfo_t *info, void *context) {
-    prof->handle(signum, info, context);
 }
 
 void logError(const char *__restrict format, ...) {
@@ -370,12 +332,4 @@ void logError(const char *__restrict format, ...) {
     va_start(arg, format);
     vfprintf(stderr, format, arg);
     va_end(arg);
-}
-
-Profiler *getProfiler() {
-    return prof;
-}
-
-void setProfiler(Profiler *p) {
-    prof = p;
 }

@@ -1,78 +1,48 @@
 #include <google/protobuf/io/coded_stream.h>
 #include "checksum.h"
 #include "recorder.pb.h"
+#include "buff.h"
 
-template <int Version, class Writer> class ProfileWriter {
+#ifndef PROFILE_WRITER_H
+#define PROFILE_WRITER_H
+
+class RawWriter {
+public:
+    RawWriter() {}
+    virtual ~RawWriter() {}
+    virtual void write_unbuffered(const std::uint8_t* data, std::uint32_t sz, std::uint32_t offset) = 0;
+};
+
+class ProfileWriter {
 private:
     //MIN_FREE_BUFF should accomodate atleast 4 varint32 values
-    static const std::uint32_t MIN_FREE_BUFF = 64, BUFF_SZ = 0xFFFF;
+    static const std::uint32_t MIN_FREE_BUFF = 64;
 
-    Writer& _w;
+    RawWriter& w;
     Checksum chksum;
-    std::uint8_t *data;
-    std::uint32_t data_capacity, data_offset;
+    Buff &data;
     bool header_written;
 
-    inline void flush() {
-        _w.write_unbuffered(data, data_offset, 0); //TODO: err-check me!
-    }
+    void flush();
 
-    inline std::uint32_t ensure_freebuff(std::uint32_t min_reqired) {
-        if ((data_offset + min_reqired) > data_capacity) {
-            flush();
-            data_offset = 0;
-            if (min_reqired > data_capacity) {
-                delete data;
-                data_capacity = min_reqired * 2;
-                data = new std::uint8_t[data_capacity];
-            }
-        }
-        return data_capacity - data_offset;
-    }
+    std::uint32_t ensure_freebuff(std::uint32_t min_reqired);
 
-    template <class T> inline std::uint32_t ensure_freebuff(const T& value) {
-        auto sz = value.ByteSize();
-        return ensure_freebuff(sz + MIN_FREE_BUFF);
-    }
+    template <class T> std::uint32_t ensure_freebuff(const T& value);
     
-    inline void write_unchecked(std::uint32_t value) {
-        auto _data = google::protobuf::io::CodedOutputStream::WriteVarint32ToArray(value, data + data_offset);
-        data_offset = _data - data;
-    }
+    void write_unchecked(std::uint32_t value);
 
-    template <class T> inline void write_unchecked_obj(const T& value) {
-        auto sz = value.ByteSize();
-        write_unchecked(sz);
-        if (! value.SerializeToArray(data + data_offset, sz)) {
-            //TODO: handle this error
-        }
-        data_offset += sz;
-    }
+    template <class T> void write_unchecked_obj(const T& value);
 
 public:
-    ProfileWriter(Writer& w) : _w(w), data(new std::uint8_t[BUFF_SZ]), data_capacity(BUFF_SZ), data_offset(0), header_written(false) {}
+    ProfileWriter(RawWriter& _w, Buff& _data) : w(_w), data(_data), header_written(false) {
+        data.write_end = data.read_end = 0;
+    }
     ~ProfileWriter() {
         flush();
-        delete data;
     }
 
-    void write_header(const recording::RecordingHeader& rh) {
-        assert(! header_written);
-        header_written = true;
-        ensure_freebuff(rh);
-        write_unchecked(Version);
-        write_unchecked_obj(rh);
-        auto csum = chksum.chksum(data, data_offset);
-        write_unchecked(csum);
-    }
+    void write_header(const recording::RecordingHeader& rh);
 
-    void append_wse(const recording::Wse& e) {
-        ensure_freebuff(e);
-        auto old_offset = data_offset;
-        write_unchecked_obj(e);
-        chksum.reset();
-        auto data_sz = data_offset - old_offset;
-        auto csum = chksum.chksum(data + old_offset, data_sz);
-        write_unchecked(csum);
-    }
+    void append_wse(const recording::Wse& e);
 };
+#endif

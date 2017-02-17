@@ -29,7 +29,7 @@ void add_frames_for(const std::initializer_list<const std::string>& frame_fn_nam
     }
 }
 
-class TestRecordingWriter {
+class TestRecordingWriter : public RawWriter {
 private:
     std::ofstream ofs;
 public:
@@ -45,7 +45,8 @@ public:
 
 void write_to_file(const recording::RecordingHeader& rh, const std::initializer_list<const recording::Wse*> entries, const std::string& profile_data_file) {
     TestRecordingWriter w(profile_data_file);
-    ProfileWriter<1, TestRecordingWriter> rec_w(w);
+    Buff buff;
+    ProfileWriter rec_w(w, buff);
     rec_w.write_header(rh);
     for (auto e : entries) {
         rec_w.append_wse(*e);

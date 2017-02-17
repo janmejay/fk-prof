@@ -34,14 +34,17 @@ public class AgentRunner {
     private static final Logger logger = LoggerFactory.getLogger(AgentRunner.class);
     public static final String DEFAULT_AGENT_INTERVAL = "interval=100";
 
-    private final String className;
+    private final String fqdn;
     private final String args;
 
     private Process process;
     private int processId;
 
-    private AgentRunner(final String className, final String args) {
-        this.className = className;
+    public AgentRunner(final String fqdn, final String args) {
+        if (! fqdn.contains(".nodep.")) {
+            throw new IllegalArgumentException("Agent JVM can only launch with classes in 'nodep' package, its classpath setup doesn't understand dependencies yet.");
+        }
+        this.fqdn = fqdn;
         this.args = args;
     }
 
@@ -67,30 +70,22 @@ public class AgentRunner {
         }
     }
 
-    private void start() throws IOException {
+    public void start() throws IOException {
         startProcess();
-        readProcessId();
+        //readProcessId();
     }
 
     private void startProcess() throws IOException {
         String java = System.getProperty("java.home") + "/bin/java";
-        String agentArg = "-agentpath:build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
+        String agentArg = "-agentpath:../recorder/build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
         process = new ProcessBuilder()
-                .command(java, agentArg, "-cp", "target/classes/", className)
+                .command(java, agentArg, "-cp", "./target/test-classes/", fqdn)
                 .redirectError(new File("/tmp/error.log"))
                 .start();
     }
 
-    private void readProcessId() throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line = reader.readLine();
-            System.out.println(line);
-            processId = parseInt(line);
-        }
-    }
-
-    private void stop() {
+    public void stop() {
         process.destroy();
         try {
             process.waitFor();

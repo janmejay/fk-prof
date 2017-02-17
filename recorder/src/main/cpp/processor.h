@@ -20,10 +20,8 @@ TRACE_DECLARE(Processor, kTraceProcessorTotal);
 class Processor {
 
 public:
-    explicit Processor(jvmtiEnv* jvmti, LogWriter& logWriter,
-                       CircularQueue& buffer, SignalHandler& handler, int interval)
-        : jvmti_(jvmti), logWriter_(logWriter), buffer_(buffer),
-          isRunning_(false), handler_(handler), interval_(interval) {
+    explicit Processor(jvmtiEnv* jvmti, CircularQueue& buffer, SignalHandler& handler, int interval)
+        : jvmti_(jvmti), buffer_(buffer), isRunning_(false), handler_(handler), interval_(interval) {
     }
 
     void start(JNIEnv *jniEnv);
@@ -36,8 +34,6 @@ public:
 
 private:
     jvmtiEnv* jvmti_;
-
-    LogWriter& logWriter_;
 
     CircularQueue& buffer_;
 

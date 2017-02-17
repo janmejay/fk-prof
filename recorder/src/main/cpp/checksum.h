@@ -1,5 +1,8 @@
 #include <cstdint>
 
+#ifndef CHECKSUM_H
+#define CHECKSUM_H
+
 class Checksum {
 private:
     std::uint64_t adler;
@@ -13,3 +16,4 @@ public:
 
     void reset();
 };
+#endif

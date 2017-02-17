@@ -17,9 +17,7 @@ TRACE_DEFINE_BEGIN(Profiler, kTraceProfilerTotal)
 TRACE_DEFINE_END(Profiler, kTraceProfilerTotal);
 
 
-bool Profiler::lookupFrameInformation(const JVMPI_CallFrame &frame,
-                                      jvmtiEnv *jvmti,
-                                      MethodListener &logWriter) {
+bool Profiler::lookup_frame_information(const JVMPI_CallFrame &frame, jvmtiEnv *jvmti, MethodListener &logWriter) {
     jint error;
     JvmtiScopedPtr<char> methodName(jvmti);
 
@@ -69,18 +67,26 @@ bool Profiler::lookupFrameInformation(const JVMPI_CallFrame &frame,
     return true;
 }
 
+static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
+    if (GlobalCtx::recording.on.load(std::memory_order_acquire)) {
+        GlobalCtx::recording.profiler->handle(signum, info, context);
+    } else {
+        logger->warn("Received profiling signal while recording is off! Something wrong?");
+    }
+}
+
 void Profiler::handle(int signum, siginfo_t *info, void *context) {
-    IMPLICITLY_USE(signum);
+    IMPLICITLY_USE(signum);//TODO: make this reenterant or implement try_lock+backoff
     IMPLICITLY_USE(info);
-    SimpleSpinLockGuard<false> guard(ongoingConf); // sync buffer
+    SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer
     ThreadBucket *threadInfo;
 
     // sample data structure
-    STATIC_ARRAY(frames, JVMPI_CallFrame, configuration_->maxFramesToCapture, MAX_FRAMES_TO_CAPTURE);
+    STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
     JVMPI_CallTrace trace;
     trace.frames = frames;
-    JNIEnv *jniEnv = getJNIEnv(jvm_);
+    JNIEnv *jniEnv = getJNIEnv(jvm);
     if (jniEnv == NULL) {
         IsGCActiveType is_gc_active = Asgct::GetIsGCActive();
         trace.num_frames = ((is_gc_active != NULL) &&
@@ -89,15 +95,15 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     } else {
         trace.env_id = jniEnv;
         ASGCTType asgct = Asgct::GetAsgct();
-        (*asgct)(&trace, configuration_->maxFramesToCapture, context);
-        threadInfo = tMap_.get(jniEnv);
+        (*asgct)(&trace, capture_stack_depth(), context);
+        threadInfo = thread_map.get(jniEnv);
     }
     // log all samples, failures included, let the post processing sift through the data
     buffer->push(trace, threadInfo);
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {
-    SimpleSpinLockGuard<true> guard(ongoingConf);
+    SimpleSpinLockGuard<true> guard(ongoing_conf);
     /* within critical section */
 
     if (__is_running()) {
@@ -108,36 +114,25 @@ bool Profiler::start(JNIEnv *jniEnv) {
 
     TRACE(Profiler, kTraceProfilerStartOk);
 
-    if (reloadConfig)
-        configure();
-
     // reference back to Profiler::handle on the singleton
     // instance of Profiler
-    handler_->SetAction(&bootstrapHandle);
+    handler->SetAction(&handle_profiling_signal);
     processor->start(jniEnv);
-    bool res = handler_->updateSigprofInterval();
+    bool res = handler->updateSigprofInterval();
     return res;
 }
 
 void Profiler::stop() {
     /* Make sure it doesn't overlap with configure */
-    SimpleSpinLockGuard<true> guard(ongoingConf);
+    SimpleSpinLockGuard<true> guard(ongoing_conf);
 
     if (!__is_running()) {
         TRACE(Profiler, kTraceProfilerStopFailed);
         return;
     }
 
-    handler_->stopSigprof();
+    handler->stopSigprof();
     processor->stop();
-    signal(SIGPROF, SIG_IGN);
-}
-
-bool Profiler::isRunning() {
-    /* Make sure it doesn't overlap with configure */
-    SimpleSpinLockGuard<true> guard(ongoingConf, false);
-    bool res = __is_running();
-    return res;
 }
 
 // non-blocking version (cen be called once spin-lock with acquire semantics is grabed)
@@ -145,154 +140,36 @@ bool Profiler::__is_running() {
     return processor && processor->isRunning();
 }
 
-void Profiler::setFilePath(char *newFilePath) {
-    /* Make sure it doesn't overlap with other sets */
-    SimpleSpinLockGuard<true> guard(ongoingConf);
-
-    if (__is_running()) {
-        TRACE(Profiler, kTraceProfilerSetFileFailed);
-        logError("WARN: Unable to modify running profiler\n");
-        return;
-    }
-
-    TRACE(Profiler, kTraceProfilerSetFileOk);
-
-    if (liveConfiguration->logFilePath &&
-            liveConfiguration->logFilePath != configuration_->logFilePath)
-        safe_free_string(liveConfiguration->logFilePath);
-
-    /* make local copy of string */
-    liveConfiguration->logFilePath = newFilePath ? safe_copy_string(newFilePath, NULL) : NULL;
-    reloadConfig = true;
+void Profiler::set_sampling_freq(std::uint32_t sampling_freq) {
+    auto mean_sampling_itvl = 1000000 / sampling_freq;
+    std::uint32_t itvl_10_pct = 0.1 * mean_sampling_itvl;
+    auto itvl_max = mean_sampling_itvl + itvl_10_pct;
+    auto itvl_min = mean_sampling_itvl - itvl_10_pct;
+    itvl_min = itvl_min > 0 ? itvl_min : DEFAULT_SAMPLING_INTERVAL;
+    itvl_max = itvl_max > 0 ? itvl_max : DEFAULT_SAMPLING_INTERVAL;
+    logger->warn("Chose CPU sampling interval range [{0:06d}, {1:06d}) for requested sampling freq {2:d} Hz", itvl_min, itvl_max, sampling_freq);
 }
 
-void Profiler::setSamplingInterval(int intervalMin, int intervalMax) {
-    /* Make sure it doesn't overlap with other sets */
-    SimpleSpinLockGuard<true> guard(ongoingConf);
-
-    if (__is_running()) {
-        TRACE(Profiler, kTraceProfilerSetIntervalFailed);
-        logError("WARN: Unable to modify running profiler\n");
-        return;
-    }
-
-    TRACE(Profiler, kTraceProfilerSetIntervalOk);
-
-    int min = intervalMin > 0 ? intervalMin : DEFAULT_SAMPLING_INTERVAL;
-    int max = intervalMax > 0 ? intervalMax : DEFAULT_SAMPLING_INTERVAL;
-    liveConfiguration->samplingIntervalMin = std::min(min, max);
-    liveConfiguration->samplingIntervalMax = std::max(min, max);
-    reloadConfig = true;
-}
-
-void Profiler::setMaxFramesToCapture(int maxFramesToCapture) {
-    /* Make sure it doesn't overlap with other sets */
-    SimpleSpinLockGuard<true> guard(ongoingConf);
-
-    if (__is_running()) {
-        TRACE(Profiler, kTraceProfilerSetFramesFailed);
-        logError("WARN: Unable to modify running profiler\n");
-        return;
-    }
-
-    TRACE(Profiler, kTraceProfilerSetFramesOk);
-
-    int res = (maxFramesToCapture > 0 && maxFramesToCapture < MAX_FRAMES_TO_CAPTURE) ?
-              maxFramesToCapture : DEFAULT_MAX_FRAMES_TO_CAPTURE;
-    liveConfiguration->maxFramesToCapture = res;
-    reloadConfig = true;
-}
-
-/* return copy of the string */
-std::string Profiler::getFilePath() {
-    /* Make sure it doesn't overlap with setFilePath */
-    SimpleSpinLockGuard<true> guard(ongoingConf, true); // relaxed store
-    std::string res;
-
-    if (liveConfiguration->logFilePath)
-        res = std::string(liveConfiguration->logFilePath);
-
-    return res;
-}
-
-int Profiler::getSamplingIntervalMin() {
-    SimpleSpinLockGuard<false> guard(ongoingConf); // nonblocking
-    return liveConfiguration->samplingIntervalMin;
-}
-
-int Profiler::getSamplingIntervalMax() {
-    SimpleSpinLockGuard<false> guard(ongoingConf); // nonblocking
-    return liveConfiguration->samplingIntervalMax;
-}
-
-int Profiler::getMaxFramesToCapture() {
-    SimpleSpinLockGuard<false> guard(ongoingConf); // nonblocking
-    return liveConfiguration->maxFramesToCapture;
+void Profiler::set_max_stack_depth(int max_stack_depth) {
+    max_stack_depth = (max_stack_depth > 0 && max_stack_depth < (MAX_FRAMES_TO_CAPTURE - 1)) ?
+        max_stack_depth : DEFAULT_MAX_FRAMES_TO_CAPTURE;
 }
 
 void Profiler::configure() {
-    /* nested critical section, no need to acquire or CAS */
-    bool needsUpdate = processor == NULL;
+    serializer = new ProfileSerializer(writer);
+    
+    buffer = new CircularQueue(*serializer, capture_stack_depth());
 
-    needsUpdate = needsUpdate || configuration_->logFilePath != liveConfiguration->logFilePath;
-    if (needsUpdate) {
-        if (logFile) delete logFile;
-        if (writer) delete writer;
-        if (configuration_->logFilePath)
-            safe_free_string(configuration_->logFilePath);
-
-        char *fileName = liveConfiguration->logFilePath;
-        string fileNameStr;
-        if (fileName == NULL) {
-            ostringstream fileBuilder;
-            long epochMillis = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-            fileBuilder << "log-" << pid << "-" << epochMillis << ".hpl";
-            fileNameStr = fileBuilder.str();
-            fileName = (char*)fileNameStr.c_str();
-            configuration_->logFilePath = liveConfiguration->logFilePath = safe_copy_string(fileName, NULL);
-        } else {
-            configuration_->logFilePath = liveConfiguration->logFilePath;
-        }
-
-        logFile = new ofstream(fileName, ofstream::out | ofstream::binary);
-        if (logFile->fail()) {
-            // The JVM will still continue to run though; could call abort() to terminate the JVM abnormally.
-            logError("ERROR: Failed to open file %s for writing\n", fileName);
-        }
-        writer = new LogWriter(*logFile, &Profiler::lookupFrameInformation, jvmti_);
-    }
-
-    needsUpdate = needsUpdate || configuration_->maxFramesToCapture != liveConfiguration->maxFramesToCapture;
-    if (needsUpdate) {
-        if (buffer) delete buffer;
-        configuration_->maxFramesToCapture = liveConfiguration->maxFramesToCapture;
-        buffer = new CircularQueue(*writer, configuration_->maxFramesToCapture);
-    }
-
-    needsUpdate = needsUpdate ||
-                  configuration_->samplingIntervalMin != liveConfiguration->samplingIntervalMin ||
-                  configuration_->samplingIntervalMax != liveConfiguration->samplingIntervalMax;
-    if (needsUpdate) {
-        if (processor) delete processor;
-        if (handler_) delete handler_;
-        configuration_->samplingIntervalMin = liveConfiguration->samplingIntervalMin;
-        configuration_->samplingIntervalMax = liveConfiguration->samplingIntervalMax;
-        handler_ = new SignalHandler(configuration_->samplingIntervalMin, configuration_->samplingIntervalMax);
-        int processor_interval = Size * configuration_->samplingIntervalMin / 1000 / 2;
-        processor = new Processor(jvmti_, *writer, *buffer, *handler_, processor_interval > 0 ? processor_interval : 1);
-    }
-    reloadConfig = false;
+    handler = new SignalHandler(itvl_min, itvl_max);
+    int processor_interval = Size * itvl_min / 1000 / 2;
+    processor = new Processor(jvmti, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
 }
 
 Profiler::~Profiler() {
-    SimpleSpinLockGuard<false> guard(ongoingConf); // nonblocking
-    /* liveConfiguration is managed in agent.cpp */
-    if (liveConfiguration->logFilePath == configuration_->logFilePath)
-        configuration_->logFilePath = NULL;
+    SimpleSpinLockGuard<false> guard(ongoing_conf); // nonblocking
+    if (__is_running()) stop();
     delete processor;
-    delete handler_;
+    delete handler;
     delete buffer;
-    delete writer;
-    delete logFile;
-    delete configuration_;
+    delete serializer;
 }

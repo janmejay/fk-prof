@@ -5,11 +5,36 @@
 #include <stdint.h>
 #include <signal.h>
 
+#define SPDLOG_ENABLE_SYSLOG
+#include <spdlog/spdlog.h>
 
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#define RECORDER_VERION 1
+#define DATA_ENCODING_VERSION 1
+
+typedef std::shared_ptr<spdlog::logger> LoggerP;
+
+extern LoggerP logger;//TODO: stick me in GlobalCtx???
+
 class Profiler;
+
+namespace GlobalCtx {
+    struct {
+        std::atomic<bool> on;
+        Profiler* profiler;
+    } recording;
+
+    struct {
+        std::atomic<bool> known;
+        struct {
+            std::string host;
+            std::uint32_t port;
+        } remote;
+    } associate;
+    
+}
 
 void logError(const char *__restrict format, ...);
 
@@ -28,34 +53,9 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
   #define STATIC_ARRAY(NAME, TYPE, SIZE, MAXSZ) TYPE NAME[SIZE]
 #endif
 
-char *safe_copy_string(const char *value, const char *next);
-void safe_free_string(char *&value);
-
-struct ConfigurationOptions {
-    /** Interval in microseconds */
-    int samplingIntervalMin, samplingIntervalMax;
-    char* logFilePath;
-    char* host;
-    char* port;
-    bool start;
-    int maxFramesToCapture;
-
-    ConfigurationOptions() :
-            samplingIntervalMin(DEFAULT_SAMPLING_INTERVAL),
-            samplingIntervalMax(DEFAULT_SAMPLING_INTERVAL),
-            logFilePath(NULL),
-            host(NULL),
-            port(NULL),
-            start(true),
-            maxFramesToCapture(DEFAULT_MAX_FRAMES_TO_CAPTURE) {
-    }
-
-    virtual ~ConfigurationOptions() {
-      if (logFilePath) safe_free_string(logFilePath);
-      if (host) safe_free_string(host);
-      if (port) safe_free_string(port);
-    }
-};
+template <typename T> const T& min(const T& first, const T& second) {
+    return first > second ? second : first;
+}
 
 #define AGENTEXPORT __attribute__((visibility("default"))) JNIEXPORT
 
