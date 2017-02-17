@@ -180,7 +180,7 @@ public class WorkHandlingTest {
         PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
         poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
         String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
-        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID);
+        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID, CPU_SAMPLING_MAX_FRAMES);
         for (int i = 2; i < poll.length; i++) {
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
@@ -249,7 +249,7 @@ public class WorkHandlingTest {
         PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
         poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
         String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
-        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID);
+        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID, CPU_SAMPLING_MAX_FRAMES);
         for (int i = 2; i < poll.length; i++) {
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
@@ -379,13 +379,13 @@ public class WorkHandlingTest {
         assertWorkStateAndResultIs("UNKNOWN", workLastIssued, expectedId, state, result, elapsedTime);
     }
 
-    public static Function<byte[], byte[]> issueCpuProfilingWork(PollReqWithTime[] pollReqs, int idx, final int duration, final int delay, final String issueTime, final int workId) {
+    public static Function<byte[], byte[]> issueCpuProfilingWork(PollReqWithTime[] pollReqs, int idx, final int duration, final int delay, final String issueTime, final int workId, final int cpuSamplingMaxFrames) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
             Recorder.WorkAssignment.Builder workAssignmentBuilder = prepareWorkAssignment(nowString, builder, idx, delay, duration, CPU_SAMPLING_WORK_DESCRIPTION, workId);
             Recorder.Work.Builder workBuilder = workAssignmentBuilder.addWorkBuilder();
             workBuilder.setWType(Recorder.WorkType.cpu_sample_work).getCpuSampleBuilder()
                     .setFrequency(CPU_SAMPLING_FREQ)
-                    .setMaxFrames(CPU_SAMPLING_MAX_FRAMES);
+                    .setMaxFrames(cpuSamplingMaxFrames);
         }, issueTime);
     }
 

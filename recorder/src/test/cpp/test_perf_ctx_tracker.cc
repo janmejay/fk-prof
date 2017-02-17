@@ -893,8 +893,8 @@ TEST(ThreadPerfCtxTracker__should_track_stacking_merges___as_independent_ctxs___
 
     CHECK_CLOSE(v2_fire_count,  2000, 1000);
     
-    CHECK_CLOSE(v2_fire_count * 5,  v3_fire_count, 1000);
-    CHECK_CLOSE(v3_fire_count,  v5_fire_count * 2, 1000);
+    CHECK_CLOSE(v2_fire_count * 5,  v3_fire_count, 2000);
+    CHECK_CLOSE(v3_fire_count,  v5_fire_count * 2, 1400);
 
     CHECK_EQUAL(v2_fire_count, v2_ret_fire_count);
     CHECK_EQUAL(v3_fire_count, v3_ret_fire_count);

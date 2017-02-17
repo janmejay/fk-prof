@@ -116,7 +116,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
     return std::make_tuple(mid, bci, line);
 }
 
-#define ASSERT_STACK_SAMPLE_IS(ss, time_offset, thd_id, frames, ctx_ids) \
+#define ASSERT_STACK_SAMPLE_IS(ss, time_offset, thd_id, frames, ctx_ids, is_snipped) \
     {                                                                   \
         CHECK_EQUAL(time_offset, ss.start_offset_micros());             \
         CHECK_EQUAL(thd_id, ss.thread_id());                            \
@@ -134,7 +134,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
         for (auto it = ctx_ids.begin(); it != ctx_ids.end(); it++, i++) { \
             CHECK_EQUAL(*it, ss.trace_id(i));                           \
         }                                                               \
-        CHECK_EQUAL(false, ss.snipped());                               \
+        CHECK_EQUAL(is_snipped, ss.snipped());                          \
     }
 
 
@@ -294,13 +294,13 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     CHECK_EQUAL(3, cse.stack_sample_size());
     auto s1 = {fr(d, 10, 1), fr(c, 10, 1), fr(d, 20, 2), fr(c, 20, 2), fr(y, 30, 3)};
     auto s1_ctxs = {5};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs); //TODO: fix this to actually record time-offset, right now we are using zero
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, false); //TODO: fix this to actually record time-offset, right now we are using zero
     auto s2 = {fr(d, 10, 1), fr(c, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s2_ctxs = {6, 7};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 4, s2, s2_ctxs);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 4, s2, s2_ctxs, false);
     auto s3 = {fr(c, 10, 1), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s3_ctxs = {6};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs, false);
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
@@ -410,10 +410,10 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     CHECK_EQUAL(2, cse.stack_sample_size());
     auto s1 = {fr(c, 10, 1), fr(y, 20, 2)};
     auto s1_ctxs = {5};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs); //TODO: fix this to actually record time-offset, right now we are using zero
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, false); //TODO: fix this to actually record time-offset, right now we are using zero
     auto s2 = {fr(y, 10, 1), fr(c, 20, 2)};
     auto s2_ctxs = {6};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 3, s2, s2_ctxs);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 3, s2, s2_ctxs, false);
 }
 
 
@@ -511,7 +511,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     auto s1 = {fr(c, 10, 1), fr(y, 20, 2)};
     auto s1_ctxs = {5};
     for (auto i = 0; i < 10; i++) {
-        ASSERT_STACK_SAMPLE_IS(cse.stack_sample(i), 0, 3, s1, s1_ctxs);
+        ASSERT_STACK_SAMPLE_IS(cse.stack_sample(i), 0, 3, s1, s1_ctxs, false);
     }
 }
 
@@ -654,7 +654,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     auto s0 = {fr(c, 10, 1), fr(y, 20, 2)};
     auto s0_ctxs = {5};
     for (auto i = 0; i < 10; i++) {
-        ASSERT_STACK_SAMPLE_IS(cse0.stack_sample(i), 0, 3, s0, s0_ctxs);
+        ASSERT_STACK_SAMPLE_IS(cse0.stack_sample(i), 0, 3, s0, s0_ctxs, false);
     }
 
     auto idx_data1 = wse1.indexed_data();
@@ -666,7 +666,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
 
     CHECK_EQUAL(5, cse1.stack_sample_size());
     for (auto i = 0; i < 5; i++) {
-        ASSERT_STACK_SAMPLE_IS(cse1.stack_sample(i), 0, 3, s0, s0_ctxs);
+        ASSERT_STACK_SAMPLE_IS(cse1.stack_sample(i), 0, 3, s0, s0_ctxs, false);
     }
 
     auto idx_data2 = wse2.indexed_data();
@@ -687,7 +687,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     auto s1 = {fr(d, 10, 1), fr(y, 20, 2)};
     auto s1_ctxs = {6};
     for (auto i = 0; i < 10; i++) {
-        ASSERT_STACK_SAMPLE_IS(cse2.stack_sample(i), 0, 4, s1, s1_ctxs);
+        ASSERT_STACK_SAMPLE_IS(cse2.stack_sample(i), 0, 4, s1, s1_ctxs, false);
     }
 }
 
@@ -766,3 +766,111 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     }
 }
 
+TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
+    init_logger();
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+    ProfileWriter pw(raw_w_ptr, pw_buff);
+
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+    
+    std::int64_t y = 1, c = 2, d = 3, e = 4, f = 5;
+    stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
+    stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
+    stub(method_lookup_stub, line_no_lookup_stub, e, "x/E.class", "x.E", "fn_e", "(J)I");
+    stub(method_lookup_stub, line_no_lookup_stub, f, "x/F.class", "x.F", "fn_f", "(J)I");
+
+    PerfCtx::Registry reg;
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+    
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    SerializationFlushThresholds sft;
+    TruncationThresholds tts(4);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+
+    CircularQueue q(ps, 10);
+    
+    STATIC_ARRAY(frames, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct;
+    ct.frames = frames;
+
+    frames[0].method_id = mid(d);
+    frames[0].lineno = 10;
+    frames[1].method_id = mid(c);
+    frames[1].lineno = 10;
+    frames[2].method_id = mid(d);
+    frames[2].lineno = 20;
+    frames[3].method_id = mid(c);
+    frames[3].lineno = 20;
+    frames[4].method_id = mid(y);
+    frames[4].lineno = 30;
+    ct.num_frames = 5;
+
+    ThreadBucket t25(25, "Thread No. 25", 5, true);
+    t25.ctx_tracker.enter(ctx_foo);
+    q.push(ct, &t25);
+    t25.ctx_tracker.exit(ctx_foo);
+
+    CHECK(q.pop());
+    CHECK(! q.pop());//because only 1 sample was pushed
+
+    ps.flush();
+
+    buff.readonly();
+
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    CHECK(bytes_sz > 0);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    CHECK(cis.ReadVarint32(&len));
+
+    auto lim = cis.PushLimit(len);
+
+    recording::Wse wse;
+    CHECK(wse.ParseFromCodedStream(&cis));
+
+    cis.PopLimit(lim);
+
+    auto pos = cis.CurrentPosition();
+
+    std::uint32_t csum;
+    CHECK(cis.ReadVarint32(&csum));
+
+    Checksum c_calc;
+    auto computed_csum = c_calc.chksum(tmp_buff.get(), pos);
+
+    CHECK_EQUAL(computed_csum, csum);
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse.w_type());
+    auto idx_data = wse.indexed_data();
+    CHECK_EQUAL(0, idx_data.monitor_info_size());
+    
+    CHECK_EQUAL(1, idx_data.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
+
+    CHECK_EQUAL(2, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+
+    CHECK_EQUAL(1, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
+
+    auto cse = wse.cpu_sample_entry();
+
+    CHECK_EQUAL(1, cse.stack_sample_size());
+    auto s1 = {fr(d, 10, 1), fr(c, 10, 1), fr(d, 20, 2), fr(c, 20, 2)};
+    auto s1_ctxs = {5};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, true); //TODO: fix this to actually record time-offset, right now we are using zero
+}

@@ -5,17 +5,11 @@ import org.openjdk.jmh.infra.Blackhole;
 
 public class CpuBurningRunnable implements Runnable {
     private static final int MULTIPLIER = 97;
-    
-    private final MultiThreadedCpuBurner burner;
-    
+
     private final PerfCtx aCtx = new PerfCtx("inferno", 100);
     
     public static volatile long val = 0;
     
-    public CpuBurningRunnable(MultiThreadedCpuBurner burner) {
-        this.burner = burner;
-    }
-
     @Override
     public void run() {
         sleep1Mil();
