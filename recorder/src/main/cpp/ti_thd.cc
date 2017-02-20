@@ -5,16 +5,12 @@
 #include "globals.hh"
 #include "common.hh"
 
-static void prep_new_thread(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
-    IMPLICITLY_USE(jvmti_env);
-    IMPLICITLY_USE(jni_env);
+void quiesce_sigprof(const char* thd_name) {
     sigset_t mask;
-
     sigemptyset(&mask);
     sigaddset(&mask, SIGPROF);
-
     if (pthread_sigmask(SIG_BLOCK, &mask, NULL) < 0) {
-        logger->error("Unable to set controller thread signal mask");
+        logger->error("Unable to set thread {} signal mask for quiescing sigprof", thd_name);
     }
 }
 
@@ -60,8 +56,8 @@ struct ThreadTargetProc {
 typedef std::shared_ptr<ThreadTargetProc> ThdProcP;
 
 static void thread_target_proc_wrapper(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    prep_new_thread(jvmti_env, jni_env);
     auto ttp = static_cast<ThreadTargetProc*>(arg);
+    quiesce_sigprof(ttp->name.c_str());
     ttp->mark_started();
     ttp->run_fn(jvmti_env, jni_env, ttp->arg);
     ttp->mark_stopped();
@@ -69,6 +65,10 @@ static void thread_target_proc_wrapper(jvmtiEnv *jvmti_env, JNIEnv *jni_env, voi
 
 ThdProcP start_new_thd(JavaVM *jvm, jvmtiEnv *jvmti, const char* thd_name, jvmtiStartFunction run_fn, void *arg) {
     JNIEnv *env = getJNIEnv(jvm);
+    return start_new_thd(env, jvmti, thd_name, run_fn, arg);
+}
+
+ThdProcP start_new_thd(JNIEnv *env, jvmtiEnv *jvmti, const char* thd_name, jvmtiStartFunction run_fn, void *arg) {
     jvmtiError result;
 
     if (env == NULL) {

@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-class ProbPct { //allows trials by probablity expressed as percentage
+class ProbPct { //allows trials by probability expressed as percentage
     static const std::uint32_t SZ = 1024;
     std::uint8_t random_nos[SZ];
 public:

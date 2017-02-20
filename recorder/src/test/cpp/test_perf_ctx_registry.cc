@@ -16,36 +16,36 @@ TEST(PerfCtx___should_issue_correctly_encoded__ctx_ids__and_remember_them) {
     Registry r;
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
     CHECK_EQUAL(v2, r.find_or_bind("foo", 10, 0));//enum-values are deliberately hardcoded so this test guards against accidental changes (making java side incompatible)
 
     PerfCtx::TracePt v3 = (static_cast<std::uint64_t>(7) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 3;
     CHECK_EQUAL(v3, r.find_or_bind("bar", 7, 1));
 
     PerfCtx::TracePt v5 = (static_cast<std::uint64_t>(25) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIC_SHIFT)
         | 5;
 
     CHECK_EQUAL(v5, r.find_or_bind("baz", 25, 2));
 
     PerfCtx::TracePt v7 = (static_cast<std::uint64_t>(30) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIC_SHIFT)
         | 7;
 
     CHECK_EQUAL(v7, r.find_or_bind("quux", 30, 3));
 
     PerfCtx::TracePt v11 = (static_cast<std::uint64_t>(20) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIC_SHIFT)
         | 11;
 
     CHECK_EQUAL(v11, r.find_or_bind("corge", 20, 4));
 
     PerfCtx::TracePt v13 = (static_cast<std::uint64_t>(100) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIC_SHIFT)
         | 13;
 
     CHECK_EQUAL(v13, r.find_or_bind("all", 100, 0));
@@ -122,7 +122,7 @@ TEST(PerfCtx___should_not_allow_binding_too_many_ctxs) {
     CHECK(i < 300);
 
     PerfCtx::TracePt v_last = (static_cast<std::uint64_t>(5) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIC_SHIFT)
         | PRIME_NOS[i - 1];
 
 
@@ -135,36 +135,36 @@ TEST(PerfCtx___should_merge_contexts_correctly__and_track_merged_names) {
     Registry r;
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
     CHECK_EQUAL(v2, r.find_or_bind("foo", 10, 1));
 
     PerfCtx::TracePt v3 = (static_cast<std::uint64_t>(7) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 3;
     CHECK_EQUAL(v3, r.find_or_bind("bar", 7, 1));
 
     PerfCtx::TracePt v5 = (static_cast<std::uint64_t>(25) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIC_SHIFT)
         | 5;
 
     CHECK_EQUAL(v5, r.find_or_bind("baz", 25, 2));
 
     PerfCtx::TracePt v7 = (static_cast<std::uint64_t>(30) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 7;
 
     CHECK_EQUAL(v7, r.find_or_bind("quux", 30, 1));
 
     PerfCtx::TracePt v11 = (static_cast<std::uint64_t>(20) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped_strict) << MERGE_SEMANTIC_SHIFT)
         | 11;
 
     CHECK_EQUAL(v11, r.find_or_bind("corge", 20, 2));
 
     PerfCtx::TracePt v13 = (static_cast<std::uint64_t>(100) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 13;
 
     CHECK_EQUAL(v13, r.find_or_bind("all", 100, 1));
@@ -226,7 +226,7 @@ TEST(PerfCtx___ensures_rebind_attempts__match_existing_binding) {
     Registry r;
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
     CHECK_EQUAL(v2, r.find_or_bind("foo", 10, 1));

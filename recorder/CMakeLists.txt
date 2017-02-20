@@ -79,8 +79,6 @@ set(SOURCE_FILES
     ${SRC}/globals.cc
     ${SRC}/ti_thd.hh
     ${SRC}/ti_thd.cc
-    ${SRC}/log_writer.cc
-    ${SRC}/log_writer.hh
     ${SRC}/signal_handler.cc
     ${SRC}/signal_handler.hh
     ${SRC}/processor.cc

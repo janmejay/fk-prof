@@ -1,5 +1,4 @@
 #include "perf_ctx_jni.hh"
-#include "thread_perf_ctx_tracker.hh"
 #include "perf_ctx.hh"
 #include "globals.hh"
 #include <sstream>
@@ -7,7 +6,7 @@
 
 PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
     assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
-    return static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & MERGE_SEMANTIIC_MASK);
+    return static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIC_SHIFT) & MERGE_SEMANTIC_MASK);
 }
 
 void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
@@ -28,7 +27,6 @@ void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
         return;
     }
     assert(actual_stack.size() < PerfCtx::MAX_NESTING);
-    assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
     bool start_recording = record;
     switch (ms) {
     case PerfCtx::MergeSemantic::to_parent:
@@ -138,7 +136,7 @@ template <typename T> void dump_table_to_logs(T& tab) {
 
 static void assert_equal(const char* name, std::uint8_t cov_pct, std::uint8_t merge_sem, PerfCtx::TracePt pt) {
     auto old_cov_pct = (pt >> PerfCtx::COVERAGE_PCT_SHIFT) & PerfCtx::COVERAGE_PCT_MASK;
-    auto old_merge_sem = (pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & PerfCtx::MERGE_SEMANTIIC_MASK;
+    auto old_merge_sem = (pt >> PerfCtx::MERGE_SEMANTIC_SHIFT) & PerfCtx::MERGE_SEMANTIC_MASK;
     if ((old_cov_pct != cov_pct) || (old_merge_sem != merge_sem)) {
         auto err_msg = Util::to_s("New value (cov: ", static_cast<std::uint32_t>(cov_pct), "%, merge: ", static_cast<std::uint32_t>(merge_sem), ") for ctx 'foo' conflicts with old value (cov: ", static_cast<std::uint32_t>(old_cov_pct), "%, merge: ", static_cast<std::uint32_t>(old_merge_sem), ")");
         logger->warn("App tried to plug conflicting definitions of a ctx: {}", err_msg);
@@ -163,7 +161,7 @@ PerfCtx::TracePt PerfCtx::Registry::find_or_bind(const char* name, std::uint8_t 
     assert(merge_type >= static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent));
     assert(merge_type <= static_cast<std::uint8_t>(PerfCtx::MergeSemantic::duplicate));
     assert(new_prime < USER_CREATED_CTX_ID_MASK);
-    pt = (static_cast<std::uint64_t>(coverage_pct) << COVERAGE_PCT_SHIFT) | (static_cast<std::uint64_t>(merge_type) << MERGE_SEMANTIIC_SHIFT) | new_prime;
+    pt = (static_cast<std::uint64_t>(coverage_pct) << COVERAGE_PCT_SHIFT) | (static_cast<std::uint64_t>(merge_type) << MERGE_SEMANTIC_SHIFT) | new_prime;
     if (name_to_pt.insert(name, pt)) {
         auto reverse_insert = pt_to_name.insert(pt, name);
         assert(reverse_insert);
@@ -256,7 +254,7 @@ void PerfCtx::Registry::resolve(TracePt pt, std::string& name, bool& is_generate
     name_for(pt, name);
     is_generated = ((PerfCtx::MERGE_GENERATED_TYPE & pt) != 0);
     if (! is_generated) {
-        m_sem = static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIIC_SHIFT) & PerfCtx::MERGE_SEMANTIIC_MASK);
+        m_sem = static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIC_SHIFT) & PerfCtx::MERGE_SEMANTIC_MASK);
         coverage_pct = (pt >> PerfCtx::COVERAGE_PCT_SHIFT) & PerfCtx::COVERAGE_PCT_MASK;
     }
 }

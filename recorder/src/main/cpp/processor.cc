@@ -49,46 +49,25 @@ void Processor::run() {
     }
 
     handler_.stopSigprof();
-    workerDone.clear(std::memory_order_relaxed);
     // no shared data access after this point, can be safely deleted
 }
 
 void callbackToRunProcessor(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    IMPLICITLY_USE(jvmti_env);
-    IMPLICITLY_USE(jni_env);
-    //Avoid having the processor thread also receive the PROF signals
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGPROF);
-    if (pthread_sigmask(SIG_BLOCK, &mask, NULL) < 0) {
-        logError("ERROR: failed to set processor thread signal mask\n");
-    }
-    Processor *processor = (Processor *) arg;
+    Processor* processor = static_cast<Processor*>(arg);
     processor->run();
 }
 
 void Processor::start(JNIEnv *jniEnv) {
     TRACE(Processor, kTraceProcessorStart);
-    jvmtiError result;
-
-    std::cout << "Starting sampling\n";
     isRunning_.store(true, std::memory_order_relaxed);
-    workerDone.test_and_set(std::memory_order_relaxed); // initial is true
-    jthread thread = newThread(jniEnv, "Fk-Prof Processing Thread");
-    jvmtiStartFunction callback = callbackToRunProcessor;
-    result = jvmti_->RunAgentThread(thread, callback, this, JVMTI_THREAD_NORM_PRIORITY);
-
-    if (result != JVMTI_ERROR_NONE) {
-        logError("ERROR: Running agent thread failed with: %d\n", result);
-    }
+    thd_proc = start_new_thd(jniEnv, jvmti_, "Fk-Prof Processing Thread", callbackToRunProcessor, this);
 }
 
 void Processor::stop() {
     TRACE(Processor, kTraceProcessorStop);
-
     isRunning_.store(false, std::memory_order_relaxed);
-    std::cout << "Stopping sampling\n";
-    while (workerDone.test_and_set(std::memory_order_relaxed)) sched_yield();
+    await_thd_death(thd_proc);
+    thd_proc.reset();
 }
 
 bool Processor::isRunning() const {

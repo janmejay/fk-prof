@@ -12,7 +12,6 @@
 #include "signal_handler.hh"
 #include "stacktraces.hh"
 #include "processor.hh"
-#include "log_writer.hh"
 #include "perf_ctx.hh"
 #include "profile_writer.hh"
 

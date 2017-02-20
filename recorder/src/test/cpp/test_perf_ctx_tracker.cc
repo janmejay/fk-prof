@@ -82,7 +82,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -160,7 +160,7 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -252,7 +252,7 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -339,8 +339,8 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto SCOPED_STRICT_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped_strict) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
-    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto SCOPED_STRICT_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped_strict) << PerfCtx::MERGE_SEMANTIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -417,7 +417,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
 
 
@@ -491,7 +491,7 @@ TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) 
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto STACK_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
 
 
@@ -533,7 +533,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
 
     std::array<TracePt, MAX_NESTING> curr;
@@ -617,7 +617,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIC_SHIFT;
     constexpr auto PARENT_MASK = 0;
 
     std::array<TracePt, MAX_NESTING> curr;
@@ -661,8 +661,8 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
-    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIC_SHIFT;
+    constexpr auto SCOPED_MASK = static_cast<std::uint64_t>(MergeSemantic::scoped) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -725,8 +725,8 @@ TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_cha
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
-    constexpr auto STACKED_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIC_SHIFT;
+    constexpr auto STACKED_MASK = static_cast<std::uint64_t>(MergeSemantic::stack_up) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -780,8 +780,8 @@ TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_mer
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
 
-    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
-    constexpr auto PARENT_MASK = static_cast<std::uint64_t>(MergeSemantic::to_parent) << PerfCtx::MERGE_SEMANTIIC_SHIFT;
+    constexpr auto DUP_MASK = static_cast<std::uint64_t>(MergeSemantic::duplicate) << PerfCtx::MERGE_SEMANTIC_SHIFT;
+    constexpr auto PARENT_MASK = static_cast<std::uint64_t>(MergeSemantic::to_parent) << PerfCtx::MERGE_SEMANTIC_SHIFT;
 
     std::array<TracePt, MAX_NESTING> curr;
 
@@ -833,7 +833,7 @@ TEST(ThreadPerfCtxTracker__should_turn_on_recording_enough_times_to_meet_desired
     ThreadTracker t_ctx(r, prob_pct, 210);
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::scoped) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
 
@@ -854,15 +854,15 @@ TEST(ThreadPerfCtxTracker__should_track_stacking_merges___as_independent_ctxs___
     ThreadTracker t_ctx(r, prob_pct, 210);
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
     PerfCtx::TracePt v3 = (static_cast<std::uint64_t>(50) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIC_SHIFT)
         | 3;
 
     PerfCtx::TracePt v5 = (static_cast<std::uint64_t>(25) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::stack_up) << MERGE_SEMANTIC_SHIFT)
         | 5;
 
 
@@ -910,15 +910,15 @@ TEST(ThreadPerfCtxTracker__should_have_fair_sampling_in_duplicate_contexts) {
     ThreadTracker t_ctx(r, prob_pct, 210);
 
     PerfCtx::TracePt v2 = (static_cast<std::uint64_t>(20) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::to_parent) << MERGE_SEMANTIC_SHIFT)
         | 2;
 
     PerfCtx::TracePt v3 = (static_cast<std::uint64_t>(50) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIC_SHIFT)
         | 3;
 
     PerfCtx::TracePt v5 = (static_cast<std::uint64_t>(10) << COVERAGE_PCT_SHIFT)
-        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIIC_SHIFT)
+        | (static_cast<std::uint64_t>(PerfCtx::MergeSemantic::duplicate) << MERGE_SEMANTIC_SHIFT)
         | 5;
 
 

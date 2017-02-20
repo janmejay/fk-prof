@@ -48,8 +48,8 @@ namespace PerfCtx {
 
     constexpr std::uint64_t USER_CREATED_CTX_ID_MASK = 0x1FFF;
 
-    constexpr std::uint8_t MERGE_SEMANTIIC_SHIFT = 53;
-    constexpr std::uint8_t MERGE_SEMANTIIC_MASK = 0x7;
+    constexpr std::uint8_t MERGE_SEMANTIC_SHIFT = 53;
+    constexpr std::uint8_t MERGE_SEMANTIC_MASK = 0x7;
     constexpr std::uint8_t COVERAGE_PCT_SHIFT = 56;
     constexpr std::uint8_t COVERAGE_PCT_MASK = 0x7F;
 
