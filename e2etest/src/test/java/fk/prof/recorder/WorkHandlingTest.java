@@ -381,7 +381,7 @@ public class WorkHandlingTest {
 
     public static Function<byte[], byte[]> issueCpuProfilingWork(PollReqWithTime[] pollReqs, int idx, final int duration, final int delay, final String issueTime, final int workId, final int cpuSamplingMaxFrames) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
-            Recorder.WorkAssignment.Builder workAssignmentBuilder = prepareWorkAssignment(nowString, builder, idx, delay, duration, CPU_SAMPLING_WORK_DESCRIPTION, workId);
+            Recorder.WorkAssignment.Builder workAssignmentBuilder = prepareWorkAssignment(nowString, builder, delay, duration, CPU_SAMPLING_WORK_DESCRIPTION, workId);
             Recorder.Work.Builder workBuilder = workAssignmentBuilder.addWorkBuilder();
             workBuilder.setWType(Recorder.WorkType.cpu_sample_work).getCpuSampleBuilder()
                     .setFrequency(CPU_SAMPLING_FREQ)
@@ -389,7 +389,7 @@ public class WorkHandlingTest {
         }, issueTime);
     }
 
-    public static Recorder.WorkAssignment.Builder prepareWorkAssignment(String nowString, Recorder.PollRes.Builder builder, int idx, int delay, int duration, final String desc, int workId) {
+    public static Recorder.WorkAssignment.Builder prepareWorkAssignment(String nowString, Recorder.PollRes.Builder builder, int delay, int duration, final String desc, int workId) {
         return builder.getAssignmentBuilder()
                 .setWorkId(workId)
                 .setDelay(delay)
@@ -409,7 +409,7 @@ public class WorkHandlingTest {
 
     public static Function<byte[], byte[]> tellRecorderWeHaveNoWork(PollReqWithTime[] pollReqs, int idx, int duration, final int delay) {
         return cookPollResponse(pollReqs, idx, (nowString, builder) -> {
-            prepareWorkAssignment(nowString, builder, idx, delay, duration, "no work for ya!", idx + 100);
+            prepareWorkAssignment(nowString, builder, delay, duration, "no work for ya!", idx + 100);
         }, ISODateTimeFormat.dateTime().print(DateTime.now()));
     }
 
