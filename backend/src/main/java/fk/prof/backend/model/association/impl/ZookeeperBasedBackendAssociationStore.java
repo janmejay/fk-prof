@@ -3,7 +3,6 @@ package fk.prof.backend.model.association.impl;
 import fk.prof.backend.exception.AssociationException;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
-import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.ZookeeperUtil;
@@ -60,13 +59,10 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     this.backendAssociationPath = backendAssociationPath;
     this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
     this.loadMissTolerance = loadMissTolerance;
-
-    List<BackendDetail> existingBackendsInZookeeper = loadDataFromZookeeper();
     this.availableBackendsByPriority = new PriorityQueue<>(backendPriorityComparator);
-    this.availableBackendsByPriority.addAll(existingBackendsInZookeeper);
 
-    for(BackendDetail backendDetail: existingBackendsInZookeeper) {
-      this.backendDetailLookup.put(backendDetail.getBackendIPAddress(), backendDetail);
+    loadDataFromZookeeperInBackendLookup();
+    for(BackendDetail backendDetail: this.backendDetailLookup.values()) {
       for(Recorder.ProcessGroup processGroup: backendDetail.getAssociatedProcessGroups()) {
         if (this.processGroupToBackendLookup.putIfAbsent(processGroup, backendDetail.getBackendIPAddress()) != null) {
           throw new IllegalStateException(String.format("Backend mapping already exists for process group=%s", processGroup));
@@ -312,7 +308,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     processGroupToZNodePathLookup.remove(processGroup);
   }
 
-  private List<BackendDetail> loadDataFromZookeeper() throws Exception {
+  private void loadDataFromZookeeperInBackendLookup() throws Exception {
     CountDownLatch syncLatch = new CountDownLatch(1);
     AssociationException syncException = new AssociationException();
 
@@ -332,7 +328,6 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       throw syncException;
     }
 
-    List<BackendDetail> backends = new ArrayList<>();
     List<String> backendIPAddresses = curatorClient.getChildren().forPath(backendAssociationPath);
     for(String backendIPAddress: backendIPAddresses) {
       String backendZNodePath = getZNodePathForBackend(backendIPAddress);
@@ -349,10 +344,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         processGroupToZNodePathLookup.put(processGroup, processGroupZNodePath);
         processGroups.add(processGroup);
       }
-      backends.add(new BackendDetail(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, processGroups));
+      this.backendDetailLookup.put(backendIPAddress, new BackendDetail(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, processGroups));
     }
-
-    return backends;
   }
 
   private String getZNodePathForBackend(String backendIPAddress) {
