@@ -27,9 +27,9 @@ public class BackendDetailTest {
     throws IOException {
     Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
     BackendDetail b1 = new BackendDetail("1", 1, 2, processGroups);
-    BackendDetail b2 = new BackendDetail("1", 1, 2);
+    BackendDetail b2 = new BackendDetail("1", 1, 2, System.nanoTime());
     Assert.assertTrue(b1.equals(b2));
-    BackendDetail b3 = new BackendDetail("2", 1, 2);
+    BackendDetail b3 = new BackendDetail("2", 1, 2, processGroups);
     Assert.assertFalse(b2.equals(b3));
   }
 
@@ -43,25 +43,25 @@ public class BackendDetailTest {
   }
 
   @Test
-  public void testBackendIsDefunctOnInitialization()
+  public void testBackendIsDefunctOnInitializationWithProcessGroups()
       throws IOException {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, null);
     Assert.assertTrue(backendDetail.isDefunct());
   }
 
   @Test
   public void testBackendIsAvailableAfterReportOfLoad()
       throws IOException {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2);
-    backendDetail.reportLoad(0.5);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, null);
+    backendDetail.reportLoad(0.5, System.nanoTime());
     Assert.assertFalse(backendDetail.isDefunct());
   }
 
   @Test
   public void testBackendIsDefunctIfLoadNotReportedInAllowedInterval()
       throws Exception {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 1);
-    backendDetail.reportLoad(0.5);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 1, null);
+    backendDetail.reportLoad(0.5, System.nanoTime());
     Assert.assertFalse(backendDetail.isDefunct());
     Thread.sleep(1000);
     Assert.assertFalse(backendDetail.isDefunct());

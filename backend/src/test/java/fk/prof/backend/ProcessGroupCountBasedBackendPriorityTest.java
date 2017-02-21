@@ -35,16 +35,16 @@ public class ProcessGroupCountBasedBackendPriorityTest {
   public void shouldPrioritizeLowerProcessGroupBackends() throws Exception {
     int loadReportIntervalInSeconds = 1;
     int loadMissTolerance = 10;
-    BackendDetail b1 = new BackendDetail("1", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b1 = new BackendDetail("1", loadReportIntervalInSeconds, loadMissTolerance, System.nanoTime());
     b1.associateProcessGroup(mockProcessGroups.get(0));
     b1.associateProcessGroup(mockProcessGroups.get(1));
 
-    BackendDetail b2 = new BackendDetail("2", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b2 = new BackendDetail("2", loadReportIntervalInSeconds, loadMissTolerance, System.nanoTime());
     b2.associateProcessGroup(mockProcessGroups.get(2));
     b2.associateProcessGroup(mockProcessGroups.get(3));
     b2.associateProcessGroup(mockProcessGroups.get(4));
 
-    BackendDetail b3 = new BackendDetail("3", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b3 = new BackendDetail("3", loadReportIntervalInSeconds, loadMissTolerance, System.nanoTime());
     b3.associateProcessGroup(mockProcessGroups.get(5));
 
     backendDetailPriorityQueue.offer(b1);

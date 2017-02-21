@@ -76,7 +76,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
+  public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload, long loadReportTime) {
     String backendIPAddress = payload.getIp();
     Future<Recorder.ProcessGroups> result = Future.future();
     vertx.executeBlocking(future -> {
@@ -84,7 +84,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         //TODO: Implement a cleanup job for backends which have been defunct for a long time, remove them from backenddetaillookup map
         BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(backendIPAddress, (key) -> {
           try {
-            BackendDetail updatedBackendDetail = new BackendDetail(key, loadReportIntervalInSeconds, loadMissTolerance);
+            BackendDetail updatedBackendDetail = new BackendDetail(key, loadReportIntervalInSeconds, loadMissTolerance, loadReportTime - 1);
             String zNodePath = getZNodePathForBackend(key);
             ZookeeperUtil.writeZNode(curatorClient, zNodePath, new byte[0], true);
             return updatedBackendDetail;
@@ -103,8 +103,11 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
             if (acquired) {
               try {
-                backendDetail.reportLoad(payload.getLoad());
-                availableBackendsByPriority.offer(backendDetail);
+                backendDetail.reportLoad(payload.getLoad(), loadReportTime);
+                //Double check here for isDefunct behavior of backend to avoid race conditions
+                if(!backendDetail.isDefunct()) {
+                  availableBackendsByPriority.offer(backendDetail);
+                }
               } catch (Exception ex) {
                 //TODO: Some metric to indicate enqueue failure here
                 logger.error("Error enqueuing backend=" + backendDetail.getBackendIPAddress() + "  in the queue");
@@ -118,7 +121,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             logger.warn("Interrupted while acquiring lock on backend queue for reporting backend=" + backendIPAddress, ex);
           }
         } else {
-          backendDetail.reportLoad(payload.getLoad());
+          backendDetail.reportLoad(payload.getLoad(), loadReportTime);
         }
         future.complete(backendDetail.buildProcessGroupsProto());
       } catch (Exception ex) {
