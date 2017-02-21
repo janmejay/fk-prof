@@ -1,16 +1,16 @@
 package fk.prof.backend;
 
 import fk.prof.backend.model.association.BackendAssociationStore;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.http.ConfigurableHttpClient;
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.http.ProfHttpClient;
+import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
@@ -41,7 +41,7 @@ public class AssociationApiTest {
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
   private BackendAssociationStore backendAssociationStore;
-  private LeaderDiscoveryStore leaderDiscoveryStore;
+  private InMemoryLeaderStore inMemoryLeaderStore;
   private JsonObject config;
 
   private final String backendAssociationPath = "/assoc";
@@ -72,16 +72,15 @@ public class AssociationApiTest {
     assert backendHttpDeploymentConfig != null;
     DeploymentOptions backendHttpDeploymentOptions = new DeploymentOptions(backendHttpDeploymentConfig);
     backendAssociationStore = VertxManager.getDefaultBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1);
-    leaderDiscoveryStore = spy(VertxManager.getDefaultLeaderDiscoveryStore(vertx));
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore());
 
     VertxManager.deployBackendHttpVerticles(vertx,
         backendHttpServerConfig,
         ConfigManager.getHttpClientConfig(config),
         leaderPort,
         backendHttpDeploymentOptions,
-        leaderDiscoveryStore,
+        inMemoryLeaderStore,
         new ProfileWorkService());
-
   }
 
   @After
@@ -128,14 +127,14 @@ public class AssociationApiTest {
         new DeploymentOptions(ConfigManager.getLeaderElectionDeploymentConfig(config)),
         curatorClient,
         leaderElectedTask,
-        leaderDiscoveryStore
+        inMemoryLeaderStore
     );
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
     if (!released) {
       context.fail("Latch timed out but leader election task was not run");
     }
-    //This sleep should be enough for leader discovery store to get updated with the new leader
+    //This sleep should be enough for leader store to get updated with the new leader
     Thread.sleep(1500);
 
     //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
@@ -173,12 +172,12 @@ public class AssociationApiTest {
         new DeploymentOptions(ConfigManager.getLeaderElectionDeploymentConfig(config)),
         curatorClient,
         leaderElectedTask,
-        leaderDiscoveryStore
+        inMemoryLeaderStore
     );
 
-    //This sleep should be enough for leader discovery store to get updated with the new leader and leader elected task to be executed
+    //This sleep should be enough for leader store to get updated with the new leader and leader elected task to be executed
     Thread.sleep(5000);
-    when(leaderDiscoveryStore.isLeader()).thenReturn(false);
+    when(inMemoryLeaderStore.isLeader()).thenReturn(false);
 
     //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
@@ -210,15 +209,15 @@ public class AssociationApiTest {
     });
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
     throws IOException {
-    Future<ConfigurableHttpClient.ResponseWithStatusTuple> future = Future.future();
+    Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-          .post(port, "localhost", "/association")
+          .put(port, "localhost", "/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
-              future.complete(ConfigurableHttpClient.ResponseWithStatusTuple.of(response.statusCode(),buffer));
+              future.complete(ProfHttpClient.ResponseWithStatusTuple.of(response.statusCode(),buffer));
             } catch (Exception ex) {
               future.fail(ex);
             }
@@ -228,15 +227,15 @@ public class AssociationApiTest {
     return future;
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestReportLoad(BackendDTO.LoadReportRequest payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestReportLoad(BackendDTO.LoadReportRequest payload)
       throws IOException {
-    Future<ConfigurableHttpClient.ResponseWithStatusTuple> future = Future.future();
+    Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
         .post(leaderPort, "localhost", "/leader/load")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
-              future.complete(ConfigurableHttpClient.ResponseWithStatusTuple.of(response.statusCode(),buffer));
+              future.complete(ProfHttpClient.ResponseWithStatusTuple.of(response.statusCode(),buffer));
             } catch (Exception ex) {
               future.fail(ex);
             }

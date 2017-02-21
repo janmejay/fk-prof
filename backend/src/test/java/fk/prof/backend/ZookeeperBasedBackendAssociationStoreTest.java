@@ -67,13 +67,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
     curatorClient.create().forPath(backendAssociationPath);
 
-    backendAssociationStore = ZookeeperBasedBackendAssociationStore.newBuilder()
-        .setCuratorClient(curatorClient)
-        .setBackendAssociationPath(backendAssociationPath)
-        .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())
-        .setReportingFrequencyInSeconds(2)
-        .setMaxAllowedSkips(0)
-        .build(vertx);
+    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
+        vertx, curatorClient, backendAssociationPath, 2, 0, new ProcessGroupCountBasedBackendComparator());
   }
 
   @After
@@ -152,13 +147,8 @@ public class ZookeeperBasedBackendAssociationStoreTest {
           } else {
             List<String> associations = ar2.result().list();
             try {
-              BackendAssociationStore anotherAssociationStore = ZookeeperBasedBackendAssociationStore.newBuilder()
-                  .setCuratorClient(curatorClient)
-                  .setBackendAssociationPath(backendAssociationPath)
-                  .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())
-                  .setReportingFrequencyInSeconds(2)
-                  .setMaxAllowedSkips(0)
-                  .build(vertx);
+              BackendAssociationStore anotherAssociationStore = new ZookeeperBasedBackendAssociationStore(
+              vertx, curatorClient, backendAssociationPath, 2, 0, new ProcessGroupCountBasedBackendComparator());
               Future<String> f3_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
               Future<String> f4_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
               Future<String> f5_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));

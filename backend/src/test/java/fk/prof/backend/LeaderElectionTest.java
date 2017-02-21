@@ -1,8 +1,11 @@
 package fk.prof.backend;
 
+import fk.prof.backend.mock.MockLeaderStores;
+import fk.prof.backend.model.election.LeaderWriteContext;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.backend.util.IPAddressUtil;
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.model.election.LeaderReadContext;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
@@ -81,7 +84,7 @@ public class LeaderElectionTest {
     Runnable leaderElectedTask = () -> {
       latch.countDown();
     };
-    LeaderDiscoveryStore leaderDiscoveryStore = VertxManager.getDefaultLeaderDiscoveryStore(vertx);
+    LeaderWriteContext leaderWriteContext = new InMemoryLeaderStore();
 
     Thread.sleep(1000);
     VertxManager.deployLeaderElectionWorkerVerticles(
@@ -89,7 +92,7 @@ public class LeaderElectionTest {
         leaderElectionDeploymentOptions,
         curatorClient,
         leaderElectedTask,
-        leaderDiscoveryStore
+        leaderWriteContext
     );
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
@@ -99,33 +102,11 @@ public class LeaderElectionTest {
   }
 
   @Test(timeout = 20000)
-  public void leaderDiscoveryUpdateOnLeaderElection(TestContext testContext) throws InterruptedException {
+  public void leaderUpdateOnLeaderElection(TestContext testContext) throws InterruptedException {
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     CountDownLatch latch = new CountDownLatch(1);
     Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, true, null, false, null, null, null);
-    LeaderDiscoveryStore leaderDiscoveryStore = new LeaderDiscoveryStore() {
-      private String address = null;
-      private boolean self = false;
-
-      @Override
-      public void setLeaderIPAddress(String ipAddress) {
-        address = ipAddress;
-        self = ipAddress != null && ipAddress.equals(IPAddressUtil.getIPAddressAsString());
-        if (address != null) {
-          latch.countDown();
-        }
-      }
-
-      @Override
-      public String getLeaderIPAddress() {
-        return address;
-      }
-
-      @Override
-      public boolean isLeader() {
-        return self;
-      }
-    };
+    MockLeaderStores.TestLeaderStore leaderStore = new MockLeaderStores.TestLeaderStore(latch);
 
     Thread.sleep(1000);
     VertxManager.deployLeaderElectionWorkerVerticles(
@@ -133,15 +114,15 @@ public class LeaderElectionTest {
         leaderElectionDeploymentOptions,
         curatorClient,
         leaderElectedTask,
-        leaderDiscoveryStore
+        leaderStore
     );
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
     if (!released) {
-      testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
+      testContext.fail("Latch timed out but leader store was not updated with leader address");
     } else {
-      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderDiscoveryStore.getLeaderIPAddress());
-      testContext.assertTrue(leaderDiscoveryStore.isLeader());
+      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderStore.getLeaderIPAddress());
+      testContext.assertTrue(leaderStore.isLeader());
     }
   }
 
@@ -149,12 +130,13 @@ public class LeaderElectionTest {
   public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
     vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
     ProfileWorkService profileWorkService = new ProfileWorkService();
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore();
     List<String> backendDeployments = new ArrayList<>();
 
     CompositeFuture aggDepFut = VertxManager.deployBackendHttpVerticles(
         vertx, ConfigManager.getBackendHttpServerConfig(config), ConfigManager.getHttpClientConfig(config),
         leaderPort, new DeploymentOptions(ConfigManager.getBackendHttpDeploymentConfig(config)),
-        VertxManager.getDefaultLeaderDiscoveryStore(vertx), profileWorkService);
+        leaderStore, profileWorkService);
 
     CountDownLatch aggDepLatch = new CountDownLatch(1);
     aggDepFut.setHandler(asyncResult -> {
@@ -182,33 +164,7 @@ public class LeaderElectionTest {
         leaderElectionLatch.countDown();
       };
 
-      LeaderDiscoveryStore defaultLeaderDiscoveryStore = VertxManager.getDefaultLeaderDiscoveryStore(vertx);
-      LeaderDiscoveryStore wrappedLeaderDiscoveryStore = new LeaderDiscoveryStore() {
-        private LeaderDiscoveryStore toWrap;
-
-        @Override
-        public void setLeaderIPAddress(String ipAddress) {
-          toWrap.setLeaderIPAddress(ipAddress);
-          if (ipAddress != null) {
-            leaderWatchedLatch.countDown();
-          }
-        }
-
-        @Override
-        public String getLeaderIPAddress() {
-          return toWrap.getLeaderIPAddress();
-        }
-
-        @Override
-        public boolean isLeader() {
-          return toWrap.isLeader();
-        }
-
-        public LeaderDiscoveryStore initialize(LeaderDiscoveryStore toWrap) {
-          this.toWrap = toWrap;
-          return this;
-        }
-      }.initialize(defaultLeaderDiscoveryStore);
+      LeaderWriteContext leaderWriteContext = new MockLeaderStores.WrappedLeaderStore(leaderStore, leaderWatchedLatch);
 
       Thread.sleep(1000);
       VertxManager.deployLeaderElectionWorkerVerticles(
@@ -216,7 +172,7 @@ public class LeaderElectionTest {
           leaderElectionDeploymentOptions,
           curatorClient,
           wrappedLeaderElectedTask,
-          wrappedLeaderDiscoveryStore
+          leaderWriteContext
       );
 
       boolean leaderElectionLatchReleased = leaderElectionLatch.await(10, TimeUnit.SECONDS);
@@ -232,10 +188,10 @@ public class LeaderElectionTest {
 
       boolean leaderWatchedLatchReleased = leaderWatchedLatch.await(10, TimeUnit.SECONDS);
       if (!leaderWatchedLatchReleased) {
-        testContext.fail("Latch timed out but leader discovery store was not updated with leader address");
+        testContext.fail("Latch timed out but leader store was not updated with leader address");
       } else {
-        testContext.assertNotNull(defaultLeaderDiscoveryStore.getLeaderIPAddress());
-        testContext.assertTrue(defaultLeaderDiscoveryStore.isLeader());
+        testContext.assertNotNull(leaderStore.getLeaderIPAddress());
+        testContext.assertTrue(leaderStore.isLeader());
       }
 
     }

@@ -1,22 +1,22 @@
 {
   "backend.http.server": {
-    "port": 9300,
-    "idle.timeout.secs": 60
+    "port": 2491,
+    "idle.timeout.secs": 120
   },
   "leader.http.server": {
-    "port": 9400,
-    "idle.timeout.secs": 60
+    "port": 2496,
+    "idle.timeout.secs": 120
   },
   "http.client": {
     "connect.timeout.ms": 5000,
-    "idle.timeout.secs": 10,
+    "idle.timeout.secs": 120,
     "max.attempts": 3,
     "keepalive": true,
     "compression": true
   },
-  "load.report.interval.secs": 2,
+  "load.report.interval.secs": 60,
   "vertxOptions": {
-    "blockedThreadCheckInterval": 60000
+    "blockedThreadCheckInterval": 1000
   },
   "backendHttpOptions": {
     "config": {
@@ -36,20 +36,20 @@
     "connection.url": "",
     "namespace": "fkprof",
     "connection.timeout.ms": 5000,
-    "session.timeout.ms": 5000,
+    "session.timeout.ms": 60000,
     "max.retries": 3
   },
   "leaderElectionOptions": {
     "worker": true,
     "config": {
       "aggregation.enabled": false,
-      "leader.watching.path": "/leaderwatch",
+      "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
       "leader.sleep.ms": 60000
     }
   },
   "leaderHttpOptions": {
     "backend.association.path": "/association",
-    "allowed.report.skips": 1
+    "load.miss.tolerance": 1
   }
 }

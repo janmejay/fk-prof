@@ -20,6 +20,22 @@ public class ZookeeperUtil {
     }
   }
 
+  public static Future<Void> sync(CuratorFramework curatorClient, String zNodePath) {
+    Future<Void> future = Future.future();
+    try {
+      curatorClient.sync().inBackground((client, event) -> {
+        if (KeeperException.Code.OK.intValue() == event.getResultCode()) {
+          future.complete();
+        } else {
+          future.fail(new RuntimeException("Error when zk sync issued for node path = " + zNodePath + " with result code = " + event.getResultCode()));
+        }
+      }).forPath(zNodePath);
+    } catch (Exception ex) {
+      future.fail(ex);
+    }
+    return future;
+  }
+
   //TODO: Keeping this around in case required for policy CRUD. If not used there, remove
   public static Future<byte[]> readZNodeAsync(CuratorFramework curatorClient, String zNodePath)
       throws Exception {

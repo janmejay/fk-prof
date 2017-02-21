@@ -6,8 +6,9 @@ import fk.prof.backend.leader.election.LeaderElectionWatcher;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
-import fk.prof.backend.model.election.impl.InMemoryLeaderDiscoveryStore;
+import fk.prof.backend.model.election.LeaderReadContext;
+import fk.prof.backend.model.election.LeaderWriteContext;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import fk.prof.backend.http.BackendHttpVerticle;
@@ -65,12 +66,12 @@ public class VertxManager {
       JsonObject httpClientConfig,
       int leaderPort,
       DeploymentOptions backendDeploymentOptions,
-      LeaderDiscoveryStore leaderDiscoveryStore,
+      LeaderReadContext leaderReadContext,
       IProfileWorkService profileWorkService) {
     assert vertx != null;
     assert backendDeploymentOptions != null;
     assert profileWorkService != null;
-    assert leaderDiscoveryStore != null;
+    assert leaderReadContext != null;
 
     int verticleCount = backendDeploymentOptions.getConfig().getInteger("http.instances", 1);
     List<Future> deployFutures = new ArrayList<>();
@@ -78,7 +79,7 @@ public class VertxManager {
       Future<String> deployFuture = Future.future();
       deployFutures.add(deployFuture);
 
-      Verticle backendHttpVerticle = new BackendHttpVerticle(backendHttpServerConfig, httpClientConfig, leaderPort, leaderDiscoveryStore, profileWorkService);
+      Verticle backendHttpVerticle = new BackendHttpVerticle(backendHttpServerConfig, httpClientConfig, leaderPort, leaderReadContext, profileWorkService);
       vertx.deployVerticle(backendHttpVerticle, backendDeploymentOptions, deployResult -> {
         if (deployResult.succeeded()) {
           logger.info("Deployment of BackendHttpVerticle succeeded with deploymentId = " + deployResult.result());
@@ -98,19 +99,19 @@ public class VertxManager {
        DeploymentOptions leaderElectionDeploymentOptions,
        CuratorFramework curatorClient,
        Runnable leaderElectedTask,
-       LeaderDiscoveryStore leaderDiscoveryStore) {
+       LeaderWriteContext leaderWriteContext) {
     assert vertx != null;
     assert leaderElectionDeploymentOptions != null;
     assert curatorClient != null;
     assert leaderElectedTask != null;
-    assert leaderDiscoveryStore != null;
+    assert leaderWriteContext != null;
 
     Verticle leaderElectionParticipator = new LeaderElectionParticipator(curatorClient, leaderElectedTask);
     vertx.deployVerticle(leaderElectionParticipator, leaderElectionDeploymentOptions);
 
     Verticle leaderElectionWatcher = new LeaderElectionWatcher(
         curatorClient,
-        leaderDiscoveryStore);
+        leaderWriteContext);
     vertx.deployVerticle(leaderElectionWatcher, leaderElectionDeploymentOptions);
   }
 
@@ -144,19 +145,11 @@ public class VertxManager {
     return builder.build(vertx);
   }
 
-  public static LeaderDiscoveryStore getDefaultLeaderDiscoveryStore(Vertx vertx) {
-    return new InMemoryLeaderDiscoveryStore();
-  }
-
-  public static BackendAssociationStore getDefaultBackendAssociationStore(Vertx vertx, CuratorFramework curatorClient, String backendAssociationZKNodePath, int reportLoadFrequencyInSeconds, int maxAllowedSkips)
+  public static BackendAssociationStore getDefaultBackendAssociationStore(
+      Vertx vertx, CuratorFramework curatorClient, String backendAssociationZKNodePath, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws Exception {
-    return ZookeeperBasedBackendAssociationStore.newBuilder()
-        .setCuratorClient(curatorClient)
-        .setBackendAssociationPath(backendAssociationZKNodePath)
-        .setBackedPriorityComparator(new ProcessGroupCountBasedBackendComparator())
-        .setReportingFrequencyInSeconds(reportLoadFrequencyInSeconds)
-        .setMaxAllowedSkips(maxAllowedSkips)
-        .build(vertx);
+    return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationZKNodePath,
+        loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }
 
   public static Future<Void> launch(Vertx vertx, CuratorFramework curatorClient, JsonObject configOptions) {
@@ -195,11 +188,11 @@ public class VertxManager {
     int loadReportIntervalInSeconds = ConfigManager.getLoadReportIntervalInSeconds(configOptions);
     DeploymentOptions backendDeploymentOptions = new DeploymentOptions(backendDeploymentConfig);
     ProfileWorkService profileWorkService = new ProfileWorkService();
-    LeaderDiscoveryStore leaderDiscoveryStore = getDefaultLeaderDiscoveryStore(vertx);
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore();
 
     CompositeFuture backendHttpDeploymentFuture = deployBackendHttpVerticles(
         vertx, backendHttpServerConfig, httpClientConfig,
-        leaderPort, backendDeploymentOptions, leaderDiscoveryStore, profileWorkService);
+        leaderPort, backendDeploymentOptions, leaderStore, profileWorkService);
 
     backendHttpDeploymentFuture.setHandler(result -> {
       if (result.succeeded()) {
@@ -213,7 +206,7 @@ public class VertxManager {
               vertx, curatorClient,
               leaderHttpDeploymentConfig.getString("backend.association.path"),
               ConfigManager.getLoadReportIntervalInSeconds(configOptions),
-              leaderHttpDeploymentConfig.getInteger("allowed.report.skips"));
+              leaderHttpDeploymentConfig.getInteger("load.miss.tolerance"));
 
           Runnable leaderElectedTask = getDefaultLeaderElectedTask(
               vertx,
@@ -225,7 +218,7 @@ public class VertxManager {
               backendAssociationStore
           );
 
-          deployLeaderElectionWorkerVerticles(vertx, leaderElectionDeploymentOptions, curatorClient, leaderElectedTask, leaderDiscoveryStore);
+          deployLeaderElectionWorkerVerticles(vertx, leaderElectionDeploymentOptions, curatorClient, leaderElectedTask, leaderStore);
         } catch (Exception ex) {
           future.fail(ex);
         }

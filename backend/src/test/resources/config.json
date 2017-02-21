@@ -1,10 +1,10 @@
 {
   "backend.http.server": {
-    "port": 9300,
+    "port": 2491,
     "idle.timeout.secs": 60
   },
   "leader.http.server": {
-    "port": 9400,
+    "port": 2496,
     "idle.timeout.secs": 60
   },
   "http.client": {
@@ -44,7 +44,7 @@
     "config": {
       "aggregation.enabled": false,
       "http.enabled": true,
-      "leader.watching.path": "/leaderwatch",
+      "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
       "leader.sleep.ms": 60000,
       "kill.behavior": "DO_NOTHING"
@@ -52,6 +52,6 @@
   },
   "leaderHttpOptions": {
     "backend.association.path": "/association",
-    "allowed.report.skips": 1
+    "load.miss.tolerance": 1
   }
 }

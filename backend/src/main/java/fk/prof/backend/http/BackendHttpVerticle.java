@@ -1,8 +1,7 @@
 package fk.prof.backend.http;
 
 import fk.prof.backend.exception.HttpFailure;
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
-import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
@@ -33,33 +32,33 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private final JsonObject backendHttpServerConfig;
   private final JsonObject httpClientConfig;
-  private final LeaderDiscoveryStore leaderDiscoveryStore;
+  private final LeaderReadContext leaderReadContext;
   private final IProfileWorkService profileWorkService;
   private final int leaderPort;
   private Long loadReportTimer = null;
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
-  private ConfigurableHttpClient httpClient;
+  private ProfHttpClient httpClient;
 
   public BackendHttpVerticle(JsonObject backendHttpServerConfig,
                              JsonObject httpClientConfig,
                              int leaderPort,
-                             LeaderDiscoveryStore leaderDiscoveryStore,
+                             LeaderReadContext leaderReadContext,
                              IProfileWorkService profileWorkService) {
     this.backendHttpServerConfig = backendHttpServerConfig;
     this.httpClientConfig = httpClientConfig;
-    this.leaderDiscoveryStore = leaderDiscoveryStore;
+    this.leaderReadContext = leaderReadContext;
     this.profileWorkService = profileWorkService;
     this.leaderPort = leaderPort;
   }
 
   @Override
   public void start(Future<Void> fut) {
-    httpClient = ConfigurableHttpClient.newBuilder()
+    httpClient = ProfHttpClient.newBuilder()
         .keepAlive(httpClientConfig.getBoolean("keepalive", true))
         .useCompression(httpClientConfig.getBoolean("compression", true))
         .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 5000))
-        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 10))
+        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 120))
         .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 3))
         .build(vertx);
 
@@ -67,7 +66,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
     vertx.createHttpServer(HttpHelper.getHttpServerOptions(backendHttpServerConfig))
         .requestHandler(router::accept)
-        .listen(backendHttpServerConfig.getInteger("port"), http -> completeStartup(http, fut));
+        .listen(backendHttpServerConfig.getInteger("port", 2491), http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {
@@ -76,9 +75,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     router.post(ApiPathConstants.AGGREGATOR_POST_PROFILE).handler(this::handlePostProfile);
 
-    router.post(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
+    router.put(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
         .handler(BodyHandler.create().setBodyLimit(1024 * 10));
-    router.post(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
+    router.put(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
         .handler(this::handlePutAssociation);
 
     return router;
@@ -128,7 +127,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   }
 
   private void handlePutAssociation(RoutingContext context) {
-    String leaderIPAddress = getLeaderAddressOrAbortRequest(context.response());
+    String leaderIPAddress = verifyLeaderAvailabilityOrFail(context.response());
     if (leaderIPAddress != null) {
       try {
         //Deserialize to proto message to catch payload related errors early
@@ -150,12 +149,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private String getLeaderAddressOrAbortRequest(HttpServerResponse response) {
-    if (leaderDiscoveryStore.isLeader()) {
+  private String verifyLeaderAvailabilityOrFail(HttpServerResponse response) {
+    if (leaderReadContext.isLeader()) {
       response.setStatusCode(400).end("Leader refuses to respond to this request");
       return null;
     } else {
-      String leaderIPAddress = leaderDiscoveryStore.getLeaderIPAddress();
+      String leaderIPAddress = leaderReadContext.getLeaderIPAddress();
       if (leaderIPAddress == null) {
         response.setStatusCode(503).putHeader("Retry-After", "10").end("Leader not elected yet");
         return null;
@@ -165,7 +164,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(String leaderIPAddress, Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(String leaderIPAddress, Recorder.ProcessGroup payload)
       throws IOException {
     Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(

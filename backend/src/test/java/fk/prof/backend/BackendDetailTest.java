@@ -26,8 +26,7 @@ public class BackendDetailTest {
   public void testEqualityOfBackendOnIPAddress()
     throws IOException {
     Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    BackendDetail b1 = new BackendDetail("1", 1, 2, serialized);
+    BackendDetail b1 = new BackendDetail("1", 1, 2, processGroups);
     BackendDetail b2 = new BackendDetail("1", 1, 2);
     Assert.assertTrue(b1.equals(b2));
     BackendDetail b3 = new BackendDetail("2", 1, 2);
@@ -35,11 +34,10 @@ public class BackendDetailTest {
   }
 
   @Test
-  public void testInitializationOfBackendWithProcessGroupBytes()
+  public void testInitializationOfBackendWithProcessGroups()
       throws IOException {
     Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2, serialized);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, processGroups);
     Assert.assertEquals("1", backendDetail.getBackendIPAddress());
     Assert.assertEquals(processGroups, backendDetail.getAssociatedProcessGroups());
   }

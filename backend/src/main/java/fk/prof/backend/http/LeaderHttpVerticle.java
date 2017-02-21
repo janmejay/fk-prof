@@ -32,7 +32,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     Router router = setupRouting();
     vertx.createHttpServer(HttpHelper.getHttpServerOptions(leaderHttpServerConfig))
         .requestHandler(router::accept)
-        .listen(leaderHttpServerConfig.getInteger("port"),
+        .listen(leaderHttpServerConfig.getInteger("port", 2496),
             http -> completeStartup(http, fut));
   }
 
@@ -88,6 +88,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     try {
       Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
       backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
+        //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
         if(ar.succeeded()) {
           context.response().end(ar.result());
         } else {

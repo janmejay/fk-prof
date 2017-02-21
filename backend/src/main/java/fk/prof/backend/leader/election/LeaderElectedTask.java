@@ -30,7 +30,9 @@ public class LeaderElectedTask implements Runnable {
       this.backendVerticlesUndeployer = () -> backendDeployments.stream().forEach(deploymentId ->
           vertx.undeploy(deploymentId, result -> {
             if (result.succeeded()) {
-              logger.debug(String.format("Successfully un-deployed backend verticle=%s", deploymentId));
+              if(logger.isDebugEnabled()) {
+                logger.debug(String.format("Successfully un-deployed backend verticle=%s", deploymentId));
+              }
             } else {
               logger.error(String.format("Error when un-deploying backend verticle=%s", deploymentId), result.cause());
             }

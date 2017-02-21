@@ -56,11 +56,15 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
 
   @Override
   public void stateChanged(CuratorFramework curatorClient, ConnectionState newState) {
-    logger.debug("Connection state changed to {}", newState.toString());
+    if(logger.isDebugEnabled()) {
+      logger.debug("Connection state changed to {}", newState.toString());
+    }
     try {
       super.stateChanged(curatorClient, newState);
     } catch (CancelLeadershipException ex) {
-      logger.debug("Relinquishing leadership, suicide!");
+      if(logger.isDebugEnabled()) {
+        logger.debug("Relinquishing leadership, suicide!");
+      }
       cleanup();
     }
   }

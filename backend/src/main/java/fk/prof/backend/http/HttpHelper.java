@@ -28,8 +28,7 @@ public class HttpHelper {
     HttpServerOptions serverOptions = new HttpServerOptions();
     serverOptions
         .setCompressionSupported(true)
-        .setTcpKeepAlive(true)
-        .setIdleTimeout(httpServerConfig.getInteger("idle.timeout.secs"));
+        .setIdleTimeout(httpServerConfig.getInteger("idle.timeout.secs", 120));
     return serverOptions;
   }
 

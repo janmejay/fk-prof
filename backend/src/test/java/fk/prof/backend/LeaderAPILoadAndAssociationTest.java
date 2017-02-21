@@ -72,7 +72,7 @@ public class LeaderAPILoadAndAssociationTest {
         curatorClient,
         backendAssociationPath,
         ConfigManager.getLoadReportIntervalInSeconds(config),
-        leaderHttpConfig.getInteger("allowed.report.skips")
+        leaderHttpConfig.getInteger("load.miss.tolerance")
     );
 
     VertxManager.deployLeaderHttpVerticles(vertx, httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);

@@ -46,7 +46,7 @@ public class VertxApplication {
         .connectString(curatorConfig.getString("connection.url"))
         .retryPolicy(new ExponentialBackoffRetry(1000, curatorConfig.getInteger("max.retries", 3)))
         .connectionTimeoutMs(curatorConfig.getInteger("connection.timeout.ms", 10000))
-        .sessionTimeoutMs(curatorConfig.getInteger("session.timeout.ms", 10000))
+        .sessionTimeoutMs(curatorConfig.getInteger("session.timeout.ms", 60000))
         .namespace(curatorConfig.getString("namespace"))
         .build();
   }

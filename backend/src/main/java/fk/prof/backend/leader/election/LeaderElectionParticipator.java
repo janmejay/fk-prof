@@ -23,13 +23,17 @@ public class LeaderElectionParticipator extends AbstractVerticle {
   public void start() {
     LeaderSelectorListener leaderSelectorListener = createLeaderSelectorListener();
     leaderSelector = createLeaderSelector(curatorClient, leaderSelectorListener);
-    logger.debug("Starting leader selector");
+    if (logger.isDebugEnabled()) {
+      logger.debug("Starting leader selector");
+    }
     leaderSelector.start();
   }
 
   @Override
   public void stop() {
-    logger.debug("Closing leader selector");
+    if(logger.isDebugEnabled()) {
+      logger.debug("Closing leader selector");
+    }
     leaderSelector.close();
   }
 

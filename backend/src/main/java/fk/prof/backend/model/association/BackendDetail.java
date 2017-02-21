@@ -12,33 +12,25 @@ import java.util.Set;
 
 public class BackendDetail {
   private final String backendIPAddress;
-  private final int reportingFrequencyInSeconds;
-  private final int maxAllowedSkips;
+  private final int loadReportIntervalInSeconds;
+  private final int loadMissTolerance;
   private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
   private Double lastReportedLoad = null;
   //Last reported time is initialized with epochSecond=0 to ensure isDefunct returns true until backend reports its load to the leader
   private LocalDateTime lastReportedTime = LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC);
 
-  public BackendDetail(String backendIPAddress, int reportingFrequencyInSeconds, int maxAllowedSkips)
+  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
-    this(backendIPAddress, reportingFrequencyInSeconds, maxAllowedSkips, null);
+    this(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, new HashSet<>());
   }
 
-  public BackendDetail(String backendIPAddress, int reportingFrequencyInSeconds, int maxAllowedSkips, byte[] processGroupsBytes)
+  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance, Set<Recorder.ProcessGroup> associatedProcessGroups)
       throws IOException {
     this.backendIPAddress = backendIPAddress;
-    this.reportingFrequencyInSeconds = reportingFrequencyInSeconds;
-    this.maxAllowedSkips = maxAllowedSkips;
-
-    Recorder.ProcessGroups processGroups = processGroupsBytes == null
-        ? Recorder.ProcessGroups.newBuilder().build()
-        : Recorder.ProcessGroups.parseFrom(processGroupsBytes);
-    if(processGroups != null) {
-      this.associatedProcessGroups = new HashSet<>(processGroups.getProcessGroupList());
-    } else {
-      this.associatedProcessGroups = new HashSet<>();
-    }
+    this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
+    this.loadMissTolerance = loadMissTolerance;
+    this.associatedProcessGroups = associatedProcessGroups;
   }
 
   public void reportLoad(double loadFactor) {
@@ -55,7 +47,7 @@ public class BackendDetail {
   }
 
   public boolean isDefunct() {
-    return timeElapsedSinceLastReport(ChronoUnit.SECONDS) > (reportingFrequencyInSeconds * (maxAllowedSkips + 1));
+    return timeElapsedSinceLastReport(ChronoUnit.SECONDS) > (loadReportIntervalInSeconds * (loadMissTolerance + 1));
   }
 
   public String getBackendIPAddress() {
@@ -91,14 +83,8 @@ public class BackendDetail {
     return result;
   }
 
-  public static byte[] serializeProcessGroups(Set<Recorder.ProcessGroup> processGroups)
-      throws IOException {
-    Recorder.ProcessGroups processGroupsProto = buildProcessGroupsProto(processGroups);
-    return processGroupsProto.toByteArray();
-  }
-
-  public static Recorder.ProcessGroups buildProcessGroupsProto(Set<Recorder.ProcessGroup> processGroups) {
-    return Recorder.ProcessGroups.newBuilder().addAllProcessGroup(processGroups).build();
+  public Recorder.ProcessGroups buildProcessGroupsProto() {
+    return Recorder.ProcessGroups.newBuilder().addAllProcessGroup(associatedProcessGroups).build();
   }
 
 }

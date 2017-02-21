@@ -11,6 +11,7 @@ import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.mock.MockProfileObjects;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import io.vertx.core.*;
@@ -72,7 +73,7 @@ public class ProfileApiTest {
     DeploymentOptions backendHttpDeploymentOptions = new DeploymentOptions(backendHttpDeploymentConfig);
     VertxManager.deployBackendHttpVerticles(vertx, backendHttpServerConfig, httpClientConfig,
         leaderPort, backendHttpDeploymentOptions,
-        VertxManager.getDefaultLeaderDiscoveryStore(vertx), profileWorkService);
+        new InMemoryLeaderStore(), profileWorkService);
   }
 
   @AfterClass

@@ -1,13 +1,11 @@
 package fk.prof.backend.leader.election;
 
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.model.election.LeaderWriteContext;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.api.CuratorWatcher;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 
 import java.net.InetAddress;
@@ -18,7 +16,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(LeaderElectionWatcher.class);
 
   private final CuratorFramework curatorClient;
-  private final LeaderDiscoveryStore leaderDiscoveryStore;
+  private final LeaderWriteContext leaderWriteContext;
   private String leaderWatchingPath;
 
   private Watcher childWatcher = event -> {
@@ -29,9 +27,9 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     }
   };
 
-  public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderDiscoveryStore leaderDiscoveryStore) {
+  public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderWriteContext leaderWriteContext) {
     this.curatorClient = curatorClient;
-    this.leaderDiscoveryStore = leaderDiscoveryStore;
+    this.leaderWriteContext = leaderWriteContext;
   }
 
   @Override
@@ -57,7 +55,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   public void stop() {
     //This ensures that if this worker verticle is undeployed for whatever reason, leader is set as null and all other components dependent on leader will fail
     curatorClient.clearWatcherReferences(childWatcher);
-    leaderDiscoveryStore.setLeaderIPAddress(null);
+    leaderWriteContext.setLeaderIPAddress(null);
   }
 
   private List<String> getChildrenAndSetWatch() {
@@ -76,7 +74,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
       try {
         byte[] ipAddressBytes = curatorClient.getData().forPath(leaderWatchingPath + "/" + childNodesList.get(0));
         String leaderIPAddress = InetAddress.getByAddress(ipAddressBytes).getHostAddress();
-        leaderDiscoveryStore.setLeaderIPAddress(leaderIPAddress);
+        leaderWriteContext.setLeaderIPAddress(leaderIPAddress);
         return;
       } catch (Exception ex) {
         logger.error("Error encountered while fetching leader information", ex);
@@ -86,6 +84,6 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     if (childNodesList.size() > 1) {
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
-    leaderDiscoveryStore.setLeaderIPAddress(null);
+    leaderWriteContext.setLeaderIPAddress(null);
   }
 }
