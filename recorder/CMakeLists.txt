@@ -172,7 +172,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
-SET(VERBOSE_LOGS "n" CACHE STRING "Test variable defaulting to 'n'")
+SET(VERBOSE_LOGS "n" CACHE STRING "'Enable Verbose Logging' flag, turns on compile-time controlled debug and trace logs, defaults to 'n'")
 if (${VERBOSE_LOGS} MATCHES "y")
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
 endif()
