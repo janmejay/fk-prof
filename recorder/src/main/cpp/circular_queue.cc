@@ -52,14 +52,6 @@ bool CircularQueue::pop() {
 
     listener_.record(buffer[current_output].trace, buffer[current_output].info, buffer[current_output].ctx_len, &buffer[current_output].ctx);
     
-    // 0 out all frames so the next write is clean
-    JVMPI_CallFrame *fb = frame_buffer_[current_output];
-    auto num_frames = buffer[current_output].trace.num_frames;
-    for (int frame_num = 0; frame_num < num_frames; ++frame_num) {
-        memset(&(fb[frame_num]), 0, sizeof(JVMPI_CallFrame));
-    }
-    buffer[current_output].info = nullptr;
-
     // ensure that the record is ready to be written to
     buffer[current_output].is_committed.store(UNCOMMITTED, std::memory_order_release);
     // Signal that you've finished reading the record
