@@ -16,7 +16,7 @@ struct Buff { //TODO: test me
     }
 
     ~Buff() {
-        delete buff;
+        delete[] buff;
     }
 
     inline void ensure_free(std::uint32_t min_available) {

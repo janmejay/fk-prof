@@ -1,7 +1,21 @@
 #include "config.hh"
 
-char *safe_copy_string(const char *value, const char *next);
-void safe_free_string(char *&value);
+char *safe_copy_string(const char *value, const char *next) {
+    size_t size = (next == 0) ? strlen(value) : (size_t) (next - value);
+    char *dest = (char *) malloc((size + 1) * sizeof(char));
+
+    strncpy(dest, value, size);
+    dest[size] = '\0';
+
+    return dest;
+}
+
+void safe_free_string(char *&value) {
+    if (value != NULL) {
+        free(value);
+        value = NULL;
+    }
+}
 
 typedef std::unique_ptr<char, void(*)(char*&)> ConfArg;
 
@@ -33,7 +47,7 @@ void ConfigurationOptions::load(const char* options) {
         const char *value = strchr(key, '=');
         next = strchr(key, ',');
         if (value == NULL) {
-            logError("WARN: No value for key %s\n", key);
+            logger->warn("WARN: No value for key {}", key);
             continue;
         } else {
             value++;
@@ -73,11 +87,12 @@ void ConfigurationOptions::load(const char* options) {
             } else if (strstr(key, "logLvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
                 log_level = resolv_log_level(val);
+                logger->warn("Log-level set to: {}", log_level);
             } else if (strstr(key, "pollItvl") == key) {
                 poll_itvl = (std::uint32_t) atoi(value);
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;
             } else {
-                logger->warn("Unknown configuration option: {}\n", key);
+                logger->warn("Unknown configuration option: {}", key);
             }
         }
     }

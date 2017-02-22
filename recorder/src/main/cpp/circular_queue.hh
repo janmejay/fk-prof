@@ -21,7 +21,7 @@ const size_t Capacity = Size + 1;
 
 class QueueListener {
 public:
-    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr) = 0;
+    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) = 0;
 
     virtual ~QueueListener() {
     }
@@ -34,6 +34,8 @@ struct TraceHolder {
     std::atomic<int> is_committed;
     JVMPI_CallTrace trace;
     ThreadBucket *info;
+    PerfCtx::ThreadTracker::EffectiveCtx ctx;
+    std::uint8_t ctx_len;
 };
 
 class CircularQueue {

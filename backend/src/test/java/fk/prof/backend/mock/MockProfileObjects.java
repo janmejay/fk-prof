@@ -22,13 +22,13 @@ public class MockProfileObjects {
         .setIssueTime(LocalDateTime.now().toString())
         .setDelay(180)
         .setDuration(60)
+        .setDescription("Test Work")
         .build();
     Recorder.RecordingHeader recordingHeader = Recorder.RecordingHeader.newBuilder()
         .setRecorderVersion(1)
         .setControllerVersion(2)
         .setControllerId(3)
         .setWorkAssignment(workAssignment)
-        .setWorkDescription("Test Work")
         .build();
 
     return recordingHeader;
@@ -48,13 +48,13 @@ public class MockProfileObjects {
         .setIssueTime(LocalDateTime.now().toString())
         .setDelay(180)
         .setDuration(60)
+        .setDescription("Test Work")
         .build();
     Recorder.RecordingHeader recordingHeader = Recorder.RecordingHeader.newBuilder()
         .setRecorderVersion(recorderVersion)
         .setControllerVersion(2)
         .setControllerId(3)
         .setWorkAssignment(workAssignment)
-        .setWorkDescription("Test Work")
         .build();
 
     return recordingHeader;
@@ -77,7 +77,7 @@ public class MockProfileObjects {
     while (samples.size() < samplesCount) {
       Recorder.StackSample baselineSample = baseline.get(baselineSampleIndex);
       Recorder.StackSample.Builder sampleBuilder = Recorder.StackSample.newBuilder()
-          .setStartOffsetMicros(1000).setThreadId(1).setTraceId(traceId);
+          .setStartOffsetMicros(1000).setThreadId(1).addTraceId(traceId);
 
       List<Long> methodIds = new ArrayList(baselineSample.getFrameList().stream().map(frame -> frame.getMethodId()).collect(Collectors.toSet()));
       List<Recorder.Frame> frames = new ArrayList<>();
@@ -127,16 +127,17 @@ public class MockProfileObjects {
   }
 
   private static List<Recorder.TraceContext> generateTraceIndex(Recorder.StackSampleWse currentStackSampleWse, Recorder.StackSampleWse prevStackSampleWse) {
-    Set<Integer> currentTraceIds = currentStackSampleWse.getStackSampleList().stream().map(stackSample -> stackSample.getTraceId()).collect(Collectors.toSet());
+    Set<Integer> currentTraceIds = currentStackSampleWse.getStackSampleList().stream().flatMap(stackSample -> stackSample.getTraceIdList().stream()).collect(Collectors.toSet());
     Set<Integer> prevTraceIds = prevStackSampleWse == null
         ? new HashSet<>()
-        : prevStackSampleWse.getStackSampleList().stream().map(stackSample -> stackSample.getTraceId()).collect(Collectors.toSet());
+        : prevStackSampleWse.getStackSampleList().stream().flatMap(stackSample -> stackSample.getTraceIdList().stream()).collect(Collectors.toSet());
     Set<Integer> newTraceIds = Sets.difference(currentTraceIds, prevTraceIds);
     return newTraceIds.stream()
         .map(tId -> Recorder.TraceContext.newBuilder()
             .setCoveragePct(5)
             .setTraceId(tId)
             .setTraceName(String.valueOf(tId))
+            .setIsGenerated(false)
             .build())
         .collect(Collectors.toList());
   }
@@ -157,7 +158,7 @@ public class MockProfileObjects {
   private static Recorder.StackSample getMockStackSample(int traceId, char[] dummyMethods) {
     return Recorder.StackSample.newBuilder()
         .setStartOffsetMicros(1000).setThreadId(1).setSnipped(true)
-        .setTraceId(traceId)
+        .addTraceId(traceId)
         .addAllFrame(getMockFrames(dummyMethods))
         .build();
   }

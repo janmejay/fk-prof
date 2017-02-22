@@ -3,7 +3,8 @@
 #include <iostream>
 #include "fixtures.hh"
 #include "test.hh"
-#include "../../main/cpp/agent.cc"
+#define IN_TEST
+#include "../../main/cpp/config.hh"
 
 TEST(ParsesAllOptions) {
     std::string str("service_endpoint=http://10.20.30.40:9070,"

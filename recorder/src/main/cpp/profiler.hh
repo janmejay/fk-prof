@@ -12,7 +12,7 @@
 #include "signal_handler.hh"
 #include "stacktraces.hh"
 #include "processor.hh"
-#include "log_writer.hh"
+#include "perf_ctx.hh"
 #include "profile_writer.hh"
 
 using namespace std::chrono;
@@ -67,23 +67,10 @@ public:
     ~SimpleSpinLockGuard() {}
 };
 
-class ProfileSerializer : public QueueListener {
-private:
-    ProfileWriter& w;
-    
-public:
-    ProfileSerializer(ProfileWriter& _w) : w(_w) {}
-
-    ~ProfileSerializer() {}
-
-    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr) {}
-};
-
 class Profiler {
 public:
-    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileWriter& _writer, std::uint16_t _max_stack_depth, std::uint16_t _sampling_freq)
-        : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), writer(_writer), ongoing_conf(false) {
-        set_max_stack_depth(_max_stack_depth);
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq)
+        : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer), tts(max_stack_depth), ongoing_conf(false) {
         set_sampling_freq(_sampling_freq);
         configure();
     }
@@ -107,7 +94,7 @@ private:
 
     std::uint32_t itvl_min, itvl_max;
 
-    ProfileWriter& writer;
+    std::shared_ptr<ProfileWriter> writer;
 
     CircularQueue *buffer;
 
@@ -115,18 +102,18 @@ private:
 
     SignalHandler* handler;
 
-    ProfileSerializer* serializer;
+    SerializationFlushThresholds sft;
+    TruncationThresholds tts;
+    ProfileSerializingWriter* serializer;
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
 
-    static bool lookup_frame_information(const JVMPI_CallFrame &frame,
-                                       jvmtiEnv *jvmti,
-                                       MethodListener &logWriter);
-
     void set_sampling_freq(std::uint32_t sampling_freq);
 
-    void set_max_stack_depth(int maxFramesToCapture);
+    void set_max_stack_depth(std::uint32_t max_stack_depth);
+
+    static std::uint32_t calculate_max_stack_depth(std::uint32_t hinted_max_stack_depth);
 
     void configure();
 

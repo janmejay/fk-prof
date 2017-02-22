@@ -19,16 +19,21 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  **/
-package fk.prof.utils;
+package fk.prof.recorder.utils;
 
 import fk.prof.Platforms;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
-import static java.lang.Integer.parseInt;
 
 public class AgentRunner {
     private static final Logger logger = LoggerFactory.getLogger(AgentRunner.class);
@@ -41,9 +46,6 @@ public class AgentRunner {
     private int processId;
 
     public AgentRunner(final String fqdn, final String args) {
-        if (! fqdn.contains(".nodep.")) {
-            throw new IllegalArgumentException("Agent JVM can only launch with classes in 'nodep' package, its classpath setup doesn't understand dependencies yet.");
-        }
         this.fqdn = fqdn;
         this.args = args;
     }
@@ -77,18 +79,38 @@ public class AgentRunner {
 
     private void startProcess() throws IOException {
         String java = System.getProperty("java.home") + "/bin/java";
-        String agentArg = "-agentpath:../recorder/build/liblagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
+        String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
+
+        List<String> classpath = discoverClasspath(getClass());
+        //System.out.println("classpath = " + classpath);
         process = new ProcessBuilder()
-                .command(java, agentArg, "-cp", "./target/test-classes/", fqdn)
-                .redirectError(new File("/tmp/error.log"))
+                .command("java", agentArg, "-cp", String.join(":", classpath), fqdn)
+                .redirectError(new File("/tmp/fkprof_stderr.log"))
+                .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
+    }
+
+    private List<String> discoverClasspath(Class klass) {
+        ClassLoader loader = klass.getClassLoader();
+        List<String> classPath = new ArrayList<>();
+        do {
+            if (loader instanceof URLClassLoader) {
+                URLClassLoader urlClassLoader = (URLClassLoader) loader;
+                URL[] urLs = urlClassLoader.getURLs();
+                for (URL urL : urLs) {
+                    classPath.add(urL.toString());
+                }
+            }
+            loader = loader.getParent();
+        } while (loader != null);
+        return classPath;
     }
 
     public void stop() {
         process.destroy();
         try {
-            process.waitFor();
+            process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             logger.info(e.getMessage(), e);
         }

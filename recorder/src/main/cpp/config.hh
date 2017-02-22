@@ -1,6 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#ifdef IN_TEST
+char *safe_copy_string(const char *value, const char *next);
+void safe_free_string(char *&value);
+#endif
+
 #include <cstdint>
 #include "globals.hh"
 

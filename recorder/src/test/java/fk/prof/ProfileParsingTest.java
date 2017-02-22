@@ -37,7 +37,6 @@ public class ProfileParsingTest {
         assertThat(rh.getRecorderVersion(), is(1));
         assertThat(rh.getControllerVersion(), is(2));
         assertThat(rh.getControllerId(), is(3));
-        assertThat(rh.getWorkDescription(), is("Test cpu-sampling work"));
         Recorder.WorkAssignment wa = rh.getWorkAssignment();
         assertThat(wa.getWorkId(), is(10l));
         assertThat(wa.getIssueTime(), is("2016-11-10T14:35:09.372"));
@@ -67,7 +66,7 @@ public class ProfileParsingTest {
         Recorder.IndexedData idxData = e1.getIndexedData();
         Map<Long, String> methodIdToName = new HashMap<>();
         assertMethodInfoContents(methodIdToName, idxData, 4);
-        testWseContents(e1, methodIdToName, new int[]{15000, 15050}, new long[]{200l, 200l}, new List[]{Arrays.asList("Y", "C", "D", "C", "D"), Arrays.asList("Y", "C", "D", "E", "C", "D")});
+        testWseContents(e1, methodIdToName, new int[]{15000, 15050}, new long[]{200l, 200l}, new int[]{401, 405}, new List[]{Arrays.asList("Y", "C", "D", "C", "D"), Arrays.asList("Y", "C", "D", "E", "C", "D")});
 
 
         //// E1 len and chksum
@@ -85,7 +84,7 @@ public class ProfileParsingTest {
         Recorder.Wse e2 = wseBuilder.build();
         idxData = e2.getIndexedData();
         assertMethodInfoContents(methodIdToName, idxData, 1);
-        testWseContents(e2, methodIdToName, new int[]{25002}, new long[]{201l}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")});
+        testWseContents(e2, methodIdToName, new int[]{25002}, new long[]{201l}, new int[]{802}, new List[]{Arrays.asList("Y", "C", "D", "E", "F", "C")});
 
         //// E2 len and chksum
         int byteCountE2 = is.getTotalBytesRead() - bytesOffsetAfterE1Chksum;
@@ -141,7 +140,7 @@ public class ProfileParsingTest {
         }
     }
 
-    private void testWseContents(Recorder.Wse e, Map<Long, String> methodIdToName, final int[] startOffsets, final long[] threadIds, final List[] frames) {
+    private void testWseContents(Recorder.Wse e, Map<Long, String> methodIdToName, final int[] startOffsets, final long[] threadIds, int[] traceIds, final List[] frames) {
         assertThat(e.getWType(), is(Recorder.WorkType.cpu_sample_work));
         Recorder.StackSampleWse cse = e.getCpuSampleEntry();
         assertThat(cse.getStackSampleCount(), is(frames.length));
@@ -149,6 +148,8 @@ public class ProfileParsingTest {
             Recorder.StackSample ss1 = cse.getStackSample(i);
             assertThat(ss1.getStartOffsetMicros(), is(startOffsets[i]));
             assertThat(ss1.getThreadId(), is(threadIds[i]));
+            assertThat(ss1.getTraceIdCount(), is(1));
+            assertThat(ss1.getTraceId(0), is(traceIds[i]));
             assertThat(ss1.getFrameCount(), is(frames[i].size()));
             List<String> callChain = new ArrayList<>();
             for (Recorder.Frame frame : ss1.getFrameList()) {

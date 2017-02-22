@@ -9,6 +9,8 @@
 #include "thread_map.hh"
 #include "profiler.hh"
 #include "controller.hh"
+#include "perf_ctx.hh"
+#include "prob_pct.hh"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -18,7 +20,8 @@ LoggerP logger(nullptr);
 static ConfigurationOptions* CONFIGURATION;
 static Controller* controller;
 static ThreadMap threadMap;
-
+PerfCtx::Registry* GlobalCtx::ctx_reg;
+ProbPct* GlobalCtx::prob_pct;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -69,9 +72,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
         CreateJMethodIDsForClass(jvmti, klass);
     }
 
-#ifndef GETENV_NEW_THREAD_ASYNC_UNSAFE
     controller->start();
-#endif
 }
 
 void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
@@ -88,8 +89,6 @@ void JNICALL OnClassPrepare(jvmtiEnv *jvmti_env, JNIEnv *jni_env,
 void JNICALL OnVMDeath(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
     IMPLICITLY_USE(jvmti_env);
     IMPLICITLY_USE(jni_env);
-
-    controller->stop();
 }
 
 static bool PrepareJvmti(jvmtiEnv *jvmti) {
@@ -105,9 +104,7 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
     caps.can_get_bytecodes = 1;
     caps.can_get_constant_pool = 1;
     caps.can_generate_compiled_method_load_events = 1;
-#ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
     caps.can_generate_native_method_bind_events = 1;
-#endif
 
     jvmtiCapabilities all_caps;
     int error;
@@ -188,6 +185,7 @@ void JNICALL OnNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread th
 volatile bool main_started = false;
 
 void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread) {
+    SPDLOG_TRACE(logger, "Some thraed started");
     jvmtiThreadInfo thread_info;
     int error = jvmti_env->GetThreadInfo(thread, &thread_info);
     if (error == JNI_OK) {
@@ -196,7 +194,8 @@ void JNICALL OnThreadStart(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread)
                 main_started = true;
             }
         }
-        threadMap.put(jni_env, thread_info.name);
+        threadMap.put(jni_env, thread_info.name, thread_info.priority, thread_info.is_daemon);
+        jvmti_env->Deallocate((unsigned char *) thread_info.name);
     }
     pthread_sigmask(SIG_UNBLOCK, &prof_signal_mask, NULL);
 }
@@ -225,48 +224,35 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     callbacks->ThreadStart = &OnThreadStart;
     callbacks->ThreadEnd = &OnThreadEnd;
 
-    JVMTI_ERROR_RET(
-            (jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))),
-            false);
+    JVMTI_ERROR_RET((jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))), false);
 
-    jvmtiEvent events[] = {JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE,
-            JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT, JVMTI_EVENT_COMPILED_METHOD_LOAD
-#ifdef GETENV_NEW_THREAD_ASYNC_UNSAFE
-        ,JVMTI_EVENT_THREAD_START,
-        JVMTI_EVENT_THREAD_END,
-        JVMTI_EVENT_NATIVE_METHOD_BIND
-#endif
-    };
+    jvmtiEvent events[] = { JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT,
+                            JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE, JVMTI_EVENT_COMPILED_METHOD_LOAD,
+                            JVMTI_EVENT_THREAD_START, JVMTI_EVENT_THREAD_END, JVMTI_EVENT_NATIVE_METHOD_BIND };
 
     size_t num_events = sizeof(events) / sizeof(jvmtiEvent);
 
     // Enable the callbacks to be triggered when the events occur.
     // Events are enumerated in jvmstatagent.h
     for (int i = 0; i < num_events; i++) {
-        JVMTI_ERROR_RET(
-                (jvmti->SetEventNotificationMode(JVMTI_ENABLE, events[i], NULL)),
-                false);
+        JVMTI_ERROR_RET((jvmti->SetEventNotificationMode(JVMTI_ENABLE, events[i], NULL)), false);
+        SPDLOG_DEBUG(logger, "Initialized notification for ti-event = {} (which is {} / {})", events[i], i + 1, num_events);
     }
 
     return true;
 }
 
+#define LST "LOGGING-SELF-TEST: "
 
-char *safe_copy_string(const char *value, const char *next) {
-    size_t size = (next == 0) ? strlen(value) : (size_t) (next - value);
-    char *dest = (char *) malloc((size + 1) * sizeof(char));
-
-    strncpy(dest, value, size);
-    dest[size] = '\0';
-
-    return dest;
-}
-
-void safe_free_string(char *&value) {
-    if (value != NULL) {
-        free(value);
-        value = NULL;
-    }
+void log_level_self_test() {
+    logger->trace(LST "*trace*");
+    SPDLOG_TRACE(logger, LST "*compile-time checked trace*");
+    logger->debug(LST "*debug*");
+    SPDLOG_DEBUG(logger, LST "*compile-time checked debug*");
+    logger->info(LST "*info*");
+    logger->warn(LST "*warn*");
+    logger->error(LST "*err*");
+    logger->critical(LST "*critical*");
 }
 
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
@@ -278,7 +264,9 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     CONFIGURATION = new ConfigurationOptions(options);
 
     logger->set_level(CONFIGURATION->log_level);
-
+    logger->set_pattern("{%t} %+");//TODO: make this configurable
+    log_level_self_test();
+    logger->info("======================= Starting fk-prof JVMTI agent =======================");
     
     if (! CONFIGURATION->valid()) return 1;
 
@@ -295,15 +283,17 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
         logError("JNI Error %d\n", err);
         return 1;
       }
-      */
+    */
+
+    logger->trace("Preparing TI");
 
     if (!PrepareJvmti(jvmti)) {
-        logError("ERROR: Failed to initialize JVMTI. Continuing...\n");
+        logger->critical("Failed to initialize JVMTI. Continuing...");
         return 0;
     }
 
     if (!RegisterJvmti(jvmti)) {
-        logError("ERROR: Failed to enable JVMTI events. Continuing...\n");
+        logger->critical("Failed to enable JVMTI events");
         // We fail hard here because we may have failed in the middle of
         // registering callbacks, which will leave the system in an
         // inconsistent state.
@@ -313,6 +303,9 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     Asgct::SetAsgct(Accessors::GetJvmFunction<ASGCTType>("AsyncGetCallTrace"));
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
 
+    GlobalCtx::ctx_reg = new PerfCtx::Registry();
+    GlobalCtx::prob_pct = new ProbPct();    
+    
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
     return 0;
@@ -324,6 +317,8 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
     controller->stop();
 
     delete controller;
+    delete GlobalCtx::ctx_reg;
+    delete GlobalCtx::prob_pct;
     delete CONFIGURATION;
 }
 
@@ -333,4 +328,8 @@ void logError(const char *__restrict format, ...) {
     va_start(arg, format);
     vfprintf(stderr, format, arg);
     va_end(arg);
+}
+
+ThreadMap& get_thread_map() {
+    return threadMap;
 }

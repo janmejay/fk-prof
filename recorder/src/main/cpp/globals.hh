@@ -4,9 +4,12 @@
 #include <jni.h>
 #include <stdint.h>
 #include <signal.h>
+#include <chrono>
 
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
+
+#include "perf_ctx.hh"
 
 #ifndef GLOBALS_H
 #define GLOBALS_H
@@ -16,24 +19,30 @@
 
 typedef std::shared_ptr<spdlog::logger> LoggerP;
 
+namespace Time {
+    typedef std::chrono::steady_clock Clk;
+    typedef std::chrono::time_point<Clk> Pt;
+    typedef std::chrono::seconds sec;
+    typedef std::chrono::milliseconds msec;
+    typedef std::chrono::microseconds usec;
+
+    Pt now();
+
+    std::uint32_t elapsed_seconds(const Pt& later, const Pt& earlier);
+};
+
 extern LoggerP logger;//TODO: stick me in GlobalCtx???
 
 class Profiler;
 
 namespace GlobalCtx {
-    struct {
-        std::atomic<bool> on;
-        Profiler* profiler;
-    } recording;
+    typedef struct {
+        std::shared_ptr<Profiler> cpu_profiler;
+    } Rec;
 
-    struct {
-        std::atomic<bool> known;
-        struct {
-            std::string host;
-            std::uint32_t port;
-        } remote;
-    } associate;
-    
+    extern GlobalCtx::Rec recording;
+    extern PerfCtx::Registry* ctx_reg;
+    extern ProbPct* prob_pct;
 }
 
 void logError(const char *__restrict format, ...);
@@ -52,10 +61,6 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
 #else
   #define STATIC_ARRAY(NAME, TYPE, SIZE, MAXSZ) TYPE NAME[SIZE]
 #endif
-
-template <typename T> const T& min(const T& first, const T& second) {
-    return first > second ? second : first;
-}
 
 #define AGENTEXPORT __attribute__((visibility("default"))) JNIEXPORT
 
@@ -78,14 +83,14 @@ template <typename T> const T& min(const T& first, const T& second) {
   {                                                                            \
     int err;                                                                   \
     if ((err = (error)) != JVMTI_ERROR_NONE) {                                 \
-      logError(message, err);                                                  \
+        logger->critical(message, err);                                        \
       cleanup;                                                                 \
       return (retval);                                                         \
     }                                                                          \
   }
 
 #define JVMTI_ERROR_CLEANUP_RET(error, retval, cleanup)                        \
-    JVMTI_ERROR_MESSAGE_CLEANUP_RET(error, "JVMTI error %d\n", retval, cleanup)
+    JVMTI_ERROR_MESSAGE_CLEANUP_RET(error, "JVMTI error {}", retval, cleanup)
 
 // Wrap JVMTI functions in this in functions that expect a return value.
 #define JVMTI_ERROR_RET(error, retval)                                           \

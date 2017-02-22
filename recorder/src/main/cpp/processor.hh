@@ -3,9 +3,9 @@
 
 #include <jvmti.h>
 #include "common.hh"
-#include "log_writer.hh"
 #include "signal_handler.hh"
-
+#include "circular_queue.hh"
+#include "ti_thd.hh"
 #include "trace.hh"
 
 const int kTraceProcessorTotal = 3;
@@ -39,11 +39,11 @@ private:
 
     std::atomic_bool isRunning_;
 
-    std::atomic_flag workerDone;
-
     SignalHandler& handler_;
 
     int interval_;
+
+    ThdProcP thd_proc;
 
     void startCallback(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 

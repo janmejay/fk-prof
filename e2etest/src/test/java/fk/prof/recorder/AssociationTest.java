@@ -1,9 +1,9 @@
-package fk.prof;
+package fk.prof.recorder;
 
-import fk.prof.nodep.SleepForever;
-import fk.prof.utils.AgentRunner;
-import fk.prof.utils.TestBackendServer;
-import org.apache.commons.lang3.SystemUtils;
+import fk.prof.recorder.main.SleepForever;
+import fk.prof.recorder.utils.AgentRunner;
+import fk.prof.recorder.utils.Matchers;
+import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -60,7 +60,8 @@ public class AssociationTest {
                 "zone=waldo-zone," +
                 "ityp=c0.small," +
                 "backoffStart=2," +
-                "backoffMax=5"
+                "backoffMax=5" +
+                "logLvl=trace"
         );
     }
 
@@ -89,7 +90,6 @@ public class AssociationTest {
             return new byte[0];
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -132,7 +132,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -148,8 +147,8 @@ public class AssociationTest {
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
-        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
-        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(Matchers.approximately(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(Matchers.approximately(4000l)));
         assertThat(assocCalledMoreThanOnce.getValue(), is(false));
     }
 
@@ -183,7 +182,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -199,8 +197,8 @@ public class AssociationTest {
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
-        assertThat(pollCalledAt[1] - pollCalledAt[0], is(greaterThan(2000l)));
-        assertThat(pollCalledAt[2] - pollCalledAt[1], is(greaterThan(4000l)));
+        assertThat(pollCalledAt[1] - pollCalledAt[0], is(Matchers.approximately(2000l)));
+        assertThat(pollCalledAt[2] - pollCalledAt[1], is(Matchers.approximately(4000l)));
         assertThat(assocCalledMoreThanTwice.getValue(), is(false));
     }
 
@@ -223,7 +221,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         long startTime = currentTimeMillis();
         runner.start();
 
@@ -279,7 +276,6 @@ public class AssociationTest {
             return tellRecorderWeHaveNoWork(pollReq).apply(req);
         };
 
-        //start process here
         long startTime = currentTimeMillis();
         runner.start();
         
@@ -327,10 +323,10 @@ public class AssociationTest {
                 String nowString = ISODateTimeFormat.dateTime().print(now);
                 Recorder.PollRes.Builder builder = Recorder.PollRes.newBuilder()
                         .setLocalTime(nowString)
-                        .setWorkDescription("no work for ya!")
                         .setControllerId(2)
                         .setControllerVersion(1);
                 builder.getAssignmentBuilder()
+                        .setDescription("no work for ya!")
                         .setWorkId(10)
                         .setDelay(0)
                         .setDuration(0)
@@ -366,7 +362,7 @@ public class AssociationTest {
         };
     }
 
-    private void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
+    public static void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
         assertThat(recorderInfo.getIp(), is("10.20.30.40"));
         assertThat(recorderInfo.getHostname(), is("foo-host"));
         assertThat(recorderInfo.getAppId(), is("bar-app"));
@@ -381,6 +377,6 @@ public class AssociationTest {
         DateTime now = DateTime.now();
         assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
         assertThat(recorderInfo.getRecorderVersion(), is(1));
-        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThan(60)));
+        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(60)));
     }
 }

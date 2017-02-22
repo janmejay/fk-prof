@@ -5,10 +5,10 @@
 #include <jni.h>
 #include <string.h>
 #include "concurrent_map.hh"
-
+#include "perf_ctx.hh"
+#include "globals.hh"
 
 int gettid();
-
 
 template <typename PType>
 struct PointerHasher {
@@ -56,10 +56,13 @@ public:
 struct ThreadBucket {
 	const int tid;
 	char *name;
+    std::uint32_t priority;
+    bool is_daemon;
 	std::atomic_int refs;
 	map::GC::EpochType localEpoch;
+    PerfCtx::ThreadTracker ctx_tracker;
 
-	ThreadBucket(int id, const char *n) : tid(id), refs(1), localEpoch(GCHelper::attach()) {
+	ThreadBucket(int id, const char *n, std::uint32_t _priority, bool _is_daemon) : tid(id), priority(_priority), is_daemon(_is_daemon), refs(1), ctx_tracker(*GlobalCtx::ctx_reg, *GlobalCtx::prob_pct, id) {
 		int len = strlen(n) + 1;
 		name = new char[len];
 		std::copy(n, n + len, name);
@@ -97,13 +100,15 @@ public:
 
 	ThreadMapBase(int capacity = kInitialMapSize) : map(capacity) {}
 
-	void put(JNIEnv *jni_env, const char *name) {
-		put(jni_env, name, gettid());
+	void put(JNIEnv *jni_env, const char *name, jint priority, jboolean is_daemon) {
+		put(jni_env, name, gettid(), priority, is_daemon);
 	}
 
-	void put(JNIEnv *jni_env, const char *name, int tid) {
+	void put(JNIEnv *jni_env, const char *name, int tid, jint priority, jboolean is_daemon) {
 		// constructor == call to acquire
-		ThreadBucket *info = new ThreadBucket(tid, name);
+        logger->info("Thread started - '{}' (jniEnv: {}, tid: {}, priority: {}, is_daemon: {})", name, reinterpret_cast<std::uint64_t>(jni_env), tid, priority, is_daemon);
+		ThreadBucket *info = new ThreadBucket(tid, name, static_cast<std::uint32_t>(priority), static_cast<bool>(is_daemon));
+        info->localEpoch = GCHelper::attach();
 		ThreadBucket *old = (ThreadBucket*)map.put((map::KeyType)jni_env, (map::ValueType)info);
 		if (old != nullptr)
 			old->release();
@@ -120,6 +125,7 @@ public:
 	void remove(JNIEnv *jni_env) {
 		ThreadBucket *info = (ThreadBucket*)map.remove((map::KeyType)jni_env);
 		if (info != nullptr) {
+            logger->info("Thread stopped - '{}' (jniEnv: {}, tid: {}, priority: {}, is_daemon: {})", info->name, reinterpret_cast<std::uint64_t>(jni_env), info->tid, info->priority, info->is_daemon);
 			GCHelper::detach(info->localEpoch);
 			info->release();
 		}
@@ -127,5 +133,6 @@ public:
 };
 
 typedef ThreadMapBase<map::ConcurrentMapProvider<PointerHasher<JNIEnv>, true> > ThreadMap;
+ThreadMap& get_thread_map();
 
 #endif

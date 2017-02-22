@@ -45,6 +45,8 @@ Testing
 TAGS
 cscope.*
 
+.#*
+core
 # ui
 npm-debug.log
 ui/public/*

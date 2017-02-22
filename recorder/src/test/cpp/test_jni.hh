@@ -12,8 +12,88 @@ extern "C" {
  * Method:    generateCpusampleSimpleProfile
  * Signature: (Ljava/lang/String;)Z
  */
-    JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile
-    (JNIEnv *, jobject, jstring);
+JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    setupLogger
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupLogger
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    setupPerfCtx
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupPerfCtx
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    teardownPerfCtx
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_fk_prof_TestJni_teardownPerfCtx
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    setupThdTracker
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupThdTracker
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    teardownThdTracker
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_fk_prof_TestJni_teardownThdTracker
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getCurrentCtx
+ * Signature: ([J)I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCurrentCtx
+  (JNIEnv *, jobject, jlongArray);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getCtxName
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getCtxName
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getCtxCov
+ * Signature: (J)I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCtxCov
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getCtxMergeSemantic
+ * Signature: (J)I
+ */
+JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCtxMergeSemantic
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    isGenerated
+ * Signature: (J)Z
+ */
+JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_isGenerated
+  (JNIEnv *, jobject, jlong);
 
 #ifdef __cplusplus
 }
