@@ -31,6 +31,4 @@ public class HttpHelper {
         .setIdleTimeout(httpServerConfig.getInteger("idle.timeout.secs", 120));
     return serverOptions;
   }
-
-
 }

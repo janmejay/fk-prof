@@ -27,9 +27,11 @@ import java.util.concurrent.TimeUnit;
 @RunWith(VertxUnitRunner.class)
 public class ZookeeperBasedBackendAssociationStoreTest {
   private final static String backendAssociationPath = "/assoc";
+
   private static List<Recorder.ProcessGroup> mockProcessGroups;
   private static Vertx vertx;
-  private static JsonObject curatorConfig;
+  private static ConfigManager configManager;
+
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
   private BackendAssociationStore backendAssociationStore;
@@ -44,18 +46,14 @@ public class ZookeeperBasedBackendAssociationStoreTest {
     );
 
     ConfigManager.setDefaultSystemProperties();
-    JsonObject config = ConfigManager.loadFileAsJson(ZookeeperBasedBackendAssociationStoreTest.class.getClassLoader().getResource("config.json").getFile());
+    configManager = new ConfigManager(ZookeeperBasedBackendAssociationStoreTest.class.getClassLoader().getResource("config.json").getFile());
 
-    JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
-
-    curatorConfig = ConfigManager.getCuratorConfig(config);
-    assert curatorConfig != null;
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
   }
 
   @AfterClass
   public static void tearDownAfterClass(TestContext context) {
-    VertxManager.close(vertx);
+    vertx.close();
   }
 
   @Before

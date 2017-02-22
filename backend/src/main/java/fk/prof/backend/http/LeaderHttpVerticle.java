@@ -1,5 +1,6 @@
 package fk.prof.backend.http;
 
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
@@ -19,20 +20,21 @@ import recording.Recorder;
 import java.io.IOException;
 
 public class LeaderHttpVerticle extends AbstractVerticle {
-  private BackendAssociationStore backendAssociationStore;
-  private JsonObject leaderHttpServerConfig;
+  private final ConfigManager configManager;
+  private final BackendAssociationStore backendAssociationStore;
 
-  public LeaderHttpVerticle(JsonObject leaderHttpServerConfig, BackendAssociationStore backendAssociationStore) {
-    this.leaderHttpServerConfig = leaderHttpServerConfig;
+  public LeaderHttpVerticle(ConfigManager configManager,
+                            BackendAssociationStore backendAssociationStore) {
+    this.configManager = configManager;
     this.backendAssociationStore = backendAssociationStore;
   }
 
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(leaderHttpServerConfig))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
         .requestHandler(router::accept)
-        .listen(leaderHttpServerConfig.getInteger("port", 2496),
+        .listen(configManager.getLeaderHttpPort(),
             http -> completeStartup(http, fut));
   }
 

@@ -2,14 +2,19 @@ package fk.prof.backend.model.election.impl;
 
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.LeaderWriteContext;
-import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
 public class InMemoryLeaderStore implements LeaderReadContext, LeaderWriteContext {
   private static Logger logger = LoggerFactory.getLogger(InMemoryLeaderStore.class);
+
+  private final String ipAddress;
   private volatile String leaderIPAddress = null;
   private volatile boolean leader = false;
+
+  public InMemoryLeaderStore(String ipAddress) {
+    this.ipAddress = ipAddress;
+  }
 
   @Override
   public synchronized void setLeaderIPAddress(String ipAddress) {
@@ -20,7 +25,7 @@ public class InMemoryLeaderStore implements LeaderReadContext, LeaderWriteContex
       logger.info(String.format("Set backend leader. Node IP = %s", ipAddress));
     }
     this.leaderIPAddress = ipAddress;
-    this.leader = this.leaderIPAddress != null && this.leaderIPAddress.equals(IPAddressUtil.getIPAddressAsString());
+    this.leader = this.leaderIPAddress != null && this.leaderIPAddress.equals(ipAddress);
   }
 
   @Override

@@ -34,7 +34,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
 
   @Override
   public void start() {
-    leaderWatchingPath = config().getString("leader.watching.path");
+    leaderWatchingPath = config().getString("leader.watching.path", "/backends");
 
     try {
       curatorClient.create().forPath(leaderWatchingPath);
@@ -73,8 +73,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     if (childNodesList.size() == 1) {
       try {
         byte[] ipAddressBytes = curatorClient.getData().forPath(leaderWatchingPath + "/" + childNodesList.get(0));
-        String leaderIPAddress = InetAddress.getByAddress(ipAddressBytes).getHostAddress();
-        leaderWriteContext.setLeaderIPAddress(leaderIPAddress);
+        leaderWriteContext.setLeaderIPAddress(new String(ipAddressBytes, "UTF-8"));
         return;
       } catch (Exception ex) {
         logger.error("Error encountered while fetching leader information", ex);

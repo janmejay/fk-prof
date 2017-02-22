@@ -1,6 +1,6 @@
 package fk.prof.backend.leader.election;
 
-import fk.prof.backend.util.IPAddressUtil;
+import com.google.common.base.Preconditions;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -15,17 +15,12 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private final String leaderWatchingPath;
   private KillBehavior killBehavior;
   private final Runnable leaderElectedTask;
+  private final String ipAddress;
 
-  public LeaderSelectorListenerImpl(String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
-    if (leaderWatchingPath == null) {
-      throw new IllegalArgumentException("Leader Watching path in zookeeper cannot be null");
-    }
-    if (killBehavior == null) {
-      throw new IllegalArgumentException("Kill behavior cannot be null");
-    }
-
-    this.leaderWatchingPath = leaderWatchingPath;
-    this.killBehavior = killBehavior;
+  public LeaderSelectorListenerImpl(String ipAddress, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
+    this.ipAddress = Preconditions.checkNotNull(ipAddress);
+    this.leaderWatchingPath = Preconditions.checkNotNull(leaderWatchingPath);
+    this.killBehavior = Preconditions.checkNotNull(killBehavior);
     this.leaderElectedTask = leaderElectedTask;
   }
 
@@ -36,7 +31,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
         .create()
         .creatingParentsIfNeeded()
         .withMode(CreateMode.EPHEMERAL)
-        .forPath(leaderWatchingPath + "/" + IPAddressUtil.getIPAddressAsString(), IPAddressUtil.getIPAddressAsBytes());
+        .forPath(leaderWatchingPath + "/" + ipAddress, ipAddress.getBytes("UTF-8"));
 
     // NOTE: There is a race here. Other backend nodes can be communicated about the new leader before leaderElectedTask has run
     // If backend nodes talk to the new leader before leader has been primed and setup, its possible for leader to not respond.

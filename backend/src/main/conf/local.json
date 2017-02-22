@@ -1,10 +1,11 @@
 {
+  "backend.http.port": 2491,
+  "leader.http.port": 2496,
+  "load.report.interval.secs": 60,
   "backend.http.server": {
-    "port": 2491,
     "idle.timeout.secs": 120
   },
   "leader.http.server": {
-    "port": 2496,
     "idle.timeout.secs": 120
   },
   "http.client": {
@@ -14,21 +15,16 @@
     "keepalive": true,
     "compression": true
   },
-  "load.report.interval.secs": 60,
   "vertxOptions": {
     "blockedThreadCheckInterval": 1000
   },
   "backendHttpOptions": {
     "config": {
-      "http.instances": 2,
+      "verticle.count": 2,
       "report.load": true,
       "parser": {
         "recordingheader.max.bytes": 1024,
         "wse.max.bytes": 1048576
-      },
-      "aggregator": {
-        "window.duration.mins": 20,
-        "window.tolerance.secs": 60
       }
     }
   },

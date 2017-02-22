@@ -3,7 +3,6 @@ package fk.prof.backend.mock;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.util.IPAddressUtil;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -13,15 +12,17 @@ public class MockLeaderStores {
     private String address = null;
     private boolean self = false;
     private final CountDownLatch latch;
+    private final String ipAddress;
 
-    public TestLeaderStore(CountDownLatch latch) {
+    public TestLeaderStore(String ipAddress, CountDownLatch latch) {
+      this.ipAddress = ipAddress;
       this.latch = latch;
     }
 
     @Override
     public void setLeaderIPAddress(String ipAddress) {
       address = ipAddress;
-      self = ipAddress != null && ipAddress.equals(IPAddressUtil.getIPAddressAsString());
+      self = ipAddress != null && ipAddress.equals(ipAddress);
       if (address != null) {
         latch.countDown();
       }

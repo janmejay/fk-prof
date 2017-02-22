@@ -1,16 +1,17 @@
 package fk.prof.backend;
 
+import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
+import fk.prof.backend.deployer.impl.LeaderElectionParticipatorVerticleDeployer;
+import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
+import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
+import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.mock.MockLeaderStores;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.ProfileWorkService;
-import fk.prof.backend.util.IPAddressUtil;
-import fk.prof.backend.model.election.LeaderReadContext;
-import io.vertx.core.CompositeFuture;
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
-import io.vertx.core.json.JsonObject;
+import io.vertx.core.*;
+import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.apache.curator.framework.CuratorFramework;
@@ -22,6 +23,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static org.mockito.Mockito.*;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,11 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class LeaderElectionTest {
 
   private Vertx vertx;
-  private Integer leaderPort;
-  private JsonObject leaderHttpServerConfig;
-  private JsonObject config;
-  private JsonObject vertxConfig;
-  private DeploymentOptions leaderElectionDeploymentOptions;
+  private ConfigManager configManager;
 
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
@@ -44,16 +43,7 @@ public class LeaderElectionTest {
   @Before
   public void setUp(TestContext context) throws Exception {
     ConfigManager.setDefaultSystemProperties();
-    config = ConfigManager.loadFileAsJson(LeaderElectionTest.class.getClassLoader().getResource("config.json").getFile());
-    vertxConfig = ConfigManager.getVertxConfig(config);
-
-    JsonObject leaderElectionDeploymentConfig = ConfigManager.getLeaderElectionDeploymentConfig(config);
-    assert leaderElectionDeploymentConfig != null;
-
-    leaderHttpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
-    assert leaderHttpServerConfig != null;
-    leaderPort = leaderHttpServerConfig.getInteger("port");
-    leaderElectionDeploymentOptions = new DeploymentOptions(leaderElectionDeploymentConfig);
+    configManager = new ConfigManager(LeaderElectionTest.class.getClassLoader().getResource("config.json").getFile());
 
     testingServer = new TestingServer();
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));
@@ -64,7 +54,7 @@ public class LeaderElectionTest {
   @After
   public void tearDown(TestContext context) throws IOException {
     System.out.println("Tearing down");
-    VertxManager.close(vertx).setHandler(result -> {
+    vertx.close(result -> {
       System.out.println("Vertx shutdown");
       curatorClient.close();
       try {
@@ -79,21 +69,18 @@ public class LeaderElectionTest {
 
   @Test(timeout = 20000)
   public void leaderTaskTriggerOnLeaderElection(TestContext testContext) throws InterruptedException {
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     CountDownLatch latch = new CountDownLatch(1);
     Runnable leaderElectedTask = () -> {
       latch.countDown();
     };
-    LeaderWriteContext leaderWriteContext = new InMemoryLeaderStore();
+    LeaderWriteContext leaderWriteContext = new InMemoryLeaderStore(configManager.getIPAddress());
 
-    Thread.sleep(1000);
-    VertxManager.deployLeaderElectionWorkerVerticles(
-        vertx,
-        leaderElectionDeploymentOptions,
-        curatorClient,
-        leaderElectedTask,
-        leaderWriteContext
-    );
+    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
+    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderWriteContext);
+
+    leaderParticipatorDeployer.deploy();
+    leaderWatcherDeployer.deploy();
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
     if (!released) {
@@ -103,43 +90,36 @@ public class LeaderElectionTest {
 
   @Test(timeout = 20000)
   public void leaderUpdateOnLeaderElection(TestContext testContext) throws InterruptedException {
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     CountDownLatch latch = new CountDownLatch(1);
-    Runnable leaderElectedTask = VertxManager.getDefaultLeaderElectedTask(vertx, true, null, false, null, null, null);
-    MockLeaderStores.TestLeaderStore leaderStore = new MockLeaderStores.TestLeaderStore(latch);
+    Runnable leaderElectedTask = () -> {};
+    MockLeaderStores.TestLeaderStore leaderStore = new MockLeaderStores.TestLeaderStore(configManager.getIPAddress(), latch);
 
-    Thread.sleep(1000);
-    VertxManager.deployLeaderElectionWorkerVerticles(
-        vertx,
-        leaderElectionDeploymentOptions,
-        curatorClient,
-        leaderElectedTask,
-        leaderStore
-    );
+    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
+    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderStore);
+
+    leaderParticipatorDeployer.deploy();
+    leaderWatcherDeployer.deploy();
 
     boolean released = latch.await(10, TimeUnit.SECONDS);
     if (!released) {
       testContext.fail("Latch timed out but leader store was not updated with leader address");
     } else {
-      testContext.assertEquals(IPAddressUtil.getIPAddressAsString(), leaderStore.getLeaderIPAddress());
+      testContext.assertEquals(configManager.getIPAddress(), leaderStore.getLeaderIPAddress());
       testContext.assertTrue(leaderStore.isLeader());
     }
   }
 
   @Test(timeout = 20000)
   public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     ProfileWorkService profileWorkService = new ProfileWorkService();
-    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore();
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
     List<String> backendDeployments = new ArrayList<>();
-
-    CompositeFuture aggDepFut = VertxManager.deployBackendHttpVerticles(
-        vertx, ConfigManager.getBackendHttpServerConfig(config), ConfigManager.getHttpClientConfig(config),
-        leaderPort, new DeploymentOptions(ConfigManager.getBackendHttpDeploymentConfig(config)),
-        leaderStore, profileWorkService);
-
     CountDownLatch aggDepLatch = new CountDownLatch(1);
-    aggDepFut.setHandler(asyncResult -> {
+
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, profileWorkService);
+    backendVerticleDeployer.deploy().setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
         backendDeployments.addAll(asyncResult.result().list());
         aggDepLatch.countDown();
@@ -152,28 +132,22 @@ public class LeaderElectionTest {
     if (!aggDepLatchReleased) {
       testContext.fail("Latch timed out but aggregation verticles were not deployed");
     } else {
-
       CountDownLatch leaderElectionLatch = new CountDownLatch(1);
       CountDownLatch leaderWatchedLatch = new CountDownLatch(1);
 
-      Runnable defaultLeaderElectedTask = VertxManager.getDefaultLeaderElectedTask(
-          vertx, false, backendDeployments,
-          false, null, null, null);
+      VerticleDeployer leaderHttpDeployer = mock(LeaderHttpVerticleDeployer.class);
+      when(leaderHttpDeployer.deploy()).thenReturn(CompositeFutureImpl.all(Future.succeededFuture()));
+      Runnable leaderElectedTask = LeaderElectedTask.newBuilder().disableBackend(backendDeployments).build(vertx, leaderHttpDeployer);
       Runnable wrappedLeaderElectedTask = () -> {
-        defaultLeaderElectedTask.run();
+        leaderElectedTask.run();
         leaderElectionLatch.countDown();
       };
-
       LeaderWriteContext leaderWriteContext = new MockLeaderStores.WrappedLeaderStore(leaderStore, leaderWatchedLatch);
 
-      Thread.sleep(1000);
-      VertxManager.deployLeaderElectionWorkerVerticles(
-          vertx,
-          leaderElectionDeploymentOptions,
-          curatorClient,
-          wrappedLeaderElectedTask,
-          leaderWriteContext
-      );
+      VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, wrappedLeaderElectedTask);
+      VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderWriteContext);
+      leaderParticipatorDeployer.deploy();
+      leaderWatcherDeployer.deploy();
 
       boolean leaderElectionLatchReleased = leaderElectionLatch.await(10, TimeUnit.SECONDS);
       Thread.sleep(2000); //wait for some time for aggregator verticles to be undeployed

@@ -1,13 +1,15 @@
 package fk.prof.backend;
 
+import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
 import fk.prof.backend.model.association.BackendAssociationStore;
+import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
+import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
@@ -31,8 +33,8 @@ import java.util.concurrent.TimeUnit;
 @RunWith(VertxUnitRunner.class)
 public class LeaderAPILoadAndAssociationTest {
   private Vertx vertx;
+  private ConfigManager configManager;
   private Integer port;
-  private DeploymentOptions leaderHttpDeploymentOptions;
 
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
@@ -53,35 +55,30 @@ public class LeaderAPILoadAndAssociationTest {
     curatorClient.start();
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
 
-    JsonObject config = ConfigManager.loadFileAsJson(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
-    JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    configManager = new ConfigManager(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
+    port = configManager.getLeaderHttpPort();
 
-    JsonObject httpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
-    assert httpServerConfig != null;
-    port = httpServerConfig.getInteger("port");
-
-    JsonObject leaderHttpConfig = ConfigManager.getLeaderHttpDeploymentConfig(config);
-    assert leaderHttpConfig != null;
-    String backendAssociationPath = leaderHttpConfig.getString("backend.association.path");
+    JsonObject leaderHttpConfig = configManager.getLeaderHttpDeploymentConfig();
+    String backendAssociationPath = leaderHttpConfig.getString("backend.association.path", "/assoc");
     curatorClient.create().forPath(backendAssociationPath);
 
-    leaderHttpDeploymentOptions = new DeploymentOptions(leaderHttpConfig);
-    BackendAssociationStore backendAssociationStore = VertxManager.getDefaultBackendAssociationStore(
-        vertx,
-        curatorClient,
-        backendAssociationPath,
-        ConfigManager.getLoadReportIntervalInSeconds(config),
-        leaderHttpConfig.getInteger("load.miss.tolerance")
-    );
+    BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
+        vertx, curatorClient, backendAssociationPath,
+        configManager.getLoadReportIntervalInSeconds(),
+        leaderHttpConfig.getInteger("load.miss.tolerance", 1),
+        new ProcessGroupCountBasedBackendComparator());
 
-    VertxManager.deployLeaderHttpVerticles(vertx, httpServerConfig, leaderHttpDeploymentOptions, backendAssociationStore);
+    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore);
+    leaderHttpDeployer.deploy();
+    //Wait for some time for deployment to complete
+    Thread.sleep(1000);
   }
 
   @After
   public void tearDown(TestContext context) throws IOException {
     System.out.println("Tearing down");
-    VertxManager.close(vertx).setHandler(result -> {
+    vertx.close(result -> {
       System.out.println("Vertx shutdown");
       curatorClient.close();
       try {

@@ -1,5 +1,6 @@
 package fk.prof.backend.http;
 
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.request.CompositeByteBufInputStream;
@@ -30,30 +31,27 @@ import java.io.IOException;
 public class BackendHttpVerticle extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
 
-  private final JsonObject backendHttpServerConfig;
-  private final JsonObject httpClientConfig;
+  private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
   private final IProfileWorkService profileWorkService;
   private final int leaderPort;
-  private Long loadReportTimer = null;
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ProfHttpClient httpClient;
 
-  public BackendHttpVerticle(JsonObject backendHttpServerConfig,
-                             JsonObject httpClientConfig,
-                             int leaderPort,
+  public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
                              IProfileWorkService profileWorkService) {
-    this.backendHttpServerConfig = backendHttpServerConfig;
-    this.httpClientConfig = httpClientConfig;
+    this.configManager = configManager;
+    this.leaderPort = configManager.getLeaderHttpPort();
+
     this.leaderReadContext = leaderReadContext;
     this.profileWorkService = profileWorkService;
-    this.leaderPort = leaderPort;
   }
 
   @Override
   public void start(Future<Void> fut) {
+    JsonObject httpClientConfig = configManager.getHttpClientConfig();
     httpClient = ProfHttpClient.newBuilder()
         .keepAlive(httpClientConfig.getBoolean("keepalive", true))
         .useCompression(httpClientConfig.getBoolean("compression", true))
@@ -64,9 +62,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(backendHttpServerConfig))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
         .requestHandler(router::accept)
-        .listen(backendHttpServerConfig.getInteger("port", 2491), http -> completeStartup(http, fut));
+        .listen(configManager.getBackendHttpPort(), http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {
@@ -81,13 +79,6 @@ public class BackendHttpVerticle extends AbstractVerticle {
         .handler(this::handlePutAssociation);
 
     return router;
-  }
-
-  @Override
-  public void stop() throws Exception {
-    if(loadReportTimer != null) {
-      vertx.cancelTimer(loadReportTimer);
-    }
   }
 
   private void completeStartup(AsyncResult<HttpServer> http, Future<Void> fut) {
