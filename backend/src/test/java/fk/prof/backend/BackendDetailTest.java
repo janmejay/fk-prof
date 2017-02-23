@@ -53,7 +53,7 @@ public class BackendDetailTest {
   public void testBackendIsAvailableAfterReportOfLoad()
       throws IOException {
     BackendDetail backendDetail = new BackendDetail("1", 1, 2, null);
-    backendDetail.reportLoad(0.5f, Long.MAX_VALUE, 1);
+    backendDetail.reportLoad(0.5f, 1);
     Assert.assertFalse(backendDetail.isDefunct());
   }
 
@@ -61,7 +61,7 @@ public class BackendDetailTest {
   public void testBackendIsDefunctIfLoadNotReportedInAllowedInterval()
       throws Exception {
     BackendDetail backendDetail = new BackendDetail("1", 1, 1, null);
-    backendDetail.reportLoad(0.5f, Long.MAX_VALUE, 1);
+    backendDetail.reportLoad(0.5f, 1);
     Assert.assertFalse(backendDetail.isDefunct());
     Thread.sleep(1000);
     Assert.assertFalse(backendDetail.isDefunct());

@@ -7,14 +7,15 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class BackendDetail {
+  private static final double NANOSECONDS_IN_SECOND = Math.pow(10, 9);
   private final String backendIPAddress;
-  private final int loadReportIntervalInSeconds;
-  private final int loadMissTolerance;
+  private final long thresholdForDefunctInNanoSeconds;
   private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
   private long lastReportedTick;
-  private volatile long lastReportedTime;
-  private volatile Float lastReportedLoad = null;
+  //lastReportedTime is null unless backend reports stable load at least once (i.e. currTick reported by backend > 0)
+  private volatile Long lastReportedTime;
+  private float lastReportedLoad;
 
   public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
@@ -27,24 +28,24 @@ public class BackendDetail {
       throw new IllegalArgumentException("Backend ip address cannot be null");
     }
     this.backendIPAddress = backendIPAddress;
-    this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
-    this.loadMissTolerance = loadMissTolerance;
+    this.thresholdForDefunctInNanoSeconds = (long)(loadReportIntervalInSeconds * (loadMissTolerance + 1) * NANOSECONDS_IN_SECOND);
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
     this.lastReportedTick = 0;
   }
 
   /**
    * Updates the load for this backend
-   * NOTE: If backend dies and comes back up, it will send prevTick=Long.MAX_VALUE and currTick=1 in the first request so as to override previous reported load
+   * NOTE: If backend dies and comes back up, it will send currTick=0 in the first request so as to override previous reported state, other than last reported time
    * @param load
-   * @param prevTick
    * @param currTick
    */
-  public synchronized void reportLoad(float load, long prevTick, long currTick) {
-    if(this.lastReportedTick <= prevTick) {
+  public synchronized void reportLoad(float load, long currTick) {
+    if(currTick == 0 || this.lastReportedTick <= currTick) {
       this.lastReportedTick = currTick;
+      if(currTick > 0) {
+        this.lastReportedTime = System.nanoTime();
+      }
       this.lastReportedLoad = load;
-      this.lastReportedTime = System.nanoTime();
     }
   }
 
@@ -61,8 +62,8 @@ public class BackendDetail {
    * @return
    */
   public boolean isDefunct() {
-    return lastReportedLoad == null
-        || ((System.nanoTime() - lastReportedTime) > (loadReportIntervalInSeconds * (loadMissTolerance + 1) * Math.pow(10, 9)));
+    return lastReportedTime == null ||
+        ((System.nanoTime() - lastReportedTime) > thresholdForDefunctInNanoSeconds);
   }
 
   public String getBackendIPAddress() {

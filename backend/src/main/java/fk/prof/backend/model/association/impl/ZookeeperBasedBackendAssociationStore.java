@@ -99,7 +99,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
             if (acquired) {
               try {
-                backendDetail.reportLoad(payload.getLoad(), payload.getPrevTick(), payload.getCurrTick());
+                backendDetail.reportLoad(payload.getLoad(), payload.getCurrTick());
                 //Double check here for isDefunct behavior of backend to avoid race conditions
                 if(!backendDetail.isDefunct()) {
                   availableBackendsByPriority.offer(backendDetail);
@@ -117,7 +117,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             logger.warn("Interrupted while acquiring lock on backend queue for reporting backend=" + backendIPAddress, ex);
           }
         } else {
-          backendDetail.reportLoad(payload.getLoad(), payload.getPrevTick(), payload.getCurrTick());
+          backendDetail.reportLoad(payload.getLoad(), payload.getCurrTick());
         }
         future.complete(backendDetail.buildProcessGroupsProto());
       } catch (Exception ex) {

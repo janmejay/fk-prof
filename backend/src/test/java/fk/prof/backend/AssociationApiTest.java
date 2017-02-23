@@ -178,7 +178,7 @@ public class AssociationApiTest {
             if(ar.succeeded()) {
               context.assertEquals(500, ar.result().getStatusCode());
               try {
-                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setPrevTick(Long.MAX_VALUE).setCurrTick(1).build())
+                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setCurrTick(1).build())
                     .setHandler(ar1 -> {
                       context.assertTrue(ar1.succeeded());
                       try {
