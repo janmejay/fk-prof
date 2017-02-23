@@ -2,13 +2,13 @@ package fk.prof.backend.worker;
 
 import com.google.common.primitives.Ints;
 import com.google.protobuf.InvalidProtocolBufferException;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.model.assignment.WorkAssignmentManager;
-import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.Message;
 import recording.Recorder;
 
+import java.io.UnsupportedEncodingException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,8 +17,10 @@ public class WorkAssignmentScheduler extends AbstractVerticle {
   private static int POLL_WINDOW_SECONDS = 5;
 
   private final WorkAssignmentManager workAssignmentManager;
+  private final String ipAddress;
 
-  public WorkAssignmentScheduler(WorkAssignmentManager workAssignmentManager) {
+  public WorkAssignmentScheduler(ConfigManager configManager, WorkAssignmentManager workAssignmentManager) {
+    this.ipAddress = configManager.getIPAddress();
     this.workAssignmentManager = workAssignmentManager;
   }
 
@@ -43,7 +45,7 @@ public class WorkAssignmentScheduler extends AbstractVerticle {
         Recorder.PollRes pollRes = Recorder.PollRes.newBuilder()
             .setAssignment(nextWorkAssignment)
             .setControllerVersion(config().getInteger("backend.version"))
-            .setControllerId(Ints.fromByteArray(IPAddressUtil.getIPAddressAsBytes()))
+            .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
             .setLocalTime(nextWorkAssignment == null
                 ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                 : nextWorkAssignment.getIssueTime())
@@ -53,6 +55,8 @@ public class WorkAssignmentScheduler extends AbstractVerticle {
         message.fail(400, "Error parsing poll request body");
       } catch (IllegalArgumentException ex) {
         message.fail(400, ex.getMessage());
+      } catch (UnsupportedEncodingException ex) {
+        message.fail(500, ex.getMessage());
       }
     });
   }

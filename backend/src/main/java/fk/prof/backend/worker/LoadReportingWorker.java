@@ -1,10 +1,10 @@
 package fk.prof.backend.worker;
 
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
-import fk.prof.backend.http.ConfigurableHttpClient;
-import fk.prof.backend.model.election.LeaderDiscoveryStore;
+import fk.prof.backend.http.ProfHttpClient;
+import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.util.IPAddressUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -17,22 +17,26 @@ import recording.Recorder;
 public class LoadReportingWorker extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(LoadReportingWorker.class);
 
-  private final JsonObject httpClientConfig;
+  private final ConfigManager configManager;
   private final int leaderPort;
   private final int loadReportIntervalInSeconds;
-  private final LeaderDiscoveryStore leaderDiscoveryStore;
-  private ConfigurableHttpClient httpClient;
+  private final String ipAddress;
+  private final LeaderReadContext leaderReadContext;
+  private ProfHttpClient httpClient;
 
-  public LoadReportingWorker(JsonObject httpClientConfig, int leaderPort, int loadReportIntervalInSeconds, LeaderDiscoveryStore leaderDiscoveryStore) {
-    this.httpClientConfig = httpClientConfig;
-    this.leaderPort = leaderPort;
-    this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
-    this.leaderDiscoveryStore = leaderDiscoveryStore;
+  public LoadReportingWorker(ConfigManager configManager, LeaderReadContext leaderReadContext) {
+    this.configManager = configManager;
+    this.leaderReadContext = leaderReadContext;
+
+    this.leaderPort = configManager.getLeaderHttpPort();
+    this.loadReportIntervalInSeconds = configManager.getLoadReportIntervalInSeconds();
+    this.ipAddress = configManager.getIPAddress();
   }
 
   @Override
   public void start(Future<Void> fut) {
-    httpClient = ConfigurableHttpClient.newBuilder()
+    JsonObject httpClientConfig = configManager.getHttpClientConfig();
+    httpClient = ProfHttpClient.newBuilder()
         .keepAlive(httpClientConfig.getBoolean("keepalive", false))
         .useCompression(httpClientConfig.getBoolean("compression", true))
         .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 2000))
@@ -47,10 +51,10 @@ public class LoadReportingWorker extends AbstractVerticle {
   private void scheduleLoadReportTimer() {
     vertx.setPeriodic(loadReportIntervalInSeconds, timerId -> {
       String leaderIPAddress;
-      if((leaderIPAddress = leaderDiscoveryStore.getLeaderIPAddress()) != null) {
+      if((leaderIPAddress = leaderReadContext.getLeaderIPAddress()) != null) {
         makeRequestPostLoad(leaderIPAddress,
             //TODO: Hardcoded load = 0.5 right now. Refactor this to have dynamic load
-            BackendDTO.LoadReportRequest.newBuilder().setIp(IPAddressUtil.getIPAddressAsString()).setLoad(0.5f).build())
+            BackendDTO.LoadReportRequest.newBuilder().setIp(ipAddress).setLoad(0.5f).build())
             .setHandler(ar -> {
               if(ar.succeeded()) {
                 if(ar.result().getStatusCode() == 200) {
@@ -73,7 +77,7 @@ public class LoadReportingWorker extends AbstractVerticle {
     });
   }
 
-  private Future<ConfigurableHttpClient.ResponseWithStatusTuple> makeRequestPostLoad(String leaderIPAddress, BackendDTO.LoadReportRequest payload) {
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestPostLoad(String leaderIPAddress, BackendDTO.LoadReportRequest payload) {
     return httpClient.requestAsync(
         HttpMethod.POST,
         leaderIPAddress, leaderPort, ApiPathConstants.LEADER_POST_LOAD,
