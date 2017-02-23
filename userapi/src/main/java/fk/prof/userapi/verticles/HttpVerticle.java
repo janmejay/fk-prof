@@ -1,5 +1,6 @@
 package fk.prof.userapi.verticles;
 
+import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.model.AggregatedProfileInfo;
@@ -24,10 +25,10 @@ public class HttpVerticle extends AbstractVerticle {
     public static final int AGGREGATION_DURATION = 30; // in min
     public static final String BASE_DIR = "profiles";
 
-    private ProfileStoreAPI profileDiscoveryAPI;
+    private ProfileStoreAPI profileStoreAPI;
 
-    HttpVerticle(ProfileStoreAPI profileDiscoveryAPI) {
-        this.profileDiscoveryAPI = profileDiscoveryAPI;
+    HttpVerticle(ProfileStoreAPI profileStoreAPI) {
+        this.profileStoreAPI = profileStoreAPI;
     }
 
     private Router configureRouter() {
@@ -65,8 +66,8 @@ public class HttpVerticle extends AbstractVerticle {
             prefix = "";
         }
         Future<Set<String>> future = Future.future();
-        profileDiscoveryAPI.getAppIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, prefix) ;
+        profileStoreAPI.getAppIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
+                BASE_DIR, prefix);
     }
 
     private void getClusterIds(RoutingContext routingContext) {
@@ -76,7 +77,7 @@ public class HttpVerticle extends AbstractVerticle {
             prefix = "";
         }
         Future<Set<String>> future = Future.future();
-        profileDiscoveryAPI.getClusterIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
+        profileStoreAPI.getClusterIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
                 BASE_DIR, appId, prefix);
     }
 
@@ -88,7 +89,7 @@ public class HttpVerticle extends AbstractVerticle {
             prefix = "";
         }
         Future<Set<String>> future = Future.future();
-        profileDiscoveryAPI.getProcsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
+        profileStoreAPI.getProcsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
                 BASE_DIR, appId, clusterId, prefix);
     }
 
@@ -110,7 +111,7 @@ public class HttpVerticle extends AbstractVerticle {
         }
 
         Future<Set<FilteredProfiles>> future = Future.future();
-        profileDiscoveryAPI.getProfilesInTimeWindow(future.setHandler(result -> setResponse(result, routingContext)),
+        profileStoreAPI.getProfilesInTimeWindow(future.setHandler(result -> setResponse(result, routingContext)),
                 BASE_DIR, appId, clusterId, proc, startTime, duration);
     }
 
@@ -122,9 +123,9 @@ public class HttpVerticle extends AbstractVerticle {
 
         String startTime = routingContext.request().getParam("start");
 
-        AggregatedProfileModel.Header header;
+        AggregatedProfileFileNamingStrategy filename;
         try {
-             header = buildHeader(appId, clusterId, procId, AggregatedProfileModel.WorkType.valueOf(workType), startTime);
+            filename = buildFileName(appId, clusterId, procId, AggregatedProfileModel.WorkType.valueOf(workType), startTime);
         }
         catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
@@ -140,7 +141,7 @@ public class HttpVerticle extends AbstractVerticle {
                 setResponse(Future.failedFuture(result.cause()), routingContext);
             }
         });
-        profileDiscoveryAPI.load(future, header);
+        profileStoreAPI.load(future, filename);
     }
 
     public void getCpuSamplingTraces(RoutingContext routingContext) {
@@ -152,9 +153,9 @@ public class HttpVerticle extends AbstractVerticle {
 
         String startTime = routingContext.request().getParam("start");
 
-        AggregatedProfileModel.Header header;
+        AggregatedProfileFileNamingStrategy filename;
         try {
-            header = buildHeader(appId, clusterId, procId, workType, startTime);
+            filename = buildFileName(appId, clusterId, procId, workType, startTime);
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
@@ -168,10 +169,13 @@ public class HttpVerticle extends AbstractVerticle {
                 setResponse(result, routingContext);
             }
         });
-        profileDiscoveryAPI.load(future, header);
+        profileStoreAPI.load(future, filename);
     }
 
     private <T> void setResponse(AsyncResult<T> result, RoutingContext routingContext) {
+        if(routingContext.response().ended()) {
+            return;
+        }
         if(result.failed()) {
             if(result.cause() instanceof FileNotFoundException) {
                 routingContext.response().setStatusCode(404).end();
@@ -189,17 +193,9 @@ public class HttpVerticle extends AbstractVerticle {
         }
     }
 
-    private AggregatedProfileModel.Header buildHeader(String appId, String clusterId, String procId,
-                                                      AggregatedProfileModel.WorkType workType, String startTime) {
+    private AggregatedProfileFileNamingStrategy buildFileName(String appId, String clusterId, String procId,
+                                                              AggregatedProfileModel.WorkType workType, String startTime) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        ZonedDateTime zonedEndTime = zonedStartTime.plusMinutes(AGGREGATION_DURATION);
-        return AggregatedProfileModel.Header.newBuilder().setAppId(appId)
-                .setClusterId(clusterId)
-                .setProcId(procId)
-                .setFormatVersion(1)
-                .setWorkType(workType)
-                .setAggregationStartTime(startTime)
-                .setAggregationEndTime(zonedEndTime.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
-                .build();
+        return new AggregatedProfileFileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, AGGREGATION_DURATION * 60, workType);
     }
 }

@@ -8,17 +8,17 @@ import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpMethod;
 
-public class ConfigurableHttpClient {
+public class ProfHttpClient {
   private final Vertx vertx;
   private final HttpClient httpClient;
   private final int maxAttempts;
 
-  private ConfigurableHttpClient(Vertx vertx,
-                                 int maxAttempts,
-                                 boolean keepAlive,
-                                 boolean useCompression,
-                                 int connectTimeoutInMs,
-                                 int idleTimeoutInSeconds) {
+  private ProfHttpClient(Vertx vertx,
+                         int maxAttempts,
+                         boolean keepAlive,
+                         boolean useCompression,
+                         int connectTimeoutInMs,
+                         int idleTimeoutInSeconds) {
     this.vertx = vertx;
     HttpClientOptions httpClientOptions = new HttpClientOptions()
         .setKeepAlive(keepAlive)
@@ -126,12 +126,12 @@ public class ConfigurableHttpClient {
       return this;
     }
 
-    public ConfigurableHttpClient build(Vertx vertx) {
+    public ProfHttpClient build(Vertx vertx) {
       if(vertx == null) {
         throw new IllegalStateException("Vertx instance is required");
       }
 
-      return new ConfigurableHttpClient(vertx, maxAttempts, keepAlive,
+      return new ProfHttpClient(vertx, maxAttempts, keepAlive,
           useCompression, connectTimeoutInMs, idleTimeoutInSeconds);
     }
   }

@@ -1,9 +1,10 @@
 package fk.prof.backend.leader.election;
 
-import fk.prof.backend.util.IPAddressUtil;
+import com.google.common.base.Preconditions;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.leader.CancelLeadershipException;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.curator.framework.state.ConnectionState;
 import org.apache.zookeeper.CreateMode;
@@ -11,57 +12,56 @@ import org.apache.zookeeper.CreateMode;
 public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private static Logger logger = LoggerFactory.getLogger(LeaderSelectorListenerImpl.class);
 
-  private final int sleepDurationInMs;
   private final String leaderWatchingPath;
   private KillBehavior killBehavior;
   private final Runnable leaderElectedTask;
+  private final String ipAddress;
 
-  public LeaderSelectorListenerImpl(int sleepDurationInMs, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
-    if (leaderWatchingPath == null) {
-      throw new IllegalArgumentException("Leader Watching path in zookeeper cannot be null");
-    }
-    if (killBehavior == null) {
-      throw new IllegalArgumentException("Kill behavior cannot be null");
-    }
-
-    this.sleepDurationInMs = sleepDurationInMs;
-    this.leaderWatchingPath = leaderWatchingPath;
-    this.killBehavior = killBehavior;
+  public LeaderSelectorListenerImpl(String ipAddress, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
+    this.ipAddress = Preconditions.checkNotNull(ipAddress);
+    this.leaderWatchingPath = Preconditions.checkNotNull(leaderWatchingPath);
+    this.killBehavior = Preconditions.checkNotNull(killBehavior);
     this.leaderElectedTask = leaderElectedTask;
   }
 
   @Override
   public void takeLeadership(CuratorFramework curatorClient) throws Exception {
     logger.info("Elected as leader");
-    try {
-      curatorClient
-          .create()
-          .creatingParentsIfNeeded()
-          .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-          .forPath(leaderWatchingPath + "/child_", IPAddressUtil.getIPAddressAsBytes());
+    curatorClient
+        .create()
+        .creatingParentsIfNeeded()
+        .withMode(CreateMode.EPHEMERAL)
+        .forPath(leaderWatchingPath + "/" + ipAddress, ipAddress.getBytes("UTF-8"));
 
-      // NOTE: There is a race here. Other backend nodes can be communicated about the new leader before leaderElectedTask has run
-      // If backend nodes talk to the new leader before leader has been primed and setup, its possible for leader to not respond.
-      // We are OK with this race issue as backend nodes can simply retry
-      if (leaderElectedTask != null) {
-        leaderElectedTask.run();
-      }
+    // NOTE: There is a race here. Other backend nodes can be communicated about the new leader before leaderElectedTask has run
+    // If backend nodes talk to the new leader before leader has been primed and setup, its possible for leader to not respond.
+    // We are OK with this race issue as backend nodes can simply retry
+    if (leaderElectedTask != null) {
+      leaderElectedTask.run();
+    }
 
-      while (true) {
-        Thread.sleep(sleepDurationInMs);
+    while (true) {
+      try {
+        Thread.sleep(Long.MAX_VALUE);
+      } catch (InterruptedException ex) {
+        logger.warn("Thread interrupted, sleeping again");
       }
-    } catch (InterruptedException ex) {
-      logger.warn("Thread interrupted");
-      Thread.currentThread().interrupt();
-    } finally {
-      cleanup();
     }
   }
 
   @Override
   public void stateChanged(CuratorFramework curatorClient, ConnectionState newState) {
-    logger.debug("Connection state changed to {}", newState.toString());
-    super.stateChanged(curatorClient, newState);
+    if(logger.isDebugEnabled()) {
+      logger.debug("Connection state changed to {}", newState.toString());
+    }
+    try {
+      super.stateChanged(curatorClient, newState);
+    } catch (CancelLeadershipException ex) {
+      if(logger.isDebugEnabled()) {
+        logger.debug("Relinquishing leadership, suicide!");
+      }
+      cleanup();
+    }
   }
 
   /**

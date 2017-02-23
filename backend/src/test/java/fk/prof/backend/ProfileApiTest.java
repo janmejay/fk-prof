@@ -10,13 +10,15 @@ import fk.prof.aggregation.finalized.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
+import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
 import fk.prof.backend.mock.MockProfileObjects;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -43,41 +45,29 @@ import java.util.zip.Checksum;
 public class ProfileApiTest {
 
   private static Vertx vertx;
+  private static ConfigManager configManager;
   private static Integer port;
   private static IProfileWorkService profileWorkService;
   private static AtomicLong workIdCounter = new AtomicLong(0);
 
   @BeforeClass
-  public static void setUp(TestContext context) throws IOException {
+  public static void setUp(TestContext context) throws Exception {
     ConfigManager.setDefaultSystemProperties();
-    JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
-    JsonObject vertxConfig = ConfigManager.getVertxConfig(config);
-    JsonObject backendHttpDeploymentConfig = ConfigManager.getBackendHttpDeploymentConfig(config);
-    assert backendHttpDeploymentConfig != null;
+    ConfigManager configManager = new ConfigManager(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
 
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     profileWorkService = new ProfileWorkService();
+    port = configManager.getBackendHttpPort();
 
-    JsonObject backendHttpServerConfig = ConfigManager.getBackendHttpServerConfig(config);
-    assert backendHttpServerConfig != null;
-    port = backendHttpServerConfig.getInteger("port");
-
-    JsonObject httpClientConfig = ConfigManager.getHttpClientConfig(config);
-    assert httpClientConfig != null;
-
-    JsonObject leaderHttpServerConfig = ConfigManager.getLeaderHttpServerConfig(config);
-    assert leaderHttpServerConfig != null;
-    int leaderPort = leaderHttpServerConfig.getInteger("port");
-
-    DeploymentOptions backendHttpDeploymentOptions = new DeploymentOptions(backendHttpDeploymentConfig);
-    VertxManager.deployBackendHttpVerticles(vertx, backendHttpServerConfig, httpClientConfig,
-        leaderPort, backendHttpDeploymentOptions,
-        VertxManager.getDefaultLeaderDiscoveryStore(vertx), profileWorkService);
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, new InMemoryLeaderStore(configManager.getIPAddress()), profileWorkService);
+    backendVerticleDeployer.deploy();
+    //Wait for some time for verticles to be deployed
+    Thread.sleep(1000);
   }
 
   @AfterClass
   public static void tearDown(TestContext context) {
-    VertxManager.close(vertx);
+    vertx.close();
   }
 
   @Test

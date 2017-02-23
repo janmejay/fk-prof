@@ -1,8 +1,10 @@
 package fk.prof.backend.http;
 
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -15,21 +17,24 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.LoggerHandler;
 import recording.Recorder;
 
-public class LeaderHttpVerticle extends AbstractVerticle {
-  private BackendAssociationStore backendAssociationStore;
-  private JsonObject leaderHttpServerConfig;
+import java.io.IOException;
 
-  public LeaderHttpVerticle(JsonObject leaderHttpServerConfig, BackendAssociationStore backendAssociationStore) {
-    this.leaderHttpServerConfig = leaderHttpServerConfig;
+public class LeaderHttpVerticle extends AbstractVerticle {
+  private final ConfigManager configManager;
+  private final BackendAssociationStore backendAssociationStore;
+
+  public LeaderHttpVerticle(ConfigManager configManager,
+                            BackendAssociationStore backendAssociationStore) {
+    this.configManager = configManager;
     this.backendAssociationStore = backendAssociationStore;
   }
 
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(leaderHttpServerConfig))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
         .requestHandler(router::accept)
-        .listen(leaderHttpServerConfig.getInteger("port"),
+        .listen(configManager.getLeaderHttpPort(),
             http -> completeStartup(http, fut));
   }
 
@@ -63,8 +68,13 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
       backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
         if(ar.succeeded()) {
-          Buffer responseBuffer = Buffer.buffer(ar.result().toByteArray());
-          context.response().end(responseBuffer);
+          try {
+            Buffer responseBuffer = ProtoUtil.buildBufferFromProto(ar.result());
+            context.response().end(responseBuffer);
+          } catch (IOException ex) {
+            HttpFailure httpFailure = HttpFailure.failure(ar.cause());
+            HttpHelper.handleFailure(context, httpFailure);
+          }
         } else {
           HttpFailure httpFailure = HttpFailure.failure(ar.cause());
           HttpHelper.handleFailure(context, httpFailure);
@@ -80,6 +90,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     try {
       Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
       backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
+        //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
         if(ar.succeeded()) {
           context.response().end(ar.result());
         } else {

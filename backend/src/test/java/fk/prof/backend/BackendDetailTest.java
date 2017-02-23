@@ -26,44 +26,42 @@ public class BackendDetailTest {
   public void testEqualityOfBackendOnIPAddress()
     throws IOException {
     Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    BackendDetail b1 = new BackendDetail("1", 1, 2, serialized);
+    BackendDetail b1 = new BackendDetail("1", 1, 2, processGroups);
     BackendDetail b2 = new BackendDetail("1", 1, 2);
     Assert.assertTrue(b1.equals(b2));
-    BackendDetail b3 = new BackendDetail("2", 1, 2);
+    BackendDetail b3 = new BackendDetail("2", 1, 2, processGroups);
     Assert.assertFalse(b2.equals(b3));
   }
 
   @Test
-  public void testInitializationOfBackendWithProcessGroupBytes()
+  public void testInitializationOfBackendWithProcessGroups()
       throws IOException {
     Set<Recorder.ProcessGroup> processGroups = new HashSet<>(mockProcessGroups);
-    byte[] serialized = BackendDetail.serializeProcessGroups(processGroups);
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2, serialized);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, processGroups);
     Assert.assertEquals("1", backendDetail.getBackendIPAddress());
     Assert.assertEquals(processGroups, backendDetail.getAssociatedProcessGroups());
   }
 
   @Test
-  public void testBackendIsDefunctOnInitialization()
+  public void testBackendIsDefunctOnInitializationWithProcessGroups()
       throws IOException {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, null);
     Assert.assertTrue(backendDetail.isDefunct());
   }
 
   @Test
   public void testBackendIsAvailableAfterReportOfLoad()
       throws IOException {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 2);
-    backendDetail.reportLoad(0.5);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 2, null);
+    backendDetail.reportLoad(0.5f, 1);
     Assert.assertFalse(backendDetail.isDefunct());
   }
 
   @Test
   public void testBackendIsDefunctIfLoadNotReportedInAllowedInterval()
       throws Exception {
-    BackendDetail backendDetail = new BackendDetail("1", 1, 1);
-    backendDetail.reportLoad(0.5);
+    BackendDetail backendDetail = new BackendDetail("1", 1, 1, null);
+    backendDetail.reportLoad(0.5f, 1);
     Assert.assertFalse(backendDetail.isDefunct());
     Thread.sleep(1000);
     Assert.assertFalse(backendDetail.isDefunct());

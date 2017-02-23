@@ -1,10 +1,11 @@
 {
+  "backend.http.port": 2491,
+  "leader.http.port": 2496,
+  "load.report.interval.secs": 1,
   "backend.http.server": {
-    "port": 9300,
     "idle.timeout.secs": 60
   },
   "leader.http.server": {
-    "port": 9400,
     "idle.timeout.secs": 60
   },
   "http.client": {
@@ -14,21 +15,16 @@
     "keepalive": true,
     "compression": true
   },
-  "load.report.interval.secs": 1,
   "vertxOptions": {
     "blockedThreadCheckInterval": 6000000
   },
   "backendHttpOptions": {
     "config": {
-      "http.instances": 1,
+      "verticle.count": 1,
       "report.load": true,
       "parser": {
         "recordingheader.max.bytes": 1024,
         "wse.max.bytes": 1048576
-      },
-      "aggregator": {
-        "window.duration.mins": 20,
-        "window.tolerance.secs": 60
       }
     }
   },
@@ -43,8 +39,7 @@
     "worker": true,
     "config": {
       "aggregation.enabled": false,
-      "http.enabled": true,
-      "leader.watching.path": "/leaderwatch",
+      "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
       "leader.sleep.ms": 60000,
       "kill.behavior": "DO_NOTHING"
@@ -52,6 +47,6 @@
   },
   "leaderHttpOptions": {
     "backend.association.path": "/association",
-    "allowed.report.skips": 1
+    "load.miss.tolerance": 1
   }
 }
