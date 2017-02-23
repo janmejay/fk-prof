@@ -5,6 +5,6 @@ import io.vertx.core.Future;
 import recording.Recorder;
 
 public interface BackendAssociationStore {
-  Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload, long loadReportTime);
+  Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload);
   Future<String> getAssociatedBackend(Recorder.ProcessGroup processGroup);
 }

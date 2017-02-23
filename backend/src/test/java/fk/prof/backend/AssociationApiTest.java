@@ -90,7 +90,7 @@ public class AssociationApiTest {
     });
   }
 
-  @Test
+  @Test(timeout = 20000)
   public void getAssociationWhenLeaderNotElected(TestContext context)
       throws IOException {
     final Async async = context.async();
@@ -105,7 +105,7 @@ public class AssociationApiTest {
     });
   }
 
-  @Test
+  @Test(timeout = 20000)
   public void getAssociationWhenLeaderIsSelf(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
@@ -155,7 +155,7 @@ public class AssociationApiTest {
    * @param context
    * @throws InterruptedException
    */
-  @Test
+  @Test(timeout = 20000)
   public void getAssociationProxiedToLeader(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
@@ -178,7 +178,7 @@ public class AssociationApiTest {
             if(ar.succeeded()) {
               context.assertEquals(500, ar.result().getStatusCode());
               try {
-                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build())
+                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setPrevTick(Long.MAX_VALUE).setCurrTick(1).build())
                     .setHandler(ar1 -> {
                       context.assertTrue(ar1.succeeded());
                       try {

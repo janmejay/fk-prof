@@ -66,7 +66,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   private void handlePostLoad(RoutingContext context) {
     try {
       BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
-      backendAssociationStore.reportBackendLoad(payload, System.nanoTime()).setHandler(ar -> {
+      backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
         if(ar.succeeded()) {
           try {
             Buffer responseBuffer = ProtoUtil.buildBufferFromProto(ar.result());

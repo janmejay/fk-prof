@@ -3,13 +3,8 @@ package fk.prof.backend.model.association;
 import recording.Recorder;
 
 import java.io.IOException;
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class BackendDetail {
   private final String backendIPAddress;
@@ -17,13 +12,13 @@ public class BackendDetail {
   private final int loadMissTolerance;
   private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
-  private final AtomicLong lastReportedTime;
-  private Double lastReportedLoad = null;
+  private long lastReportedTick;
+  private volatile long lastReportedTime;
+  private volatile Float lastReportedLoad = null;
 
-  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance, long initialReportTime)
+  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
     this(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, new HashSet<>());
-    this.lastReportedTime.set(initialReportTime);
   }
 
   public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance, Set<Recorder.ProcessGroup> associatedProcessGroups)
@@ -35,18 +30,21 @@ public class BackendDetail {
     this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
     this.loadMissTolerance = loadMissTolerance;
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
-    this.lastReportedTime = new AtomicLong(System.nanoTime());
+    this.lastReportedTick = 0;
   }
 
-  public void reportLoad(double loadFactor, long reportTime) {
-    long newLoadReportTime = this.lastReportedTime.updateAndGet(currentValue -> {
-      if((reportTime - currentValue) > 0) {
-        return reportTime;
-      }
-      return currentValue;
-    });
-    if(newLoadReportTime == reportTime) {
-      this.lastReportedLoad = loadFactor;
+  /**
+   * Updates the load for this backend
+   * NOTE: If backend dies and comes back up, it will send prevTick=Long.MAX_VALUE and currTick=1 in the first request so as to override previous reported load
+   * @param load
+   * @param prevTick
+   * @param currTick
+   */
+  public synchronized void reportLoad(float load, long prevTick, long currTick) {
+    if(this.lastReportedTick <= prevTick) {
+      this.lastReportedTick = currTick;
+      this.lastReportedLoad = load;
+      this.lastReportedTime = System.nanoTime();
     }
   }
 
@@ -64,7 +62,7 @@ public class BackendDetail {
    */
   public boolean isDefunct() {
     return lastReportedLoad == null
-        || ((System.nanoTime() - lastReportedTime.get()) > (loadReportIntervalInSeconds * (loadMissTolerance + 1) * Math.pow(10, 9)));
+        || ((System.nanoTime() - lastReportedTime) > (loadReportIntervalInSeconds * (loadMissTolerance + 1) * Math.pow(10, 9)));
   }
 
   public String getBackendIPAddress() {

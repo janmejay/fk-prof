@@ -72,7 +72,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload, long loadReportTime) {
+  public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
     String backendIPAddress = payload.getIp();
     Future<Recorder.ProcessGroups> result = Future.future();
     vertx.executeBlocking(future -> {
@@ -80,7 +80,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         //TODO: Implement a cleanup job for backends which have been defunct for a long time, remove them from backenddetaillookup map
         BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(backendIPAddress, (key) -> {
           try {
-            BackendDetail updatedBackendDetail = new BackendDetail(key, loadReportIntervalInSeconds, loadMissTolerance, loadReportTime - 1);
+            BackendDetail updatedBackendDetail = new BackendDetail(key, loadReportIntervalInSeconds, loadMissTolerance);
             String zNodePath = getZNodePathForBackend(key);
             ZookeeperUtil.writeZNode(curatorClient, zNodePath, new byte[0], true);
             return updatedBackendDetail;
@@ -99,7 +99,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
             if (acquired) {
               try {
-                backendDetail.reportLoad(payload.getLoad(), loadReportTime);
+                backendDetail.reportLoad(payload.getLoad(), payload.getPrevTick(), payload.getCurrTick());
                 //Double check here for isDefunct behavior of backend to avoid race conditions
                 if(!backendDetail.isDefunct()) {
                   availableBackendsByPriority.offer(backendDetail);
@@ -117,7 +117,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             logger.warn("Interrupted while acquiring lock on backend queue for reporting backend=" + backendIPAddress, ex);
           }
         } else {
-          backendDetail.reportLoad(payload.getLoad(), loadReportTime);
+          backendDetail.reportLoad(payload.getLoad(), payload.getPrevTick(), payload.getCurrTick());
         }
         future.complete(backendDetail.buildProcessGroupsProto());
       } catch (Exception ex) {

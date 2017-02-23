@@ -93,7 +93,7 @@ public class LeaderAPILoadAndAssociationTest {
 
   @Test(timeout = 5000)
   public void reportNewBackendLoad(TestContext context) throws IOException {
-    makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build())
+    makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setPrevTick(Long.MAX_VALUE).setCurrTick(1).build())
         .setHandler(ar -> {
           if(ar.succeeded()) {
             context.assertEquals(0, ar.result().getProcessGroupList().size());
@@ -118,8 +118,8 @@ public class LeaderAPILoadAndAssociationTest {
   @Test(timeout = 5000)
   public void getAssociationForProcessGroups(TestContext context) throws IOException {
     final Async async = context.async();
-    BackendDTO.LoadReportRequest loadRequest1 = BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).build();
-    BackendDTO.LoadReportRequest loadRequest2 = BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.5f).build();
+    BackendDTO.LoadReportRequest loadRequest1 = BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setPrevTick(Long.MAX_VALUE).setCurrTick(1).build();
+    BackendDTO.LoadReportRequest loadRequest2 = BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.5f).setPrevTick(Long.MAX_VALUE).setCurrTick(1).build();
 
     makeRequestReportLoad(loadRequest1)
         .setHandler(ar1 -> {
