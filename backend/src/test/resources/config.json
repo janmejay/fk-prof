@@ -20,7 +20,7 @@
   },
   "backendHttpOptions": {
     "config": {
-      "verticle.count": 1,
+      "verticle.count": 2,
       "report.load": true,
       "parser": {
         "recordingheader.max.bytes": 1024,

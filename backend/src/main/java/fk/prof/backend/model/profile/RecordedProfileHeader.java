@@ -4,16 +4,16 @@ import recording.Recorder;
 
 public class RecordedProfileHeader {
 
-  private final int encodedVersion;
+  private final int encodingVersion;
   private final Recorder.RecordingHeader recordingHeader;
 
-  public RecordedProfileHeader(int encodedVersion, Recorder.RecordingHeader recordingHeader) {
-    this.encodedVersion = encodedVersion;
+  public RecordedProfileHeader(int encodingVersion, Recorder.RecordingHeader recordingHeader) {
+    this.encodingVersion = encodingVersion;
     this.recordingHeader = recordingHeader;
   }
 
-  public int getEncodedVersion() {
-    return encodedVersion;
+  public int getEncodingVersion() {
+    return encodingVersion;
   }
 
   public Recorder.RecordingHeader getRecordingHeader() {

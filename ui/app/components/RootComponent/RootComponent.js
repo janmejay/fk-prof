@@ -1,31 +1,30 @@
 import React, { Component } from 'react';
+
 import Header from 'components/HeaderComponent';
 
-import 'components/RootComponent/RootComponent.css';
-
-const BaseComponent = Component => class extends React.Component {
+const BaseComponent = Komponent => class extends Component {
   componentDidUpdate () {
       componentHandler.upgradeDom(); // eslint-disable-line
   }
 
   render () {
-    return <Component {...this.props} />;
+    return <Komponent {...this.props} />;
   }
-  };
+};
 
-class RootComponent extends Component {
-  render () {
-    return (
-      <div>
-        <Header />
-        <main className="app mdl-layout__content">
-          <div className="page-content">
-            {this.props.children}
-          </div>
-        </main>
+const RootComponent = props => (
+  <div>
+    <Header />
+    <main style={{ paddingTop: 64, position: 'relative', zIndex: 1 }}>
+      <div className="page-content">
+        { props.children }
       </div>
-    );
-  }
-}
+    </main>
+  </div>
+);
+
+RootComponent.propTypes = {
+  children: React.PropTypes.node,
+};
 
 export default BaseComponent(RootComponent);

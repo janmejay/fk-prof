@@ -1,6 +1,6 @@
 package fk.prof.userapi.verticles;
 
-import fk.prof.aggregation.AggregatedProfileFileNamingStrategy;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.model.AggregatedProfileInfo;
@@ -123,7 +123,7 @@ public class HttpVerticle extends AbstractVerticle {
 
         String startTime = routingContext.request().getParam("start");
 
-        AggregatedProfileFileNamingStrategy filename;
+        AggregatedProfileNamingStrategy filename;
         try {
             filename = buildFileName(appId, clusterId, procId, AggregatedProfileModel.WorkType.valueOf(workType), startTime);
         }
@@ -153,7 +153,7 @@ public class HttpVerticle extends AbstractVerticle {
 
         String startTime = routingContext.request().getParam("start");
 
-        AggregatedProfileFileNamingStrategy filename;
+        AggregatedProfileNamingStrategy filename;
         try {
             filename = buildFileName(appId, clusterId, procId, workType, startTime);
         } catch (Exception e) {
@@ -193,9 +193,9 @@ public class HttpVerticle extends AbstractVerticle {
         }
     }
 
-    private AggregatedProfileFileNamingStrategy buildFileName(String appId, String clusterId, String procId,
-                                                              AggregatedProfileModel.WorkType workType, String startTime) {
+    private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
+                                                          AggregatedProfileModel.WorkType workType, String startTime) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileFileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, AGGREGATION_DURATION * 60, workType);
+        return new AggregatedProfileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, AGGREGATION_DURATION * 60, workType);
     }
 }

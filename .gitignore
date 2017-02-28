@@ -16,6 +16,8 @@ traces.txt
 
 # IDE
 .idea
+*.ipr
+*.iws
 *.iml
 
 logs/*
@@ -43,6 +45,8 @@ Testing
 TAGS
 cscope.*
 
+.#*
+core
 # ui
 npm-debug.log
 ui/public/*

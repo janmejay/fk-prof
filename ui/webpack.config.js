@@ -1,3 +1,5 @@
+'use strict'
+
 const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const path = require('path');
@@ -107,11 +109,10 @@ if (isDevelopment) {
   finalConf = Object.assign({}, common);
   finalConf.output.filename = '[name].bundle.[chunkhash].js';
   finalConf.output.chunkFilename = '[name].bundle.[chunkhash].js';
-  finalConf.output.publicPath = '/consumption/build/';
   finalConf.devtool = false;
   finalConf.plugins = finalConf.plugins.concat([
     new HtmlWebpackPlugin({
-      template: path.resolve('app/index.tpl.html'),
+      template: path.resolve(__dirname, 'index.tpl.html'),
       chunksSortMode: 'dependency',
     }),
     new webpack.optimize.UglifyJsPlugin({

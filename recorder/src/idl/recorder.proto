@@ -28,17 +28,16 @@ message PollReq {
 
 message PollRes {
   required string local_time = 1;
+  optional WorkAssignment assignment = 2;
   required uint32 controller_id = 4;
   required uint32 controller_version = 5;
-  optional WorkAssignment assignment = 2;
-  optional string work_description = 3;
 }
 
 message WorkResponse {
   required uint64 work_id = 1;
   enum WorkState {
     pre_start = 0;
-    start = 1;
+    running = 1;
     complete = 2;
   }
   required WorkState work_state = 2;
@@ -48,16 +47,16 @@ message WorkResponse {
     failure = 2;
   }
   required WorkResult work_result = 3;
-  required string data_payload_key = 4;
   required uint32 elapsed_time = 5;
 }
 
 message WorkAssignment {
   required uint64 work_id = 1;
   repeated Work work = 2;
-  required string issue_time = 3; //controller local time
-  required uint32 duration = 4; //seconds, how long to collect data
-  required uint32 delay = 5; //seconds, how long to wait before start
+  required string description = 3;
+  required string issue_time = 4; //controller local time
+  required uint32 duration = 5; //seconds, how long to collect data
+  required uint32 delay = 6; //seconds, how long to wait before start
 }
 
 enum WorkType {
@@ -80,7 +79,6 @@ message RecordingHeader {
   required uint32 controller_version = 2;
   required uint32 controller_id = 3;
   required WorkAssignment work_assignment = 4;
-  required string work_description = 5;
 }
 
 /* entry */
@@ -104,7 +102,16 @@ message IndexedData {
 message TraceContext {
   required uint32 trace_id = 1;
   required string trace_name = 2;
-  required uint32 coverage_pct = 3;
+  required bool is_generated = 3;
+  optional uint32 coverage_pct = 4;
+  enum MergeSemantics {
+    parent = 0;
+    scoped = 1;
+    scoped_strict = 2;
+    stack = 3;
+    duplicate = 4;
+  }
+  optional MergeSemantics merge = 5;
 }
 
 message MethodInfo {
@@ -120,6 +127,7 @@ message ThreadInfo {
   required string thread_name = 2;
   required int32 priority = 3;
   required bool is_daemon = 4;
+  required int64 tid = 5;
 }
 
 message MonitorInfo {
@@ -145,10 +153,24 @@ message StackSampleWse {
 
 message StackSample {
   required uint32 start_offset_micros = 1;
-  required int64 thread_id = 2;
+  optional int64 thread_id = 2;
   repeated Frame frame = 3;
-  required uint32 trace_id = 4;
-  optional bool snipped = 5;
+  repeated uint32 trace_id = 4;
+  required bool snipped = 5;
+  enum Error {
+    ticks_no_Java_frame         = 0;
+    ticks_no_class_load         = 1;
+    ticks_GC_active             = 2;
+    ticks_unknown_not_Java      = 3;
+    ticks_not_walkable_not_Java = 4;
+    ticks_unknown_Java          = 5;
+    ticks_not_walkable_Java     = 6;
+    ticks_unknown_state         = 7;
+    ticks_thread_exit           = 8;
+    ticks_deopt                 = 9;
+    ticks_safepoint             = 10;
+  }
+  optional Error error = 6;
 }
 
 message Frame {

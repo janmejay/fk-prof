@@ -8,6 +8,10 @@ const isDevelopment = env !== 'production';
 const port = isDevelopment ? 3001 : process.env.PORT;
 const app = express();
 const publicPath = path.resolve(__dirname, 'public');
+const httpProxy = require('http-proxy');
+
+const proxy = httpProxy.createProxyServer({ target: 'http://localhost:8082' });
+function logProxyError (e) { console.log('Error occured in ', e); }
 
 app.use(cookieParser());
 
@@ -41,6 +45,11 @@ if (isDevelopment) {
     },
   }));
 }
+
+app.all('/**api*', (req, res) => {
+  req.url = req.url.replace('/api', '');
+  proxy.web(req, res, logProxyError);
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));

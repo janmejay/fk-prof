@@ -129,8 +129,8 @@ public class IOStreamTest {
         InputStream spyContent1 = spy(strAsInputStream(content));
         InputStream spyContent2 = spy(strAsInputStream(content));
 
-        when(storage.fetchAsync("1")).thenReturn(CompletableFuture.completedFuture(spyContent1));
-        when(storage.fetchAsync("2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+        when(storage.fetchAsync("0")).thenReturn(CompletableFuture.completedFuture(spyContent1));
+        when(storage.fetchAsync("1")).thenReturn(CompletableFuture.supplyAsync(() -> {
             // create a task, that interrupts main thread while waiting on the delayed response
             scheduled.schedule(() -> mainThread.interrupt(), wait / 2, TimeUnit.MILLISECONDS);
 
@@ -174,7 +174,7 @@ public class IOStreamTest {
     private void initStorage() {
         for(int i = 0; i < contentSize/partSize; ++i) {
             String chunkedContent = content.substring(i * partSize, (i + 2) * partSize > contentSize ? contentSize : (i + 1) * partSize);
-            storage.writtenContent.put(fileName.getFileName(i + 1), chunkedContent);
+            storage.writtenContent.put(fileName.getFileName(i), chunkedContent);
         }
     }
 

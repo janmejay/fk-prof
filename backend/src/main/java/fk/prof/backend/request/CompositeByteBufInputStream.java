@@ -6,11 +6,12 @@ import io.netty.buffer.Unpooled;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.zip.Adler32;
+import java.util.zip.Checksum;
 
 public class CompositeByteBufInputStream extends InputStream {
   private final CompositeByteBuf buffer;
-  private int readerIndexAtMark = 0;
-
 
   public CompositeByteBufInputStream() {
     buffer = Unpooled.compositeBuffer();
@@ -64,28 +65,13 @@ public class CompositeByteBufInputStream extends InputStream {
   public int available() throws IOException {
     return buffer.readableBytes();
   }
-
-  // TODO: The mark and reset semantics for this stream are different from convention.
-  // Appropriately, markSupported returns false and there are separate methods for mark and reset with overloaded functionality
-  @Override
-  public boolean markSupported() {
-    return false;
-  }
-
-  /**
-   * Besides marking the current position, this method discards all the bytes read until this point.
-   * Calling reset does not restore the discarded bytes
-   * Call discardReadBytesAndMark() when you are sure you have read all previous bytes correctly and can be freed up
-   */
-  public void discardReadBytesAndMark() {
-    //CompositeByteBuf::discardReadBytes method changes readerIndex position so calling this before storing readerIndex position
-    buffer.discardReadBytes();
+  
+  public synchronized void markAndDiscardRead() {
     buffer.markReaderIndex();
-    readerIndexAtMark = buffer.readerIndex();
+    buffer.discardReadBytes();
   }
 
-  @Override
-  public void reset() throws IOException {
+  public void resetMark() throws IOException {
     buffer.resetReaderIndex();
   }
 
@@ -94,15 +80,20 @@ public class CompositeByteBufInputStream extends InputStream {
     buffer.release();
   }
 
-  // NOTE: Use this method with caution.
-  // All bytes read since discardReadBytesAndMark() was called on inputstream
-  // or from the start if discardReadBytesAndMark() was never called prior to calling this method,
-  // till the current read position are copied in a new byte array
-  public byte[] getBytesReadSinceDiscardAndMark() {
-    int readBytes = buffer.readerIndex() - readerIndexAtMark;
-    byte[] bytesReadSinceMark = new byte[readBytes];
-    buffer.getBytes(readerIndexAtMark, bytesReadSinceMark, 0, readBytes);
-    return bytesReadSinceMark;
-  }
+  public void updateChecksumSinceMarked(Adler32 checksum) {
+    int currentReaderIndex = buffer.readerIndex();
 
+    // reset the readerIndex buffer, so we can get marked readerIndex
+    buffer.resetReaderIndex();
+    int bytesRead = currentReaderIndex - buffer.readerIndex();
+    if(bytesRead > 0) {
+      ByteBuffer[] nioBuffers = buffer.nioBuffers(buffer.readerIndex(), bytesRead);
+      for(int i = 0; i < nioBuffers.length; ++i) {
+        checksum.update(nioBuffers[i]);
+      }
+    }
+
+    // fix the reader index
+    buffer.readerIndex(currentReaderIndex);
+  }
 }
