@@ -16,6 +16,7 @@ import recording.Recorder;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,7 +31,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   private final int loadMissTolerance;
 
   private final Map<String, BackendDetail> backendDetailLookup = new ConcurrentHashMap<>();
-  private final PriorityQueue<BackendDetail> availableBackendsByPriority;
+  private final SortedSet<BackendDetail> availableBackendsByPriority;
 
   private final Map<Recorder.ProcessGroup, String> processGroupToBackendLookup = new ConcurrentHashMap<>();
   private final Map<Recorder.ProcessGroup, String> processGroupToZNodePathLookup = new ConcurrentHashMap<>();
@@ -59,7 +60,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     this.backendAssociationPath = backendAssociationPath;
     this.loadReportIntervalInSeconds = loadReportIntervalInSeconds;
     this.loadMissTolerance = loadMissTolerance;
-    this.availableBackendsByPriority = new PriorityQueue<>(backendPriorityComparator);
+    this.availableBackendsByPriority = new ConcurrentSkipListSet<>(backendPriorityComparator);
 
     loadDataFromZookeeperInBackendLookup();
     for(BackendDetail backendDetail: this.backendDetailLookup.values()) {
@@ -89,36 +90,22 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
           }
         });
 
-        /**
-         * If backend was defunct earlier, acquire lock on available backend queue and add this backend there along with reporting load
-         * If backend was available, don't incur cost of acquiring lock since backend will already be in queue, which is the case mostly. Report load and get out
-         */
-        boolean wasDefunct = backendDetail.isDefunct();
-        if(wasDefunct) {
-          try {
-            boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
-            if (acquired) {
-              try {
-                backendDetail.reportLoad(payload.getLoad(), payload.getCurrTick());
-                //Double check here for isDefunct behavior of backend to avoid race conditions
-                if(!backendDetail.isDefunct()) {
-                  availableBackendsByPriority.offer(backendDetail);
-                }
-              } catch (Exception ex) {
-                //TODO: Some metric to indicate enqueue failure here
-                logger.error("Error enqueuing backend=" + backendDetail.getBackendIPAddress() + "  in the queue");
-              } finally {
-                backendAssignmentLock.unlock();
-              }
-            } else {
-              logger.warn("Timeout while acquiring lock on backend queue for reporting backend=" + backendIPAddress);
-            }
-          } catch (InterruptedException ex) {
-            logger.warn("Interrupted while acquiring lock on backend queue for reporting backend=" + backendIPAddress, ex);
-          }
-        } else {
-          backendDetail.reportLoad(payload.getLoad(), payload.getCurrTick());
+        boolean timeUpdated = backendDetail.reportLoad(payload.getLoad(), payload.getCurrTick());
+        if(timeUpdated) {
+          availableBackendsByPriority.add(backendDetail);
         }
+
+        /**
+         * NOTE: There is a possible race condition above
+         * t0(time) => request1: a recorder belonging to pg1(process group) calls /association which invokes {@link #getAssociatedBackend(Recorder.ProcessGroup)}
+         *             pg1 is associated with b1(backend) which has become defunct so next operation to be executed is removal of b1 from available backends set
+         * t1 => request2 b1 reports load and is added to available backend set (if not already present), response is returned
+         * t2 => request1: {@link #getAssociatedBackend(Recorder.ProcessGroup)} attempts to remove b1 from available backends set since it assumes it to be defunct and returns response by associating recorder with some other backend b2
+         * Above results in inconsistent state of availableBackends because even though b1 has reported load, it is not present in the set
+         *
+         * The above race-condition should not lead to a permanent inconsistent state because on subsequent load reports, b1 will get added to available backends set again
+         */
+
         future.complete(backendDetail.buildProcessGroupsProto());
       } catch (Exception ex) {
         future.fail(ex);
@@ -146,8 +133,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         /**
          * Since a backend assignment and possible de-assignment is required, acquiring a lock to avoid race conditions. Examples:
          * => two recorders with same process group getting different backends assigned
-         * => available backend queue seen as empty by some of the requests because assignments of all available backends were being updated in other requests.
-         *    this can arise because during assignment, backend is dequeued from available backend queue and enqueued again post assignment
+         * => available backend set seen as empty by some of the requests because assignments of all available backends were being updated in other requests.
+         *    this can arise because during assignment, backend is removed from available backend set and added again post assignment
          * => competing zookeeper requests to de-assign a defunct backend
          */
         if(logger.isDebugEnabled()) {
@@ -162,31 +149,28 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
               String existingBackendAssociation = processGroupToBackendLookup.get(processGroup);
               if (existingBackendAssociation == null) {
                 //This is a new process group and no backend has been assigned to this yet
-                BackendDetail availableBackend = getAvailableBackendFromPriorityQueue();
-                try {
-                  if (availableBackend == null) {
-                    future.fail("No available backends are known to leader, cannot assign one to process_group=" + processGroup);
-                  } else {
-                    try {
-                      associateBackendWithProcessGroup(availableBackend, processGroup);
-                      if (logger.isDebugEnabled()) {
-                        logger.debug(String.format("process_group=%s, new backend=%s",
-                            ProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
-                      }
-                      future.complete(availableBackend.getBackendIPAddress());
-                    } catch (Exception ex) {
-                      future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
-                          availableBackend.getBackendIPAddress(), processGroup));
+                BackendDetail availableBackend = getAvailableBackendFromPrioritySet();
+                if (availableBackend == null) {
+                  //TODO: some metric to indicate assignment failure in this scenario
+                  future.fail("No available backends are known to leader, cannot assign one to process_group=" + processGroup);
+                } else {
+                  try {
+                    associateBackendWithProcessGroup(availableBackend, processGroup);
+                    if (logger.isDebugEnabled()) {
+                      logger.debug(String.format("process_group=%s, new backend=%s",
+                          ProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
                     }
+                    future.complete(availableBackend.getBackendIPAddress());
+                  } catch (Exception ex) {
+                    future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
+                        availableBackend.getBackendIPAddress(), processGroup));
                   }
-                } finally {
-                  if (availableBackend != null) {
-                    try {
-                      availableBackendsByPriority.offer(availableBackend);
-                    } catch (Exception ex) {
-                      //TODO: Some metric to indicate enqueue failure here
-                      logger.error("Error enqueuing backend=" + availableBackend.getBackendIPAddress() + " back in the queue");
-                    }
+
+                  try {
+                    availableBackendsByPriority.add(availableBackend);
+                  } catch (Exception ex) {
+                    //TODO: Some metric to indicate add failure here
+                    logger.error("Error adding backend=" + availableBackend.getBackendIPAddress() + " back in the set");
                   }
                 }
               } else {
@@ -207,34 +191,38 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                    * Defunct backend is not de-associated eagerly because if no available backend is found, its better to wait for current backend to come back alive
                    */
                   availableBackendsByPriority.remove(existingBackend);
-                  BackendDetail newBackend = getAvailableBackendFromPriorityQueue();
-                  try {
-                    if (newBackend == null) {
-                      logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
-                          existingBackendAssociation, ProtoUtil.processGroupCompactRepr(processGroup)));
-                      future.complete(existingBackendAssociation);
-                    } else {
-                      try {
+                  BackendDetail newBackend = getAvailableBackendFromPrioritySet();
+                  if (newBackend == null) {
+                    logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
+                        existingBackendAssociation, ProtoUtil.processGroupCompactRepr(processGroup)));
+                    future.complete(existingBackendAssociation);
+                  } else {
+                    try {
+                      /**
+                       * Race condition is described in {@link #reportBackendLoad(BackendDTO.LoadReportRequest)} which can result in new backend to be same as existing backend
+                       * Basically, existingBackend can be defunct, but before a new backend is determined by this method, the existing backend reports load and gets added back to the available backend set
+                       * It is possible that we get the existing backend again as the available backend by {@link #getAvailableBackendFromPrioritySet()}
+                       * In this case, below conditional serves as optimization to do ZK operations only if we truly have a new backend
+                       */
+                      if(!newBackend.equals(existingBackend)) {
                         deAssociateBackendWithProcessGroup(existingBackend, processGroup);
                         associateBackendWithProcessGroup(newBackend, processGroup);
                         if (logger.isDebugEnabled()) {
                           logger.debug(String.format("process_group=%s, de-associating existing backend=%s, associating new backend=%s",
                               ProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress(), newBackend.getBackendIPAddress()));
                         }
-                        future.complete(newBackend.getBackendIPAddress());
-                      } catch (Exception ex) {
-                        future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
-                            newBackend.getBackendIPAddress(), processGroup));
                       }
+                      future.complete(newBackend.getBackendIPAddress());
+                    } catch (Exception ex) {
+                      future.fail(String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
+                          newBackend.getBackendIPAddress(), processGroup));
                     }
-                  } finally {
-                    if (newBackend != null) {
-                      try {
-                        availableBackendsByPriority.offer(newBackend);
-                      } catch (Exception ex) {
-                        //TODO: Some metric to indicate enqueue failure here
-                        logger.error("Error enqueuing backend=" + newBackend.getBackendIPAddress() + " back in the queue");
-                      }
+
+                    try {
+                      availableBackendsByPriority.add(newBackend);
+                    } catch (Exception ex) {
+                      //TODO: Some metric to indicate add failure here
+                      logger.error("Error adding backend=" + newBackend.getBackendIPAddress() + " back in the set");
                     }
                   }
                 }
@@ -243,10 +231,12 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
               backendAssignmentLock.unlock();
             }
           } else {
-            future.fail("Timeout while acquiring lock on backend queue for process_group=" + processGroup);
+            future.fail("Timeout while acquiring lock for backend assignment for process_group=" + processGroup);
           }
         } catch (InterruptedException ex) {
-          future.fail(new RuntimeException("Interrupted while acquiring lock on backend queue for process_group=" + processGroup, ex));
+          future.fail(new RuntimeException("Interrupted while acquiring lock for backend assignment for process_group=" + processGroup, ex));
+        } catch (Exception ex) {
+          future.fail(new RuntimeException("Unexpected error while retrieving backend assignment for process_group=" + processGroup, ex));
         }
       }, result.completer());
     }
@@ -255,22 +245,23 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   /**
-   * Finds an available backend from the queue. De-queues all backends which have become defunct since they were added
+   * Finds an available backend from the available backends set. Removes all backends which have become defunct since they were added
    * @return available backend or null if none found
    */
-  private BackendDetail getAvailableBackendFromPriorityQueue() {
-    BackendDetail availableBackend;
-    while((availableBackend = availableBackendsByPriority.poll()) != null) {
+  private BackendDetail getAvailableBackendFromPrioritySet() {
+    while(availableBackendsByPriority.size() > 0) {
+      BackendDetail availableBackend = availableBackendsByPriority.first();
+      availableBackendsByPriority.remove(availableBackend);
       if(!availableBackend.isDefunct()) {
         return availableBackend;
       }
     }
-    return (availableBackend == null || availableBackend.isDefunct()) ? null : availableBackend;
+    return null;
   }
 
   /**
    * Associates a backend with process group. Writes to in-memory store and zookeeper
-   * NOTE: Ensure that the backend detail instance being modified has been removed from available backend queue prior to calling this method
+   * NOTE: Ensure that the backend detail instance being modified has been removed from available backend set prior to calling this method
    * @param backendDetail
    * @param processGroup
    * @throws Exception
@@ -290,7 +281,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
   /**
    * De associates a backend from process group. Writes to in-memory store and zookeeper
-   * NOTE: Ensure that the backend detail instance being modified has been removed from available backend queue prior to calling this method
+   * NOTE: Ensure that the backend detail instance being modified has been removed from available backend set prior to calling this method
    * @param backendDetail
    * @param processGroup
    * @throws Exception
