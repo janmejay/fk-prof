@@ -38,15 +38,19 @@ public class BackendDetail {
    * NOTE: If backend dies and comes back up, it will send currTick=0 in the first request so as to override previous reported state, other than last reported time
    * @param load
    * @param currTick
+   * @return true if successfully updated load report time, false otherwise
    */
-  public synchronized void reportLoad(float load, long currTick) {
+  public synchronized boolean reportLoad(float load, long currTick) {
+    boolean timeUpdated = false;
     if(currTick == 0 || this.lastReportedTick <= currTick) {
       this.lastReportedTick = currTick;
       if(currTick > 0) {
         this.lastReportedTime = System.nanoTime();
+        timeUpdated = true;
       }
       this.lastReportedLoad = load;
     }
+    return timeUpdated;
   }
 
   public void associateProcessGroup(Recorder.ProcessGroup processGroup) {
