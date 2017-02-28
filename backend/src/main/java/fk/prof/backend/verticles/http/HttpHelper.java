@@ -1,8 +1,7 @@
-package fk.prof.backend.http;
+package fk.prof.backend.verticles.http;
 
 import fk.prof.backend.exception.HttpFailure;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 
@@ -22,13 +21,5 @@ public class HttpHelper {
       context.response().setStatusCode(exception.getStatusCode());
       context.response().end(error.encode());
     }
-  }
-
-  public static HttpServerOptions getHttpServerOptions(JsonObject httpServerConfig) {
-    HttpServerOptions serverOptions = new HttpServerOptions();
-    serverOptions
-        .setCompressionSupported(true)
-        .setIdleTimeout(httpServerConfig.getInteger("idle.timeout.secs", 120));
-    return serverOptions;
   }
 }
