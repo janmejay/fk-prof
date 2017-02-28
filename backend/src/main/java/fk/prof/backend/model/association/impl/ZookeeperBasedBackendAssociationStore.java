@@ -249,8 +249,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
    * @return available backend or null if none found
    */
   private BackendDetail getAvailableBackendFromPrioritySet() {
-    BackendDetail availableBackend;
-    while((availableBackend = availableBackendsByPriority.first()) != null) {
+    while(availableBackendsByPriority.size() > 0) {
+      BackendDetail availableBackend = availableBackendsByPriority.first();
       availableBackendsByPriority.remove(availableBackend);
       if(!availableBackend.isDefunct()) {
         return availableBackend;
