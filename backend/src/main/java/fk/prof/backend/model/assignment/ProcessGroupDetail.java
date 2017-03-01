@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 public class ProcessGroupDetail {
   private final Recorder.ProcessGroup processGroup;
   private final int thresholdForDefunctRecorderInSecs;
-  private final Map<RecorderIdentifier, RecordingMachineDetail> recordingMachineLookup = new HashMap<>();
+  private final Map<RecorderIdentifier, RecorderDetail> recorderLookup = new HashMap<>();
 
   public ProcessGroupDetail(Recorder.ProcessGroup processGroup, int thresholdForDefunctRecorderInSecs) {
     this.processGroup = Preconditions.checkNotNull(processGroup);
@@ -22,45 +22,50 @@ public class ProcessGroupDetail {
   }
 
   public void receivePoll(RecorderIdentifier recorderIdentifier, Recorder.WorkResponse lastIssuedWorkResponse) {
-    RecordingMachineDetail recordingMachineDetail = this.recordingMachineLookup.computeIfAbsent(recorderIdentifier, key -> {
-      RecordingMachineDetail value = new RecordingMachineDetail(key, thresholdForDefunctRecorderInSecs);
+    RecorderDetail recorderDetail = this.recorderLookup.computeIfAbsent(recorderIdentifier, key -> {
+      RecorderDetail value = new RecorderDetail(key, thresholdForDefunctRecorderInSecs);
       return value;
     });
-    recordingMachineDetail.receivePoll(lastIssuedWorkResponse);
+    recorderDetail.receivePoll(lastIssuedWorkResponse);
   }
 
-  public Supplier<RecordingMachineDetail> getRecorderSupplier(int coveragePct) {
-    final List<RecordingMachineDetail> availableRecordersAtStart = this.recordingMachineLookup.values().stream()
-        .filter(recordingMachineDetail -> !recordingMachineDetail.isDefunct())
+  public RecorderSupplier getRecorderSupplier(int coveragePct) {
+    final List<RecorderDetail> availableRecordersAtStart = this.recorderLookup.values().stream()
+        .filter(recorderDetail -> !recorderDetail.isDefunct())
         .collect(Collectors.toList());
-    final long target = Math.round((coveragePct * availableRecordersAtStart.size()) / 100.0f);
+    final int target = Math.round((coveragePct * availableRecordersAtStart.size()) / 100.0f);
 
-    return new Supplier<RecordingMachineDetail>() {
-      private final Set<RecordingMachineDetail> supplied = new HashSet<>();
+    return new RecorderSupplier() {
+      private final Set<RecorderDetail> supplied = new HashSet<>();
       private int poolIndex = 0;
-      private List<RecordingMachineDetail> recorderPool = availableRecordersAtStart;
+      private List<RecorderDetail> recorderPool = availableRecordersAtStart;
 
       @Override
-      public RecordingMachineDetail get() {
+      public int getTargetRecordersCount() {
+        return target;
+      }
+
+      @Override
+      public RecorderDetail getNextRecorder() {
         if(supplied.size() == target) {
           return null;
         }
 
-        RecordingMachineDetail found = null;
+        RecorderDetail found = null;
         while(found == null && poolIndex < recorderPool.size()) {
-          RecordingMachineDetail recordingMachineDetail = recorderPool.get(poolIndex++);
-          if(!recordingMachineDetail.isDefunct()) {
-            found = recordingMachineDetail;
+          RecorderDetail recorderDetail = recorderPool.get(poolIndex++);
+          if(!recorderDetail.isDefunct()) {
+            found = recorderDetail;
           }
         }
 
         if(found == null) {
-          recorderPool = recordingMachineLookup.values().stream()
-              .filter(recordingMachineDetail -> !recordingMachineDetail.isDefunct() && !supplied.contains(recordingMachineDetail))
+          recorderPool = recorderLookup.values().stream()
+              .filter(recorderDetail -> !recorderDetail.isDefunct() && !supplied.contains(recorderDetail))
               .collect(Collectors.toList());
           poolIndex = 0;
           if(recorderPool.size() > 0) {
-            return get();
+            return getNextRecorder();
           }
         }
 

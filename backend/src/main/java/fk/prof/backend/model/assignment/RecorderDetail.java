@@ -3,7 +3,7 @@ package fk.prof.backend.model.assignment;
 import com.google.common.base.Preconditions;
 import recording.Recorder;
 
-public class RecordingMachineDetail {
+public class RecorderDetail {
   private static final double NANOSECONDS_IN_SECOND = Math.pow(10, 9);
 
   private final RecorderIdentifier recorderIdentifier;
@@ -13,7 +13,7 @@ public class RecordingMachineDetail {
   private long currentWorkId = 0;
   private Recorder.WorkResponse.WorkState currentWorkState;
 
-  public RecordingMachineDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {
+  public RecorderDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {
     this.recorderIdentifier = Preconditions.checkNotNull(recorderIdentifier);
     this.thresholdForDefunctRecorderInNanos = (long)(thresholdForDefunctRecorderInSecs * NANOSECONDS_IN_SECOND);
   }
@@ -42,11 +42,11 @@ public class RecordingMachineDetail {
     if (o == this) {
       return true;
     }
-    if (!(o instanceof RecordingMachineDetail)) {
+    if (!(o instanceof RecorderDetail)) {
       return false;
     }
 
-    RecordingMachineDetail other = (RecordingMachineDetail) o;
+    RecorderDetail other = (RecorderDetail) o;
     return this.recorderIdentifier.equals(other.recorderIdentifier);
   }
 

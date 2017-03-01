@@ -11,9 +11,7 @@ import recording.Recorder;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -21,7 +19,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final String appId;
   private final String clusterId;
   private final String procId;
-  private LocalDateTime start = null, endWithTolerance = null;
+  private LocalDateTime start = null, endedAt = null;
 
   private final ConcurrentHashMap<Long, ProfileWorkInfo> workInfoLookup = new ConcurrentHashMap<>();
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
@@ -74,14 +72,19 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   /**
    * Does following tasks required to expire aggregation window:
    * > Marks status of ongoing profiles as aborted
+   * > De associates assigned work with this aggregation window
+   * > Updates ended at time for aggregation window
+   * > Finalizes the window
    * @param aggregationWindowWriteContext
-   * @return
+   * @return finalized aggregation window
    */
   public FinalizedAggregationWindow expireWindow(AggregationWindowWriteContext aggregationWindowWriteContext) {
+    ensureEntityIsWriteable();
+
     abortOngoingProfiles();
     long[] workIds = this.workInfoLookup.keySet().stream().mapToLong(Long::longValue).toArray();
     aggregationWindowWriteContext.deAssociateAggregationWindow(workIds);
-    this.endWithTolerance = LocalDateTime.now(Clock.systemUTC());
+    this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return finalizeEntity();
   }
 
@@ -143,7 +146,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
             entry -> entry.getValue().finalizeEntity()));
 
     return new FinalizedAggregationWindow(
-        appId, clusterId, procId, start, endWithTolerance, finalizedWorkInfoLookup,
+        appId, clusterId, procId, start, endedAt, finalizedWorkInfoLookup,
         cpuSamplingAggregationBucket.finalizeEntity()
     );
   }

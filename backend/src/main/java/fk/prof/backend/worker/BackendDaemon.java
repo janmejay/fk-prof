@@ -6,7 +6,6 @@ import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
 import fk.prof.backend.model.assignment.WorkAssignmentManager;
-import fk.prof.backend.model.assignment.WorkAssignmentManagerImpl;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
@@ -18,23 +17,18 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.client.utils.URIUtils;
 import recording.Recorder;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class WorkAssignmentScheduler extends AbstractVerticle {
-  private static Logger logger = LoggerFactory.getLogger(WorkAssignmentScheduler.class);
+public class BackendDaemon extends AbstractVerticle {
+  private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
   private static String ENCODING = "UTF-8";
 
   private final ConfigManager configManager;
@@ -47,7 +41,7 @@ public class WorkAssignmentScheduler extends AbstractVerticle {
   private Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> requestWorkFromLeader;
   private int loadTickCounter = 0;
 
-  public WorkAssignmentScheduler(ConfigManager configManager, LeaderReadContext leaderReadContext, WorkAssignmentManager workAssignmentManager) {
+  public BackendDaemon(ConfigManager configManager, LeaderReadContext leaderReadContext, WorkAssignmentManager workAssignmentManager) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderPort = configManager.getLeaderHttpPort();

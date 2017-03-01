@@ -13,6 +13,7 @@ message WorkProfile {
     required uint32 interval = 2;
     required uint32 coverage_pct = 3;
     repeated Work work = 4;
+    required string description = 5;
 }
 
 enum WorkType {

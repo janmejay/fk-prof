@@ -2,6 +2,7 @@ package fk.prof.backend.model.assignment;
 
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
 import recording.Recorder;
 
@@ -24,7 +25,7 @@ public class WorkAssignmentManagerImpl implements WorkAssignmentManager {
 
   @Override
   public Recorder.WorkAssignment receivePoll(Recorder.RecorderInfo recorderInfo, Recorder.WorkResponse lastIssuedWorkResponse) {
-    Recorder.ProcessGroup processGroup = ProtoUtil.mapRecorderInfoToProcessGroup(recorderInfo);
+    Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(recorderInfo);
     ProcessGroupDetail processGroupDetail = this.processGroupLookup.get(processGroup);
     if(processGroupDetail == null) {
       throw new IllegalArgumentException("Process group " + ProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
