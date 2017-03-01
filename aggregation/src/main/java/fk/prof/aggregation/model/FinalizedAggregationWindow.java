@@ -12,7 +12,7 @@ public class FinalizedAggregationWindow {
   private final String clusterId;
   private final String procId;
   private final LocalDateTime start;
-  private final LocalDateTime endWithTolerance;
+  private final LocalDateTime endedAt;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
@@ -20,14 +20,14 @@ public class FinalizedAggregationWindow {
                                     String clusterId,
                                     String procId,
                                     LocalDateTime start,
-                                    LocalDateTime endWithTolerance,
+                                    LocalDateTime endedAt,
                                     Map<Long, FinalizedProfileWorkInfo> workInfoLookup,
                                     FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket) {
     this.appId = appId;
     this.clusterId = clusterId;
     this.procId = procId;
     this.start = start;
-    this.endWithTolerance = endWithTolerance;
+    this.endedAt = endedAt;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
   }
@@ -50,7 +50,7 @@ public class FinalizedAggregationWindow {
         && this.clusterId.equals(other.clusterId)
         && this.procId.equals(other.procId)
         && this.start.equals(other.start)
-        && this.endWithTolerance.equals(other.endWithTolerance)
+        && this.endedAt == null ? other.endedAt == null : this.endedAt.equals(other.endedAt)
         && this.workInfoLookup.equals(other.workInfoLookup)
         && this.cpuSamplingAggregationBucket.equals(other.cpuSamplingAggregationBucket);
   }
@@ -59,7 +59,7 @@ public class FinalizedAggregationWindow {
     return Header.newBuilder()
         .setFormatVersion(version)
         .setWorkType(workType)
-        .setAggregationEndTime(endWithTolerance.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
+        .setAggregationEndTime(endedAt == null ? null : endedAt.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAggregationStartTime(start.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAppId(appId)
         .setClusterId(clusterId)

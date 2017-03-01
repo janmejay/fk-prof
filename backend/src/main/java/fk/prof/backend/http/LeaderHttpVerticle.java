@@ -10,7 +10,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -65,7 +64,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private void handlePostLoad(RoutingContext context) {
     try {
-      BackendDTO.LoadReportRequest payload = BackendDTO.LoadReportRequest.parseFrom(context.getBody().getBytes());
+      BackendDTO.LoadReportRequest payload = ProtoUtil.buildProtoFromBuffer(BackendDTO.LoadReportRequest.parser(), context.getBody());
       backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
         if(ar.succeeded()) {
           try {
@@ -88,7 +87,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private void handlePutAssociation(RoutingContext context) {
     try {
-      Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
+      Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
       backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
         //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
         if(ar.succeeded()) {

@@ -1,15 +1,12 @@
 package fk.prof.backend.http;
 
 import fk.prof.backend.ConfigManager;
-import com.google.common.primitives.Ints;
 import fk.prof.backend.exception.HttpFailure;
-import fk.prof.backend.model.assignment.WorkAssignmentManager;
-import fk.prof.backend.model.assignment.WorkAssignmentManagerImpl;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
-import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.service.AggregationWindowReadContext;
 import fk.prof.backend.http.handler.RecordedProfileRequestHandler;
 import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
@@ -18,7 +15,6 @@ import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -40,7 +36,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final IProfileWorkService profileWorkService;
+  private final AggregationWindowReadContext aggregationWindowReadContext;
   private final int leaderPort;
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
@@ -48,12 +44,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
-                             IProfileWorkService profileWorkService) {
+                             AggregationWindowReadContext aggregationWindowReadContext) {
     this.configManager = configManager;
     this.leaderPort = configManager.getLeaderHttpPort();
 
     this.leaderReadContext = leaderReadContext;
-    this.profileWorkService = profileWorkService;
+    this.aggregationWindowReadContext = aggregationWindowReadContext;
   }
 
   @Override
@@ -104,7 +100,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private void handlePostProfile(RoutingContext context) {
     CompositeByteBufInputStream inputStream = new CompositeByteBufInputStream();
     RecordedProfileProcessor profileProcessor = new RecordedProfileProcessor(
-        profileWorkService,
+        aggregationWindowReadContext,
         new SharedMapBasedSingleProcessingOfProfileGate(workIdsInPipeline),
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
         config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024 * 1024));
@@ -133,12 +129,11 @@ public class BackendHttpVerticle extends AbstractVerticle {
     DeliveryOptions replyDeliveryOptions = new DeliveryOptions();
     replyDeliveryOptions.setSendTimeout(REPLY_TIMEOUT_SECONDS * 1000);
 
-    vertx.eventBus().send("recorder.poll", replyDeliveryOptions, (AsyncResult<Message<byte[]>> ar) -> {
+    vertx.eventBus().send("recorder.poll", context.getBody(), replyDeliveryOptions, (AsyncResult<Message<Buffer>> ar) -> {
       //TODO: See how error code and message is propagated to reply handler and act accordingly
       if(ar.succeeded()) {
         try {
-          Recorder.PollRes pollRes = Recorder.PollRes.parseFrom(ar.result().body());
-          context.response().end(Buffer.buffer(pollRes.toByteArray()));
+          context.response().end(ar.result().body());
         } catch (Exception ex) {
           HttpFailure httpFailure = HttpFailure.failure(ex);
           HttpHelper.handleFailure(context, httpFailure);
@@ -155,8 +150,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     String leaderIPAddress = verifyLeaderAvailabilityOrFail(context.response());
     if (leaderIPAddress != null) {
       try {
-        //Deserialize to proto message to catch payload related errors early
-        Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(context.getBody().getBytes());
+        Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
         //TODO: Check if backend already knows about this process group and send self as the association, rather than proxying to leader
         makeRequestGetAssociation(leaderIPAddress, processGroup).setHandler(ar -> {
           if(ar.succeeded()) {

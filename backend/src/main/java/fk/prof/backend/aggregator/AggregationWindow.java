@@ -6,10 +6,14 @@ import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
+import fk.prof.backend.service.AggregationWindowWriteContext;
 import recording.Recorder;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -23,12 +27,11 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   public AggregationWindow(String appId, String clusterId, String procId,
-                           LocalDateTime start, int windowDurationInMinutes, int toleranceInSeconds, long[] workIds) {
+                           LocalDateTime start, long[] workIds) {
     this.appId = appId;
     this.clusterId = clusterId;
     this.procId = procId;
     this.start = start;
-    this.endWithTolerance = this.start.plusMinutes(windowDurationInMinutes).plusSeconds(toleranceInSeconds);
     for (int i = 0; i < workIds.length; i++) {
       this.workInfoLookup.put(workIds[i], new ProfileWorkInfo());
     }
@@ -69,9 +72,23 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   }
 
   /**
+   * Does following tasks required to expire aggregation window:
+   * > Marks status of ongoing profiles as aborted
+   * @param aggregationWindowWriteContext
+   * @return
+   */
+  public FinalizedAggregationWindow expireWindow(AggregationWindowWriteContext aggregationWindowWriteContext) {
+    abortOngoingProfiles();
+    long[] workIds = this.workInfoLookup.keySet().stream().mapToLong(Long::longValue).toArray();
+    aggregationWindowWriteContext.deAssociateAggregationWindow(workIds);
+    this.endWithTolerance = LocalDateTime.now(Clock.systemUTC());
+    return finalizeEntity();
+  }
+
+  /**
    * Aborts all in-flight profiles. Should be called when aggregation window expires
    */
-  public void abortOngoingProfiles() throws AggregationFailure {
+  private void abortOngoingProfiles() throws AggregationFailure {
     ensureEntityIsWriteable();
 
     for (Map.Entry<Long, ProfileWorkInfo> entry : workInfoLookup.entrySet()) {

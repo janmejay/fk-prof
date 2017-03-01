@@ -5,21 +5,21 @@ import fk.prof.backend.ConfigManager;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.http.BackendHttpVerticle;
 import fk.prof.backend.model.election.LeaderReadContext;
-import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.service.AggregationWindowReadContext;
 import io.vertx.core.*;
 
 public class BackendHttpVerticleDeployer extends VerticleDeployer {
 
   private final LeaderReadContext leaderReadContext;
-  private final IProfileWorkService profileWorkService;
+  private final AggregationWindowReadContext aggregationWindowReadContext;
 
   public BackendHttpVerticleDeployer(Vertx vertx,
                                      ConfigManager configManager,
                                      LeaderReadContext leaderReadContext,
-                                     IProfileWorkService profileWorkService) {
+                                     AggregationWindowReadContext aggregationWindowReadContext) {
     super(vertx, configManager);
     this.leaderReadContext = Preconditions.checkNotNull(leaderReadContext);
-    this.profileWorkService = Preconditions.checkNotNull(profileWorkService);
+    this.aggregationWindowReadContext = Preconditions.checkNotNull(aggregationWindowReadContext);
   }
 
   @Override
@@ -29,7 +29,7 @@ public class BackendHttpVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected Verticle buildVerticle() {
-    return new BackendHttpVerticle(getConfigManager(), leaderReadContext, profileWorkService);
+    return new BackendHttpVerticle(getConfigManager(), leaderReadContext, aggregationWindowReadContext);
   }
 
 }

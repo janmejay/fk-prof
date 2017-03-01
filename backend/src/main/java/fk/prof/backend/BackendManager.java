@@ -11,7 +11,7 @@ import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.service.AggregationWindowLookupStore;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -76,9 +76,9 @@ public class BackendManager {
   public Future<Void> launch() {
     Future result = Future.future();
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
-    ProfileWorkService profileWorkService = new ProfileWorkService();
+    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStore();
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, profileWorkService);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore);
     backendHttpVerticleDeployer.deploy().setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {
         try {

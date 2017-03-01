@@ -9,7 +9,7 @@ import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.mock.MockLeaderStores;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.service.AggregationWindowLookupStore;
 import io.vertx.core.*;
 import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.ext.unit.TestContext;
@@ -113,12 +113,12 @@ public class LeaderElectionTest {
   @Test(timeout = 20000)
   public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    ProfileWorkService profileWorkService = new ProfileWorkService();
+    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStore();
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
     List<String> backendDeployments = new ArrayList<>();
     CountDownLatch aggDepLatch = new CountDownLatch(1);
 
-    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, profileWorkService);
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore);
     backendVerticleDeployer.deploy().setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
         backendDeployments.addAll(asyncResult.result().list());

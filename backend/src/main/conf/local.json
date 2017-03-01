@@ -48,5 +48,13 @@
   "leaderHttpOptions": {
     "backend.association.path": "/association",
     "load.miss.tolerance": 1
+  },
+  "schedulerOptions": {
+    "worker": true
+  },
+  "workAssignmentOptions": {
+    "recorder.defunct.threshold.secs": 120,
+    "aggregation.window.duration.mins": 30,
+    "aggregation.window.tolerance.secs": 120
   }
 }

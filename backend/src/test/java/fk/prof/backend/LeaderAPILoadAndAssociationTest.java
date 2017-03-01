@@ -209,8 +209,12 @@ public class LeaderAPILoadAndAssociationTest {
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
-              Recorder.ProcessGroups result = Recorder.ProcessGroups.parseFrom(buffer.getBytes());
-              future.complete(result);
+              if(response.statusCode() == 200) {
+                Recorder.ProcessGroups result = Recorder.ProcessGroups.parseFrom(buffer.getBytes());
+                future.complete(result);
+              } else {
+                future.fail(buffer.toString());
+              }
             } catch (Exception ex) {
               future.fail(ex);
             }

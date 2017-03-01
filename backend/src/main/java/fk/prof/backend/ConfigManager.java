@@ -26,6 +26,7 @@ public class ConfigManager {
   private static final String CURATOR_OPTIONS_KEY = "curatorOptions";
   private static final String LEADER_ELECTION_DEPLOYMENT_OPTIONS_KEY = "leaderElectionOptions";
   private static final String LEADER_HTTP_DEPLOYMENT_OPTIONS_KEY = "leaderHttpOptions";
+  private static final String SCHEDULER_DEPLOYMENT_OPTIONS_KEY = "schedulerOptions";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
 
@@ -90,6 +91,10 @@ public class ConfigManager {
 
   public JsonObject getLeaderHttpDeploymentConfig() {
     return enrichDeploymentConfig(config.getJsonObject(LEADER_HTTP_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
+  }
+
+  public JsonObject getSchedulerDeploymentConfig() {
+    return enrichDeploymentConfig(config.getJsonObject(SCHEDULER_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
   }
 
   private JsonObject enrichDeploymentConfig(JsonObject deploymentConfig) {

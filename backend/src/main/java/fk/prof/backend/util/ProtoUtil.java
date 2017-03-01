@@ -1,9 +1,7 @@
 package fk.prof.backend.util;
 
-import com.google.protobuf.AbstractMessage;
-import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.*;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
-import fk.prof.backend.proto.BackendDTO;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.vertx.core.buffer.Buffer;
@@ -35,5 +33,10 @@ public class ProtoUtil {
     message.writeTo(codedOutputStream);
     byteBuf.writerIndex(serializedSize);
     return Buffer.buffer(byteBuf);
+  }
+
+  public static <T extends AbstractMessage> T buildProtoFromBuffer(Parser<T> parser, Buffer buffer)
+      throws InvalidProtocolBufferException {
+    return parser.parseFrom(CodedInputStream.newInstance(buffer.getByteBuf().nioBuffer()));
   }
 }
