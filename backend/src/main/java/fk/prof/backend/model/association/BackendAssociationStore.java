@@ -6,5 +6,5 @@ import recording.Recorder;
 
 public interface BackendAssociationStore {
   Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload);
-  Future<String> getAssociatedBackend(Recorder.ProcessGroup processGroup);
+  Future<Recorder.AssignedBackend> getAssociatedBackend(Recorder.ProcessGroup processGroup);
 }

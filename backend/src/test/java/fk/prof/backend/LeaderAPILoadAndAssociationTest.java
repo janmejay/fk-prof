@@ -66,7 +66,7 @@ public class LeaderAPILoadAndAssociationTest {
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
         configManager.getLoadReportIntervalInSeconds(),
-        leaderHttpConfig.getInteger("load.miss.tolerance", 1),
+        leaderHttpConfig.getInteger("load.miss.tolerance", 1), configManager.getBackendHttpPort(),
         new ProcessGroupCountBasedBackendComparator());
 
     VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore);
@@ -128,12 +128,13 @@ public class LeaderAPILoadAndAssociationTest {
               makeRequestGetAssociation(mockProcessGroups.get(0))
                   .setHandler(ar2 -> {
                     if (ar2.succeeded()) {
-                      context.assertEquals("1", ar2.result());
                       try {
+//                        Recorder.AssignedBackend ab2 = Recorder.AssignedBackend.parseFrom(ar2.result())
+                        context.assertEquals("1", ar2.result().getHost());
                         makeRequestGetAssociation(mockProcessGroups.get(1))
                             .setHandler(ar3 -> {
                               if (ar3.succeeded()) {
-                                context.assertEquals("1", ar3.result());
+                                context.assertEquals("1", ar3.result().getHost());
                                 try {
                                   makeRequestReportLoad(loadRequest2)
                                       .setHandler(ar4 -> {
@@ -142,7 +143,7 @@ public class LeaderAPILoadAndAssociationTest {
                                             makeRequestGetAssociation(mockProcessGroups.get(2))
                                                 .setHandler(ar5 -> {
                                                   if (ar5.succeeded()) {
-                                                    context.assertEquals("2", ar5.result());
+                                                    context.assertEquals("2", ar5.result().getHost());
                                                     vertx.setTimer(3000, timerId -> {
                                                       try {
                                                         makeRequestReportLoad(loadRequest1)
@@ -152,7 +153,7 @@ public class LeaderAPILoadAndAssociationTest {
                                                                   makeRequestGetAssociation(mockProcessGroups.get(2))
                                                                       .setHandler(ar7 -> {
                                                                         if (ar7.succeeded()) {
-                                                                          context.assertEquals("1", ar7.result());
+                                                                          context.assertEquals("1", ar7.result().getHost());
                                                                           async.complete();
                                                                         } else {
                                                                           context.fail(ar7.cause());
@@ -222,15 +223,16 @@ public class LeaderAPILoadAndAssociationTest {
     return future;
   }
 
-  private Future<String> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<Recorder.AssignedBackend> makeRequestGetAssociation(Recorder.ProcessGroup payload)
       throws IOException {
-    Future<String> future = Future.future();
+    Future<Recorder.AssignedBackend> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
         .post(port, "localhost", "/leader/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
-              future.complete(buffer.toString());
+              Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.parseFrom(buffer.getBytes());
+              future.complete(assignedBackend);
             } catch (Exception ex) {
               future.fail(ex);
             }

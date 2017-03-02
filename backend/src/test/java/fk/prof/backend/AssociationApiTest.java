@@ -65,7 +65,7 @@ public class AssociationApiTest {
     port = configManager.getBackendHttpPort();
     leaderPort = configManager.getLeaderHttpPort();
 
-    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, new ProcessGroupCountBasedBackendComparator());
+    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
     inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new ProfileWorkService());
@@ -184,10 +184,14 @@ public class AssociationApiTest {
                       try {
                         makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
                           context.assertTrue(ar2.succeeded());
-                          System.out.println(ar2.result());
                           context.assertEquals(200, ar2.result().getStatusCode());
-                          context.assertEquals("1", ar2.result().getResponse().toString());
-                          async.complete();
+                          try {
+                            Recorder.AssignedBackend assignedBackendResponse = Recorder.AssignedBackend.parseFrom(ar2.result().getResponse().getBytes());
+                            context.assertEquals("1", assignedBackendResponse.getHost());
+                            async.complete();
+                          } catch (Exception ex) {
+                            context.fail(ex);
+                          }
                         });
                       } catch (IOException ex) {
                         context.fail(ex);

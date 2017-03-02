@@ -132,7 +132,7 @@ public class BackendManager {
     String backendAssociationPath = leaderHttpDeploymentConfig.getString("backend.association.path", "/association");
     int loadMissTolerance = leaderHttpDeploymentConfig.getInteger("load.miss.tolerance", 2);
     return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath,
-        loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
+        loadReportIntervalInSeconds, loadMissTolerance, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
   }
 
   private Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments) {
