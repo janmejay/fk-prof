@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
-project(honest_profiler)
+project(fk-prof)
 
 enable_testing()
 
@@ -44,7 +44,7 @@ include_directories(${JAVA_INCLUDE_PATH2})
 pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
 pkg_check_modules(MEDIDA REQUIRED libmedida)
-# include_directories(${MEDIDA_INCLUDE_DIRS})
+include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
     message("User has configured " $ENV{UNITTEST_INCLUDE_DIRS} " as the unit test include directory")

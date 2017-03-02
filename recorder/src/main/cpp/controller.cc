@@ -121,7 +121,8 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
     return header_list;
 }
 
-static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used) {
+static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used, metrics::Timer& timer) {
+    auto timer_ctx = timer.time_scope();
     auto res = curl_easy_perform(curl.get());
     long http_code = -1;
     if (res == CURLE_OK) {
@@ -187,7 +188,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
         logger->trace("Polling now");
 
         auto next_tick = Time::now();
-        if (do_call(curl, url.c_str(), "associate-poll", retries_used)) {
+        if (do_call(curl, url.c_str(), "associate-poll", retries_used, s_t_poll_rpc)) {
             accept_work(recv, host, port);
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
@@ -241,7 +242,7 @@ void Controller::run() {
         send.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         recv.write_end = recv.read_end = 0;
-        if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0)) {
+        if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0, s_t_associate_rpc)) {
             backoff_seconds = cfg.backoff_start;
             run_with_associate(recv, start_time);
         } else {
@@ -331,10 +332,15 @@ void Controller::accept_work(Buff& poll_response_buff, const std::string& host, 
 
 void http_raw_writer_runnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 
-static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ring) {
-    auto ring = static_cast<BlockingRingBuffer*>(_ring);
+typedef std::tuple<BlockingRingBuffer*, metrics::Timer*, metrics::Hist*> ProfileDataReadCtx;
+
+static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ctx) {
+    auto& ctx = *static_cast<ProfileDataReadCtx*>(_ctx);
+    auto ring = std::get<0>(ctx);
+    auto timer_ctx = std::get<1>(ctx)->time_scope();
     auto copied = ring->read(reinterpret_cast<std::uint8_t*>(out_buff), 0, size * nitems);
     logger->debug("Writing {} bytes of recorded data", copied);
+    std::get<2>(ctx)->update(copied);
     return copied;
 }
 
@@ -358,8 +364,17 @@ private:
 
     ThdProcP thd_proc;
 
+    metrics::Timer& s_t_rpc;
+    metrics::Timer& s_t_fill_wait;
+    metrics::Hist& s_h_req_chunk_sz;
+
 public:
-    HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port, BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) : RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn) {
+    HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port,
+                         BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) :
+        RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn),
+        s_t_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
+        s_t_fill_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_WAIT, "profile", "req_data_feed"})),
+        s_h_req_chunk_sz(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRICS_TYPE_SZ, "profile", "chunk"})) {
         ring.reset();
         thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, this);
     }
@@ -390,10 +405,12 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
-        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &ring);
+        ProfileDataReadCtx rd_ctx {&ring, &s_t_fill_wait, &s_h_req_chunk_sz};
+
+        curl_easy_setopt(curl.get(), CURLOPT_READDATA, &rd_ctx);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
 
-        if (do_call(curl, url.c_str(), "send-profile", 0)) {
+        if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc)) {
             logger->info("Profile posted successfully!");
         } else {
             logger->error("Couldn't post profile, http request failed, cancelling work.");

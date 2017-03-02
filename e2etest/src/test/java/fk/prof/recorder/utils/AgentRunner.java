@@ -27,11 +27,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -82,13 +85,30 @@ public class AgentRunner {
         String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
 
+
         List<String> classpath = discoverClasspath(getClass());
         //System.out.println("classpath = " + classpath);
-        process = new ProcessBuilder()
+        ProcessBuilder pb = new ProcessBuilder();
+        populateEnvVars(pb);
+        process = pb
                 .command("java", agentArg, "-cp", String.join(":", classpath), fqdn)
                 .redirectError(new File("/tmp/fkprof_stderr.log"))
                 .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
+    }
+
+    private void populateEnvVars(ProcessBuilder pb) throws IOException {
+        Map<String, String> env = pb.environment();
+        Properties prop = new Properties();
+        URL envPropUrl = this.getClass().getClassLoader().getResource("recorder_env.properties");
+        if (envPropUrl != null) {
+            try (InputStream envPropIS = envPropUrl.openStream()) {
+                prop.load(envPropIS);
+            }
+        }
+        for (Map.Entry<Object, Object> envProp : prop.entrySet()) {
+            env.put(envProp.getKey().toString(), envProp.getValue().toString());
+        }
     }
 
     private List<String> discoverClasspath(Class klass) {

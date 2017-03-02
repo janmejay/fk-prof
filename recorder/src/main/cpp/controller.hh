@@ -29,7 +29,9 @@
 class Controller {
 public:
     explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
-        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr) {
+        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
+        s_t_poll_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
+        s_t_associate_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})) {
         current_work.set_work_id(0);
         current_work_state = recording::WorkResponse::complete;
         current_work_result = recording::WorkResponse::success;
@@ -66,6 +68,9 @@ private:
     WSt current_work_state;
     WRes current_work_result;
     Time::Pt work_start, work_end;
+
+    metrics::Timer& s_t_poll_rpc;
+    metrics::Timer& s_t_associate_rpc;
 
     void startSampling();
 

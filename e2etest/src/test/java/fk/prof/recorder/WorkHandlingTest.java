@@ -470,6 +470,6 @@ public class WorkHandlingTest {
         DateTime now = DateTime.now();
         assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
         assertThat(recorderInfo.getRecorderVersion(), is(1));
-        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThan(60)));
+        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(60)));
     }
 }
