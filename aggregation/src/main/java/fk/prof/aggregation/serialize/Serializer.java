@@ -27,8 +27,8 @@ public interface Serializer {
         byte[] bytes = new byte[8];
 
         CodedOutputStream cout = CodedOutputStream.newInstance(bytes);
-        cout.flush();
         cout.writeInt32NoTag(value);
+        cout.flush();
 
         os.write(bytes, 0, cout.getTotalBytesWritten());
     }

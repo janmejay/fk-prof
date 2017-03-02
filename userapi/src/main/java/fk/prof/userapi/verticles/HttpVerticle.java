@@ -101,10 +101,6 @@ public class HttpVerticle extends AbstractVerticle {
                 BASE_DIR, appId, clusterId, prefix);
     }
 
-    /**
-     * Fix it
-     * @param routingContext
-     */
     private void getProfiles(RoutingContext routingContext) {
         final String appId = routingContext.request().getParam("appId");
         final String clusterId = routingContext.request().getParam("clusterId");
