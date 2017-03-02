@@ -37,12 +37,15 @@ extern LoggerP logger;//TODO: stick me in GlobalCtx???
 namespace metrics {
     typedef medida::Timer Timer;
     typedef medida::Histogram Hist;
+    typedef medida::Value Value;
+    typedef medida::Counter Ctr;
 };
 
 #define METRICS_DOMAIN "fkpr"
 #define METRICS_TYPE_RPC "rpc"
 #define METRICS_TYPE_WAIT "wait"
 #define METRICS_TYPE_SZ "sz"
+#define METRICS_TYPE_STATE "state"
 
 class Profiler;
 

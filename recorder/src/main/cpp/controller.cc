@@ -9,6 +9,24 @@ void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     control->run();
 }
 
+Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
+    jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
+
+    s_t_poll_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
+    s_t_associate_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})),
+
+    s_v_working(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working"})),
+    s_v_work_cpu_sampling(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working", "cpu_sampling"})),
+
+    s_c_work_success(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retire", "success"})),
+    s_c_work_failure(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retire", "failure"})),
+    s_c_work_retired(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retired"})) {
+
+    current_work.set_work_id(0);
+    current_work_state = recording::WorkResponse::complete;
+    current_work_result = recording::WorkResponse::success;
+}
+
 void Controller::start() {
     keep_running.store(true, std::memory_order_relaxed);
     thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Controller Thread", controllerRunnable, this);
@@ -249,38 +267,6 @@ void Controller::run() {
             std::this_thread::sleep_for(Time::sec(backoff(backoff_seconds, cfg.backoff_multiplier, cfg.backoff_max)));
         }
     }
- 
-
-    // if ((clientConnection = accept(listener, (struct sockaddr *) &clientAddress, &addressSize)) == -1) {
-    //     logError("ERROR: Failed to accept incoming connection: %s\n", strerror(errno));
-    //     continue;
-    // }
-
-    // if ((bytesRead = recv(clientConnection, buf, MAX_DATA_SIZE - 1, 0)) == -1) {
-    //     if (bytesRead == 0) {
-    //         // client closed the connection
-    //     } else {
-    //         logError("ERROR: Failed to read data from client: %s\n", strerror(errno));
-    //     }
-    // } else {
-    //     buf[bytesRead] = '\0';
-
-    //     if (strstr(buf, "start") == buf) {
-    //         startSampling();
-    //     } else if (strstr(buf, "stop") == buf) {
-    //         stopSampling();
-    //     } else if (strstr(buf, "status") == buf) {
-    //         reportStatus(clientConnection);
-    //     } else if (strstr(buf, "get ") == buf) {
-    //         getProfilerParam(clientConnection, buf + 4);
-    //     } else if (strstr(buf, "set ") == buf) {
-    //         setProfilerParam(buf + 4);
-    //     } else {
-    //         logError("WARN: Unknown command received, ignoring: %s\n", buf);
-    //     }
-    // }
-
-    // close(clientConnection);
 }
 
 void Controller::with_current_work(std::function<void(Controller::W&, Controller::WSt&, Controller::WRes&, Time::Pt&, Time::Pt&)> proc) {
@@ -319,7 +305,7 @@ void Controller::accept_work(Buff& poll_response_buff, const std::string& host, 
                 if ((delay + w.duration()) > 0) {
                     wst = recording::WorkResponse::pre_start;
                     wres = recording::WorkResponse::unknown;
-                    issueWork(host, port, res.controller_id(), res.controller_version());
+                    issue_work(host, port, res.controller_id(), res.controller_version());
                 } else {
                     wst = recording::WorkResponse::complete;
                     wres = recording::WorkResponse::success;
@@ -433,7 +419,7 @@ void populate_recording_header(recording::RecordingHeader& rh, const recording::
     *wa = w;
 }
 
-void Controller::issueWork(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version) {
+void Controller::issue_work(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version) {
     auto at = Time::now() + Time::sec(current_work.delay());
     scheduler.schedule(at, [&, port, controller_id, controller_version]() {
             with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
@@ -441,7 +427,7 @@ void Controller::issueWork(const std::string& host, const std::uint32_t port, st
                     std::function<void()> cancellation_cb = [&, work_id]() {
                         scheduler.schedule(Time::now(), [&] {
                                 wres = recording::WorkResponse::failure;
-                                retireWork(work_id);
+                                retire_work(work_id);
                             });
                     };
                     if (w.work_size() > 0) {
@@ -451,6 +437,7 @@ void Controller::issueWork(const std::string& host, const std::uint32_t port, st
                         populate_recording_header(rh, w, controller_id, controller_version);
                         writer->write_header(rh);
                     }
+                    s_v_working.update(1);
                     
                     for (auto i = 0; i < w.work_size(); i++) {
                         auto work = w.work(i);
@@ -459,7 +446,7 @@ void Controller::issueWork(const std::string& host, const std::uint32_t port, st
                     start_tm = Time::now();
                     auto stop_at = start_tm + Time::sec(w.duration());
                     scheduler.schedule(stop_at, [&, work_id]() {
-                            retireWork(work_id);
+                            retire_work(work_id);
                         });
                     logger->info("Issuing work-id {}, it is slated for retire in {} seconds", w.work_id(), w.duration());
                     wst = recording::WorkResponse::running;
@@ -467,7 +454,7 @@ void Controller::issueWork(const std::string& host, const std::uint32_t port, st
         });
 }
 
-void Controller::retireWork(const std::uint64_t work_id) {
+void Controller::retire_work(const std::uint64_t work_id) {
     with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
             if (w.work_id() != work_id) {
                 logger->warn("Stale work-retire call (target work_id was {}, current work_id is {}), ignoring", work_id, w.work_id());
@@ -486,6 +473,14 @@ void Controller::retireWork(const std::uint64_t work_id) {
                 wres = recording::WorkResponse::success;
             }
             end_tm = Time::now();
+
+
+            s_c_work_retired.inc();
+            if (wres == recording::WorkResponse::success) {
+                s_c_work_success.inc();
+            } else {
+                s_c_work_failure.inc();
+            }
         });
 }
 
@@ -499,8 +494,10 @@ void Controller::issue(const recording::Work& work) {
     auto w_type = work.w_type();
     switch(w_type) {
     case recording::WorkType::cpu_sample_work:
-        if (has_cpu_sample_work_p(work))
+        if (has_cpu_sample_work_p(work)) {
             issue(work.cpu_sample());
+            s_v_work_cpu_sampling.update(1);
+        }
         return;
     default:
         logger->error("Encountered unknown work type {}", w_type);
@@ -511,8 +508,10 @@ void Controller::retire(const recording::Work& work) {
     auto w_type = work.w_type();
     switch(w_type) {
     case recording::WorkType::cpu_sample_work:
-        if (has_cpu_sample_work_p(work))
+        if (has_cpu_sample_work_p(work)) {
             retire(work.cpu_sample());
+            s_v_work_cpu_sampling.update(0);
+        }
         return;
     default:
         logger->error("Encountered unknown work type {}", w_type);
@@ -536,21 +535,6 @@ void Controller::retire(const recording::CpuSampleWork& csw) {
 
     GlobalCtx::recording.cpu_profiler->stop();
     GlobalCtx::recording.cpu_profiler.reset();
-}
-
-void Controller::startSampling() {
-    // JNIEnv *env = getJNIEnv(jvm);
-
-    // if (env == NULL) {
-    //     logError("ERROR: Failed to obtain JNI environment, cannot start sampling\n");
-    //     return;
-    // }
-
-    // profiler->start(env);
-}
-
-void Controller::stopSampling() {
-    // profiler->stop();
 }
 
 namespace GlobalCtx {
