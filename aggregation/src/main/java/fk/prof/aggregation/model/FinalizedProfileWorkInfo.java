@@ -1,14 +1,17 @@
 package fk.prof.aggregation.model;
 
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
+import fk.prof.aggregation.proto.AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap;
 import fk.prof.aggregation.state.AggregationState;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Set;
 
 public class FinalizedProfileWorkInfo {
   private final int recorderVersion;
+  private final int recorderIdx;
   private final AggregationState state;
   private final LocalDateTime startedAt;
   private final LocalDateTime endedAt;
@@ -17,12 +20,14 @@ public class FinalizedProfileWorkInfo {
 
   // TODO add source info also.
   public FinalizedProfileWorkInfo(int recorderVersion,
+                                  int recorderIdx,
                                   AggregationState state,
                                   LocalDateTime startedAt,
                                   LocalDateTime endedAt,
                                   Map<String, Integer> traceCoverages,
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
+    this.recorderIdx = recorderIdx;
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
@@ -58,19 +63,34 @@ public class FinalizedProfileWorkInfo {
         && this.samples.equals(other.samples);
   }
 
-  protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxList traces) {
-    if(samples.containsKey(workType)) {
+  protected Set<String> recordedTraces() {
+    return traceCoverages.keySet();
+  }
+
+  protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxNames traces) {
+    if(workType == null || samples.containsKey(workType)) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
+              .setRecorderIdx(recorderIdx)
               .setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS))
               .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
-              .setSampleCount(samples.getOrDefault(workType, 0))
               .setStatus(toAggregationStatusProto(state));
 
+      if(workType != null) {
+        builder.addSampleCount(ProfileWorkInfo.SampleCount.newBuilder().setWorkType(workType).setSampleCount(samples.getOrDefault(workType, 0)));
+      }
+      else {
+        // add all the sample counts
+        for(Map.Entry<WorkType, Integer> wsSample : samples.entrySet()) {
+          builder.addSampleCount(ProfileWorkInfo.SampleCount.newBuilder().setWorkType(wsSample.getKey()).setSampleCount(wsSample.getValue()));
+        }
+      }
+
       int index = 0;
-      for(TraceCtxDetail traceDetail: traces.getAllTraceCtxList()) {
-        if(traceCoverages.containsKey(traceDetail.getName())) {
-          builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(traceCoverages.get(traceDetail.getName())));
+      for(String traceName: traces.getNameList()) {
+        Integer cvrg = traceCoverages.getOrDefault(traceName, null);
+        if(cvrg != null) {
+          builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(cvrg));
         }
         ++index;
       }
@@ -78,6 +98,10 @@ public class FinalizedProfileWorkInfo {
       return builder.build();
     }
     return null;
+  }
+
+  protected ProfileWorkInfo buildProfileWorkInfoProto(LocalDateTime aggregationStartTime, TraceCtxNames traces) {
+    return buildProfileWorkInfoProto(null, aggregationStartTime, traces);
   }
 
   private AggregationStatus toAggregationStatusProto(AggregationState status) {

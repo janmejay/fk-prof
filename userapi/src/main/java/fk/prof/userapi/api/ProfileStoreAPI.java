@@ -2,10 +2,12 @@ package fk.prof.userapi.api;
 
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.userapi.model.AggregatedProfileInfo;
+import fk.prof.userapi.model.AggregationWindowSummary;
 import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.Future;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -50,7 +52,7 @@ public interface ProfileStoreAPI {
      * @param durationInSeconds duration from startTime to filter the profiles
      * @return completable future which returns set containing profiles
      */
-    void getProfilesInTimeWindow(Future<Set<FilteredProfiles>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds);
+    void getProfilesInTimeWindow(Future<List<AggregatedProfileNamingStrategy>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds);
 
     /**
      * Returns aggregated profile for the provided header
@@ -58,4 +60,11 @@ public interface ProfileStoreAPI {
      * @param filename
      */
     void load(Future<AggregatedProfileInfo> future, AggregatedProfileNamingStrategy filename);
+
+    /**
+     * Returns aggregated profile for the provided header
+     * @param future
+     * @param filename
+     */
+    void loadSummary(Future<AggregationWindowSummary> future, AggregatedProfileNamingStrategy filename);
 }

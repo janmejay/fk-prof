@@ -3,12 +3,15 @@ package fk.prof.backend.aggregator;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -125,8 +128,11 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
         .collect(Collectors.toMap(Map.Entry::getKey,
             entry -> entry.getValue().finalizeEntity()));
 
+    // TODO : build recorders list while starting profiles
+    List<AggregatedProfileModel.RecorderInfo> recorders = Arrays.asList(AggregatedProfileModel.RecorderInfo.getDefaultInstance());
+
     return new FinalizedAggregationWindow(
-        appId, clusterId, procId, start, endWithTolerance, finalizedWorkInfoLookup,
+        appId, clusterId, procId, start, endWithTolerance, recorders, finalizedWorkInfoLookup,
         cpuSamplingAggregationBucket.finalizeEntity()
     );
   }

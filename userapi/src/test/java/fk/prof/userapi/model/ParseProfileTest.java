@@ -1,13 +1,12 @@
 package fk.prof.userapi.model;
 
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
-import fk.prof.aggregation.Constants;
+import fk.prof.aggregation.model.AggregationWindowSerializer;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.serialize.Serializer;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.ObjectNotFoundException;
 import fk.prof.storage.S3AsyncStorage;
-import fk.prof.storage.buffer.StorageBackedInputStream;
 import fk.prof.userapi.Deserializer;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
@@ -25,18 +24,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.zip.Adler32;
-import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
-import java.util.zip.Checksum;
+import java.util.zip.GZIPOutputStream;
 
 import static org.mockito.Mockito.*;
 
@@ -70,16 +65,12 @@ public class ParseProfileTest {
         vertx.close(context.asyncAssertSuccess());
     }
 
-    private void checksumVerify(Checksum checksum, int value, String msg) {
-        assert value == (int)checksum.getValue() : msg;
-    }
-
     @Test
     public void testAggregatedProfileStoreS3Impl(TestContext context) throws Exception {
         Async async = context.async();
 
         S3AsyncStorage storage = mock(S3AsyncStorage.class);
-        String fileName = new AggregatedProfileNamingStrategy("profiles", buildHeader()).getFileName(0);
+        String fileName = AggregatedProfileNamingStrategy.fromHeader("profiles", buildHeader()).getFileName(0);
         InputStream s3InputStream = buildDefaultS3DataStream();
 
         // for above filename return the inputStream
@@ -107,7 +98,8 @@ public class ParseProfileTest {
                     // both results are actually the same cached object
                     context.assertTrue(firstResult == secondResult);
 
-                    verify(storage, times(1)).fetchAsync(any());
+                    // gzip buffer size is 512 and our content size is ~470 bytes, so fetchAsync will be called 2 times.
+                    verify(storage, times(2)).fetchAsync(any());
                     verifyNoMoreInteractions(storage);
                 }
             }
@@ -119,14 +111,17 @@ public class ParseProfileTest {
             }
         });
 
-        profileDiscoveryAPI.load(future1, new AggregatedProfileNamingStrategy("profiles", buildHeader()));
-        profileDiscoveryAPI.load(future2, new AggregatedProfileNamingStrategy("profiles", buildHeader()));
+        profileDiscoveryAPI.load(future1, AggregatedProfileNamingStrategy.fromHeader("profiles", buildHeader()));
+        profileDiscoveryAPI.load(future2, AggregatedProfileNamingStrategy.fromHeader("profiles", buildHeader()));
     }
 
     private void testEquality(TestContext context, AggregatedProfileInfo expected, AggregatedProfileInfo actual) {
-        context.assertEquals(expected.getHeader(), actual.getHeader());
-        context.assertEquals(expected.getProfileSummary().getTraces(), actual.getProfileSummary().getTraces());
-        context.assertEquals(expected.getProfileSummary().getProfilesSummary(), actual.getProfileSummary().getProfilesSummary());
+        context.assertEquals(expected.getStart(), actual.getStart());
+        context.assertEquals(expected.getDuration(), actual.getDuration());
+        testListEquality(context, expected.getTraces(), actual.getTraces(), "traces");
+        testListEquality(context, expected.getTraceDetails(), actual.getTraceDetails(), "traceDetails");
+        testListEquality(context, expected.getRecorders(), actual.getRecorders(), "recorders");
+        testListEquality(context, expected.getProfiles(), actual.getProfiles(), "profile work info");
         context.assertEquals(expected.getAggregatedSamples(traceName1).getMethodLookup(), actual.getAggregatedSamples(traceName1).getMethodLookup());
         context.assertEquals(expected.getAggregatedSamples(traceName2).getMethodLookup(), actual.getAggregatedSamples(traceName2).getMethodLookup());
 
@@ -158,6 +153,23 @@ public class ParseProfileTest {
         }
     }
 
+    private <T> void testListEquality(TestContext context, Iterable<T> expected, Iterable<T> actual, String tag) {
+        Iterator<T> expectedIt = expected.iterator();
+        Iterator<T> actualIt = actual.iterator();
+
+        while (expectedIt.hasNext() && actualIt.hasNext()) {
+            context.assertEquals(expectedIt.next(), actualIt.next());
+        }
+
+        if(expectedIt.hasNext()) {
+            context.fail("expected more elements in " + tag);
+        }
+
+        if(actualIt.hasNext()) {
+            context.fail("unexpected elements found in " + tag);
+        }
+    }
+
     private AggregatedProfileInfo buildDefaultProfileInfo() {
         List<AggregatedProfileModel.FrameNodeList> frameNodes = buildFrameNodes();
         Map<String, AggregatedSamplesPerTraceCtx> samples = new HashMap<>();
@@ -166,29 +178,45 @@ public class ParseProfileTest {
         // next 2 elements belong to trace 2
         samples.put(traceName2, new AggregatedSamplesPerTraceCtx(buildMethodLookup(), new AggregatedCpuSamplesData(new StacktraceTreeIterable(frameNodes.subList(2,4)))));
 
-        return new AggregatedProfileInfo(buildHeader(), new ScheduledProfilesSummary(buildTraceCtxList(), buildProfilesSummary()), samples);
+        return new AggregatedProfileInfo(buildHeader(), buildTraceName(traceName1, traceName2), buildTraceCtxList(), buildRecordersList(), buildProfilesSummary(), samples);
     }
 
     private InputStream buildDefaultS3DataStream() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Adler32 adler32 = new Adler32();
 
-        CheckedOutputStream cout = new CheckedOutputStream(out, adler32);
+        OutputStream zout = new GZIPOutputStream(out);
+        CheckedOutputStream cout = new CheckedOutputStream(zout, adler32);
 
-        Serializer.writeFixedWidthInt32(Constants.AGGREGATION_FILE_MAGIC_NUM, cout);
+        Serializer.writeFixedWidthInt32(AggregationWindowSerializer.AGGREGATION_FILE_MAGIC_NUM, cout);
 
         adler32.reset();
         buildHeader().writeDelimitedTo(cout);
+        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+
+        // traces
+        adler32.reset();
+        buildTraceName(traceName1, traceName2).writeDelimitedTo(cout);
         Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
 
         adler32.reset();
         buildTraceCtxList().writeDelimitedTo(cout);
         Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
 
+        // recorders
         adler32.reset();
-        buildProfilesSummary().writeDelimitedTo(cout);
+        buildRecordersList().writeDelimitedTo(cout);
         Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
 
+        // profile info
+        adler32.reset();
+        for(AggregatedProfileModel.ProfileWorkInfo workInfo: buildProfilesSummary()) {
+            workInfo.writeDelimitedTo(cout);
+        }
+        Serializer.writeVariantInt32(0, cout);
+        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+
+        // cpu sample
         adler32.reset();
         buildMethodLookup().writeDelimitedTo(cout);
         Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
@@ -200,8 +228,11 @@ public class ParseProfileTest {
         Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
 
         cout.flush();
+        cout.close();
 
-        return new ByteArrayInputStream(out.toByteArray());
+        byte[] bytes = out.toByteArray();
+        System.out.println("Size of zipped data: " + bytes.length);
+        return new ByteArrayInputStream(bytes);
     }
 
     private AggregatedProfileModel.MethodLookUp buildMethodLookup() {
@@ -253,7 +284,7 @@ public class ParseProfileTest {
         return list;
     }
 
-    private AggregatedProfileModel.Header buildHeader() {
+    public static AggregatedProfileModel.Header buildHeader() {
         ZonedDateTime start = ZonedDateTime.parse("2017-01-30T09:54:53.852Z", DateTimeFormatter.ISO_ZONED_DATE_TIME);
         return AggregatedProfileModel.Header.newBuilder()
                 .setAppId("app1")
@@ -266,57 +297,79 @@ public class ParseProfileTest {
                 .build();
     }
 
-    private AggregatedProfileModel.TraceCtxList buildTraceCtxList() {
-        return AggregatedProfileModel.TraceCtxList.newBuilder()
-                .addAllTraceCtx(AggregatedProfileModel.TraceCtxDetail.newBuilder()
-                        .setName(traceName1)
+    public static AggregatedProfileModel.TraceCtxNames buildTraceName(String... traces) {
+        return AggregatedProfileModel.TraceCtxNames.newBuilder().addAllName(Arrays.asList(traces)).build();
+    }
+
+    public static AggregatedProfileModel.TraceCtxDetailList buildTraceCtxList() {
+        return AggregatedProfileModel.TraceCtxDetailList.newBuilder()
+                .addTraceCtx(AggregatedProfileModel.TraceCtxDetail.newBuilder()
+                        .setTraceIdx(0)
                         .setSampleCount(600))
-                .addAllTraceCtx(AggregatedProfileModel.TraceCtxDetail.newBuilder()
-                        .setName(traceName2)
+                .addTraceCtx(AggregatedProfileModel.TraceCtxDetail.newBuilder()
+                        .setTraceIdx(1)
                         .setSampleCount(1280)).build();
     }
 
-    private AggregatedProfileModel.ProfilesSummary buildProfilesSummary() {
-        return AggregatedProfileModel.ProfilesSummary.newBuilder()
-                .addProfiles(
-                        AggregatedProfileModel.PerSourceProfileSummary.newBuilder()
-                            .setSourceInfo(AggregatedProfileModel.ProfileSourceInfo.newBuilder()
-                            .setZone("chennai-1")
-                            .setProcessName("svc1")
+    public static AggregatedProfileModel.RecorderList buildRecordersList() {
+        return AggregatedProfileModel.RecorderList.newBuilder()
+                .addRecorders(
+                    AggregatedProfileModel.RecorderInfo.newBuilder()
                             .setIp("192.168.1.1")
-                            .setInstanceType("c1.xlarge")
-                            .setHostname("some-box-1"))
-                        .addProfiles(AggregatedProfileModel.ProfileWorkInfo.newBuilder()
-                                .setStartOffset(10)
-                                .setDuration(60)
-                                .setRecorderVersion(1)
-                                .setSampleCount(600)
-                                .setStatus(AggregatedProfileModel.AggregationStatus.Completed)
-                                .addTraceCoverageMap(AggregatedProfileModel.TraceCtxToCoveragePctMap.newBuilder()
-                                        .setTraceCtxIdx(0)
-                                        .setCoveragePct(5))
-                                .addTraceCoverageMap(AggregatedProfileModel.TraceCtxToCoveragePctMap.newBuilder()
-                                        .setTraceCtxIdx(1)
-                                        .setCoveragePct(10))))
-                .addProfiles(
-                        AggregatedProfileModel.PerSourceProfileSummary.newBuilder()
-                                .setSourceInfo(AggregatedProfileModel.ProfileSourceInfo.newBuilder()
-                                        .setZone("chennai-1")
-                                        .setProcessName("svc1")
-                                        .setIp("192.168.1.2")
-                                        .setInstanceType("c1.xlarge")
-                                        .setHostname("some-box-2"))
-                                .addProfiles(AggregatedProfileModel.ProfileWorkInfo.newBuilder()
-                                        .setStartOffset(24)
-                                        .setDuration(60)
-                                        .setRecorderVersion(1)
-                                        .setSampleCount(680)
-                                        .setStatus(AggregatedProfileModel.AggregationStatus.Retried)
-                                        .addTraceCoverageMap(AggregatedProfileModel.TraceCtxToCoveragePctMap.newBuilder()
-                                                .setTraceCtxIdx(0)
-                                                .setCoveragePct(5))
-                                        .addTraceCoverageMap(AggregatedProfileModel.TraceCtxToCoveragePctMap.newBuilder()
-                                                .setTraceCtxIdx(1)
-                                                .setCoveragePct(10)))).build();
+                            .setHostname("some-box-1")
+                            .setAppId("app1")
+                            .setInstanceGroup("ig1")
+                            .setCluster("cluster1")
+                            .setInstanceId("instance1")
+                            .setProcessName("svc1")
+                            .setVmId("vm1")
+                            .setZone("chennai-1")
+                            .setInstanceType("c1.xlarge"))
+                .addRecorders(
+                        AggregatedProfileModel.RecorderInfo.newBuilder()
+                                .setIp("192.168.1.2")
+                                .setHostname("some-box-2")
+                                .setAppId("app1")
+                                .setInstanceGroup("ig1")
+                                .setCluster("cluster1")
+                                .setInstanceId("instance2")
+                                .setProcessName("svc1")
+                                .setVmId("vm2")
+                                .setZone("chennai-1")
+                                .setInstanceType("c1.xlarge")).build();
+    }
+
+    public static List<AggregatedProfileModel.ProfileWorkInfo> buildProfilesSummary() {
+        List<AggregatedProfileModel.ProfileWorkInfo> workInfos = new ArrayList<>();
+
+        workInfos.add(AggregatedProfileModel.ProfileWorkInfo.newBuilder()
+                .setStartOffset(10)
+                .setDuration(60)
+                .setRecorderVersion(1)
+                .setRecorderIdx(0)
+                .addSampleCount(AggregatedProfileModel.ProfileWorkInfo.SampleCount.newBuilder().setWorkType(AggregatedProfileModel.WorkType.cpu_sample_work).setSampleCount(900))
+                .setStatus(AggregatedProfileModel.AggregationStatus.Completed)
+                .addTraceCoverageMap(AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap.newBuilder()
+                        .setTraceCtxIdx(0)
+                        .setCoveragePct(5))
+                .addTraceCoverageMap(AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap.newBuilder()
+                        .setTraceCtxIdx(1)
+                        .setCoveragePct(10)).build());
+
+        workInfos.add(AggregatedProfileModel.ProfileWorkInfo.newBuilder()
+                .setStartOffset(24)
+                .setDuration(60)
+                .setRecorderVersion(1)
+                .setRecorderIdx(1)
+                .addSampleCount(AggregatedProfileModel.ProfileWorkInfo.SampleCount.newBuilder().setWorkType(AggregatedProfileModel.WorkType.cpu_sample_work).setSampleCount(980))
+                .setStatus(AggregatedProfileModel.AggregationStatus.Retried)
+                .addTraceCoverageMap(AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap.newBuilder()
+                        .setTraceCtxIdx(0)
+                        .setCoveragePct(5))
+                .addTraceCoverageMap(AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap.newBuilder()
+                        .setTraceCtxIdx(1)
+                        .setCoveragePct(10)).build());
+
+        return workInfos;
     }
 }

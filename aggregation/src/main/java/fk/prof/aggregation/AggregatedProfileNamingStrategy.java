@@ -27,6 +27,8 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
     public final int duration;
     public final AggregatedProfileModel.WorkType workType;
 
+    public final boolean isSummaryFile;
+
     private final String fileNamePrefix;
 
     public AggregatedProfileNamingStrategy(String baseDir, int version, String appId, String clusterId, String procId, ZonedDateTime startTime, int duration, AggregatedProfileModel.WorkType workType) {
@@ -38,15 +40,38 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         this.startTime = startTime;
         this.duration = duration;
         this.workType = workType;
+        this.isSummaryFile = false;
 
         fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode(appId), encode(clusterId),
                 procId, startTime, duration, workType.name());
     }
 
-    public AggregatedProfileNamingStrategy(String baseDir, AggregatedProfileModel.Header header) {
-        this(baseDir, header.getFormatVersion(), header.getAppId(), header.getClusterId(), header.getProcId(),
-                ZonedDateTime.parse(header.getAggregationStartTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME),
-                getDurationFromHeader(header), header.getWorkType());
+    public AggregatedProfileNamingStrategy(String baseDir, int version, String appId, String clusterId, String procId, ZonedDateTime startTime, int duration) {
+        this.baseDir = baseDir;
+        this.version = version;
+        this.appId = appId;
+        this.clusterId = clusterId;
+        this.procId = procId;
+        this.startTime = startTime;
+        this.duration = duration;
+        this.workType = null;
+        this.isSummaryFile = true;
+
+        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode(appId), encode(clusterId),
+                procId, startTime, duration, "summary");
+    }
+
+    public static AggregatedProfileNamingStrategy fromHeader(String baseDir, AggregatedProfileModel.Header header) {
+        if(header.hasWorkType()) {
+            return new AggregatedProfileNamingStrategy(baseDir, header.getFormatVersion(), header.getAppId(), header.getClusterId(), header.getProcId(),
+                    ZonedDateTime.parse(header.getAggregationStartTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME),
+                    getDurationFromHeader(header), header.getWorkType());
+        }
+        else {
+            return new AggregatedProfileNamingStrategy(baseDir, header.getFormatVersion(), header.getAppId(), header.getClusterId(), header.getProcId(),
+                    ZonedDateTime.parse(header.getAggregationStartTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME),
+                    getDurationFromHeader(header));
+        }
     }
 
     @Override
@@ -60,7 +85,12 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         }
         String[] tokens = path.split(DELIMITER);
 
-        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), tokens[2], tokens[3], tokens[4],
+        if("summary".equals(tokens[7])) {
+            return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode(tokens[2]), decode(tokens[3]), tokens[4],
+                    ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]));
+        }
+
+        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode(tokens[2]), decode(tokens[3]), tokens[4],
                 ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]),
                 AggregatedProfileModel.WorkType.valueOf(tokens[7]));
     }
@@ -69,9 +99,29 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         return BaseEncoding.base32().encode(str.getBytes(Charset.forName("utf-8")));
     }
 
+    private static String decode(String str) {
+        return new String(BaseEncoding.base32().decode(str), Charset.forName("utf-8"));
+    }
+
     private static int getDurationFromHeader(AggregatedProfileModel.Header header) {
         ZonedDateTime startDateTime = ZonedDateTime.parse(header.getAggregationStartTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME);
         ZonedDateTime endDateTime = ZonedDateTime.parse(header.getAggregationEndTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME);
         return (int)startDateTime.until(endDateTime, ChronoUnit.SECONDS);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        AggregatedProfileNamingStrategy that = (AggregatedProfileNamingStrategy) o;
+
+        return fileNamePrefix.equals(that.fileNamePrefix);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return fileNamePrefix.hashCode();
     }
 }

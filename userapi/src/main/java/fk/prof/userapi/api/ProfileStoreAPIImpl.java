@@ -7,6 +7,7 @@ import com.google.common.io.BaseEncoding;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.model.AggregatedProfileInfo;
+import fk.prof.userapi.model.AggregationWindowSummary;
 import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.*;
 import org.slf4j.LoggerFactory;
@@ -29,7 +30,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     private static final String DELIMITER = "/";
 
     public static final String WORKER_POOL_NAME = "aggregation.loader.pool";
-    public static final int WORKER_POOL_SIZE = 10;
+    public static final int WORKER_POOL_SIZE = 50;
     public static final int DEFAULT_LOAD_TIMEOUT = 10000;   // in ms
     private int loadTimeout = DEFAULT_LOAD_TIMEOUT;
 
@@ -43,10 +44,11 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     private WorkerExecutor workerExecutor;
 
     private Cache<String, AggregatedProfileInfo> cache;
+    private Cache<String, AggregationWindowSummary> summaryCache;
 
-    /* stores all requested futures that are waiting on file to be loaded from S3. If a file load
+    /* stores all requested futures that are waiting on file to be loaded from S3. If a file loadFromInputStream
     * is in progress, this map will contain its corresponding key */
-    private Map<String, FuturesList<AggregatedProfileInfo>> futuresForLoadingFiles;
+    private Map<String, FuturesList<Object>> futuresForLoadingFiles;
 
     public ProfileStoreAPIImpl(Vertx vertx, AsyncStorage asyncStorage, int maxIdleRetentionInMin) {
         this.vertx = vertx;
@@ -58,6 +60,11 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
         this.cache = CacheBuilder.newBuilder()
                 .maximumSize(50)
+                .expireAfterAccess(this.maxIdleRetentionInMin, TimeUnit.MINUTES)
+                .build();
+
+        this.summaryCache = CacheBuilder.newBuilder()
+                .maximumSize(500)
                 .expireAfterAccess(this.maxIdleRetentionInMin, TimeUnit.MINUTES)
                 .build();
 
@@ -103,23 +110,20 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     @Override
-    public void getProfilesInTimeWindow(Future<Set<FilteredProfiles>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds) {
+    public void getProfilesInTimeWindow(Future<List<AggregatedProfileNamingStrategy>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds) {
         String prefix = baseDir + DELIMITER + VERSION + DELIMITER + encode(appId)
                 + DELIMITER + encode(clusterId) + DELIMITER + proc + DELIMITER;
 
         asyncStorage.listAsync(prefix, true).thenApply(allObjects -> {
             ZonedDateTime start = startTime.minusSeconds(1);
-            ZonedDateTime end = startTime.plusSeconds(durationInSeconds + 1);
+            ZonedDateTime end = startTime.plusSeconds(durationInSeconds);
 
-            return allObjects.stream()
+            List<AggregatedProfileNamingStrategy> summaryFilenames = allObjects.stream()
                     .map(AggregatedProfileNamingStrategy::fromFileName)
-                    // filter by time
-                    .filter(s -> s.startTime.isAfter(start) && s.startTime.isBefore(end))
-                    //Groups all strings by their time interval (as profiles) and collects the corresponding worktypes in a set as its value.
-                    .collect(Collectors.groupingBy(ProfileStoreAPIImpl::getInterval, Collectors.mapping(s -> s.workType.name(), Collectors.toSet())))
-                    // convert the result to set of found Profiles
-                    .entrySet().stream()
-                    .map(kv -> new FilteredProfiles(kv.getKey().first, kv.getKey().second, kv.getValue())).collect(Collectors.toSet());
+                    // filter by time and isSummary
+                    .filter(s -> s.isSummaryFile && s.startTime.isAfter(start) && s.startTime.isBefore(end)).collect(Collectors.toList());
+
+            return summaryFilenames;
         }).whenComplete((result, error) -> completeFuture(result, error, profiles));
     }
 
@@ -138,7 +142,36 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             if(!fileLoadInProgress) {
                 workerExecutor.executeBlocking((Future<AggregatedProfileInfo> f) -> profileLoader.load(f, filename),
                         true,
-                        result -> completeAggregatedProfileLoading(result, fileNameKey));
+                        result -> completeAggregatedProfileLoading(cache, result, fileNameKey));
+            }
+        }
+        else {
+            future.complete(cachedProfileInfo);
+        }
+    }
+
+    @Override
+    synchronized public void loadSummary(Future<AggregationWindowSummary> future, AggregatedProfileNamingStrategy filename) {
+
+        if(!filename.isSummaryFile) {
+            future.fail(new IllegalArgumentException(filename.getFileName(0) + " is not a summaryFile"));
+            return;
+        }
+
+        String fileNameKey = filename.getFileName(0);
+
+        AggregationWindowSummary cachedProfileInfo = summaryCache.getIfPresent(fileNameKey);
+        if(cachedProfileInfo == null) {
+            boolean fileLoadInProgress = futuresForLoadingFiles.containsKey(fileNameKey);
+            // save the future, so that it can be notified when the loading visit finishes
+            saveRequestedFuture(fileNameKey, future);
+            // set the timeout for this future
+            vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
+
+            if(!fileLoadInProgress) {
+                workerExecutor.executeBlocking((Future<AggregationWindowSummary> f) -> profileLoader.loadSummary(f, filename),
+                        true,
+                        result -> completeAggregatedProfileLoading(summaryCache, result, fileNameKey));
             }
         }
         else {
@@ -147,7 +180,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
 
-    synchronized private void saveRequestedFuture(String filename, Future<AggregatedProfileInfo> future) {
+    synchronized private <T> void saveRequestedFuture(String filename, Future<T> future) {
         FuturesList futures = futuresForLoadingFiles.get(filename);
         if(futures == null) {
             futures = new FuturesList();
@@ -156,17 +189,17 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         futures.addFuture(future);
     }
 
-    synchronized private void timeoutRequestedFuture(String filename, Future<AggregatedProfileInfo> future) {
+    synchronized private <T> void timeoutRequestedFuture(String filename, Future<T> future) {
         if(future.isComplete()) {
             return;
         }
         FuturesList futures = futuresForLoadingFiles.get(filename);
         futures.removeFuture(future);
 
-        future.fail(new TimeoutException("timeout for: " + filename));
+        future.fail(new TimeoutException("timeout while waiting for file to loadFromInputStream from store: " + filename));
     }
 
-    synchronized private void completeAggregatedProfileLoading(AsyncResult<AggregatedProfileInfo> result, String filename) {
+    synchronized private <T> void completeAggregatedProfileLoading(Cache<String, T> cache, AsyncResult<T> result, String filename) {
         if(result.succeeded()) {
             cache.put(filename, result.result());
         }
