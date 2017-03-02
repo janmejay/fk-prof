@@ -3,7 +3,6 @@ package fk.prof.backend.util;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.CodedOutputStream;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
-import fk.prof.backend.proto.BackendDTO;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.vertx.core.buffer.Buffer;

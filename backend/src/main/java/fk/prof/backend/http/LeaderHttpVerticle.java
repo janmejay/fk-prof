@@ -92,7 +92,12 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
         //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
         if(ar.succeeded()) {
-          context.response().end(ar.result());
+          try {
+            context.response().end(ProtoUtil.buildBufferFromProto(ar.result()));
+          } catch (Exception ex) {
+            HttpFailure httpFailure = HttpFailure.failure(ex);
+            HttpHelper.handleFailure(context, httpFailure);
+          }
         } else {
           HttpFailure httpFailure = HttpFailure.failure(ar.cause());
           HttpHelper.handleFailure(context, httpFailure);
