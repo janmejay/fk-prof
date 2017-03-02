@@ -10,7 +10,7 @@
 using namespace PerfCtx;
 
 TEST(PerfCtx__should_understand_ctx_merge_semantics) {
-    init_logger();
+    TestEnv _;
     CHECK_EQUAL(MergeSemantic::to_parent, merge_semantic(0));
     CHECK_EQUAL(MergeSemantic::scoped, merge_semantic((std::uint64_t) 1 << 53));
     CHECK_EQUAL(MergeSemantic::scoped_strict, merge_semantic((std::uint64_t) 2 << 53));
@@ -23,7 +23,7 @@ PerfCtx::TracePt reg(Registry& r, const char* name, PerfCtx::MergeSemantic m = P
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -52,7 +52,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
 }
 
 TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -77,7 +77,7 @@ TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -155,7 +155,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
 }
 
 TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -247,7 +247,7 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
 }
 
 TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_under_parent) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -334,7 +334,7 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
 }
 
 TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when_strict_scoping_under_parent__and_starting_out_with_scoped_ctx) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -412,7 +412,7 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____and_handle_overflow_well) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -486,7 +486,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____
 }
 
 TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -528,7 +528,7 @@ TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) 
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent_____and_handle_overflow_well) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -612,7 +612,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first_ctx) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -656,7 +656,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by_scoping_elements) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -720,7 +720,7 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_chain_broken_by_stacking_elements) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -775,7 +775,7 @@ TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_cha
 }
 
 TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_merge_elements_between_2_duplicate) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -827,7 +827,7 @@ TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_mer
 }
 
 TEST(ThreadPerfCtxTracker__should_turn_on_recording_enough_times_to_meet_desired_coverage) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -848,7 +848,7 @@ TEST(ThreadPerfCtxTracker__should_turn_on_recording_enough_times_to_meet_desired
 }
 
 TEST(ThreadPerfCtxTracker__should_track_stacking_merges___as_independent_ctxs___and_handles_exit_from_child_ctx_cleanly) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);
@@ -904,7 +904,7 @@ TEST(ThreadPerfCtxTracker__should_track_stacking_merges___as_independent_ctxs___
 }
 
 TEST(ThreadPerfCtxTracker__should_have_fair_sampling_in_duplicate_contexts) {
-    init_logger();
+    TestEnv _;
     Registry r;
     ProbPct prob_pct;
     ThreadTracker t_ctx(r, prob_pct, 210);

@@ -13,6 +13,10 @@
 
 std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms);
 
-void init_logger();
+class TestEnv {
+public:
+    TestEnv();
+    ~TestEnv();
+};
 
 #endif //HONEST_PROFILER_TEST_H

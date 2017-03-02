@@ -8,7 +8,7 @@
 #include "../../main/cpp/prob_pct.hh"
 
 TEST(ProbPct__should_hit_desired_pct_of_times) {
-    init_logger();
+    TestEnv _;
 
     ProbPct pp;
     auto hits = 0;

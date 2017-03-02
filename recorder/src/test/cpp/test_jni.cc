@@ -23,15 +23,12 @@ JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile(J
     return JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupLogger(JNIEnv* jni, jclass self) {
-    init_logger();
-}
-
 int perf_ctx_idx = 0, in_ctx = -1;
 
 std::string last_registered_ctx_name("");
 int last_registered_coverage_pct = 0;
 std::atomic<bool> ctx_ready(false);
+TestEnv* test_env;
 
 JNIEXPORT void JNICALL Java_fk_prof_TestJni_teardownPerfCtx(JNIEnv* jni, jobject self) {
     if (! ctx_ready.load(std::memory_order_acquire)) {
@@ -40,6 +37,7 @@ JNIEXPORT void JNICALL Java_fk_prof_TestJni_teardownPerfCtx(JNIEnv* jni, jobject
     }
     delete GlobalCtx::ctx_reg;
     delete GlobalCtx::prob_pct;
+    delete test_env;
     ctx_ready.store(false, std::memory_order_release);
 
 }
@@ -49,6 +47,7 @@ JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupPerfCtx(JNIEnv* jni, jobject se
         jni->ThrowNew(jni->FindClass("java/lang/IllegalStateException"), "PerfCtx is already setup");
         return;
     }
+    test_env = new TestEnv();
     GlobalCtx::ctx_reg = new PerfCtx::Registry();
     GlobalCtx::prob_pct = new ProbPct();
     ctx_ready.store(true, std::memory_order_release);

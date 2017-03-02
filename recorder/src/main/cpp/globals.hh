@@ -46,6 +46,8 @@ namespace metrics {
 #define METRICS_TYPE_WAIT "wait"
 #define METRICS_TYPE_SZ "sz"
 #define METRICS_TYPE_STATE "state"
+#define METRICS_TYPE_LOCK "lock"
+#define METRICS_TYPE_OP "op"
 
 class Profiler;
 
