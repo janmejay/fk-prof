@@ -64,7 +64,10 @@ private:
 
     //[metrics......
     metrics::Timer& s_t_poll_rpc;
+    metrics::Ctr& s_c_poll_rpc_failures;
+    
     metrics::Timer& s_t_associate_rpc;
+    metrics::Ctr& s_c_associate_rpc_failures;
 
     metrics::Value& s_v_working;
     metrics::Value& s_v_work_cpu_sampling;

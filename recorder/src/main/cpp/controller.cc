@@ -13,7 +13,10 @@ Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, C
     jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
 
     s_t_poll_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
+    s_c_poll_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll", "failures"})),
+
     s_t_associate_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})),
+    s_c_associate_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate", "failures"})),
 
     s_v_working(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working"})),
     s_v_work_cpu_sampling(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working", "cpu_sampling"})),
@@ -139,7 +142,7 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
     return header_list;
 }
 
-static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used, metrics::Timer& timer) {
+static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used, metrics::Timer& timer, metrics::Ctr& fail_ctr) {
     auto timer_ctx = timer.time_scope();
     auto res = curl_easy_perform(curl.get());
     long http_code = -1;
@@ -151,6 +154,7 @@ static inline bool do_call(Curl& curl, const char* url, const char* functional_a
     }
     auto curl_err_str = curl_easy_strerror(res);
     logger->error("COMM Couldn't talk to {} (for {}) (error({}): {}, http-status: {}, retries-used: {})", url, functional_area, res, curl_err_str, http_code, retries_used);
+    fail_ctr.inc();
     return false;
 }
 
@@ -206,7 +210,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
         logger->trace("Polling now");
 
         auto next_tick = Time::now();
-        if (do_call(curl, url.c_str(), "associate-poll", retries_used, s_t_poll_rpc)) {
+        if (do_call(curl, url.c_str(), "associate-poll", retries_used, s_t_poll_rpc, s_c_poll_rpc_failures)) {
             accept_work(recv, host, port);
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
@@ -260,7 +264,7 @@ void Controller::run() {
         send.read_end = 0;
         curl_easy_setopt(curl.get(), CURLOPT_INFILESIZE, serialized_size);
         recv.write_end = recv.read_end = 0;
-        if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0, s_t_associate_rpc)) {
+        if (do_call(curl, service_endpoint_url.c_str(), "associate-discovery", 0, s_t_associate_rpc, s_c_associate_rpc_failures)) {
             backoff_seconds = cfg.backoff_start;
             run_with_associate(recv, start_time);
         } else {
@@ -351,6 +355,8 @@ private:
     ThdProcP thd_proc;
 
     metrics::Timer& s_t_rpc;
+    metrics::Ctr& s_c_rpc_failures;
+    
     metrics::Timer& s_t_fill_wait;
     metrics::Hist& s_h_req_chunk_sz;
 
@@ -358,9 +364,13 @@ public:
     HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port,
                          BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) :
         RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn),
+
         s_t_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
+        s_c_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile", "failures"})),
+
         s_t_fill_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_WAIT, "profile", "req_data_feed"})),
         s_h_req_chunk_sz(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRICS_TYPE_SZ, "profile", "chunk"})) {
+
         ring.reset();
         thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, this);
     }
@@ -396,7 +406,7 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_READDATA, &rd_ctx);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
 
-        if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc)) {
+        if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc, s_c_rpc_failures)) {
             logger->info("Profile posted successfully!");
         } else {
             logger->error("Couldn't post profile, http request failed, cancelling work.");
