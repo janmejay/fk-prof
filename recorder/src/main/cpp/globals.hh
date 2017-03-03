@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <chrono>
-#include <medida/medida.h>
+#include "metrics.hh"
 
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
@@ -34,21 +34,6 @@ namespace Time {
 
 extern LoggerP logger;//TODO: stick me in GlobalCtx???
 
-namespace metrics {
-    typedef medida::Timer Timer;
-    typedef medida::Histogram Hist;
-    typedef medida::Value Value;
-    typedef medida::Counter Ctr;
-};
-
-#define METRICS_DOMAIN "fkpr"
-#define METRICS_TYPE_RPC "rpc"
-#define METRICS_TYPE_WAIT "wait"
-#define METRICS_TYPE_SZ "sz"
-#define METRICS_TYPE_STATE "state"
-#define METRICS_TYPE_LOCK "lock"
-#define METRICS_TYPE_OP "op"
-
 class Profiler;
 
 namespace GlobalCtx {
@@ -59,7 +44,6 @@ namespace GlobalCtx {
     extern GlobalCtx::Rec recording;
     extern PerfCtx::Registry* ctx_reg;
     extern ProbPct* prob_pct;
-    extern medida::MetricsRegistry* metrics_registry;
 }
 
 void logError(const char *__restrict format, ...);

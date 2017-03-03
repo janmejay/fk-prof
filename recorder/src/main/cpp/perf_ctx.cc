@@ -9,6 +9,15 @@ PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
     return static_cast<MergeSemantic>((pt >> PerfCtx::MERGE_SEMANTIC_SHIFT) & MERGE_SEMANTIC_MASK);
 }
 
+metrics::Mtr* s_m_bad_pairing;
+
+PerfCtx::ThreadTracker::ThreadTracker(Registry& _reg, ProbPct& _pct, int _tid) :
+    reg(_reg), pct(_pct), ignore_count(0), effective_start(0), effective_end(0), record(false), tid(_tid) {
+    effective.reserve((MAX_NESTING * (MAX_NESTING + 1)) / 2);
+}
+
+PerfCtx::ThreadTracker::~ThreadTracker() {}
+
 void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
     assert((pt & PerfCtx::TYPE_MASK) == PerfCtx::USER_CREATED_TYPE);
 
@@ -94,7 +103,10 @@ void PerfCtx::ThreadTracker::exit(PerfCtx::TracePt pt) throw (IncorrectEnterExit
     }
 
     auto top = actual_stack.back();
-    if (top.ctx != pt) throw IncorrectEnterExitPairing(top.ctx, pt);
+    if (top.ctx != pt) {
+        s_m_bad_pairing->mark();
+        throw IncorrectEnterExitPairing(top.ctx, pt);
+    }
     effective.resize(top.prev.end);
     effective_start = top.prev.start;
     effective_end = top.prev.end;
@@ -136,27 +148,53 @@ template <typename T> void dump_table_to_logs(T& tab) {
     }
 }
 
-static void assert_equal(const char* name, std::uint8_t cov_pct, std::uint8_t merge_sem, PerfCtx::TracePt pt) {
+static void assert_equal(const char* name, std::uint8_t cov_pct, std::uint8_t merge_sem, PerfCtx::TracePt pt, metrics::Mtr& conflict_meter) {
     auto old_cov_pct = (pt >> PerfCtx::COVERAGE_PCT_SHIFT) & PerfCtx::COVERAGE_PCT_MASK;
     auto old_merge_sem = (pt >> PerfCtx::MERGE_SEMANTIC_SHIFT) & PerfCtx::MERGE_SEMANTIC_MASK;
     if ((old_cov_pct != cov_pct) || (old_merge_sem != merge_sem)) {
         auto err_msg = Util::to_s("New value (cov: ", static_cast<std::uint32_t>(cov_pct), "%, merge: ", static_cast<std::uint32_t>(merge_sem), ") for ctx 'foo' conflicts with old value (cov: ", static_cast<std::uint32_t>(old_cov_pct), "%, merge: ", static_cast<std::uint32_t>(old_merge_sem), ")");
         logger->warn("App tried to plug conflicting definitions of a ctx: {}", err_msg);
+        conflict_meter.mark();
         throw PerfCtx::CtxCreationFailure(err_msg);
     }
 }
 
+#define METRIC_TYPE "perf_ctx"
+
+PerfCtx::Registry::Registry() :
+    unused_prime_nos(MAX_USER_CTX_COUNT),
+    exhausted({false}),
+
+    s_c_ctx(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "count"})),
+    s_m_create_rebind(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "rebind")),
+    s_m_create_conflict(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "conflict")),
+    s_m_create_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "runout")),
+
+    s_m_merge_reuse(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "merge"}, "reuse")),
+    s_c_merge_new(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "merge", "new"})) {
+
+    s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "bad_pairing");
+    load_unused_primes(MAX_USER_CTX_COUNT);
+}
+
+PerfCtx::Registry::~Registry() {}
+
 PerfCtx::TracePt PerfCtx::Registry::find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (PerfCtx::CtxCreationFailure) {
     TracePt pt;
     if (name_to_pt.find(name, pt)) {
-        assert_equal(name, coverage_pct, merge_type, pt);
+        assert_equal(name, coverage_pct, merge_type, pt, s_m_create_conflict);
+        s_m_create_rebind.mark();
         return pt;
     }
     std::uint32_t new_prime;
     if (! unused_prime_nos.try_dequeue(new_prime)) {
         auto sz = name_to_pt.size();
         logger->error("Ran out of context-space after creating ~ {} contexts, dumping the table.", sz);
-        dump_table_to_logs(name_to_pt);
+        if (! exhausted.load()) {
+            dump_table_to_logs(name_to_pt);
+            exhausted.store(true);
+        }
+        s_m_create_runout.mark();
         throw CtxCreationFailure(Util::to_s("Too many (~ ", sz, ") ctxs have been created."));
     }
     assert(coverage_pct <= 100);
@@ -167,12 +205,14 @@ PerfCtx::TracePt PerfCtx::Registry::find_or_bind(const char* name, std::uint8_t 
     if (name_to_pt.insert(name, pt)) {
         auto reverse_insert = pt_to_name.insert(pt, name);
         assert(reverse_insert);
+        s_c_ctx.inc();
         return pt;
     }
     unused_prime_nos.enqueue(new_prime);
     auto found = name_to_pt.find(name, pt);
     assert(found);
-    assert_equal(name, coverage_pct, merge_type, pt);
+    assert_equal(name, coverage_pct, merge_type, pt, s_m_create_conflict);
+    s_m_create_rebind.mark();
     return pt;
 }
 
@@ -227,6 +267,7 @@ PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx
     auto trace_pt = merge(ctx_ids, i);
 
     if (pt_to_name.contains(trace_pt)) {
+        s_m_merge_reuse.mark();
         return trace_pt;
     }
 
@@ -243,6 +284,9 @@ PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx
     if (name_to_pt.insert(name, trace_pt)) {
         auto inserted = pt_to_name.insert(trace_pt, name);
         assert(inserted);
+        s_c_merge_new.inc();
+    } else {
+        logger->warn("Couldn't insert merge-generated ctx '{}' (0x{:x}), perhaps it was inserted concurrently", name, trace_pt);
     }
     
     return trace_pt;

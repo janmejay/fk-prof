@@ -77,6 +77,7 @@ set(SOURCE_FILES
     ${SRC}/common.hh
     ${SRC}/controller.cc
     ${SRC}/controller.hh
+    ${SRC}/metrics.hh
     ${SRC}/globals.hh
     ${SRC}/globals.cc
     ${SRC}/ti_thd.hh

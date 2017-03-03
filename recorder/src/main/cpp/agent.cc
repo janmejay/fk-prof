@@ -305,9 +305,9 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     Asgct::SetAsgct(Accessors::GetJvmFunction<ASGCTType>("AsyncGetCallTrace"));
     Asgct::SetIsGCActive(Accessors::GetJvmFunction<IsGCActiveType>("IsGCActive"));
 
+    GlobalCtx::metrics_registry = new medida::MetricsRegistry();
     GlobalCtx::ctx_reg = new PerfCtx::Registry();
     GlobalCtx::prob_pct = new ProbPct();
-    GlobalCtx::metrics_registry = new medida::MetricsRegistry();
 
     metrics_reporter = new medida::reporting::CollectdReporter(*GlobalCtx::metrics_registry);
     metrics_reporter->start();
@@ -324,9 +324,9 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
 
     delete controller;
     delete metrics_reporter;
-    delete GlobalCtx::metrics_registry;
     delete GlobalCtx::ctx_reg;
     delete GlobalCtx::prob_pct;
+    delete GlobalCtx::metrics_registry;
     delete CONFIGURATION;
 }
 

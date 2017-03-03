@@ -6,8 +6,6 @@
 BlockingRingBuffer::BlockingRingBuffer(std::uint32_t _capacity) :
     read_idx(0), write_idx(0), capacity(_capacity), available(0), buff(new std::uint8_t[capacity]), allow_writes(true),
     
-    s_t_lock(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_LOCK, METRIC_RING})),
-    
     s_t_write(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_OP, METRIC_RING, "write"})),
     s_t_write_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_OP, METRIC_RING, "write_wait"})),
     s_h_write_sz(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRICS_TYPE_OP, METRIC_RING, "write_sz"})),
@@ -25,9 +23,7 @@ BlockingRingBuffer::~BlockingRingBuffer() {
 
 std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t offset, std::uint32_t sz, bool do_block) {
     auto _ = s_t_write.time_scope();
-    auto _l = s_t_lock.time_scope();
     std::unique_lock<std::mutex> lock(m);
-    _l.stop();
 
     std::uint32_t total_written = 0;
     while (allow_writes) {
@@ -50,9 +46,7 @@ std::uint32_t BlockingRingBuffer::write(const std::uint8_t *from, std::uint32_t 
 
 std::uint32_t BlockingRingBuffer::read(std::uint8_t *to, std::uint32_t offset, std::uint32_t sz, bool do_block) {
     auto _ = s_t_read.time_scope();
-    auto _l = s_t_lock.time_scope();
     std::unique_lock<std::mutex> lock(m);
-    _l.stop();
 
     std::uint32_t total_read = 0;
     while (true) {
