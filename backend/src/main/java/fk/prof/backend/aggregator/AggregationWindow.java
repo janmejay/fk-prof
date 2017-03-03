@@ -5,8 +5,8 @@ import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
-import fk.prof.backend.service.AggregationWindowWriteContext;
 import recording.Recorder;
 
 import java.time.Clock;
@@ -75,15 +75,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
    * > De associates assigned work with this aggregation window
    * > Updates ended at time for aggregation window
    * > Finalizes the window
-   * @param aggregationWindowWriteContext
+   * @param aggregationWindowLookupStore
    * @return finalized aggregation window
    */
-  public FinalizedAggregationWindow expireWindow(AggregationWindowWriteContext aggregationWindowWriteContext) {
+  public FinalizedAggregationWindow expireWindow(AggregationWindowLookupStore aggregationWindowLookupStore) {
     ensureEntityIsWriteable();
 
     abortOngoingProfiles();
     long[] workIds = this.workInfoLookup.keySet().stream().mapToLong(Long::longValue).toArray();
-    aggregationWindowWriteContext.deAssociateAggregationWindow(workIds);
+    aggregationWindowLookupStore.deAssociateAggregationWindow(workIds);
     this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return finalizeEntity();
   }

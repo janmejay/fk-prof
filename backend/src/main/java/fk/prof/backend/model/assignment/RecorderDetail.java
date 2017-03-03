@@ -8,20 +8,31 @@ public class RecorderDetail {
 
   private final RecorderIdentifier recorderIdentifier;
   private final long thresholdForDefunctRecorderInNanos;
+
+  private long lastReportedTick = 0;
   private Long lastReportedTime = null;
 
-  private long currentWorkId = 0;
-  private Recorder.WorkResponse.WorkState currentWorkState;
+  private Recorder.WorkResponse currentWorkResponse;
 
   public RecorderDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {
     this.recorderIdentifier = Preconditions.checkNotNull(recorderIdentifier);
     this.thresholdForDefunctRecorderInNanos = (long)(thresholdForDefunctRecorderInSecs * NANOSECONDS_IN_SECOND);
   }
 
-  public void receivePoll(Recorder.WorkResponse lastIssuedWorkResponse) {
-    this.currentWorkId = lastIssuedWorkResponse.getWorkId();
-    this.currentWorkState = lastIssuedWorkResponse.getWorkState();
-    this.lastReportedTime = System.nanoTime();
+  public synchronized boolean receivePoll(Recorder.PollReq pollReq) {
+    long currTick = pollReq.getRecorderInfo().getRecorderTick();
+    boolean timeUpdated = false;
+    //NOTE: this is assuming that curr tick is always unsigned and does not wrap around.
+    //here curr tick = 0 has a special meaning to reset the tick.
+    if(currTick == 0 || this.lastReportedTick <= currTick) {
+      this.lastReportedTick = currTick;
+      if(currTick > 0) {
+        this.lastReportedTime = System.nanoTime();
+        timeUpdated = true;
+      }
+      this.currentWorkResponse = pollReq.getWorkLastIssued();
+    }
+    return timeUpdated;
   }
 
   public boolean isDefunct() {
@@ -31,7 +42,7 @@ public class RecorderDetail {
 
   public boolean canAcceptWork() {
     if (!isDefunct() &&
-        (this.currentWorkId == 0 || Recorder.WorkResponse.WorkState.complete.equals(currentWorkState))) {
+        (currentWorkResponse.getWorkId() == 0 || Recorder.WorkResponse.WorkState.complete.equals(currentWorkResponse.getWorkState()))) {
       return true;
     }
     return false;

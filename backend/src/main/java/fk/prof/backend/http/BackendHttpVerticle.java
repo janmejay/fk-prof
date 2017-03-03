@@ -1,20 +1,22 @@
 package fk.prof.backend.http;
 
+import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
+import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
+import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
-import fk.prof.backend.service.AggregationWindowReadContext;
+import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
 import fk.prof.backend.http.handler.RecordedProfileRequestHandler;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.eventbus.DeliveryOptions;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -29,27 +31,36 @@ import io.vertx.ext.web.handler.LoggerHandler;
 import recording.Recorder;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class BackendHttpVerticle extends AbstractVerticle {
-  private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
-  private static int REPLY_TIMEOUT_SECONDS = 2;
+  private static final Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final AggregationWindowReadContext aggregationWindowReadContext;
+  private final AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
+  private final ProcessGroupDiscoveryContext processGroupDiscoveryContext;
   private final int leaderPort;
+  private final String ipAddress;
+  private final int backendVersion;
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ProfHttpClient httpClient;
 
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
-                             AggregationWindowReadContext aggregationWindowReadContext) {
+                             AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
+                             ProcessGroupDiscoveryContext processGroupDiscoveryContext) {
     this.configManager = configManager;
     this.leaderPort = configManager.getLeaderHttpPort();
+    this.ipAddress = configManager.getIPAddress();
+    this.backendVersion = configManager.getBackendVersion();
 
     this.leaderReadContext = leaderReadContext;
-    this.aggregationWindowReadContext = aggregationWindowReadContext;
+    this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
+    this.processGroupDiscoveryContext = processGroupDiscoveryContext;
   }
 
   @Override
@@ -100,7 +111,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private void handlePostProfile(RoutingContext context) {
     CompositeByteBufInputStream inputStream = new CompositeByteBufInputStream();
     RecordedProfileProcessor profileProcessor = new RecordedProfileProcessor(
-        aggregationWindowReadContext,
+        aggregationWindowDiscoveryContext,
         new SharedMapBasedSingleProcessingOfProfileGate(workIdsInPipeline),
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
         config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024 * 1024));
@@ -126,23 +137,32 @@ public class BackendHttpVerticle extends AbstractVerticle {
   }
 
   private void handlePostPoll(RoutingContext context) {
-    DeliveryOptions replyDeliveryOptions = new DeliveryOptions();
-    replyDeliveryOptions.setSendTimeout(REPLY_TIMEOUT_SECONDS * 1000);
-
-    vertx.eventBus().send("recorder.poll", context.getBody(), replyDeliveryOptions, (AsyncResult<Message<Buffer>> ar) -> {
-      //TODO: See how error code and message is propagated to reply handler and act accordingly
-      if(ar.succeeded()) {
-        try {
-          context.response().end(ar.result().body());
-        } catch (Exception ex) {
-          HttpFailure httpFailure = HttpFailure.failure(ex);
-          HttpHelper.handleFailure(context, httpFailure);
-        }
-      } else {
-        HttpFailure httpFailure = HttpFailure.failure(ar.cause());
-        HttpHelper.handleFailure(context, httpFailure);
+    try {
+      Recorder.PollReq pollReq = ProtoUtil.buildProtoFromBuffer(Recorder.PollReq.parser(), context.getBody());
+      Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
+      ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
+      if(processGroupContextForPolling == null) {
+        throw new IllegalArgumentException("Process group " + ProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
-    });
+      boolean timeUpdated = processGroupContextForPolling.receivePoll(pollReq);
+
+      Recorder.WorkAssignment nextWorkAssignment = null;
+      if(timeUpdated) {
+        nextWorkAssignment = processGroupContextForPolling.getNextWorkAssignment();
+      }
+      Recorder.PollRes pollRes = Recorder.PollRes.newBuilder()
+          .setAssignment(nextWorkAssignment)
+          .setControllerVersion(backendVersion)
+          .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
+          .setLocalTime(nextWorkAssignment == null
+              ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+              : nextWorkAssignment.getIssueTime())
+          .build();
+      context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
+    } catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    }
   }
 
   // /association API is requested over ELB, routed to some backend which in turns proxies it to a leader

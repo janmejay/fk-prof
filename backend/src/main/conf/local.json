@@ -1,7 +1,10 @@
 {
+  "ip.address": "127.0.0.1",
+  "backend.version": 1,
   "backend.http.port": 2491,
   "leader.http.port": 2496,
   "load.report.interval.secs": 60,
+  "recorder.defunct.threshold.secs": 120,
   "backend.http.server": {
     "idle.timeout.secs": 120
   },
@@ -20,7 +23,6 @@
   },
   "backendHttpOptions": {
     "config": {
-      "backend.version": 1,
       "verticle.count": 2,
       "report.load": true,
       "parser": {
@@ -53,7 +55,6 @@
     "worker": true
   },
   "workAssignmentOptions": {
-    "recorder.defunct.threshold.secs": 120,
     "aggregation.window.duration.mins": 30,
     "aggregation.window.tolerance.secs": 120
   }

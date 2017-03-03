@@ -1,7 +1,7 @@
-package fk.prof.backend.service;
+package fk.prof.backend.model.aggregation;
 
 import fk.prof.backend.aggregator.AggregationWindow;
 
-public interface AggregationWindowReadContext {
+public interface AggregationWindowDiscoveryContext {
   AggregationWindow getAssociatedAggregationWindow(long workId);
 }

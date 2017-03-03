@@ -7,11 +7,14 @@ import fk.prof.backend.deployer.impl.LeaderElectionParticipatorVerticleDeployer;
 import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
 import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
 import fk.prof.backend.leader.election.LeaderElectedTask;
+import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
+import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.service.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -76,9 +79,10 @@ public class BackendManager {
   public Future<Void> launch() {
     Future result = Future.future();
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
-    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStore();
+    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
+    ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore, processGroupAssociationStore);
     backendHttpVerticleDeployer.deploy().setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {
         try {

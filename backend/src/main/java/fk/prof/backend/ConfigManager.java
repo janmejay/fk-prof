@@ -15,12 +15,14 @@ import java.util.Properties;
  */
 public class ConfigManager {
   private static final String IP_ADDRESS_KEY = "ip.address";
+  private static final String BACKEND_VERSION_KEY = "backend.version";
   private static final String BACKEND_HTTP_PORT_KEY = "backend.http.port";
   private static final String LEADER_HTTP_PORT_KEY = "leader.http.port";
   private static final String BACKEND_HTTP_SERVER_OPTIONS_KEY = "backend.http.server";
   private static final String LEADER_HTTP_SERVER_OPTIONS_KEY = "leader.http.server";
   private static final String HTTP_CLIENT_OPTIONS_KEY = "http.client";
   private static final String LOAD_REPORT_INTERVAL_KEY = "load.report.interval.secs";
+  private static final String RECORDER_DEFUNCT_THRESHOLD_KEY = "recorder.defunct.threshold.secs";
   private static final String VERTX_OPTIONS_KEY = "vertxOptions";
   private static final String BACKEND_HTTP_DEPLOYMENT_OPTIONS_KEY = "backendHttpOptions";
   private static final String CURATOR_OPTIONS_KEY = "curatorOptions";
@@ -49,6 +51,10 @@ public class ConfigManager {
     return config.getString(IP_ADDRESS_KEY, "127.0.0.1");
   }
 
+  public int getBackendVersion() {
+    return config.getInteger(BACKEND_VERSION_KEY);
+  }
+
   public int getBackendHttpPort() {
     return config.getInteger(BACKEND_HTTP_PORT_KEY, 2491);
   }
@@ -59,6 +65,10 @@ public class ConfigManager {
 
   public int getLoadReportIntervalInSeconds() {
     return config.getInteger(LOAD_REPORT_INTERVAL_KEY, 60);
+  }
+
+  public int getRecorderDefunctThresholdInSeconds() {
+    return config.getInteger(RECORDER_DEFUNCT_THRESHOLD_KEY, 120);
   }
 
   public JsonObject getBackendHttpServerConfig() {

@@ -1,18 +1,17 @@
 package fk.prof.backend.worker;
 
-import com.google.common.primitives.Ints;
-import com.google.protobuf.InvalidProtocolBufferException;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
-import fk.prof.backend.model.assignment.WorkAssignmentManager;
+import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.assignment.AggregationWindowPlannerStore;
+import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
+import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -22,10 +21,6 @@ import recording.Recorder;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.function.Function;
 
 public class BackendDaemon extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
@@ -33,28 +28,40 @@ public class BackendDaemon extends AbstractVerticle {
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final WorkAssignmentManager workAssignmentManager;
+  private final AggregationWindowPlannerStore aggregationWindowPlannerStore;
+  private final ProcessGroupAssociationStore processGroupAssociationStore;
   private final String ipAddress;
   private final int leaderPort;
 
   private ProfHttpClient httpClient;
-  private Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> requestWorkFromLeader;
   private int loadTickCounter = 0;
 
-  public BackendDaemon(ConfigManager configManager, LeaderReadContext leaderReadContext, WorkAssignmentManager workAssignmentManager) {
+  public BackendDaemon(ConfigManager configManager,
+                       LeaderReadContext leaderReadContext,
+                       ProcessGroupAssociationStore processGroupAssociationStore,
+                       AggregationWindowLookupStore aggregationWindowLookupStore,
+                       SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderPort = configManager.getLeaderHttpPort();
 
     this.leaderReadContext = leaderReadContext;
-    this.workAssignmentManager = workAssignmentManager;
+    this.processGroupAssociationStore = processGroupAssociationStore;
+    this.aggregationWindowPlannerStore = new AggregationWindowPlannerStore(
+        vertx,
+        config().getInteger("aggregation.window.duration.mins", 30),
+        config().getInteger("aggregation.window.end.tolerance.secs", 120),
+        config().getInteger("workprofile.refresh.offset.secs", 300),
+        config().getInteger("scheduling.buffer.secs", 30),
+        config().getInteger("work.assignment.max.delay.secs", 120),
+        simultaneousWorkAssignmentCounter,
+        aggregationWindowLookupStore,
+        this::getWorkFromLeader);
   }
 
   @Override
   public void start() {
     httpClient = buildHttpClient();
-    workAssignmentManager.initialize(processGroup -> getWorkFromLeader(processGroup));
-    registerPollRequestConsumer();
     postLoadToLeader();
   }
 
@@ -92,7 +99,16 @@ public class BackendDaemon extends AbstractVerticle {
                 if(ar.result().getStatusCode() == 200) {
                   try {
                     Recorder.ProcessGroups assignedProcessGroups = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroups.parser(), ar.result().getResponse());
-                    //TODO: Do something with the returned assigned process groups
+                    processGroupAssociationStore.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
+                      switch (processGroupAssociationResult) {
+                        case ADDED:
+                          this.aggregationWindowPlannerStore.associateAggregationWindowPlannerIfAbsent(processGroupDetail);
+                          break;
+                        case REMOVED:
+                          this.aggregationWindowPlannerStore.deAssociateAggregationWindowPlanner(processGroupDetail.getProcessGroup());
+                          break;
+                      }
+                    });
                   } catch (Exception ex) {
                     logger.error("Error parsing response returned by leader when reporting load");
                   }
@@ -102,15 +118,20 @@ public class BackendDaemon extends AbstractVerticle {
               } else {
                 logger.error("Error when reporting load to leader", ar.cause());
               }
-
-              vertx.setTimer(configManager.getLoadReportIntervalInSeconds(), timerId -> postLoadToLeader());
+              setupTimerForReportingLoad();
             });
       } catch (IOException ex) {
         logger.error("Error building load request body", ex);
+        setupTimerForReportingLoad();
       }
     } else {
       logger.debug("Not reporting load because leader is unknown");
+      setupTimerForReportingLoad();
     }
+  }
+
+  private void setupTimerForReportingLoad() {
+    vertx.setTimer(configManager.getLoadReportIntervalInSeconds(), timerId -> postLoadToLeader());
   }
 
   private Future<BackendDTO.WorkProfile> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
@@ -160,30 +181,4 @@ public class BackendDaemon extends AbstractVerticle {
     return result;
   }
 
-  private void registerPollRequestConsumer() {
-    vertx.eventBus().consumer("recorder.poll", (Message<Buffer> message) -> {
-      try {
-        Recorder.PollReq pollReq = ProtoUtil.buildProtoFromBuffer(Recorder.PollReq.parser(), message.body());
-        Recorder.WorkAssignment nextWorkAssignment = this.workAssignmentManager.receivePoll(
-            pollReq.getRecorderInfo(), pollReq.getWorkLastIssued());
-        Recorder.PollRes pollRes = Recorder.PollRes.newBuilder()
-            .setAssignment(nextWorkAssignment)
-            .setControllerVersion(config().getInteger("backend.version"))
-            .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
-            .setLocalTime(nextWorkAssignment == null
-                ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                : nextWorkAssignment.getIssueTime())
-            .build();
-        message.reply(ProtoUtil.buildBufferFromProto(pollRes));
-      } catch (InvalidProtocolBufferException ex) {
-        message.fail(400, "Error parsing poll request body");
-      } catch (IllegalArgumentException ex) {
-        message.fail(400, ex.getMessage());
-      } catch (UnsupportedEncodingException ex) {
-        message.fail(500, ex.getMessage());
-      } catch (IOException ex) {
-        message.fail(500, ex.getMessage());
-      }
-    });
-  }
 }
