@@ -2,14 +2,13 @@ package fk.prof.backend;
 
 import com.google.common.base.Preconditions;
 import fk.prof.backend.deployer.VerticleDeployer;
-import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderElectionParticipatorVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
+import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
+import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
+import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
@@ -26,8 +25,10 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * TODO: Deployment process is liable to changes later
@@ -81,12 +82,18 @@ public class BackendManager {
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
     AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getRecorderDefunctThresholdInSeconds());
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore, processGroupAssociationStore);
-    backendHttpVerticleDeployer.deploy().setHandler(backendDeployResult -> {
+    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, processGroupAssociationStore, aggregationWindowLookupStore, simultaneousWorkAssignmentCounter);
+    CompositeFuture backendDeploymentFuture = CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy());
+    backendDeploymentFuture.setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {
         try {
-          List<String> backendDeployments = backendDeployResult.result().list();
+          List<String> backendDeployments = backendDeployResult.result().list().stream()
+              .flatMap(fut -> ((CompositeFuture)fut).list().stream())
+              .map(deployment -> (String)deployment)
+              .collect(Collectors.toList());
 
           BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore);

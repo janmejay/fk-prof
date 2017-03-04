@@ -28,11 +28,13 @@ public class BackendDaemon extends AbstractVerticle {
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final AggregationWindowPlannerStore aggregationWindowPlannerStore;
   private final ProcessGroupAssociationStore processGroupAssociationStore;
+  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final String ipAddress;
   private final int leaderPort;
 
+  private AggregationWindowPlannerStore aggregationWindowPlannerStore;
   private ProfHttpClient httpClient;
   private int loadTickCounter = 0;
 
@@ -47,21 +49,14 @@ public class BackendDaemon extends AbstractVerticle {
 
     this.leaderReadContext = leaderReadContext;
     this.processGroupAssociationStore = processGroupAssociationStore;
-    this.aggregationWindowPlannerStore = new AggregationWindowPlannerStore(
-        vertx,
-        config().getInteger("aggregation.window.duration.mins", 30),
-        config().getInteger("aggregation.window.end.tolerance.secs", 120),
-        config().getInteger("workprofile.refresh.offset.secs", 300),
-        config().getInteger("scheduling.buffer.secs", 30),
-        config().getInteger("work.assignment.max.delay.secs", 120),
-        simultaneousWorkAssignmentCounter,
-        aggregationWindowLookupStore,
-        this::getWorkFromLeader);
+    this.aggregationWindowLookupStore = aggregationWindowLookupStore;
+    this.simultaneousWorkAssignmentCounter = simultaneousWorkAssignmentCounter;
   }
 
   @Override
   public void start() {
     httpClient = buildHttpClient();
+    aggregationWindowPlannerStore = buildAggregationWindowPlannerStore();
     postLoadToLeader();
   }
 
@@ -75,6 +70,19 @@ public class BackendDaemon extends AbstractVerticle {
         .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 1))
         .build(vertx);
     return httpClient;
+  }
+
+  private AggregationWindowPlannerStore buildAggregationWindowPlannerStore() {
+    return new AggregationWindowPlannerStore(
+        vertx,
+        config().getInteger("aggregation.window.duration.mins", 30),
+        config().getInteger("aggregation.window.end.tolerance.secs", 120),
+        config().getInteger("workprofile.refresh.offset.secs", 300),
+        config().getInteger("scheduling.buffer.secs", 30),
+        config().getInteger("work.assignment.max.delay.secs", 120),
+        simultaneousWorkAssignmentCounter,
+        aggregationWindowLookupStore,
+        this::getWorkFromLeader);
   }
 
   private void postLoadToLeader() {
@@ -131,7 +139,7 @@ public class BackendDaemon extends AbstractVerticle {
   }
 
   private void setupTimerForReportingLoad() {
-    vertx.setTimer(configManager.getLoadReportIntervalInSeconds(), timerId -> postLoadToLeader());
+    vertx.setTimer(configManager.getLoadReportIntervalInSeconds() * 1000, timerId -> postLoadToLeader());
   }
 
   private Future<BackendDTO.WorkProfile> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
