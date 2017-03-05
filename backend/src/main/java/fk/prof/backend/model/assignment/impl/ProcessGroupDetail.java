@@ -28,15 +28,20 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
     return processGroup;
   }
 
+  //Called on http event loop
   @Override
   public boolean receivePoll(Recorder.PollReq pollReq) {
     RecorderIdentifier recorderIdentifier = RecorderIdentifier.from(pollReq.getRecorderInfo());
+    //TODO: clean-up job to remove recorders from lookup which have been defunct for a long long time
+    //This is only a problem if the same backend stays associated with recorder for a long time, otherwise ProcessGroupDetail will be GC-eligible on de-association
     RecorderDetail recorderDetail = this.recorderLookup.computeIfAbsent(recorderIdentifier,
         key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
     return recorderDetail.receivePoll(pollReq);
   }
 
   /**
+   * Called on http event loop
+   * TODO: Liable for refactoring to implement stickiness behaviour in future
    * Returns null if no work assignment schedule is present
    * Returns null if no work assignments are left or none is ready yet to be handed out
    * Returns work assignment otherwise
@@ -48,21 +53,24 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
       try {
         return workAssignmentSchedule.getNextWorkAssignment();
       } catch (NullPointerException ex) {
-        //Do nothing in this scenario. This exception can happen when:
-        //t0=if conditional is evaluated successfully
-        //t1=aggregation window start timer called but by that time work prototype was not fetched from leader
-        //t2=schedule set to null because no work fetched from leader so nothing to schedule
-        //t3=above try block executed resulting in null pointer exception
+        // Do nothing in this scenario. This exception can happen when:
+        // t0=above "if conditional" is evaluated successfully
+        // t1=aggregation window start timer called in backend daemon but by that time work prototype was not fetched from leader,
+        // or some other error occurred in aggregation window switcher causing reset to be invoked in aggregation window planner
+        // t2=workAssignmentSchedule set to null because of events at t1
+        // t3=above "try block" executed resulting in null pointer exception
       }
     }
     return null;
   }
 
+  //Called by backend daemon thread
   @Override
   public void updateWorkAssignmentSchedule(WorkAssignmentSchedule workAssignmentSchedule) {
     this.workAssignmentSchedule = workAssignmentSchedule;
   }
 
+  //Called by backend daemon thread
   @Override
   public int getRecorderTargetCountToMeetCoverage(int coveragePct) {
     final List<RecorderDetail> availableRecorders = this.recorderLookup.values().stream()

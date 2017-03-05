@@ -11,7 +11,6 @@ public class RecorderDetail {
 
   private long lastReportedTick = 0;
   private Long lastReportedTime = null;
-
   private Recorder.WorkResponse currentWorkResponse;
 
   public RecorderDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {

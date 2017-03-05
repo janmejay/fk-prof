@@ -13,6 +13,10 @@ public class RecorderProtoUtil {
         .build();
   }
 
+  public static String processGroupCompactRepr(Recorder.ProcessGroup processGroup) {
+    return String.format("%s,%s,%s", processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+  }
+
   public static Recorder.Work translateWorkFromBackendDTO(BackendDTO.Work backendDTOWork) {
     return Recorder.Work.newBuilder()
         .setWType(translateWorkTypeFromBackendDTO(backendDTOWork.getWType()))

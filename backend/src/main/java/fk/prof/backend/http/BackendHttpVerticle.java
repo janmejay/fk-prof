@@ -21,8 +21,6 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.shareddata.LocalMap;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -36,7 +34,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class BackendHttpVerticle extends AbstractVerticle {
-  private static final Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
@@ -142,7 +139,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
-        throw new IllegalArgumentException("Process group " + ProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
+        throw new IllegalArgumentException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
       boolean timeUpdated = processGroupContextForPolling.receivePoll(pollReq);
 

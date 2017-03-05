@@ -128,7 +128,7 @@ public class ProfHttpClient {
 
     public ProfHttpClient build(Vertx vertx) {
       if(vertx == null) {
-        throw new IllegalStateException("Vertx instance is required");
+        throw new IllegalArgumentException("Vertx instance is required");
       }
 
       return new ProfHttpClient(vertx, maxAttempts, keepAlive,

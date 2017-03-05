@@ -4,8 +4,9 @@ option java_outer_classname = "BackendDTO";
 
 message LoadReportRequest {
     required string ip = 1;
-    required float load = 2;
-    required int64 curr_tick = 3;
+    required uint32 port = 2;
+    required float load = 3;
+    required int64 curr_tick = 4;
 }
 
 message WorkProfile {

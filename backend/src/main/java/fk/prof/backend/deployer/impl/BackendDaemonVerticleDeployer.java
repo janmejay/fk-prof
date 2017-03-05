@@ -1,5 +1,6 @@
 package fk.prof.backend.deployer.impl;
 
+import com.google.common.base.Preconditions;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
@@ -13,10 +14,10 @@ import io.vertx.core.Vertx;
 
 public class BackendDaemonVerticleDeployer extends VerticleDeployer {
 
-  private LeaderReadContext leaderReadContext;
-  private ProcessGroupAssociationStore processGroupAssociationStore;
-  private AggregationWindowLookupStore aggregationWindowLookupStore;
-  private SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private final LeaderReadContext leaderReadContext;
+  private final ProcessGroupAssociationStore processGroupAssociationStore;
+  private final AggregationWindowLookupStore aggregationWindowLookupStore;
+  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
 
   public BackendDaemonVerticleDeployer(Vertx vertx,
                                        ConfigManager configManager,
@@ -25,10 +26,10 @@ public class BackendDaemonVerticleDeployer extends VerticleDeployer {
                                        AggregationWindowLookupStore aggregationWindowLookupStore,
                                        SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter) {
     super(vertx, configManager);
-    this.leaderReadContext = leaderReadContext;
-    this.processGroupAssociationStore = processGroupAssociationStore;
-    this.aggregationWindowLookupStore = aggregationWindowLookupStore;
-    this.simultaneousWorkAssignmentCounter = simultaneousWorkAssignmentCounter;
+    this.leaderReadContext = Preconditions.checkNotNull(leaderReadContext);
+    this.processGroupAssociationStore = Preconditions.checkNotNull(processGroupAssociationStore);
+    this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
+    this.simultaneousWorkAssignmentCounter = Preconditions.checkNotNull(simultaneousWorkAssignmentCounter);
   }
 
   @Override

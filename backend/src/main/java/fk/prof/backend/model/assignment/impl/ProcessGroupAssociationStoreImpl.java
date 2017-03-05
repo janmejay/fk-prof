@@ -15,6 +15,8 @@ public class ProcessGroupAssociationStoreImpl implements ProcessGroupAssociation
     this.thresholdForDefunctRecorderInSecs = thresholdForDefunctRecorderInSecs;
   }
 
+
+  //Called by backend daemon thread when load is reported to leader and leader responds with associations
   @Override
   public void updateProcessGroupAssociations(Recorder.ProcessGroups processGroups, BiConsumer<ProcessGroupContextForScheduling, ProcessGroupAssociationResult> postUpdateAction) {
     //Remove process group associations which are not returned by leader

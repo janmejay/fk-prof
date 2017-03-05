@@ -4,8 +4,8 @@ import fk.prof.backend.exception.AssociationException;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.ZookeeperUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.logging.Logger;
@@ -45,16 +45,16 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                                                 Comparator<BackendDetail> backendPriorityComparator)
       throws Exception {
     if(vertx == null) {
-      throw new IllegalStateException("Vertx instance is required");
+      throw new IllegalArgumentException("Vertx instance is required");
     }
     if(curatorClient == null) {
-      throw new IllegalStateException("Curator client is required");
+      throw new IllegalArgumentException("Curator client is required");
     }
     if(backendAssociationPath == null) {
-      throw new IllegalStateException("Backend association path in zookeeper hierarchy is required");
+      throw new IllegalArgumentException("Backend association path in zookeeper hierarchy is required");
     }
     if(backendPriorityComparator == null) {
-      throw new IllegalStateException("Priority comparator for backends is required");
+      throw new IllegalArgumentException("Priority comparator for backends is required");
     }
 
     this.vertx = vertx;
@@ -83,6 +83,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
   @Override
   public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
+    //TODO: Unique qualifier of a backend is ip along with port. Right now port is being ignored
     String backendIPAddress = payload.getIp();
     Future<Recorder.ProcessGroups> result = Future.future();
 
@@ -146,7 +147,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       // Returning the existing assignment if some backend is something already assigned to this process group and it is not defunct
       if(logger.isDebugEnabled()) {
         logger.debug(String.format("process_group=%s, existing backend=%s, available",
-            ProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
+            RecorderProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
       }
       result.complete(buildAssignedBackend(backendAssociation));
     } else {
@@ -160,7 +161,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
          */
         if(logger.isDebugEnabled()) {
           logger.debug(String.format("process_group=%s, existing backend=%s, defunct or null",
-              ProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
+              RecorderProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
         }
         try {
           boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
@@ -179,7 +180,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                     associateBackendWithProcessGroup(availableBackend, processGroup);
                     if (logger.isDebugEnabled()) {
                       logger.debug(String.format("process_group=%s, new backend=%s",
-                          ProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
+                          RecorderProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
                     }
                     future.complete(buildAssignedBackend(availableBackend.getBackendIPAddress()));
                   } catch (Exception ex) {
@@ -199,7 +200,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                    */
                   if (logger.isDebugEnabled()) {
                     logger.debug(String.format("process_group=%s, existing backend=%s, available",
-                        ProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress()));
+                        RecorderProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress()));
                   }
                   future.complete(buildAssignedBackend(existingBackendAssociation));
                 } else {
@@ -211,7 +212,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                   BackendDetail newBackend = getAvailableBackendFromPrioritySet();
                   if (newBackend == null) {
                     logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
-                        existingBackendAssociation, ProtoUtil.processGroupCompactRepr(processGroup)));
+                        existingBackendAssociation, RecorderProtoUtil.processGroupCompactRepr(processGroup)));
                     future.complete(buildAssignedBackend(existingBackendAssociation));
                   } else {
                     try {
@@ -226,7 +227,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                         associateBackendWithProcessGroup(newBackend, processGroup);
                         if (logger.isDebugEnabled()) {
                           logger.debug(String.format("process_group=%s, de-associating existing backend=%s, associating new backend=%s",
-                              ProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress(), newBackend.getBackendIPAddress()));
+                              RecorderProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress(), newBackend.getBackendIPAddress()));
                         }
                       }
                       future.complete(buildAssignedBackend(newBackend.getBackendIPAddress()));
@@ -311,7 +312,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       throws Exception {
     String processGroupZNodePath = processGroupToZNodePathLookup.get(processGroup);
     if(processGroupZNodePath == null) {
-      throw new IllegalStateException("Cannot find znode path of already loaded process group=" + ProtoUtil.processGroupCompactRepr(processGroup));
+      throw new IllegalStateException("Cannot find znode path of already loaded process group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
     }
     curatorClient.delete().forPath(processGroupZNodePath);
 
@@ -351,7 +352,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(ZookeeperUtil.readZNode(curatorClient, processGroupZNodePath));
         if(processGroupToZNodePathLookup.get(processGroup) != null) {
           throw new AssociationException("Found multiple nodes in zookeeper backend association tree for same process group, aborting load from ZK. Process group=" +
-              ProtoUtil.processGroupCompactRepr(processGroup));
+              RecorderProtoUtil.processGroupCompactRepr(processGroup));
         }
         processGroupToZNodePathLookup.put(processGroup, processGroupZNodePath);
         processGroups.add(processGroup);

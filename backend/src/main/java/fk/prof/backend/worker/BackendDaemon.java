@@ -10,6 +10,7 @@ import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
@@ -32,7 +33,8 @@ public class BackendDaemon extends AbstractVerticle {
   private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final String ipAddress;
-  private final int leaderPort;
+  private final int leaderHttpPort;
+  private final int backendHttpPort;
 
   private AggregationWindowPlannerStore aggregationWindowPlannerStore;
   private ProfHttpClient httpClient;
@@ -45,7 +47,8 @@ public class BackendDaemon extends AbstractVerticle {
                        SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
-    this.leaderPort = configManager.getLeaderHttpPort();
+    this.leaderHttpPort = configManager.getLeaderHttpPort();
+    this.backendHttpPort = configManager.getBackendHttpPort();
 
     this.leaderReadContext = leaderReadContext;
     this.processGroupAssociationStore = processGroupAssociationStore;
@@ -96,12 +99,15 @@ public class BackendDaemon extends AbstractVerticle {
         httpClient.requestAsync(
             HttpMethod.POST,
             leaderIPAddress,
-            leaderPort,
+            leaderHttpPort,
             ApiPathConstants.LEADER_POST_LOAD,
             ProtoUtil.buildBufferFromProto(
                 BackendDTO.LoadReportRequest.newBuilder()
                     .setIp(ipAddress)
-                    .setLoad(load).setCurrTick(loadTickCounter++).build()))
+                    .setPort(backendHttpPort)
+                    .setLoad(load)
+                    .setCurrTick(loadTickCounter++)
+                    .build()))
             .setHandler(ar -> {
               if(ar.succeeded()) {
                 if(ar.result().getStatusCode() == 200) {
@@ -157,18 +163,18 @@ public class BackendDaemon extends AbstractVerticle {
         httpClient.requestAsync(
             HttpMethod.GET,
             leaderIPAddress,
-            leaderPort,
+            leaderHttpPort,
             requestPath,
             null).setHandler(ar -> {
               if (ar.failed()) {
                 result.fail("Error when requesting work from leader for process group="
-                    + ProtoUtil.processGroupCompactRepr(processGroup)
+                    + RecorderProtoUtil.processGroupCompactRepr(processGroup)
                     + ", message=" + ar.cause());
                 return;
               }
               if (ar.result().getStatusCode() != 200) {
                 result.fail("Non-OK status code when requesting work from leader for process group="
-                    + ProtoUtil.processGroupCompactRepr(processGroup)
+                    + RecorderProtoUtil.processGroupCompactRepr(processGroup)
                     + ", status=" + ar.result().getStatusCode());
                 return;
               }
@@ -176,11 +182,11 @@ public class BackendDaemon extends AbstractVerticle {
                 BackendDTO.WorkProfile workProfile = ProtoUtil.buildProtoFromBuffer(BackendDTO.WorkProfile.parser(), ar.result().getResponse());
                 result.complete(workProfile);
               } catch (Exception ex) {
-                result.fail("Error parsing work response returned by leader for process group=" + ProtoUtil.processGroupCompactRepr(processGroup));
+                result.fail("Error parsing work response returned by leader for process group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
               }
             });
       } catch (UnsupportedEncodingException ex) {
-        result.fail("Error building url for process_group=" + ProtoUtil.processGroupCompactRepr(processGroup));
+        result.fail("Error building url for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
       }
     } else {
       result.fail("Not reporting load because leader is unknown");

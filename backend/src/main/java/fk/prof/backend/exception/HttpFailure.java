@@ -1,7 +1,5 @@
 package fk.prof.backend.exception;
 
-import io.vertx.core.eventbus.ReplyException;
-import io.vertx.core.eventbus.ReplyFailure;
 
 public class HttpFailure extends RuntimeException {
   private int statusCode;
@@ -58,13 +56,11 @@ public class HttpFailure extends RuntimeException {
       AggregationFailure exception = (AggregationFailure) throwable;
       return new HttpFailure(throwable, exception.isServerFailure() ? 500 : 400);
     }
-    if (throwable instanceof ReplyException) {
-      ReplyException exception = (ReplyException) throwable;
-      if(exception.failureType().equals(ReplyFailure.RECIPIENT_FAILURE)) {
-        return new HttpFailure(exception.getMessage(), exception.failureCode());
-      } else {
-        return new HttpFailure(exception.getMessage());
-      }
+    if(throwable instanceof IllegalArgumentException) {
+      return new HttpFailure(throwable.getMessage(), 400);
+    }
+    if(throwable instanceof IllegalStateException) {
+      return new HttpFailure(throwable.getMessage(), 500);
     }
     if (throwable.getMessage() == null) {
       return new HttpFailure("No message provided", throwable.getCause());

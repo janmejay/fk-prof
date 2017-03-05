@@ -3,7 +3,7 @@ package fk.prof.backend.model.assignment;
 import com.google.common.base.Preconditions;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import recording.Recorder;
@@ -69,7 +69,7 @@ public class AggregationWindowPlannerStore {
     throws IllegalStateException {
     AggregationWindowPlanner aggregationWindowPlanner = this.lookup.remove(processGroup);
     if(aggregationWindowPlanner == null) {
-      throw new IllegalStateException("Unexpected state. No aggregation window planner associated with process_group=" + ProtoUtil.processGroupCompactRepr(processGroup));
+      throw new IllegalStateException("Unexpected state. No aggregation window planner associated with process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
     }
     aggregationWindowPlanner.close();
   }

@@ -4,6 +4,10 @@ import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.proto.BackendDTO;
 import recording.Recorder;
 
+/**
+ * No operation of this class is thread-safe
+ * Right now, only invoked from backend daemon thread, so we are good
+ */
 public class SimultaneousWorkAssignmentCounterImpl implements SimultaneousWorkAssignmentCounter {
   private final int maxAllowedConcurrentWorkAssignmentSlots;
   private int currentlyAcquiredWorkAssignmentSlots = 0;
