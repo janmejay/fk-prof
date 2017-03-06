@@ -100,6 +100,7 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
             ti->set_is_daemon(info->is_daemon);
             ti->set_tid(info->tid);
             ss->set_thread_id(thd_id);
+            s_c_new_thd_info.inc();
         } else {
             ss->set_thread_id(known_thd->second);
         }
@@ -130,14 +131,20 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
             new_ctx->set_trace_name(name);
             ss->add_trace_id(ctx_id);
             SPDLOG_DEBUG(logger, "Reporting trace named '{}', cov {}% as ctx-id: {}", name, coverage_pct, ctx_id);
+            s_c_new_ctx_info.inc();
         } else {
             ss->add_trace_id(known_ctx->second);
         }
     }
 
-    ss->set_snipped(trace.num_frames > trunc_thresholds.cpu_samples_max_stack_sz);
+    auto snipped = trace.num_frames > trunc_thresholds.cpu_samples_max_stack_sz;
+    if (snipped) s_c_frame_snipped.inc();
+    ss->set_snipped(snipped);
 
-    if (trace.num_frames < 0) return;
+    if (trace.num_frames < 0) {
+        s_m_stack_sample_err.mark();
+        return;
+    }
 
     for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
         auto f = ss->add_frame();
@@ -148,12 +155,15 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
             if (! fir(mth_id, jvmti, *this)) {
                 recordNewMethod(mth_id, "?", "?", "?", "?");
             }
+            s_c_new_mthd_info.inc();
         }
         //end find method
         f->set_method_id(reinterpret_cast<std::int64_t>(mth_id));
         f->set_bci(jvmpi_cf.lineno);//turns out its actually BCI
         f->set_line_no(lnr(jvmpi_cf.lineno, mth_id, jvmti));
     }
+
+    s_m_cpu_sample_add.mark();
 }
 
 void ProfileSerializingWriter::recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char *method_signature) {
@@ -182,3 +192,28 @@ void ProfileSerializingWriter::flush() {
     cpu_samples_flush_ctr = 0;
     w.flush();
 }
+
+#define METRIC_TYPE "profile_serializer"
+
+ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
+                                                   PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds) :
+    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0), trunc_thresholds(_trunc_thresholds),
+
+    s_c_new_thd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "new_thd_rpt"})),
+    s_c_new_ctx_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "new_ctx_rpt"})),
+    s_c_new_mthd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "new_mthd_rpt"})),
+
+    s_c_frame_snipped(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "backtrace_snipped"})),
+
+    s_m_stack_sample_err(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample"}, "err")),
+    s_m_cpu_sample_add(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample"}, "rpt")) {
+
+    s_c_new_mthd_info.clear();
+    s_c_new_ctx_info.clear();
+    s_c_new_mthd_info.clear();
+
+    s_c_frame_snipped.clear();
+}
+
+ProfileSerializingWriter::~ProfileSerializingWriter() {}
+
