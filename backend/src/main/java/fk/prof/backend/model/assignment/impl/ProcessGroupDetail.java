@@ -47,7 +47,8 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
     RecorderDetail recorderDetail = this.recorderLookup.computeIfAbsent(recorderIdentifier,
         key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
 
-    if (recorderDetail.receivePoll(pollReq)
+    boolean pollReceived = recorderDetail.receivePoll(pollReq);
+    if (pollReceived
         && workAssignmentSchedule != null
         && recorderDetail.canAcceptWork()) {
 

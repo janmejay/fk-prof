@@ -145,14 +145,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
       }
 
       Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.receivePoll(pollReq);
-      Recorder.PollRes pollRes = Recorder.PollRes.newBuilder()
-          .setAssignment(nextWorkAssignment)
+      Recorder.PollRes.Builder pollResBuilder = Recorder.PollRes.newBuilder()
           .setControllerVersion(backendVersion)
           .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
           .setLocalTime(nextWorkAssignment == null
               ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-              : nextWorkAssignment.getIssueTime())
-          .build();
+              : nextWorkAssignment.getIssueTime());
+      Recorder.PollRes pollRes = nextWorkAssignment == null ? pollResBuilder.build() : pollResBuilder.setAssignment(nextWorkAssignment).build();
       context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);

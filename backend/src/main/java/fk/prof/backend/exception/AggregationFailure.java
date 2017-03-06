@@ -1,6 +1,6 @@
 package fk.prof.backend.exception;
 
-public class AggregationFailure extends RuntimeException {
+public class AggregationFailure extends RuntimeException implements ProfException {
   private boolean serverFailure = false;
 
   public AggregationFailure() {
@@ -39,6 +39,7 @@ public class AggregationFailure extends RuntimeException {
     this.serverFailure = serverFailure;
   }
 
+  @Override
   public boolean isServerFailure() {
     return serverFailure;
   }

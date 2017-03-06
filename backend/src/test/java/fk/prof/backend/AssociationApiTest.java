@@ -82,9 +82,7 @@ public class AssociationApiTest {
 
   @After
   public void tearDown(TestContext context) throws IOException {
-    System.out.println("Tearing down");
     vertx.close(result -> {
-      System.out.println("Vertx shutdown");
       curatorClient.close();
       try {
         testingServer.close();
@@ -182,7 +180,7 @@ public class AssociationApiTest {
           Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
           makeRequestGetAssociation(processGroup).setHandler(ar -> {
             if(ar.succeeded()) {
-              context.assertEquals(500, ar.result().getStatusCode());
+              context.assertEquals(400, ar.result().getStatusCode());
               try {
                 makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.5f).setCurrTick(1).build())
                     .setHandler(ar1 -> {

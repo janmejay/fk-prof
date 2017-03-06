@@ -56,9 +56,7 @@ public class LeaderElectionTest {
 
   @After
   public void tearDown(TestContext context) throws IOException {
-    System.out.println("Tearing down");
     vertx.close(result -> {
-      System.out.println("Vertx shutdown");
       curatorClient.close();
       try {
         testingServer.close();

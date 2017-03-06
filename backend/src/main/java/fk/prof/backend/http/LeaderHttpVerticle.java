@@ -126,7 +126,12 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
 
       BackendDTO.WorkProfile workProfile = this.policyStore.get(processGroup);
-      context.response().end(ProtoUtil.buildBufferFromProto(workProfile));
+      if(workProfile != null) {
+        context.response().end(ProtoUtil.buildBufferFromProto(workProfile));
+      } else {
+        context.response().setStatusCode(400);
+        context.response().end();
+      }
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);
