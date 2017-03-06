@@ -64,10 +64,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   }
 
   public AggregationState abortProfile() {
-    if(!processStateEvent(AggregationStateEvent.ABORT_PROFILE)) {
-      throw new IllegalStateException(String.format("Invalid event %s for current state %s",
-          AggregationStateEvent.ABORT_PROFILE, state));
-    }
+    processStateEvent(AggregationStateEvent.ABORT_PROFILE);
     return state;
   }
 

@@ -42,7 +42,7 @@ public class AggregationWindowPlanner {
   private final Recorder.ProcessGroup processGroup;
   private final int aggregationWindowDurationInMins;
   private final int workProfileRefreshBufferInSecs;
-  private final long aggregationWindowScheduleTimer;
+  private final Future<Long> aggregationWindowScheduleTimer;
 
   private AggregationWindow currentAggregationWindow = null;
   private BackendDTO.WorkProfile latestWorkProfile = null;
@@ -69,15 +69,20 @@ public class AggregationWindowPlanner {
     this.aggregationWindowDurationInMins = aggregationWindowDurationInMins;
     this.workProfileRefreshBufferInSecs = workProfileRefreshBufferInSecs;
 
-    // From vertx docs:
-    // Keep in mind that the timer will fire on a periodic basis.
-    // If your periodic treatment takes a long amount of time to proceed, your timer events could run continuously or even worse : stack up.
-    // NOTE: The above is a fringe scenario since aggregation window duration is going to be in excess of 20 minutes
-    // Still, there is a way to detect if this build-up happens. If aggregation window switch event happens before work profile is fetched, we publish a metric
-    // If /leader/work API latency is within bounds but this metric is high, this implies a build-up of aggregation window events
-    this.aggregationWindowScheduleTimer = vertx.setPeriodic(
-        aggregationWindowDurationInMins * 60 * MILLIS_IN_SEC,
-        timerId -> aggregationWindowSwitcher());
+    this.aggregationWindowScheduleTimer = Future.future();
+    getWorkForNextAggregationWindow(currentAggregationWindowIndex + 1).setHandler(ar -> {
+      aggregationWindowSwitcher();
+
+      // From vertx docs:
+      // Keep in mind that the timer will fire on a periodic basis.
+      // If your periodic treatment takes a long amount of time to proceed, your timer events could run continuously or even worse : stack up.
+      // NOTE: The above is a fringe scenario since aggregation window duration is going to be in excess of 20 minutes
+      // Still, there is a way to detect if this build-up happens. If aggregation window switch event happens before work profile is fetched, we publish a metric
+      // If /leader/work API latency is within bounds but this metric is high, this implies a build-up of aggregation window events
+      long periodicTimerId = vertx.setPeriodic(aggregationWindowDurationInMins * 60 * MILLIS_IN_SEC,
+          timerId -> aggregationWindowSwitcher());
+      this.aggregationWindowScheduleTimer.complete(periodicTimerId);
+    });
   }
 
   /**
@@ -85,7 +90,11 @@ public class AggregationWindowPlanner {
    * To be called when leader de-associates relevant process group from the backend
    */
   public void close() {
-    vertx.cancelTimer(aggregationWindowScheduleTimer);
+    aggregationWindowScheduleTimer.setHandler(ar -> {
+      if(ar.succeeded()) {
+        vertx.cancelTimer(ar.result());
+      }
+    });
     expireCurrentAggregationWindow();
   }
 
@@ -94,23 +103,26 @@ public class AggregationWindowPlanner {
    * There should be sufficient buffer to allow completion of this method before the next aggregation window starts
    * Not adding any guarantees here, but a lead of few minutes for this method's execution should ensure that the request to get work should complete in time for next aggregation window
    */
-  private void getWorkForNextAggregationWindow(int aggregationWindowIndex) {
+  private Future<Void> getWorkForNextAggregationWindow(int aggregationWindowIndex) {
+    latestWorkProfile = null;
+    Future<Void> result = Future.future();
     this.workForBackendRequestor.apply(processGroup).setHandler(ar -> {
       if(ar.failed()) {
         //Cannot fetch work from leader, so chill out and let this aggregation window go by
         //TODO: Metric to indicate failure to fetch work for this process group from leader
-        latestWorkProfile = null;
         logger.error("Error fetching work from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) + ", error=" + ar.cause().getMessage());
+        result.fail(ar.cause());
       } else {
-        if(ar.succeeded()) {
-          latestWorkProfile = ar.result();
-          if(logger.isDebugEnabled()) {
-            logger.debug("Fetched work successfully from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
-          }
+        latestWorkProfile = ar.result();
+        if(logger.isDebugEnabled()) {
+          logger.debug("Fetched work successfully from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
         }
+        result.complete();
       }
       relevantAggregationWindowIndexForWorkProfile = aggregationWindowIndex;
     });
+
+    return result;
   }
 
   private void aggregationWindowSwitcher() {
@@ -155,8 +167,7 @@ public class AggregationWindowPlanner {
       WorkAssignmentSchedule workAssignmentSchedule = workAssignmentScheduleFactory.getNewWorkAssignmentSchedule(workAssignmentBuilders,
           latestWorkProfile.getCoveragePct(),
           maxConcurrentSlotsForScheduling,
-          latestWorkProfile.getDuration(),
-          latestWorkProfile.getInterval());
+          latestWorkProfile.getDuration());
       currentlyOccupiedWorkAssignmentSlots = workAssignmentSchedule.getMaxConcurrentlyScheduledEntries();
       currentAggregationWindow = new AggregationWindow(
           processGroup.getAppId(),

@@ -36,6 +36,11 @@ public class FinalizedAggregationWindow {
     return this.workInfoLookup.get(workId);
   }
 
+  //NOTE: This is computed on expiry of aggregation window, null otherwise. Having a getter here to make this testable
+  public LocalDateTime getEndedAt() {
+    return this.endedAt;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (o == this) {

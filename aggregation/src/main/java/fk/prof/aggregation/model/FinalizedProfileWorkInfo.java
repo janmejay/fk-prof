@@ -40,6 +40,10 @@ public class FinalizedProfileWorkInfo {
     return endedAt;
   }
 
+  public AggregationState getState() {
+    return state;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (o == this) {

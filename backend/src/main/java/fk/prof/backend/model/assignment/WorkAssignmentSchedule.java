@@ -36,15 +36,8 @@ public class WorkAssignmentSchedule {
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
                                 int coveragePct,
                                 int maxConcurrentSlotsAllowed,
-                                int profileDurationInSecs,
-                                int profileIntervalInSecs)
+                                int profileDurationInSecs)
       throws IllegalArgumentException {
-
-    //Scheduling buffer is min enforced time to wait between scheduling of two profiling sets. If user-specified interval is higher, use that instead
-    //This lets user give more breathing space to their machines if they choose to.
-    if(profileIntervalInSecs > schedulingBufferInSecs) {
-      schedulingBufferInSecs = profileIntervalInSecs;
-    }
 
     // breathing space at the start, this will usually be a lower value that window tolerance
     int windowStartToleranceInSecs = schedulingBufferInSecs * 2;
@@ -56,8 +49,8 @@ public class WorkAssignmentSchedule {
     int targetScheduleEntries = workAssignmentBuilders.length;
     if (maxScheduleEntriesWithOverlap < targetScheduleEntries) {
       throw new IllegalArgumentException(String.format("Not possible to setup schedule for " +
-          "vm_coverage=%d, target_profiles=%d, profile_duration_secs=%d, profile_interval_secs=%d, max concurrent slots=%d",
-          coveragePct, targetScheduleEntries, profileDurationInSecs, profileIntervalInSecs, maxConcurrentSlotsAllowed));
+          "vm_coverage=%d, target_profiles=%d, profile_duration_secs=%d, max concurrent slots=%d",
+          coveragePct, targetScheduleEntries, profileDurationInSecs, maxConcurrentSlotsAllowed));
     }
 
     this.minAcceptableDelayForWorkAssignmentInSecs = minAcceptableDelayForWorkAssignmentInSecs;
@@ -113,6 +106,10 @@ public class WorkAssignmentSchedule {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {
         try {
+          if(this.assignedRecorders.contains(recorderIdentifier)) {
+            return null;
+          }
+
           ScheduleEntry scheduleEntry;
           while((scheduleEntry = this.entries.peek()) != null) {
             ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - referenceTimeInNanos), minAcceptableDelayForWorkAssignmentInSecs, maxAcceptableDelayForWorkAssignmentInSecs);
@@ -120,7 +117,7 @@ public class WorkAssignmentSchedule {
               return null; //Since this is a priority queue, no point checking subsequent entries if current entry indicates its too early
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
-              if(value.workAssignment != null && !this.assignedRecorders.contains(recorderIdentifier)) {
+              if(value.workAssignment != null) {
                 this.assignedRecorders.add(recorderIdentifier);
                 return value.workAssignment;
               }
@@ -181,7 +178,8 @@ public class WorkAssignmentSchedule {
 
     @Override
     public int compareTo(ScheduleEntry other) {
-      return (int)(this.offsetFromReferenceInNanos - other.offsetFromReferenceInNanos);
+      long diff = this.offsetFromReferenceInNanos - other.offsetFromReferenceInNanos;
+      return diff > 0 ? 1 : (diff < 0 ? -1 : 0);
     }
 
     static class ScheduleEntryValue {

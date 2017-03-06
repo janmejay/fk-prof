@@ -78,7 +78,7 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
     final List<RecorderDetail> availableRecorders = this.recorderLookup.values().stream()
         .filter(recorderDetail -> !recorderDetail.isDefunct())
         .collect(Collectors.toList());
-    return Math.round((coveragePct * availableRecorders.size()) / 100.0f);
+    return (int)((coveragePct * availableRecorders.size()) / 100.0f);
   }
 
   @Override

@@ -70,6 +70,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   }
 
   /**
+   * Called by backend daemon thread
    * Does following tasks required to expire aggregation window:
    * > Marks status of ongoing profiles as aborted
    * > De associates assigned work with this aggregation window
@@ -91,25 +92,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   /**
    * Aborts all in-flight profiles. Should be called when aggregation window expires
    */
-  private void abortOngoingProfiles() throws AggregationFailure {
+  private void abortOngoingProfiles() {
     ensureEntityIsWriteable();
-
-    for (Map.Entry<Long, ProfileWorkInfo> entry : workInfoLookup.entrySet()) {
-      try {
+    try {
+      for (Map.Entry<Long, ProfileWorkInfo> entry : workInfoLookup.entrySet()) {
         entry.getValue().abortProfile();
-      } catch (IllegalStateException ex) {
-        throw new AggregationFailure(String.format("Error aborting profile for work_id=%d", entry.getKey()), ex);
       }
+    } catch (IllegalStateException ex) {
+      //Ignore when not able to mark profiles as aborted. This is because they are already in a terminal state
     }
-  }
-
-  public boolean hasProfileBeenStarted(long workId) {
-    ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
-    if (workInfo == null) {
-      throw new IllegalArgumentException(String.format("No profile for work_id=%d exists in the aggregation window",
-          workId));
-    }
-    return workInfo.hasProfileBeenStarted();
   }
 
   public void aggregate(Recorder.Wse wse, RecordedProfileIndexes indexes) throws AggregationFailure {

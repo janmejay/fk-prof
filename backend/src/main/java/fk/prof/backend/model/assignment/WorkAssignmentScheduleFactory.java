@@ -29,11 +29,10 @@ public class WorkAssignmentScheduleFactory {
   public WorkAssignmentSchedule getNewWorkAssignmentSchedule(Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
                                                              int coveragePct,
                                                              int maxConcurrentSchedulingAllowed,
-                                                             int profileDurationInSecs,
-                                                             int profileIntervalInSecs) {
+                                                             int profileDurationInSecs) {
     return new WorkAssignmentSchedule(windowDurationInMins, windowEndToleranceInSecs, schedulingBufferInSecs,
         minAcceptableDelayForWorkAssignmentInSecs, maxAcceptableDelayForWorkAssignmentInSecs,
-        workAssignmentBuilders, coveragePct, maxConcurrentSchedulingAllowed, profileDurationInSecs, profileIntervalInSecs);
+        workAssignmentBuilders, coveragePct, maxConcurrentSchedulingAllowed, profileDurationInSecs);
   }
 
 }

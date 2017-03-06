@@ -11,10 +11,9 @@ message LoadReportRequest {
 
 message WorkProfile {
     required uint32 duration = 1;
-    required uint32 interval = 2;
-    required uint32 coverage_pct = 3;
-    repeated Work work = 4;
-    required string description = 5;
+    required uint32 coverage_pct = 2;
+    repeated Work work = 3;
+    required string description = 4;
 }
 
 enum WorkType {

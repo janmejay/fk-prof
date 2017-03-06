@@ -11,16 +11,21 @@ import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.backend.deployer.impl.BackendDaemonVerticleDeployer;
 import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
 import fk.prof.backend.mock.MockProfileObjects;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
+import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
+import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
+import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -43,6 +48,9 @@ import java.util.stream.Collectors;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
 @RunWith(VertxUnitRunner.class)
 public class ProfileApiTest {
 
@@ -51,20 +59,22 @@ public class ProfileApiTest {
   private static Integer port;
   private static AggregationWindowLookupStore aggregationWindowLookupStore;
   private static ProcessGroupAssociationStore processGroupAssociationStore;
+  private static LeaderReadContext leaderReadContext;
 
   private static AtomicLong workIdCounter = new AtomicLong(0);
 
   @BeforeClass
   public static void setUp(TestContext context) throws Exception {
     ConfigManager.setDefaultSystemProperties();
-    ConfigManager configManager = new ConfigManager(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
+    ConfigManager configManager = spy(new ConfigManager(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile()));
 
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
+    leaderReadContext = new InMemoryLeaderStore(configManager.getIPAddress());
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     port = configManager.getBackendHttpPort();
 
-    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, new InMemoryLeaderStore(configManager.getIPAddress()), aggregationWindowLookupStore, processGroupAssociationStore);
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderReadContext, aggregationWindowLookupStore, processGroupAssociationStore);
     backendVerticleDeployer.deploy();
     //Wait for some time for verticles to be deployed
     Thread.sleep(1000);
@@ -83,7 +93,7 @@ public class ProfileApiTest {
         new AggregationWindow("a", "c", "p", awStart, new long[]{workId}));
 
     final Async async = context.async();
-    Future<Buffer> future = makeValidProfileRequest(context, MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
+    Future<ResponsePayload> future = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
     future.setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
@@ -118,9 +128,9 @@ public class ProfileApiTest {
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
     final Async async = context.async();
-    Future<Buffer> f1 = makeValidProfileRequest(context, MockProfileObjects.getRecordingHeader(workId1), Arrays.asList(wseList.get(0)));
-    Future<Buffer> f2 = makeValidProfileRequest(context, MockProfileObjects.getRecordingHeader(workId2), Arrays.asList(wseList.get(1)));
-    Future<Buffer> f3 = makeValidProfileRequest(context, MockProfileObjects.getRecordingHeader(workId3), Arrays.asList(wseList.get(2)));
+    Future<ResponsePayload> f1 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId1), Arrays.asList(wseList.get(0)));
+    Future<ResponsePayload> f2 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId2), Arrays.asList(wseList.get(1)));
+    Future<ResponsePayload> f3 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId3), Arrays.asList(wseList.get(2)));
     CompositeFuture.all(Arrays.asList(f1, f2, f3)).setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
@@ -170,8 +180,8 @@ public class ProfileApiTest {
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
     final Async async = context.async();
-    Future<ResponsePayload> f1 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId1, 1), Arrays.asList(wseList.get(0)));
-    Future<ResponsePayload> f2 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId2, 2), Arrays.asList(wseList.get(1)));
+    Future<ResponsePayload> f1 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId1, 1), Arrays.asList(wseList.get(0)));
+    Future<ResponsePayload> f2 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId2, 2), Arrays.asList(wseList.get(1)));
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
@@ -194,12 +204,12 @@ public class ProfileApiTest {
         new AggregationWindow("a", "c", "p", awStart, new long[]{workId}));
 
     final Async async = context.async();
-    Future<Buffer> f1 = makeValidProfileRequest(context, MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
+    Future<ResponsePayload> f1 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
     f1.setHandler(ar -> {
       if (ar.failed()) {
         context.fail(ar.cause());
       } else {
-        Future<ResponsePayload> f2 = makeProfileRequest(context, MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
+        Future<ResponsePayload> f2 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
         f2.setHandler(ar1 -> {
           if (ar1.failed()) {
             context.fail(ar1.cause());
@@ -265,37 +275,52 @@ public class ProfileApiTest {
     makeInvalidWseProfileRequest(context, WsePayloadStrategy.INVALID_CHECKSUM, "checksum of wse does not match");
   }
 
-  private Future<Buffer> makeValidProfileRequest(TestContext context, Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList) {
-    Future<Buffer> future = Future.future();
-    vertx.executeBlocking(blockingFuture -> {
-      try {
-        HttpClientRequest request = vertx.createHttpClient()
-            .post(port, "localhost", "/profile")
-            .handler(response -> {
-              response.bodyHandler(buffer -> {
-                //If any error happens, returned in formatted json, printing for debugging purposes
-                System.out.println(buffer.toString());
-                context.assertEquals(response.statusCode(), 200);
-                blockingFuture.complete(buffer);
-              });
-            })
-//            .exceptionHandler(throwable -> blockingFuture.fail(throwable))
-            .setChunked(true);
+  @Test(timeout = 5000)
+  public void testAggregationWindowExpiryWhileReportingProfiles(TestContext context) throws InterruptedException {
+    long workId1 = workIdCounter.incrementAndGet();
+    long workId2 = workIdCounter.incrementAndGet();
+    long workId3 = workIdCounter.incrementAndGet();
+    LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
+    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, new long[]{workId1, workId2, workId3});
+    aggregationWindowLookupStore.associateAggregationWindow(new long[] {workId1, workId2, workId3}, aw);
+    List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
-        ByteArrayOutputStream requestStream = new ByteArrayOutputStream();
-        writeMockHeaderToRequest(recordingHeader, requestStream);
-        writeMockWseEntriesToRequest(wseList, requestStream);
-        byte[] requestBytes = requestStream.toByteArray();
-        chunkAndWriteToRequest(request, requestBytes, 32);
-      } catch (IOException ex) {
-        blockingFuture.fail(ex);
+    final Async async = context.async();
+    Future<ResponsePayload> f1 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId1), Arrays.asList(wseList.get(0)));
+    //make a long running profile request
+    makeProfileRequest(MockProfileObjects.getRecordingHeader(workId2), Arrays.asList(wseList.get(1)), 2000);
+    Thread.sleep(500);
+    f1.setHandler(ar -> {
+      if (ar.failed()) {
+        context.fail(ar.cause());
+      } else {
+        try {
+          AggregationWindow aggregationWindow = aggregationWindowLookupStore.getAssociatedAggregationWindow(workId1);
+          FinalizedAggregationWindow actual = aggregationWindow.expireWindow(aggregationWindowLookupStore);
+          context.assertNotNull(actual.getEndedAt());
+
+          context.assertEquals(AggregationState.COMPLETED, actual.getDetailsForWorkId(workId1).getState());
+          context.assertEquals(AggregationState.ABORTED, actual.getDetailsForWorkId(workId2).getState());
+          context.assertEquals(AggregationState.SCHEDULED, actual.getDetailsForWorkId(workId3).getState());
+
+          context.assertNull(aggregationWindowLookupStore.getAssociatedAggregationWindow(workId1));
+          context.assertNull(aggregationWindowLookupStore.getAssociatedAggregationWindow(workId2));
+          context.assertNull(aggregationWindowLookupStore.getAssociatedAggregationWindow(workId3));
+
+          async.complete();
+        } catch (Exception ex) {
+          context.fail(ex);
+        }
       }
-    }, false, future.completer());
+    });
 
-    return future;
   }
 
-  private Future<ResponsePayload> makeProfileRequest(TestContext context, Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList) {
+  private Future<ResponsePayload> makeProfileRequest(Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList) {
+    return makeProfileRequest(recordingHeader, wseList, 0);
+  }
+
+  private Future<ResponsePayload> makeProfileRequest(Recorder.RecordingHeader recordingHeader, List<Recorder.Wse> wseList, int additionalDelayInMs) {
     Future<ResponsePayload> future = Future.future();
     vertx.executeBlocking(blockingFuture -> {
       try {
@@ -314,7 +339,7 @@ public class ProfileApiTest {
         writeMockHeaderToRequest(recordingHeader, requestStream);
         writeMockWseEntriesToRequest(wseList, requestStream);
         byte[] requestBytes = requestStream.toByteArray();
-        chunkAndWriteToRequest(request, requestBytes, 32);
+        chunkAndWriteToRequest(request, requestBytes, 32, additionalDelayInMs);
       } catch (IOException ex) {
         blockingFuture.fail(ex);
       }
@@ -451,13 +476,28 @@ public class ProfileApiTest {
   }
 
   private static void chunkAndWriteToRequest(HttpClientRequest request, byte[] requestBytes, int chunkSizeInBytes) {
+    chunkAndWriteToRequest(request, requestBytes, chunkSizeInBytes, 0);
+  }
+
+  private static void chunkAndWriteToRequest(HttpClientRequest request, byte[] requestBytes, int chunkSizeInBytes, int additionalDelayInMs) {
     int i = 0;
     for (; (i + chunkSizeInBytes) <= requestBytes.length; i += chunkSizeInBytes) {
       writeChunkToRequest(request, requestBytes, i, i + chunkSizeInBytes);
     }
     writeChunkToRequest(request, requestBytes, i, requestBytes.length);
-
-    request.end();
+    if(additionalDelayInMs > 0) {
+      vertx.executeBlocking(fut -> {
+        try {
+          Thread.sleep(additionalDelayInMs);
+          request.end();
+          fut.complete();
+        } catch (Exception ex) {
+          fut.fail(ex);
+        }
+      }, ar -> {});
+    } else {
+      request.end();
+    }
   }
 
   private static void writeChunkToRequest(HttpClientRequest request, byte[] bytes, int start, int end) {
