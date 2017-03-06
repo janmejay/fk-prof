@@ -80,9 +80,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   public void testReportOfNewBackends(TestContext context) {
     final Async async = context.async();
     Future<Recorder.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.1f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.1f).setCurrTick(1).build());
     Future<Recorder.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.2f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.2f).setCurrTick(1).build());
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.cause());
@@ -99,9 +99,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   public void testAssociationOfBackendsWithNewProcessGroups(TestContext context) {
     final Async async = context.async();
     Future<Recorder.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.1f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.1f).setCurrTick(1).build());
     Future<Recorder.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.2f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.2f).setCurrTick(1).build());
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -131,9 +131,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   public void testReloadOfAssociationsFromZK(TestContext context) {
     final Async async = context.async();
     Future<Recorder.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.1f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.1f).setCurrTick(1).build());
     Future<Recorder.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.2f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.2f).setCurrTick(1).build());
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -174,9 +174,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   public void testAssociationOfBackendsWithExistingProcessGroups(TestContext context) {
     final Async async = context.async();
     Future<Recorder.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.1f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.1f).setCurrTick(1).build());
     Future<Recorder.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.2f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.2f).setCurrTick(1).build());
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -211,9 +211,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
   public void testReAssociationOfBackendsWithDefunctBackend(TestContext context) {
     final Async async = context.async();
     Future<Recorder.ProcessGroups> f1 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.1f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.1f).setCurrTick(1).build());
     Future<Recorder.ProcessGroups> f2 = backendAssociationStore.reportBackendLoad(
-        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setLoad(0.2f).setCurrTick(1).build());
+        BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.2f).setCurrTick(1).build());
     CompositeFuture.all(Arrays.asList(f1, f2)).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -231,7 +231,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
             context.assertTrue(associationIPs.contains("2"));
             vertx.setTimer(3000, timerId -> {
               backendAssociationStore.reportBackendLoad(
-                  BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setCurrTick(2).build())
+                  BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.5f).setCurrTick(2).build())
                   .setHandler(ar3 -> {
                 if(ar3.failed()) {
                   context.fail(ar3.cause());

@@ -4,6 +4,5 @@ import recording.Recorder;
 
 public interface ProcessGroupContextForPolling {
   Recorder.ProcessGroup getProcessGroup();
-  boolean receivePoll(Recorder.PollReq pollReq);
-  Recorder.WorkAssignment getNextWorkAssignment();
+  Recorder.WorkAssignment receivePoll(Recorder.PollReq pollReq);
 }

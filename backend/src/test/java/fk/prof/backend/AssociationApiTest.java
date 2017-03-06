@@ -12,6 +12,7 @@ import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
+import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import fk.prof.backend.http.ProfHttpClient;
@@ -47,6 +48,7 @@ public class AssociationApiTest {
   private CuratorFramework curatorClient;
   private BackendAssociationStore backendAssociationStore;
   private ProcessGroupAssociationStore processGroupAssociationStore;
+  private PolicyStore policyStore;
   private InMemoryLeaderStore inMemoryLeaderStore;
   private ConfigManager configManager;
 
@@ -70,6 +72,7 @@ public class AssociationApiTest {
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
     inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    policyStore = new PolicyStore();
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new AggregationWindowLookupStoreImpl(), processGroupAssociationStore);
     backendHttpVerticleDeployer.deploy();
@@ -162,7 +165,7 @@ public class AssociationApiTest {
   public void getAssociationProxiedToLeader(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
-    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore);
+    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
     Runnable leaderElectedTask = LeaderElectedTask.newBuilder().build(vertx, leaderHttpDeployer);
 
     VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
@@ -181,7 +184,7 @@ public class AssociationApiTest {
             if(ar.succeeded()) {
               context.assertEquals(500, ar.result().getStatusCode());
               try {
-                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setLoad(0.5f).setCurrTick(1).build())
+                makeRequestReportLoad(BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.5f).setCurrTick(1).build())
                     .setHandler(ar1 -> {
                       context.assertTrue(ar1.succeeded());
                       try {

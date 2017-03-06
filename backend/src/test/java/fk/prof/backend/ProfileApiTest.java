@@ -75,7 +75,7 @@ public class ProfileApiTest {
     vertx.close();
   }
 
-  @Test
+  @Test(timeout = 5000)
   public void testWithValidSingleProfile(TestContext context) {
     long workId = workIdCounter.incrementAndGet();
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
@@ -101,7 +101,6 @@ public class ProfileApiTest {
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
             awStart, null,
             expectedWorkLookup, expectedAggregationBucket);
-
         context.assertTrue(expected.equals(actual));
         async.complete();
       }

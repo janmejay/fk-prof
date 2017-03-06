@@ -39,7 +39,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private final LeaderReadContext leaderReadContext;
   private final AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
   private final ProcessGroupDiscoveryContext processGroupDiscoveryContext;
-  private final int leaderPort;
+  private final int leaderHttpPort;
+  private final int backendHttpPort;
   private final String ipAddress;
   private final int backendVersion;
 
@@ -51,7 +52,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
                              AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
                              ProcessGroupDiscoveryContext processGroupDiscoveryContext) {
     this.configManager = configManager;
-    this.leaderPort = configManager.getLeaderHttpPort();
+    this.leaderHttpPort = configManager.getLeaderHttpPort();
+    this.backendHttpPort = configManager.getBackendHttpPort();
     this.ipAddress = configManager.getIPAddress();
     this.backendVersion = configManager.getBackendVersion();
 
@@ -141,12 +143,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
       if(processGroupContextForPolling == null) {
         throw new IllegalArgumentException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
-      boolean timeUpdated = processGroupContextForPolling.receivePoll(pollReq);
 
-      Recorder.WorkAssignment nextWorkAssignment = null;
-      if(timeUpdated) {
-        nextWorkAssignment = processGroupContextForPolling.getNextWorkAssignment();
-      }
+      Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.receivePoll(pollReq);
       Recorder.PollRes pollRes = Recorder.PollRes.newBuilder()
           .setAssignment(nextWorkAssignment)
           .setControllerVersion(backendVersion)
@@ -168,7 +166,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
     if (leaderIPAddress != null) {
       try {
         Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
-        //TODO: Check if backend already knows about this process group and send self as the association, rather than proxying to leader
+        ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
+        if(processGroupContextForPolling != null) {
+          Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(ipAddress).setPort(backendHttpPort).build();
+          context.response().end(ProtoUtil.buildBufferFromProto(assignedBackend));
+          return;
+        }
+
+        //Proxy request to leader if self(backend) is not associated with the recorder
         makeRequestGetAssociation(leaderIPAddress, processGroup).setHandler(ar -> {
           if(ar.succeeded()) {
             context.response().setStatusCode(ar.result().getStatusCode());
@@ -204,8 +209,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
       throws IOException {
     Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(
-        HttpMethod.POST,
-        leaderIPAddress, leaderPort, ApiPathConstants.LEADER_PUT_ASSOCIATION,
+        HttpMethod.PUT,
+        leaderIPAddress, leaderHttpPort, ApiPathConstants.LEADER_PUT_ASSOCIATION,
         payloadAsBuffer);
   }
 }

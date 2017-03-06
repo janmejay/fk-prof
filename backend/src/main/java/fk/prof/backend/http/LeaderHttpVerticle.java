@@ -3,6 +3,7 @@ package fk.prof.backend.http;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
+import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.AbstractVerticle;
@@ -21,11 +22,14 @@ import java.io.IOException;
 public class LeaderHttpVerticle extends AbstractVerticle {
   private final ConfigManager configManager;
   private final BackendAssociationStore backendAssociationStore;
+  private final PolicyStore policyStore;
 
   public LeaderHttpVerticle(ConfigManager configManager,
-                            BackendAssociationStore backendAssociationStore) {
+                            BackendAssociationStore backendAssociationStore,
+                            PolicyStore policyStore) {
     this.configManager = configManager;
     this.backendAssociationStore = backendAssociationStore;
+    this.policyStore = policyStore;
   }
 
   @Override
@@ -46,10 +50,16 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     router.post(ApiPathConstants.LEADER_POST_LOAD)
         .handler(this::handlePostLoad);
 
-    router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
+    router.put(ApiPathConstants.LEADER_PUT_ASSOCIATION)
         .handler(BodyHandler.create().setBodyLimit(1024 * 10));
-    router.post(ApiPathConstants.LEADER_PUT_ASSOCIATION)
+    router.put(ApiPathConstants.LEADER_PUT_ASSOCIATION)
         .handler(this::handlePutAssociation);
+
+    String apiPathForGetWork = ApiPathConstants.LEADER_GET_WORK + "/:appId/:clusterId/:procName";
+    router.get(apiPathForGetWork)
+        .handler(BodyHandler.create().setBodyLimit(1024 * 10));
+    router.get(apiPathForGetWork)
+        .handler(this::handleGetWork);
 
     return router;
   }
@@ -102,6 +112,21 @@ public class LeaderHttpVerticle extends AbstractVerticle {
           HttpHelper.handleFailure(context, httpFailure);
         }
       });
+    } catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    }
+  }
+
+  private void handleGetWork(RoutingContext context) {
+    try {
+      String appId = context.request().getParam("appId");
+      String clusterId = context.request().getParam("clusterId");
+      String procName = context.request().getParam("procName");
+      Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
+
+      BackendDTO.WorkProfile workProfile = this.policyStore.get(processGroup);
+      context.response().end(ProtoUtil.buildBufferFromProto(workProfile));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);

@@ -28,30 +28,31 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
     return processGroup;
   }
 
-  //Called on http event loop
-  @Override
-  public boolean receivePoll(Recorder.PollReq pollReq) {
-    RecorderIdentifier recorderIdentifier = RecorderIdentifier.from(pollReq.getRecorderInfo());
-    //TODO: clean-up job to remove recorders from lookup which have been defunct for a long long time
-    //This is only a problem if the same backend stays associated with recorder for a long time, otherwise ProcessGroupDetail will be GC-eligible on de-association
-    RecorderDetail recorderDetail = this.recorderLookup.computeIfAbsent(recorderIdentifier,
-        key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
-    return recorderDetail.receivePoll(pollReq);
-  }
-
   /**
    * Called on http event loop
    * TODO: Liable for refactoring to implement stickiness behaviour in future
+   * Returns null if poll is refused by recorder detail (if the poll request is obsolete)
    * Returns null if no work assignment schedule is present
+   * Returns null if recorder cannot accept work because it is defunct or already doing some other work
    * Returns null if no work assignments are left or none is ready yet to be handed out
+   * Returns null if recorder has been assigned work already
    * Returns work assignment otherwise
    * @return
    */
   @Override
-  public Recorder.WorkAssignment getNextWorkAssignment() {
-    if (workAssignmentSchedule != null) {
+  public Recorder.WorkAssignment receivePoll(Recorder.PollReq pollReq) {
+    RecorderIdentifier recorderIdentifier = RecorderIdentifier.from(pollReq.getRecorderInfo());
+    //TODO: clean-up job to remove recorders from lookup which have been defunct for a long long time
+    //The above is only a problem if the same backend stays associated with recorder for a long time, otherwise ProcessGroupDetail will be GC-eligible on de-association
+    RecorderDetail recorderDetail = this.recorderLookup.computeIfAbsent(recorderIdentifier,
+        key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
+
+    if (recorderDetail.receivePoll(pollReq)
+        && workAssignmentSchedule != null
+        && recorderDetail.canAcceptWork()) {
+
       try {
-        return workAssignmentSchedule.getNextWorkAssignment();
+        return workAssignmentSchedule.getNextWorkAssignment(recorderIdentifier);
       } catch (NullPointerException ex) {
         // Do nothing in this scenario. This exception can happen when:
         // t0=above "if conditional" is evaluated successfully
@@ -60,6 +61,7 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
         // t2=workAssignmentSchedule set to null because of events at t1
         // t3=above "try block" executed resulting in null pointer exception
       }
+
     }
     return null;
   }

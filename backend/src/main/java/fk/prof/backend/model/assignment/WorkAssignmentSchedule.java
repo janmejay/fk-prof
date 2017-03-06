@@ -8,7 +8,9 @@ import recording.Recorder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -23,6 +25,7 @@ public class WorkAssignmentSchedule {
   private final int maxConcurrentlyScheduledEntries;
 
   private final PriorityQueue<ScheduleEntry> entries = new PriorityQueue<>();
+  private Set<RecorderIdentifier> assignedRecorders = new HashSet<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
   public WorkAssignmentSchedule(int windowDurationInMins,
@@ -99,12 +102,13 @@ public class WorkAssignmentSchedule {
    * Returns null if:
    * > no work assignments are pending
    * > no work assignment ready to be handed out
+   * > recorder already assigned work (tied to aggregation window)
    * > timeout while acquiring lock over queue
    * > interrupted while waiting to acquire lock over queue
    * > exception occurred while processing queue entries
    * @return WorkAssignment or null
    */
-  public Recorder.WorkAssignment getNextWorkAssignment() {
+  public Recorder.WorkAssignment getNextWorkAssignment(RecorderIdentifier recorderIdentifier) {
     try {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {
@@ -116,7 +120,8 @@ public class WorkAssignmentSchedule {
               return null; //Since this is a priority queue, no point checking subsequent entries if current entry indicates its too early
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
-              if(value.workAssignment != null) {
+              if(value.workAssignment != null && !this.assignedRecorders.contains(recorderIdentifier)) {
+                this.assignedRecorders.add(recorderIdentifier);
                 return value.workAssignment;
               }
             }
