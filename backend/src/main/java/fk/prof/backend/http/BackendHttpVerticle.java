@@ -2,6 +2,7 @@ package fk.prof.backend.http;
 
 import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
+import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
 import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
@@ -151,7 +152,18 @@ public class BackendHttpVerticle extends AbstractVerticle {
           .setLocalTime(nextWorkAssignment == null
               ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
               : nextWorkAssignment.getIssueTime());
-      Recorder.PollRes pollRes = nextWorkAssignment == null ? pollResBuilder.build() : pollResBuilder.setAssignment(nextWorkAssignment).build();
+      Recorder.PollRes pollRes;
+      if(nextWorkAssignment == null) {
+        pollRes = pollResBuilder.build();
+      } else {
+        pollRes = pollResBuilder.setAssignment(nextWorkAssignment).build();
+        AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
+        if (aggregationWindow == null) {
+          throw new IllegalArgumentException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
+              nextWorkAssignment.getWorkId()));
+        }
+        aggregationWindow.updateRecorderInfo(nextWorkAssignment.getWorkId(), pollReq.getRecorderInfo());
+      }
       context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);

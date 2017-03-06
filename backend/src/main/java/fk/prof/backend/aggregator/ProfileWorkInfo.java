@@ -25,8 +25,13 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   private int recorderVersion;
   private AggregationState state = AggregationState.SCHEDULED;
   private LocalDateTime startedAt = null, endedAt = null;
+  private Recorder.RecorderInfo recorderInfo;
   private final HashObjIntMap<String> traceCoverages = HashObjIntMaps.newUpdatableMap();
   private final HashObjIntMap<Recorder.WorkType> workTypeSamples = HashObjIntMaps.newUpdatableMap();
+
+  public void updateRecorderInfo(Recorder.RecorderInfo recorderInfo) {
+    this.recorderInfo = recorderInfo;
+  }
 
   public void updateWSESpecificDetails(Recorder.Wse wse) {
     for (Recorder.TraceContext trace : wse.getIndexedData().getTraceCtxList()) {

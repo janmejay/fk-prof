@@ -127,7 +127,7 @@ public class RecordedProfileProcessor {
 
   private void processWse(Recorder.Wse wse) throws AggregationFailure {
     indexes.update(wse.getIndexedData());
-    aggregationWindow.updateWorkInfo(workId, wse);
+    aggregationWindow.updateWorkInfoWithWSE(workId, wse);
     aggregationWindow.aggregate(wse, indexes);
   }
 

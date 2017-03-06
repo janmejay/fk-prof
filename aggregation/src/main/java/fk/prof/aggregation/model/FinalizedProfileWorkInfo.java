@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
+/**
+ * TODO: Add recorder info(aggregated proto) to this class, accept it in constructor which is called from ProfileWorkInfo#buildFinalizedEntity method
+ */
 public class FinalizedProfileWorkInfo {
   private final int recorderVersion;
   private final AggregationState state;
