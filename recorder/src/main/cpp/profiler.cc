@@ -27,7 +27,8 @@ static void handle_profiling_signal(int signum, siginfo_t *info, void *context) 
 
 void Profiler::handle(int signum, siginfo_t *info, void *context) {
     IMPLICITLY_USE(signum);//TODO: make this reenterant or implement try_lock+backoff
-    IMPLICITLY_USE(info);
+    IMPLICITLY_USE(info);//TODO: put a timer here after perf-tuning medida heavily, we'd dearly love a timer here, but the overhead makes it a no-go as of now.
+    s_c_cpu_samp_total.inc();
     JNIEnv *jniEnv = getJNIEnv(jvm);
     ThreadBucket *thread_info = nullptr;
     PerfCtx::ThreadTracker* ctx_tracker = nullptr;
@@ -36,6 +37,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
             if (! ctx_tracker->should_record()) {
+                s_c_cpu_samp_drop_norec.inc();
                 SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
                 return;
             }
@@ -51,12 +53,20 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     
     if (jniEnv == NULL) {
         IsGCActiveType is_gc_active = Asgct::GetIsGCActive();
-        trace.num_frames = ((is_gc_active != NULL) &&
-                            ((*is_gc_active)() == 1)) ? -2 : -3; // ticks_unknown_not_Java or GC
+        if ((is_gc_active != NULL) && ((*is_gc_active)() == 1)) {
+            trace.num_frames = -2;
+            s_c_cpu_samp_gc.inc();
+        } else {
+            trace.num_frames = -3;// ticks_unknown_not_Java or GC
+            s_c_cpu_samp_err_no_jni.inc();
+        }
     } else {
         trace.env_id = jniEnv;
         ASGCTType asgct = Asgct::GetAsgct();
         (*asgct)(&trace, capture_stack_depth(), context);
+        if (trace.num_frames <= 0) {
+            s_c_cpu_samp_err_unexpected.inc();
+        }
     }
     // log all samples, failures included, let the post processing sift through the data
     buffer->push(trace, thread_info);
@@ -123,6 +133,23 @@ void Profiler::configure() {
     int processor_interval = Size * itvl_min / 1000 / 2;
     logger->debug("CpuSamplingProfiler is using processor-interval value: {}", processor_interval);
     processor = new Processor(jvmti, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
+}
+
+#define METRIC_TYPE "cpu_samples"
+
+Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq)
+    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer), tts(max_stack_depth), ongoing_conf(false),
+
+      s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
+
+      s_c_cpu_samp_drop_norec(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "no_rec"})),
+
+      s_c_cpu_samp_err_no_jni(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
+      s_c_cpu_samp_err_unexpected(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),
+      s_c_cpu_samp_gc(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})) {
+
+    set_sampling_freq(_sampling_freq);
+    configure();
 }
 
 Profiler::~Profiler() {

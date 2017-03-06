@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.*;
 public class Matchers {
     public static Matcher<Long> approximately(long base) {
         long err = base / 100;
+        if (err == 0) err = 1;
         return approximately(base, err);
     }
 
