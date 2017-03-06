@@ -98,7 +98,10 @@ private:
 
     metrics::Ctr& s_c_new_thd_info;
     metrics::Ctr& s_c_new_ctx_info;
+    metrics::Ctr& s_c_total_mthd_info;
     metrics::Ctr& s_c_new_mthd_info;
+
+    metrics::Ctr& s_c_bad_lineno;
 
     metrics::Ctr& s_c_frame_snipped;
 
