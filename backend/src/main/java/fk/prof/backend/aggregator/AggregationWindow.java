@@ -11,6 +11,7 @@ import recording.Recorder;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -129,7 +130,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
             entry -> entry.getValue().finalizeEntity()));
 
     // TODO : build recorders list while starting profiles
-    List<AggregatedProfileModel.RecorderInfo> recorders = Arrays.asList(AggregatedProfileModel.RecorderInfo.getDefaultInstance());
+    List<AggregatedProfileModel.RecorderInfo> recorders = Collections.EMPTY_LIST;
 
     return new FinalizedAggregationWindow(
         appId, clusterId, procId, start, endWithTolerance, recorders, finalizedWorkInfoLookup,

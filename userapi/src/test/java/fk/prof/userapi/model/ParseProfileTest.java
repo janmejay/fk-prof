@@ -48,6 +48,14 @@ public class ParseProfileTest {
     final String traceName1 = "print-trace-1";
     final String traceName2 = "doSome-trace-2";
 
+    @Test
+    public void testReadWriteForVariant() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Serializer.writeVariantInt32(Integer.MAX_VALUE + 10000, out);
+        int read = Deserializer.readVariantInt32(new ByteArrayInputStream(out.toByteArray()));
+        assert read == Integer.MAX_VALUE + 10000;
+    }
+
     @BeforeClass
     public static void setup() {
         ProtoSerializers.registerSerializers(Json.mapper);
@@ -188,25 +196,25 @@ public class ParseProfileTest {
         OutputStream zout = new GZIPOutputStream(out);
         CheckedOutputStream cout = new CheckedOutputStream(zout, adler32);
 
-        Serializer.writeFixedWidthInt32(AggregationWindowSerializer.AGGREGATION_FILE_MAGIC_NUM, cout);
+        Serializer.writeVariantInt32(AggregationWindowSerializer.AGGREGATION_FILE_MAGIC_NUM, cout);
 
         adler32.reset();
         buildHeader().writeDelimitedTo(cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         // traces
         adler32.reset();
         buildTraceName(traceName1, traceName2).writeDelimitedTo(cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         adler32.reset();
         buildTraceCtxList().writeDelimitedTo(cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         // recorders
         adler32.reset();
         buildRecordersList().writeDelimitedTo(cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         // profile info
         adler32.reset();
@@ -214,18 +222,18 @@ public class ParseProfileTest {
             workInfo.writeDelimitedTo(cout);
         }
         Serializer.writeVariantInt32(0, cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         // cpu sample
         adler32.reset();
         buildMethodLookup().writeDelimitedTo(cout);
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         adler32.reset();
         for (AggregatedProfileModel.FrameNodeList frameNodes : buildFrameNodes()) {
             frameNodes.writeDelimitedTo(cout);
         }
-        Serializer.writeFixedWidthInt32((int)adler32.getValue(), cout);
+        Serializer.writeVariantInt32((int)adler32.getValue(), cout);
 
         cout.flush();
         cout.close();

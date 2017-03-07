@@ -33,7 +33,7 @@ public class AggregationWindowSerializer implements Serializer {
         Checksum checksum = new Adler32();
         CheckedOutputStream cout = new CheckedOutputStream(out, checksum);
 
-        Serializer.writeFixedWidthInt32(AGGREGATION_FILE_MAGIC_NUM, cout);
+        Serializer.writeVariantInt32(AGGREGATION_FILE_MAGIC_NUM, cout);
 
         // header
         Serializer.writeCheckedDelimited(aggregation.buildHeaderProto(VERSION, AggregatedProfileModel.WorkType.cpu_sample_work), cout);
@@ -57,7 +57,7 @@ public class AggregationWindowSerializer implements Serializer {
         }
         // end flag for profile summary
         Serializer.writeVariantInt32(0, cout);
-        Serializer.writeFixedWidthInt32((int)checksum.getValue(), cout);
+        Serializer.writeVariantInt32((int)checksum.getValue(), cout);
 
         // work specific aggregated samples
         switch (workType) {
@@ -102,7 +102,7 @@ public class AggregationWindowSerializer implements Serializer {
                 visitor.end();
                 ++index;
             }
-            Serializer.writeFixedWidthInt32((int) checksum.getValue(), cout);
+            Serializer.writeVariantInt32((int) checksum.getValue(), cout);
         }
     }
 }

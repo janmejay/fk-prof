@@ -7,11 +7,12 @@ import fk.prof.aggregation.state.AggregationState;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class FinalizedProfileWorkInfo {
   private final int recorderVersion;
-  private final int recorderIdx;
+  private final Integer recorderIdx;
   private final AggregationState state;
   private final LocalDateTime startedAt;
   private final LocalDateTime endedAt;
@@ -28,6 +29,21 @@ public class FinalizedProfileWorkInfo {
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
     this.recorderIdx = recorderIdx;
+    this.state = state;
+    this.startedAt = startedAt;
+    this.endedAt = endedAt;
+    this.traceCoverages = traceCoverages;
+    this.samples = samples;
+  }
+
+  public FinalizedProfileWorkInfo(int recorderVersion,
+                                  AggregationState state,
+                                  LocalDateTime startedAt,
+                                  LocalDateTime endedAt,
+                                  Map<String, Integer> traceCoverages,
+                                  Map<WorkType, Integer> samples) {
+    this.recorderVersion = recorderVersion;
+    this.recorderIdx = null;
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
@@ -60,7 +76,8 @@ public class FinalizedProfileWorkInfo {
         && this.startedAt.equals(other.startedAt)
         && this.endedAt.equals(other.endedAt)
         && this.traceCoverages.equals(other.traceCoverages)
-        && this.samples.equals(other.samples);
+        && this.samples.equals(other.samples)
+        && (this.recorderIdx == null ? other.recorderIdx == null : this.recorderIdx.equals(other.recorderIdx));
   }
 
   protected Set<String> recordedTraces() {
@@ -71,10 +88,13 @@ public class FinalizedProfileWorkInfo {
     if(workType == null || samples.containsKey(workType)) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
-              .setRecorderIdx(recorderIdx)
               .setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS))
               .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
               .setStatus(toAggregationStatusProto(state));
+
+      if(recorderIdx != null) {
+        builder.setRecorderIdx(recorderIdx);
+      }
 
       if(workType != null) {
         builder.addSampleCount(ProfileWorkInfo.SampleCount.newBuilder().setWorkType(workType).setSampleCount(samples.getOrDefault(workType, 0)));

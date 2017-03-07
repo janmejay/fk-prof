@@ -96,7 +96,7 @@ public class AggregatedProfileLoader {
         try {
             CheckedInputStream cin = new CheckedInputStream(in, checksum);
 
-            int magicNum = Deserializer.readFixedInt32(cin);
+            int magicNum = Deserializer.readVariantInt32(cin);
 
             if (magicNum != AggregationWindowSerializer.AGGREGATION_FILE_MAGIC_NUM) {
                 future.fail("Unknown file. Unexpected first 4 bytes");
@@ -120,7 +120,7 @@ public class AggregatedProfileLoader {
             while ((size = Deserializer.readVariantInt32(cin)) != 0) {
                 profiles.add(AggregatedProfileModel.ProfileWorkInfo.parseFrom(ByteStreams.limit(cin, size)));
             }
-            checksumVerify((int) checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error profileWorkInfo");
+            checksumVerify((int) checksum.getValue(), Deserializer.readVariantInt32(in), "checksum error profileWorkInfo");
 
             // read method lookup table
             AggregatedProfileModel.MethodLookUp methodLookUp = Deserializer.readCheckedDelimited(AggregatedProfileModel.MethodLookUp.parser(), cin, "methodLookup");
@@ -140,7 +140,7 @@ public class AggregatedProfileLoader {
                     break;
             }
 
-            checksumVerify((int) checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error " + filename.workType.name() + " aggregated samples");
+            checksumVerify((int) checksum.getValue(), Deserializer.readVariantInt32(in), "checksum error " + filename.workType.name() + " aggregated samples");
 
             AggregatedProfileInfo profileInfo = new AggregatedProfileInfo(parsedHeader, traceNames, traceDetails, recorders, profiles, samplesPerTrace);
 
@@ -157,7 +157,7 @@ public class AggregatedProfileLoader {
         try {
             CheckedInputStream cin = new CheckedInputStream(in, checksum);
 
-            int magicNum = Deserializer.readFixedInt32(cin);
+            int magicNum = Deserializer.readVariantInt32(cin);
 
             if (magicNum !=  AggregationWindowSummarySerializer.SUMMARY_FILE_MAGIC_NUM) {
                 future.fail("Unknown file. Unexpected first 4 bytes");
@@ -180,7 +180,7 @@ public class AggregatedProfileLoader {
             while((size = Deserializer.readVariantInt32(cin)) != 0) {
                 profiles.add(AggregatedProfileModel.ProfileWorkInfo.parseFrom(ByteStreams.limit(cin, size)));
             }
-            checksumVerify((int)checksum.getValue(), Deserializer.readFixedInt32(in), "checksum error profileWorkInfo");
+            checksumVerify((int)checksum.getValue(), Deserializer.readVariantInt32(in), "checksum error profileWorkInfo");
 
             // read work specific samples
             Map<AggregatedProfileModel.WorkType, AggregationWindowSummary.WorkSpecificSummary> summaryPerTrace = new HashMap<>();

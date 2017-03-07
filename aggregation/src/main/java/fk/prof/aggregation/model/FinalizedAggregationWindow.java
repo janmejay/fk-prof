@@ -74,6 +74,10 @@ public class FinalizedAggregationWindow {
     return builder.build();
   }
 
+  protected Header buildHeaderProto(int version) {
+    return buildHeaderProto(version, null);
+  }
+
   protected RecorderList buildRecorderListProto() {
     return RecorderList.newBuilder().addAllRecorders(recorders).build();
   }

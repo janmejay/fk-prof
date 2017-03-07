@@ -29,10 +29,10 @@ public class AggregationWindowSummarySerializer implements Serializer {
         Checksum checksum = new Adler32();
         CheckedOutputStream cout = new CheckedOutputStream(out, checksum);
 
-        Serializer.writeFixedWidthInt32(SUMMARY_FILE_MAGIC_NUM, cout);
+        Serializer.writeVariantInt32(SUMMARY_FILE_MAGIC_NUM, cout);
 
         // header
-        Serializer.writeCheckedDelimited(aggregation.buildHeaderProto(VERSION, null), cout);
+        Serializer.writeCheckedDelimited(aggregation.buildHeaderProto(VERSION), cout);
 
         // all traces
         AggregatedProfileModel.TraceCtxNames traceNames = aggregation.buildTraceCtxNamesProto();
@@ -51,7 +51,7 @@ public class AggregationWindowSummarySerializer implements Serializer {
         }
         // end flag for profile work summary
         Serializer.writeVariantInt32(0, cout);
-        Serializer.writeFixedWidthInt32((int)checksum.getValue(), cout);
+        Serializer.writeVariantInt32((int)checksum.getValue(), cout);
 
         // work specific trace summary
         // cpu_sample_work

@@ -27,16 +27,6 @@ public abstract class Deserializer<T> {
         return CodedInputStream.readRawVarint32(firstByte, in);
     }
 
-    public static int readFixedInt32(InputStream in) throws IOException {
-        int ch1 = in.read();
-        int ch2 = in.read();
-        int ch3 = in.read();
-        int ch4 = in.read();
-        if ((ch1 | ch2 | ch3 | ch4) < 0)
-            throw new EOFException();
-        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
-    }
-
     public static <T extends AbstractMessage> T readCheckedDelimited(Parser<T> parser, CheckedInputStream cin, String tag) throws IOException {
         Checksum checksum = cin.getChecksum();
 
@@ -44,7 +34,7 @@ public abstract class Deserializer<T> {
         T msg = parser.parseDelimitedFrom(cin);
 
         int chksmValue = (int)checksum.getValue();
-        int expectedChksmValue = readFixedInt32(cin);
+        int expectedChksmValue = readVariantInt32(cin);
 
         assert chksmValue == expectedChksmValue : "Checksum did not match for " + tag;
 

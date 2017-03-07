@@ -1,16 +1,18 @@
 package fk.prof.aggregation.model;
 
-import com.google.common.collect.Sets;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
 import fk.prof.aggregation.state.AggregationState;
 import org.hamcrest.core.IsCollectionContaining;
+import org.joda.time.LocalDate;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.hamcrest.core.AnyOf.anyOf;
@@ -21,6 +23,29 @@ import static org.junit.Assert.*;
  * @author gaurav.ashok
  */
 public class ModelToProtoTest {
+
+    @Test
+    public void testAggregationFileName() {
+        String base = "profiles";
+        String appid = "app1";
+        String clusterid = "cluster1";
+        String procid = "proc1";
+        ZonedDateTime dateTime = ZonedDateTime.now(Clock.systemUTC());
+        int duration = 60;
+
+        for(WorkType workType: WorkType.values()) {
+            AggregatedProfileNamingStrategy filename = new AggregatedProfileNamingStrategy(base, 1, appid, clusterid, procid, dateTime, duration, workType);
+            AggregatedProfileNamingStrategy parsedFilename = AggregatedProfileNamingStrategy.fromFileName(filename.getFileName(0));
+            assertThat(parsedFilename, is(filename));
+        }
+
+        // summary file
+        AggregatedProfileNamingStrategy summaryFilename = new AggregatedProfileNamingStrategy(base, 1, appid, clusterid, procid, dateTime, duration);
+        AggregatedProfileNamingStrategy parsed = AggregatedProfileNamingStrategy.fromFileName(summaryFilename.getFileName(0));
+        assertThat(parsed, is(summaryFilename));
+
+        assertThat(parsed.isSummaryFile, is(true));
+    }
 
     @Test
     public void testProfileSummary_aggregationWindowsShouldProperlyBuildSummaryProto() {

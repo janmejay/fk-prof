@@ -42,7 +42,7 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         this.workType = workType;
         this.isSummaryFile = false;
 
-        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode(appId), encode(clusterId),
+        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode32(appId), encode32(clusterId),
                 procId, startTime, duration, workType.name());
     }
 
@@ -57,7 +57,7 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         this.workType = null;
         this.isSummaryFile = true;
 
-        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode(appId), encode(clusterId),
+        fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode32(appId), encode32(clusterId),
                 procId, startTime, duration, "summary");
     }
 
@@ -86,20 +86,20 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         String[] tokens = path.split(DELIMITER);
 
         if("summary".equals(tokens[7])) {
-            return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode(tokens[2]), decode(tokens[3]), tokens[4],
+            return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), tokens[4],
                     ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]));
         }
 
-        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode(tokens[2]), decode(tokens[3]), tokens[4],
+        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), tokens[4],
                 ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]),
                 AggregatedProfileModel.WorkType.valueOf(tokens[7]));
     }
 
-    private static String encode(String str) {
+    private static String encode32(String str) {
         return BaseEncoding.base32().encode(str.getBytes(Charset.forName("utf-8")));
     }
 
-    private static String decode(String str) {
+    private static String decode32(String str) {
         return new String(BaseEncoding.base32().decode(str), Charset.forName("utf-8"));
     }
 

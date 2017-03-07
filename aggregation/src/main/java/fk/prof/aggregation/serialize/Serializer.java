@@ -18,16 +18,11 @@ public interface Serializer {
 
     void serialize(OutputStream out) throws IOException;
 
-    static void writeFixedWidthInt32(int value, OutputStream os) throws IOException {
-        byte[] bytes = {(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value};
-        os.write(bytes);
-    }
-
     static void writeVariantInt32(int value, OutputStream os) throws IOException {
         byte[] bytes = new byte[8];
 
         CodedOutputStream cout = CodedOutputStream.newInstance(bytes);
-        cout.writeInt32NoTag(value);
+        cout.writeUInt32NoTag(value);
         cout.flush();
 
         os.write(bytes, 0, cout.getTotalBytesWritten());
@@ -38,6 +33,6 @@ public interface Serializer {
         checksum.reset();
 
         msg.writeDelimitedTo(out);
-        writeFixedWidthInt32((int)checksum.getValue(), out);
+        writeVariantInt32((int)checksum.getValue(), out);
     }
 }
