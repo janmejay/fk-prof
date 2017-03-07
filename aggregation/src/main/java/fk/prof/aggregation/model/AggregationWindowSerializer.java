@@ -1,6 +1,5 @@
 package fk.prof.aggregation.model;
 
-import fk.prof.aggregation.Constants;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.serialize.SerializationException;
 import fk.prof.aggregation.serialize.Serializer;
@@ -10,13 +9,17 @@ import java.io.OutputStream;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedOutputStream;
 import java.util.zip.Checksum;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * @author gaurav.ashok
  */
 public class AggregationWindowSerializer implements Serializer {
 
-    private static final int VERSION = 1;
+    public static final int VERSION = 1;
+    public static final int AGGREGATION_FILE_MAGIC_NUM = 0x19A9F5C2;
+    public static final int STACKTRACETREE_SERIAL_BATCHSIZE = 1000;
+
     private AggregatedProfileModel.WorkType workType;
     private FinalizedAggregationWindow aggregation;
 
@@ -30,38 +33,45 @@ public class AggregationWindowSerializer implements Serializer {
         Checksum checksum = new Adler32();
         CheckedOutputStream cout = new CheckedOutputStream(out, checksum);
 
-        Serializer.writeFixedWidthInt32(Constants.AGGREGATION_FILE_MAGIC_NUM, cout);
+        Serializer.writeVariantInt32(AGGREGATION_FILE_MAGIC_NUM, cout);
 
         // header
         Serializer.writeCheckedDelimited(aggregation.buildHeaderProto(VERSION, AggregatedProfileModel.WorkType.cpu_sample_work), cout);
 
-        AggregatedProfileModel.TraceCtxList traces;
-        switch (workType) {
-            case cpu_sample_work:
-                traces = aggregation.cpuSamplingAggregationBucket.buildTraceCtxListProto();
-                break;
-            default:
-                throw new IllegalArgumentException(workType.name() + " not supported");
-        }
+        AggregatedProfileModel.TraceCtxNames traceNames = aggregation.buildTraceCtxNamesProto(workType);
+        AggregatedProfileModel.TraceCtxDetailList traceDetails = aggregation.buildTraceCtxDetailListProto(workType, traceNames);
 
         // traces
-        Serializer.writeCheckedDelimited(traces, cout);
+        Serializer.writeCheckedDelimited(traceNames, cout);
+        Serializer.writeCheckedDelimited(traceDetails, cout);
+
+        // all recorders
+        Serializer.writeCheckedDelimited(aggregation.buildRecorderListProto(), cout);
 
         // profiles summary
-        Serializer.writeCheckedDelimited(aggregation.buildProfileSummaryProto(workType, traces), cout);
+        checksum.reset();
+        for(AggregatedProfileModel.ProfileWorkInfo workInfo: aggregation.buildProfileWorkInfoProto(workType, traceNames)) {
+            if(workInfo != null) {
+                workInfo.writeDelimitedTo(cout);
+            }
+        }
+        // end flag for profile summary
+        Serializer.writeVariantInt32(0, cout);
+        Serializer.writeVariantInt32((int)checksum.getValue(), cout);
 
+        // work specific aggregated samples
         switch (workType) {
             case cpu_sample_work:
-                new CpuSamplingAggregatedSamplesSerializer(aggregation.cpuSamplingAggregationBucket, traces).serialize(out);
+                new CpuSamplingAggregatedSamplesSerializer(aggregation.cpuSamplingAggregationBucket, traceNames).serialize(out);
         }
     }
 
     private static class CpuSamplingAggregatedSamplesSerializer implements Serializer {
 
         private FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation;
-        private AggregatedProfileModel.TraceCtxList traces;
+        private AggregatedProfileModel.TraceCtxNames traces;
 
-        public CpuSamplingAggregatedSamplesSerializer(FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation, AggregatedProfileModel.TraceCtxList traces) {
+        public CpuSamplingAggregatedSamplesSerializer(FinalizedCpuSamplingAggregationBucket cpuSamplingAggregation, AggregatedProfileModel.TraceCtxNames traces) {
             this.cpuSamplingAggregation = cpuSamplingAggregation;
             this.traces = traces;
         }
@@ -78,12 +88,12 @@ public class AggregationWindowSerializer implements Serializer {
             // stacktrace tree
             checksum.reset();
             int index = 0;
-            for(AggregatedProfileModel.TraceCtxDetail trace: traces.getAllTraceCtxList()) {
+            for(String traceName: traces.getNameList()) {
                 FinalizedCpuSamplingAggregationBucket.NodeVisitor visitor =
-                        new FinalizedCpuSamplingAggregationBucket.NodeVisitor(cout, Constants.STACKTRACETREE_SERIAL_BATCHSIZE, index);
+                        new FinalizedCpuSamplingAggregationBucket.NodeVisitor(cout, STACKTRACETREE_SERIAL_BATCHSIZE, index);
 
                 try {
-                    cpuSamplingAggregation.traceDetailLookup.get(trace.getName()).getGlobalRoot().traverse(visitor);
+                    cpuSamplingAggregation.traceDetailLookup.get(traceName).getGlobalRoot().traverse(visitor);
                 } catch (IOException e) {
                     throw e;
                 } catch (Exception e) {
@@ -92,7 +102,7 @@ public class AggregationWindowSerializer implements Serializer {
                 visitor.end();
                 ++index;
             }
-            Serializer.writeFixedWidthInt32((int) checksum.getValue(), cout);
+            Serializer.writeVariantInt32((int) checksum.getValue(), cout);
         }
     }
 }
