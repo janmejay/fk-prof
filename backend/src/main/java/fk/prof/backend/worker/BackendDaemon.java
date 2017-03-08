@@ -89,8 +89,8 @@ public class BackendDaemon extends AbstractVerticle {
   }
 
   private void postLoadToLeader() {
-    String leaderIPAddress;
-    if((leaderIPAddress = leaderReadContext.getLeaderIPAddress()) != null) {
+    BackendDTO.LeaderDetail leaderDetail;
+    if((leaderDetail = leaderReadContext.getLeader()) != null) {
 
       //TODO: load = 0.5 hard-coded right now. Replace this with dynamic load computation in future
       float load = 0.5f;
@@ -98,8 +98,8 @@ public class BackendDaemon extends AbstractVerticle {
       try {
         httpClient.requestAsync(
             HttpMethod.POST,
-            leaderIPAddress,
-            leaderHttpPort,
+            leaderDetail.getHost(),
+            leaderDetail.getPort(),
             ApiPathConstants.LEADER_POST_LOAD,
             ProtoUtil.buildBufferFromProto(
                 BackendDTO.LoadReportRequest.newBuilder()
@@ -150,8 +150,8 @@ public class BackendDaemon extends AbstractVerticle {
 
   private Future<BackendDTO.WorkProfile> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
     Future<BackendDTO.WorkProfile> result = Future.future();
-    String leaderIPAddress;
-    if((leaderIPAddress = leaderReadContext.getLeaderIPAddress()) != null) {
+    BackendDTO.LeaderDetail leaderDetail;
+    if((leaderDetail = leaderReadContext.getLeader()) != null) {
       try {
         String requestPath = new StringBuilder(ApiPathConstants.LEADER_GET_WORK)
             .append('/').append(URLEncoder.encode(processGroup.getAppId(), ENCODING))
@@ -162,8 +162,8 @@ public class BackendDaemon extends AbstractVerticle {
         //TODO: Support configuring max retries at request level because this request should definitely be retried on failure while other requests like posting load to backend need not be
         httpClient.requestAsync(
             HttpMethod.GET,
-            leaderIPAddress,
-            leaderHttpPort,
+            leaderDetail.getHost(),
+            leaderDetail.getPort(),
             requestPath,
             null).setHandler(ar -> {
               if (ar.failed()) {

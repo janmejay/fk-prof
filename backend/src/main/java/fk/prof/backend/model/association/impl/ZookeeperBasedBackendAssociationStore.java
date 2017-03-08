@@ -4,7 +4,6 @@ import fk.prof.backend.exception.BackendAssociationException;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
@@ -30,19 +29,18 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   private final String backendAssociationPath;
   private final int loadReportIntervalInSeconds;
   private final int loadMissTolerance;
-  private final int backendHttpPort;
 
-  private final Map<String, BackendDetail> backendDetailLookup = new ConcurrentHashMap<>();
+  private final Map<Recorder.AssignedBackend, BackendDetail> backendDetailLookup = new ConcurrentHashMap<>();
   private final SortedSet<BackendDetail> availableBackendsByPriority;
 
-  private final Map<Recorder.ProcessGroup, String> processGroupToBackendLookup = new ConcurrentHashMap<>();
+  private final Map<Recorder.ProcessGroup, Recorder.AssignedBackend> processGroupToBackendLookup = new ConcurrentHashMap<>();
   private final Map<Recorder.ProcessGroup, String> processGroupToZNodePathLookup = new ConcurrentHashMap<>();
 
   private final ReentrantLock backendAssignmentLock = new ReentrantLock();
 
 
   public ZookeeperBasedBackendAssociationStore(Vertx vertx, CuratorFramework curatorClient, String backendAssociationPath,
-                                                int loadReportIntervalInSeconds, int loadMissTolerance, int backendHttpPort,
+                                                int loadReportIntervalInSeconds, int loadMissTolerance,
                                                 Comparator<BackendDetail> backendPriorityComparator)
       throws Exception {
     if(vertx == null) {
@@ -65,18 +63,11 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     this.loadMissTolerance = loadMissTolerance;
     this.availableBackendsByPriority = new ConcurrentSkipListSet<>(backendPriorityComparator);
 
-    /**
-     * TODO: Don't accept backend http port as constructor param, rather enhance load report request to send backend port along with the IP
-     * backend http port is required to build assigned backend object required for /association API
-     * Modify all lookup DS in this class to have key/value as Recorder.AssignedBackend instead of String (ip address only)
-     */
-    this.backendHttpPort = backendHttpPort;
-
     loadDataFromZookeeperInBackendLookup();
     for(BackendDetail backendDetail: this.backendDetailLookup.values()) {
       for(Recorder.ProcessGroup processGroup: backendDetail.getAssociatedProcessGroups()) {
-        if (this.processGroupToBackendLookup.putIfAbsent(processGroup, backendDetail.getBackendIPAddress()) != null) {
-          throw new IllegalStateException(String.format("Backend mapping already exists for process group=%s", processGroup));
+        if (this.processGroupToBackendLookup.putIfAbsent(processGroup, backendDetail.getBackend()) != null) {
+          throw new IllegalStateException(String.format("Backend mapping already exists for process group=%s", RecorderProtoUtil.processGroupCompactRepr(processGroup)));
         }
       }
     }
@@ -84,12 +75,11 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
   @Override
   public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
-    //TODO: Unique qualifier of a backend is ip along with port. Right now port is being ignored
-    String backendIPAddress = payload.getIp();
+    Recorder.AssignedBackend reportingBackend = Recorder.AssignedBackend.newBuilder().setHost(payload.getIp()).setPort(payload.getPort()).build();
     Future<Recorder.ProcessGroups> result = Future.future();
 
     BackendDetail existingBackendDetail;
-    if((existingBackendDetail = backendDetailLookup.get(backendIPAddress)) != null) {
+    if((existingBackendDetail = backendDetailLookup.get(reportingBackend)) != null) {
       updateLoadOfBackend(existingBackendDetail, payload, result);
     } else {
       vertx.executeBlocking(future -> {
@@ -98,7 +88,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
            * When implementing above, ensure cleanup operations in backenddetaillookup are consistent wrt get/iteration/update in
            * {@link #getAssociatedBackend(Recorder.ProcessGroup)} and {@link #reportBackendLoad(BackendDTO.LoadReportRequest)}
            */
-          BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(backendIPAddress, (key) -> {
+          BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(reportingBackend, (key) -> {
             try {
               BackendDetail updatedBackendDetail = new BackendDetail(key, loadReportIntervalInSeconds, loadMissTolerance);
               String zNodePath = getZNodePathForBackend(key);
@@ -144,16 +134,17 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   @Override
   public Future<Recorder.AssignedBackend> getAssociatedBackend(Recorder.ProcessGroup processGroup) {
     Future<Recorder.AssignedBackend> result = Future.future();
-    String backendAssociation = processGroupToBackendLookup.get(processGroup);
+    Recorder.AssignedBackend backendAssociation = processGroupToBackendLookup.get(processGroup);
 
     if(backendAssociation != null
         && !backendDetailLookup.get(backendAssociation).isDefunct()) {
       // Returning the existing assignment if some backend is something already assigned to this process group and it is not defunct
       if(logger.isDebugEnabled()) {
         logger.debug(String.format("process_group=%s, existing backend=%s, available",
-            RecorderProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
+            RecorderProtoUtil.processGroupCompactRepr(processGroup),
+            RecorderProtoUtil.assignedBackendCompactRepr(backendAssociation)));
       }
-      result.complete(buildAssignedBackend(backendAssociation));
+      result.complete(backendAssociation);
     } else {
       vertx.executeBlocking(future -> {
         /**
@@ -165,32 +156,36 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
          */
         if(logger.isDebugEnabled()) {
           logger.debug(String.format("process_group=%s, existing backend=%s, defunct or null",
-              RecorderProtoUtil.processGroupCompactRepr(processGroup), backendAssociation));
+              RecorderProtoUtil.processGroupCompactRepr(processGroup),
+              RecorderProtoUtil.assignedBackendCompactRepr(backendAssociation)));
         }
         try {
           boolean acquired = backendAssignmentLock.tryLock(2, TimeUnit.SECONDS);
           if (acquired) {
             try {
               //Lookup existing backend association again after acquiring lock to avoid race conditions
-              String existingBackendAssociation = processGroupToBackendLookup.get(processGroup);
+              Recorder.AssignedBackend existingBackendAssociation = processGroupToBackendLookup.get(processGroup);
               if (existingBackendAssociation == null) {
                 //This is a new process group and no backend has been assigned to this yet
                 BackendDetail availableBackend = getAvailableBackendFromPrioritySet();
                 if (availableBackend == null) {
                   //TODO: some metric to indicate assignment failure in this scenario
-                  future.fail(new BackendAssociationException("No available backends are known to leader, cannot assign one to process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup)));
+                  future.fail(new BackendAssociationException("No available backends are known to leader, cannot assign one to process_group=" +
+                      RecorderProtoUtil.processGroupCompactRepr(processGroup)));
                 } else {
                   try {
                     associateBackendWithProcessGroup(availableBackend, processGroup);
                     if (logger.isDebugEnabled()) {
                       logger.debug(String.format("process_group=%s, new backend=%s",
-                          RecorderProtoUtil.processGroupCompactRepr(processGroup), availableBackend.getBackendIPAddress()));
+                          RecorderProtoUtil.processGroupCompactRepr(processGroup),
+                          RecorderProtoUtil.assignedBackendCompactRepr(availableBackend.getBackend())));
                     }
-                    future.complete(buildAssignedBackend(availableBackend.getBackendIPAddress()));
+                    future.complete(availableBackend.getBackend());
                   } catch (Exception ex) {
                     future.fail(new BackendAssociationException(
                         String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
-                            availableBackend.getBackendIPAddress(), processGroup), true));
+                            RecorderProtoUtil.assignedBackendCompactRepr(availableBackend.getBackend()),
+                            RecorderProtoUtil.processGroupCompactRepr(processGroup)), true));
                   } finally {
                     safelyReAddBackendToAvailableBackendSet(availableBackend);
                   }
@@ -205,9 +200,10 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                    */
                   if (logger.isDebugEnabled()) {
                     logger.debug(String.format("process_group=%s, existing backend=%s, available",
-                        RecorderProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress()));
+                        RecorderProtoUtil.processGroupCompactRepr(processGroup),
+                        RecorderProtoUtil.assignedBackendCompactRepr(existingBackend.getBackend())));
                   }
-                  future.complete(buildAssignedBackend(existingBackendAssociation));
+                  future.complete(existingBackendAssociation);
                 } else {
                   /**
                    * Presently assigned backend is defunct, find an available backend and if found, de-associate current backend and assign the new one to process group
@@ -217,8 +213,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                   BackendDetail newBackend = getAvailableBackendFromPrioritySet();
                   if (newBackend == null) {
                     logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
-                        existingBackendAssociation, RecorderProtoUtil.processGroupCompactRepr(processGroup)));
-                    future.complete(buildAssignedBackend(existingBackendAssociation));
+                        RecorderProtoUtil.assignedBackendCompactRepr(existingBackendAssociation),
+                        RecorderProtoUtil.processGroupCompactRepr(processGroup)));
+                    future.complete(existingBackendAssociation);
                   } else {
                     try {
                       /**
@@ -232,14 +229,16 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                         associateBackendWithProcessGroup(newBackend, processGroup);
                         if (logger.isDebugEnabled()) {
                           logger.debug(String.format("process_group=%s, de-associating existing backend=%s, associating new backend=%s",
-                              RecorderProtoUtil.processGroupCompactRepr(processGroup), existingBackend.getBackendIPAddress(), newBackend.getBackendIPAddress()));
+                              RecorderProtoUtil.processGroupCompactRepr(processGroup),
+                              RecorderProtoUtil.assignedBackendCompactRepr(existingBackend.getBackend()),
+                              RecorderProtoUtil.assignedBackendCompactRepr(newBackend.getBackend())));
                         }
                       }
-                      future.complete(buildAssignedBackend(newBackend.getBackendIPAddress()));
+                      future.complete(newBackend.getBackend());
                     } catch (Exception ex) {
                       future.fail(new BackendAssociationException(
                           String.format("Cannot persist association of backend=%s with process_group=%s in zookeeper",
-                              newBackend.getBackendIPAddress(), processGroup), true));
+                              RecorderProtoUtil.assignedBackendCompactRepr(newBackend.getBackend()), processGroup), true));
                     } finally {
                       safelyReAddBackendToAvailableBackendSet(newBackend);
                     }
@@ -268,7 +267,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       availableBackendsByPriority.add(availableBackend);
     } catch (Exception ex) {
       //TODO: Some metric to indicate add failure here
-      logger.error("Error adding backend=" + availableBackend.getBackendIPAddress() + " back in the set");
+      logger.error("Error adding backend=" + RecorderProtoUtil.assignedBackendCompactRepr(availableBackend.getBackend()) + " back in the set");
     }
   }
 
@@ -296,14 +295,14 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
    */
   private void associateBackendWithProcessGroup(BackendDetail backendDetail, Recorder.ProcessGroup processGroup)
       throws Exception {
-    String processGroupZNodeBasePath = getZNodePathForBackend(backendDetail.getBackendIPAddress()) + "/pg_";
+    String processGroupZNodeBasePath = getZNodePathForBackend(backendDetail.getBackend()) + "/pg_";
     String processGroupZNodeCreatedPath = curatorClient
         .create()
         .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
         .forPath(processGroupZNodeBasePath, processGroup.toByteArray());
 
     backendDetail.associateProcessGroup(processGroup);
-    processGroupToBackendLookup.put(processGroup, backendDetail.getBackendIPAddress());
+    processGroupToBackendLookup.put(processGroup, backendDetail.getBackend());
     processGroupToZNodePathLookup.put(processGroup, processGroupZNodeCreatedPath);
   }
 
@@ -347,14 +346,14 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       throw new BackendAssociationException(syncException, true);
     }
 
-    List<String> backendIPAddresses = curatorClient.getChildren().forPath(backendAssociationPath);
-    for(String backendIPAddress: backendIPAddresses) {
-      String backendZNodePath = getZNodePathForBackend(backendIPAddress);
+    List<String> backendZNodeNames = curatorClient.getChildren().forPath(backendAssociationPath);
+    for(String backendZNodeName: backendZNodeNames) {
+      String backendZNodePath = getZNodePathForBackend(backendZNodeName);
       List<String> processGroupNodes = curatorClient.getChildren().forPath(backendZNodePath);
       Set<Recorder.ProcessGroup> processGroups = new HashSet<>();
 
       for(String processGroupZNodeName: processGroupNodes) {
-        String processGroupZNodePath = getZNodePathForProcessGroup(backendIPAddress, processGroupZNodeName);
+        String processGroupZNodePath = getZNodePathForProcessGroup(backendZNodeName, processGroupZNodeName);
         Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(ZookeeperUtil.readZNode(curatorClient, processGroupZNodePath));
         if(processGroupToZNodePathLookup.get(processGroup) != null) {
           throw new BackendAssociationException("Found multiple nodes in zookeeper backend association tree for same process group, aborting load from ZK. Process group=" +
@@ -363,25 +362,31 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         processGroupToZNodePathLookup.put(processGroup, processGroupZNodePath);
         processGroups.add(processGroup);
       }
-      this.backendDetailLookup.put(backendIPAddress, new BackendDetail(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, processGroups));
+      Recorder.AssignedBackend backend = getBackendFromZNodeName(backendZNodeName);
+      this.backendDetailLookup.put(backend, new BackendDetail(backend, loadReportIntervalInSeconds, loadMissTolerance, processGroups));
     }
   }
 
-  private String getZNodePathForBackend(String backendIPAddress) {
-    return backendAssociationPath + "/" + backendIPAddress;
+  private String getZNodePathForBackend(Recorder.AssignedBackend backend) {
+    return backendAssociationPath + "/" + backend.getHost() + ":" + backend.getPort();
   }
 
-  private String getZNodePathForProcessGroup(String backendIPAddress, String processGroupZNodeName) {
-    return getZNodePathForBackend(backendIPAddress) + "/" + processGroupZNodeName;
+  private String getZNodePathForBackend(String backendZNodeName) {
+    return backendAssociationPath + "/" + backendZNodeName;
   }
 
-  /**
-   * This method is a hack. See comment in constructor of this class #{@link ZookeeperBasedBackendAssociationStore}
-   * backend http port should be reported by every backend as part of its load request
-   * @param backendIPAddress
-   * @return
-   */
-  private Recorder.AssignedBackend buildAssignedBackend(String backendIPAddress) {
-    return Recorder.AssignedBackend.newBuilder().setHost(backendIPAddress).setPort(backendHttpPort).build();
+  private String getZNodePathForProcessGroup(String backendZNodeName, String processGroupZNodeName) {
+    return getZNodePathForBackend(backendZNodeName) + "/" + processGroupZNodeName;
+  }
+
+  private Recorder.AssignedBackend getBackendFromZNodeName(String backendZNodeName) {
+    String[] backendHostPortArr = backendZNodeName.split(":");
+    if(backendHostPortArr.length != 2) {
+      throw new BackendAssociationException("Illegal znode representing backend: " + backendZNodeName, true);
+    }
+    return Recorder.AssignedBackend.newBuilder()
+        .setHost(backendHostPortArr[0])
+        .setPort(Integer.parseInt(backendHostPortArr[1]))
+        .build();
   }
 }

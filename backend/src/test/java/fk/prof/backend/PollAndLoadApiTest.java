@@ -92,8 +92,8 @@ public class PollAndLoadApiTest {
     curatorClient.create().forPath(backendAssociationPath);
 
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
-    leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
+    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, new ProcessGroupCountBasedBackendComparator());
+    leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
     when(leaderStore.isLeader()).thenReturn(false);
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getMaxSimultaneousProfiles());
@@ -154,7 +154,8 @@ public class PollAndLoadApiTest {
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
     //this test can be brittle because teardown of zk in previous running test, causes delay in setting up of leader when zk is setup again for this test
     //mocking leader address here so that association does not return 503
-    when(leaderStore.getLeaderIPAddress()).thenReturn("127.0.0.1");
+    when(leaderStore.getLeader())
+        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(configManager.getLeaderHttpPort()).build());
     try {
       makeRequestGetAssociation(processGroup).setHandler(ar -> {
         if (ar.failed()) {

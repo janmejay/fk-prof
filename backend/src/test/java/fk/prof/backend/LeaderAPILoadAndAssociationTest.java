@@ -67,7 +67,7 @@ public class LeaderAPILoadAndAssociationTest {
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
         configManager.getLoadReportIntervalInSeconds(),
-        leaderHttpConfig.getInteger("load.miss.tolerance", 1), configManager.getBackendHttpPort(),
+        leaderHttpConfig.getInteger("load.miss.tolerance", 1),
         new ProcessGroupCountBasedBackendComparator());
     PolicyStore policyStore = new PolicyStore();
 
@@ -129,7 +129,6 @@ public class LeaderAPILoadAndAssociationTest {
                   .setHandler(ar2 -> {
                     if (ar2.succeeded()) {
                       try {
-//                        Recorder.AssignedBackend ab2 = Recorder.AssignedBackend.parseFrom(ar2.result())
                         context.assertEquals("1", ar2.result().getHost());
                         makeRequestGetAssociation(mockProcessGroups.get(1))
                             .setHandler(ar3 -> {

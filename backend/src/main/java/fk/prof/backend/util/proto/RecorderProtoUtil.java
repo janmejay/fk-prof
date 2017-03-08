@@ -14,7 +14,11 @@ public class RecorderProtoUtil {
   }
 
   public static String processGroupCompactRepr(Recorder.ProcessGroup processGroup) {
-    return String.format("%s,%s,%s", processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+    return processGroup == null ? null : String.format("%s,%s,%s", processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+  }
+
+  public static String assignedBackendCompactRepr(Recorder.AssignedBackend assignedBackend) {
+    return assignedBackend == null ? null : String.format("%s,%s", assignedBackend.getHost(), assignedBackend.getPort());
   }
 
   public static Recorder.Work translateWorkFromBackendDTO(BackendDTO.Work backendDTOWork) {

@@ -70,7 +70,7 @@ public class ProfileApiTest {
 
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
-    leaderReadContext = new InMemoryLeaderStore(configManager.getIPAddress());
+    leaderReadContext = new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort());
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     port = configManager.getBackendHttpPort();
 

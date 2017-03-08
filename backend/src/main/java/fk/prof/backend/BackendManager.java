@@ -80,7 +80,7 @@ public class BackendManager {
 
   public Future<Void> launch() {
     Future result = Future.future();
-    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort());
     AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getMaxSimultaneousProfiles());
@@ -145,7 +145,7 @@ public class BackendManager {
     String backendAssociationPath = leaderHttpDeploymentConfig.getString("backend.association.path", "/association");
     int loadMissTolerance = leaderHttpDeploymentConfig.getInteger("load.miss.tolerance", 2);
     return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath,
-        loadReportIntervalInSeconds, loadMissTolerance, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
+        loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }
 
   private Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments) {

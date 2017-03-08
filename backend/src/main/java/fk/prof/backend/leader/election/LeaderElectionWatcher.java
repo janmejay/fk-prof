@@ -1,6 +1,7 @@
 package fk.prof.backend.leader.election;
 
 import fk.prof.backend.model.election.LeaderWriteContext;
+import fk.prof.backend.proto.BackendDTO;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -8,7 +9,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.Watcher;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,7 +55,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   public void stop() {
     //This ensures that if this worker verticle is undeployed for whatever reason, leader is set as null and all other components dependent on leader will fail
     curatorClient.clearWatcherReferences(childWatcher);
-    leaderWriteContext.setLeaderIPAddress(null);
+    leaderWriteContext.setLeader(null);
   }
 
   private List<String> getChildrenAndSetWatch() {
@@ -72,8 +72,8 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   private void leaderUpdated(List<String> childNodesList) {
     if (childNodesList.size() == 1) {
       try {
-        byte[] ipAddressBytes = curatorClient.getData().forPath(leaderWatchingPath + "/" + childNodesList.get(0));
-        leaderWriteContext.setLeaderIPAddress(new String(ipAddressBytes, "UTF-8"));
+        byte[] leaderDetailBytes = curatorClient.getData().forPath(leaderWatchingPath + "/" + childNodesList.get(0));
+        leaderWriteContext.setLeader(BackendDTO.LeaderDetail.parseFrom(leaderDetailBytes));
         return;
       } catch (Exception ex) {
         logger.error("Error encountered while fetching leader information", ex);
@@ -83,6 +83,6 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     if (childNodesList.size() > 1) {
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
-    leaderWriteContext.setLeaderIPAddress(null);
+    leaderWriteContext.setLeader(null);
   }
 }

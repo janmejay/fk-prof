@@ -2,6 +2,11 @@ syntax = "proto2";
 option java_package = "fk.prof.backend.proto";
 option java_outer_classname = "BackendDTO";
 
+message LeaderDetail {
+    required string host = 1;
+    required uint32 port = 2;
+}
+
 message LoadReportRequest {
     required string ip = 1;
     required uint32 port = 2;

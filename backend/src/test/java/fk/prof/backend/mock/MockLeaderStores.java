@@ -3,34 +3,35 @@ package fk.prof.backend.mock;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
+import fk.prof.backend.proto.BackendDTO;
 
 import java.util.concurrent.CountDownLatch;
 
 public class MockLeaderStores {
 
   public static class TestLeaderStore implements LeaderReadContext, LeaderWriteContext {
-    private String address = null;
+    private final BackendDTO.LeaderDetail selfLeaderDetail;
+    private BackendDTO.LeaderDetail currentLeaderDetail;
     private boolean self = false;
     private final CountDownLatch latch;
-    private final String ipAddress;
 
-    public TestLeaderStore(String ipAddress, CountDownLatch latch) {
-      this.ipAddress = ipAddress;
+    public TestLeaderStore(String ipAddress, int leaderPort, CountDownLatch latch) {
+      this.selfLeaderDetail = BackendDTO.LeaderDetail.newBuilder().setHost(ipAddress).setPort(leaderPort).build();
       this.latch = latch;
     }
 
     @Override
-    public void setLeaderIPAddress(String ipAddress) {
-      address = ipAddress;
-      self = ipAddress != null && ipAddress.equals(ipAddress);
-      if (address != null) {
+    public void setLeader(BackendDTO.LeaderDetail leader) {
+      currentLeaderDetail = leader;
+      self = currentLeaderDetail != null && currentLeaderDetail.equals(selfLeaderDetail);
+      if (currentLeaderDetail != null) {
         latch.countDown();
       }
     }
 
     @Override
-    public String getLeaderIPAddress() {
-      return address;
+    public BackendDTO.LeaderDetail getLeader() {
+      return currentLeaderDetail;
     }
 
     @Override
@@ -50,16 +51,8 @@ public class MockLeaderStores {
     }
 
     @Override
-    public void setLeaderIPAddress(String ipAddress) {
-      toWrap.setLeaderIPAddress(ipAddress);
-      if (ipAddress != null) {
-        latch.countDown();
-      }
-    }
-
-    @Override
-    public String getLeaderIPAddress() {
-      return toWrap.getLeaderIPAddress();
+    public BackendDTO.LeaderDetail getLeader() {
+      return toWrap.getLeader();
     }
 
     @Override
@@ -67,6 +60,13 @@ public class MockLeaderStores {
       return toWrap.isLeader();
     }
 
+    @Override
+    public void setLeader(BackendDTO.LeaderDetail leader) {
+      toWrap.setLeader(leader);
+      if(leader != null) {
+        latch.countDown();
+      }
+    }
   }
 
 }

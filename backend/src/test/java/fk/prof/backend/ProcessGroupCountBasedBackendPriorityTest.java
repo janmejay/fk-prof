@@ -2,12 +2,12 @@ package fk.prof.backend;
 
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
-import fk.prof.backend.proto.BackendDTO;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import recording.Recorder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -16,7 +16,7 @@ public class ProcessGroupCountBasedBackendPriorityTest {
 
   PriorityQueue<BackendDetail> backendDetailPriorityQueue;
   List<Recorder.ProcessGroup> mockProcessGroups;
-  List<BackendDetail> mockBackends;
+  List<Recorder.AssignedBackend> mockBackends;
 
   @Before
   public void setBefore() {
@@ -29,31 +29,36 @@ public class ProcessGroupCountBasedBackendPriorityTest {
         Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p5").build(),
         Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p6").build()
     );
+    mockBackends = Arrays.asList(
+        Recorder.AssignedBackend.newBuilder().setHost("1").setPort(0).build(),
+        Recorder.AssignedBackend.newBuilder().setHost("2").setPort(0).build(),
+        Recorder.AssignedBackend.newBuilder().setHost("3").setPort(0).build()
+    );
   }
 
   @Test
   public void shouldPrioritizeLowerProcessGroupBackends() throws Exception {
     int loadReportIntervalInSeconds = 1;
     int loadMissTolerance = 10;
-    BackendDetail b1 = new BackendDetail("1", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b1 = new BackendDetail(mockBackends.get(0), loadReportIntervalInSeconds, loadMissTolerance);
     b1.associateProcessGroup(mockProcessGroups.get(0));
     b1.associateProcessGroup(mockProcessGroups.get(1));
 
-    BackendDetail b2 = new BackendDetail("2", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b2 = new BackendDetail(mockBackends.get(1), loadReportIntervalInSeconds, loadMissTolerance);
     b2.associateProcessGroup(mockProcessGroups.get(2));
     b2.associateProcessGroup(mockProcessGroups.get(3));
     b2.associateProcessGroup(mockProcessGroups.get(4));
 
-    BackendDetail b3 = new BackendDetail("3", loadReportIntervalInSeconds, loadMissTolerance);
+    BackendDetail b3 = new BackendDetail(mockBackends.get(2), loadReportIntervalInSeconds, loadMissTolerance);
     b3.associateProcessGroup(mockProcessGroups.get(5));
 
     backendDetailPriorityQueue.offer(b1);
     backendDetailPriorityQueue.offer(b2);
     backendDetailPriorityQueue.offer(b3);
 
-    Assert.assertEquals("3", backendDetailPriorityQueue.poll().getBackendIPAddress());
-    Assert.assertEquals("1", backendDetailPriorityQueue.poll().getBackendIPAddress());
-    Assert.assertEquals("2", backendDetailPriorityQueue.poll().getBackendIPAddress());
+    Assert.assertEquals(mockBackends.get(2), backendDetailPriorityQueue.poll().getBackend());
+    Assert.assertEquals(mockBackends.get(0), backendDetailPriorityQueue.poll().getBackend());
+    Assert.assertEquals(mockBackends.get(1), backendDetailPriorityQueue.poll().getBackend());
     Assert.assertNull(backendDetailPriorityQueue.poll());
 
     //Modifying associated process groups of topmost element in queue should not change its priority
@@ -69,7 +74,7 @@ public class ProcessGroupCountBasedBackendPriorityTest {
     b3.associateProcessGroup(mockProcessGroups.get(4));
 
 
-    Assert.assertEquals("3", backendDetailPriorityQueue.poll().getBackendIPAddress());
+    Assert.assertEquals(mockBackends.get(2), backendDetailPriorityQueue.poll().getBackend());
 
     //Re-adding backends to queue after modifying associated process groups should affect their priority order
     backendDetailPriorityQueue.clear();
@@ -77,9 +82,9 @@ public class ProcessGroupCountBasedBackendPriorityTest {
     backendDetailPriorityQueue.offer(b2);
     backendDetailPriorityQueue.offer(b3);
 
-    Assert.assertEquals("2", backendDetailPriorityQueue.poll().getBackendIPAddress());
-    Assert.assertEquals("3", backendDetailPriorityQueue.poll().getBackendIPAddress());
-    Assert.assertEquals("1", backendDetailPriorityQueue.poll().getBackendIPAddress());
+    Assert.assertEquals(mockBackends.get(1), backendDetailPriorityQueue.poll().getBackend());
+    Assert.assertEquals(mockBackends.get(2), backendDetailPriorityQueue.poll().getBackend());
+    Assert.assertEquals(mockBackends.get(0), backendDetailPriorityQueue.poll().getBackend());
     Assert.assertNull(backendDetailPriorityQueue.poll());
   }
 }

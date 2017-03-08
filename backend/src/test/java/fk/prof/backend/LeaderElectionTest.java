@@ -75,7 +75,7 @@ public class LeaderElectionTest {
     Runnable leaderElectedTask = () -> {
       latch.countDown();
     };
-    LeaderWriteContext leaderWriteContext = new InMemoryLeaderStore(configManager.getIPAddress());
+    LeaderWriteContext leaderWriteContext = new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort());
 
     VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
     VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderWriteContext);
@@ -94,7 +94,7 @@ public class LeaderElectionTest {
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     CountDownLatch latch = new CountDownLatch(1);
     Runnable leaderElectedTask = () -> {};
-    MockLeaderStores.TestLeaderStore leaderStore = new MockLeaderStores.TestLeaderStore(configManager.getIPAddress(), latch);
+    MockLeaderStores.TestLeaderStore leaderStore = new MockLeaderStores.TestLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort(), latch);
 
     VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
     VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderStore);
@@ -106,7 +106,7 @@ public class LeaderElectionTest {
     if (!released) {
       testContext.fail("Latch timed out but leader store was not updated with leader address");
     } else {
-      testContext.assertEquals(configManager.getIPAddress(), leaderStore.getLeaderIPAddress());
+      testContext.assertEquals(configManager.getIPAddress(), leaderStore.getLeader().getHost());
       testContext.assertTrue(leaderStore.isLeader());
     }
   }
@@ -116,7 +116,7 @@ public class LeaderElectionTest {
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
-    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort());
     List<String> backendDeployments = new ArrayList<>();
     CountDownLatch aggDepLatch = new CountDownLatch(1);
 
@@ -166,7 +166,7 @@ public class LeaderElectionTest {
       if (!leaderWatchedLatchReleased) {
         testContext.fail("Latch timed out but leader store was not updated with leader address");
       } else {
-        testContext.assertNotNull(leaderStore.getLeaderIPAddress());
+        testContext.assertNotNull(leaderStore.getLeader());
         testContext.assertTrue(leaderStore.isLeader());
       }
 

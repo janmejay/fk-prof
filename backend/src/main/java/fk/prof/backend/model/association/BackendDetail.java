@@ -9,7 +9,7 @@ import java.util.Set;
 public class BackendDetail {
   private static final double NANOSECONDS_IN_SECOND = Math.pow(10, 9);
 
-  private final String backendIPAddress;
+  private final Recorder.AssignedBackend backend;
   private final long thresholdForDefunctInNanoSeconds;
   private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
@@ -18,17 +18,17 @@ public class BackendDetail {
   private volatile Long lastReportedTime;
   private float lastReportedLoad;
 
-  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance)
+  public BackendDetail(Recorder.AssignedBackend backend, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
-    this(backendIPAddress, loadReportIntervalInSeconds, loadMissTolerance, new HashSet<>());
+    this(backend, loadReportIntervalInSeconds, loadMissTolerance, new HashSet<>());
   }
 
-  public BackendDetail(String backendIPAddress, int loadReportIntervalInSeconds, int loadMissTolerance, Set<Recorder.ProcessGroup> associatedProcessGroups)
+  public BackendDetail(Recorder.AssignedBackend backend, int loadReportIntervalInSeconds, int loadMissTolerance, Set<Recorder.ProcessGroup> associatedProcessGroups)
       throws IOException {
-    if(backendIPAddress == null) {
-      throw new IllegalArgumentException("Backend ip address cannot be null");
+    if(backend == null) {
+      throw new IllegalArgumentException("Backend cannot be null");
     }
-    this.backendIPAddress = backendIPAddress;
+    this.backend = backend;
     this.thresholdForDefunctInNanoSeconds = (long)(loadReportIntervalInSeconds * (loadMissTolerance + 1) * NANOSECONDS_IN_SECOND);
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
   }
@@ -70,8 +70,8 @@ public class BackendDetail {
         ((System.nanoTime() - lastReportedTime) > thresholdForDefunctInNanoSeconds);
   }
 
-  public String getBackendIPAddress() {
-    return this.backendIPAddress;
+  public Recorder.AssignedBackend getBackend() {
+    return this.backend;
   }
 
   public Set<Recorder.ProcessGroup> getAssociatedProcessGroups() {
@@ -88,14 +88,14 @@ public class BackendDetail {
     }
 
     BackendDetail other = (BackendDetail) o;
-    return this.backendIPAddress.equals(other.backendIPAddress);
+    return this.backend.equals(other.backend);
   }
 
   @Override
   public int hashCode() {
     final int PRIME = 31;
     int result = 1;
-    result = result * PRIME + this.backendIPAddress.hashCode();
+    result = result * PRIME + this.backend.hashCode();
     return result;
   }
 

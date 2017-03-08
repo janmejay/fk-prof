@@ -7,6 +7,7 @@ import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
 import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
 import fk.prof.backend.model.election.LeaderReadContext;
+import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
@@ -173,8 +174,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   // /association API is requested over ELB, routed to some backend which in turns proxies it to a leader
   private void handlePutAssociation(RoutingContext context) {
-    String leaderIPAddress = verifyLeaderAvailabilityOrFail(context.response());
-    if (leaderIPAddress != null) {
+    BackendDTO.LeaderDetail leaderDetail = verifyLeaderAvailabilityOrFail(context.response());
+    if (leaderDetail != null) {
       try {
         Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
         ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
@@ -185,7 +186,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
         }
 
         //Proxy request to leader if self(backend) is not associated with the recorder
-        makeRequestGetAssociation(leaderIPAddress, processGroup).setHandler(ar -> {
+        makeRequestGetAssociation(leaderDetail, processGroup).setHandler(ar -> {
           if(ar.succeeded()) {
             context.response().setStatusCode(ar.result().getStatusCode());
             context.response().end(ar.result().getResponse());
@@ -201,27 +202,27 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private String verifyLeaderAvailabilityOrFail(HttpServerResponse response) {
+  private BackendDTO.LeaderDetail verifyLeaderAvailabilityOrFail(HttpServerResponse response) {
     if (leaderReadContext.isLeader()) {
       response.setStatusCode(400).end("Leader refuses to respond to this request");
       return null;
     } else {
-      String leaderIPAddress = leaderReadContext.getLeaderIPAddress();
-      if (leaderIPAddress == null) {
+      BackendDTO.LeaderDetail leaderDetail = leaderReadContext.getLeader();
+      if (leaderDetail == null) {
         response.setStatusCode(503).putHeader("Retry-After", "10").end("Leader not elected yet");
         return null;
       } else {
-        return leaderIPAddress;
+        return leaderDetail;
       }
     }
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(String leaderIPAddress, Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(BackendDTO.LeaderDetail leaderDetail, Recorder.ProcessGroup payload)
       throws IOException {
     Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(
         HttpMethod.PUT,
-        leaderIPAddress, leaderHttpPort, ApiPathConstants.LEADER_PUT_ASSOCIATION,
+        leaderDetail.getHost(), leaderDetail.getPort(), ApiPathConstants.LEADER_PUT_ASSOCIATION,
         payloadAsBuffer);
   }
 }

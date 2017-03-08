@@ -69,8 +69,8 @@ public class AssociationApiTest {
     port = configManager.getBackendHttpPort();
     leaderPort = configManager.getLeaderHttpPort();
 
-    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
-    inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
+    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, new ProcessGroupCountBasedBackendComparator());
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     policyStore = new PolicyStore();
 
