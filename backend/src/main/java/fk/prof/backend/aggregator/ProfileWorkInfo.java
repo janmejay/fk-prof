@@ -109,6 +109,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
 
     return new FinalizedProfileWorkInfo(
         recorderVersion,
+        0,
         state,
         startedAt,
         endedAt,

@@ -36,7 +36,7 @@ public class MainVerticle extends AbstractVerticle {
         registerSerializers(Json.prettyMapper);
 
         int numInstances = config().getInteger("http.instances");
-        int profileRetentionDuration = config().getInteger("profile.retention.duration");
+        int profileRetentionDuration = config().getInteger("profile.retention.duration.min");
 
         List<Future> futureList = new ArrayList<>();
         for (int i = 0; i < numInstances; i++) {
