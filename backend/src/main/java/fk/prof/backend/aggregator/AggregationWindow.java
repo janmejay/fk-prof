@@ -12,10 +12,7 @@ import recording.Recorder;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -27,6 +24,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
 
   private final ConcurrentHashMap<Long, ProfileWorkInfo> workInfoLookup = new ConcurrentHashMap<>();
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
+  private final List<Recorder.RecorderInfo> recorders = new ArrayList<>();
 
   public AggregationWindow(String appId, String clusterId, String procId,
                            LocalDateTime start, long[] workIds) {
@@ -133,7 +131,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     workInfo.updateWSESpecificDetails(wse);
   }
 
-  public void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
+  public synchronized void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
     ensureEntityIsWriteable();
 
     ProfileWorkInfo workInfo = workInfoLookup.get(workId);
@@ -150,11 +148,8 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
         .collect(Collectors.toMap(Map.Entry::getKey,
             entry -> entry.getValue().finalizeEntity()));
 
-    // TODO : build recorders list while starting profiles
-    List<AggregatedProfileModel.RecorderInfo> recorders = Collections.EMPTY_LIST;
-
     return new FinalizedAggregationWindow(
-        appId, clusterId, procId, start, endedAt, recorders, finalizedWorkInfoLookup,
+        appId, clusterId, procId, start, endedAt, finalizedWorkInfoLookup,
         cpuSamplingAggregationBucket.finalizeEntity()
     );
   }

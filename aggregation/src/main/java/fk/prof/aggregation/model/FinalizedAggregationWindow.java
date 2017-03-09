@@ -13,7 +13,6 @@ public class FinalizedAggregationWindow {
   protected final String procId;
   protected final LocalDateTime start;
   protected final LocalDateTime endedAt;
-  protected final Collection<RecorderInfo> recorders;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
@@ -22,7 +21,6 @@ public class FinalizedAggregationWindow {
                                     String procId,
                                     LocalDateTime start,
                                     LocalDateTime endedAt,
-                                    Collection<RecorderInfo> recorders,
                                     Map<Long, FinalizedProfileWorkInfo> workInfoLookup,
                                     FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket) {
     this.appId = appId;
@@ -30,7 +28,6 @@ public class FinalizedAggregationWindow {
     this.procId = procId;
     this.start = start;
     this.endedAt = endedAt;
-    this.recorders = recorders;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
   }
@@ -85,6 +82,10 @@ public class FinalizedAggregationWindow {
   }
 
   protected RecorderList buildRecorderListProto() {
+    List<RecorderInfo> recorders = new ArrayList<>();
+    for(FinalizedProfileWorkInfo workInfo : workInfoLookup.values()) {
+       workInfo.updateRecorderIdx(recorders);
+    }
     return RecorderList.newBuilder().addAllRecorders(recorders).build();
   }
 
@@ -117,10 +118,10 @@ public class FinalizedAggregationWindow {
     }
 
     // using first profile.tracesCount * 2 as initial capacity to avoid array resize. All recorded profiles have almost same set of traces.
-    int initialCapacity = workInfoLookup.values().iterator().next().recordedTraces().size() * 2;
+    int initialCapacity = workInfoLookup.values().iterator().next().getRecordedTraces().size() * 2;
     Set<String> traces = new HashSet<>(initialCapacity);
 
-    workInfoLookup.values().stream().forEach(e -> traces.addAll(e.recordedTraces()));
+    workInfoLookup.values().stream().forEach(e -> traces.addAll(e.getRecordedTraces()));
 
     builder.addAllName(traces);
 
