@@ -62,5 +62,19 @@
       "scheduling.buffer.secs": 30,
       "work.assignment.max.delay.secs": 120
     }
+  },
+  "storage": {
+    "s3": {
+      "end.point": "http://127.0.0.1:13031",
+      "access.key": "",
+      "secret.key": ""
+    },
+    "thread.pool.size": 50,
+    "base.dir": "profiles"
+  },
+  "fixedSizebufferPool" : {
+    "max.total": 20,
+    "max.idle": 20,
+    "buffer.size": 10000000
   }
 }

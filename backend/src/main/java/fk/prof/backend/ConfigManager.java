@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import io.vertx.core.json.JsonObject;
 
+import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,10 @@ public class ConfigManager {
   private static final String BACKEND_DAEMON_OPTIONS_KEY = "daemonOptions";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
+  private static final String STORAGE = "storage";
+  private static final String S3 = "s3";
+  private static final String THREAD_POOL_SIZE = "thread.pool.size";
+  private static final String FIXED_SIZE_POOL_KEY = "fixedSizebufferPool";
 
   public static final String METRIC_REGISTRY = "vertx-registry";
 
@@ -123,5 +128,31 @@ public class ConfigManager {
     Properties properties = System.getProperties();
     properties.computeIfAbsent(ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
     properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
+  }
+
+  public JsonObject getS3Config() {
+    return getStorageConfig().getJsonObject(S3);
+  }
+
+
+  public int getStorageThreadPoolSize() {
+    return getStorageConfig().getInteger(THREAD_POOL_SIZE, 10);
+  }
+
+  public JsonObject getStorageConfig() {
+    JsonObject storageConfig = config.getJsonObject(STORAGE);
+    if(storageConfig == null || storageConfig.isEmpty()) {
+      // TODO: convert these to configException
+      throw new RuntimeException("storage config is not present");
+    }
+    return storageConfig;
+  }
+
+  public JsonObject getFixedSizeBufferPool() {
+    JsonObject poolConfig = config.getJsonObject("FIXED_SIZE_POOL_KEY", new JsonObject());
+    if(poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
+      throw new RuntimeException("buffer pool config is not proper");
+    }
+    return poolConfig;
   }
 }

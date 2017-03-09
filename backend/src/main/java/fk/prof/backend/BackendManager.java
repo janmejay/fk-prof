@@ -1,6 +1,9 @@
 package fk.prof.backend;
 
+import com.codahale.metrics.InstrumentedExecutorService;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.leader.election.LeaderElectedTask;
@@ -15,6 +18,9 @@ import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationSt
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import fk.prof.backend.model.policy.PolicyStore;
+import fk.prof.storage.AsyncStorage;
+import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.buffer.ByteBufferPoolFactory;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -22,12 +28,16 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions;
 import io.vertx.ext.dropwizard.Match;
 import io.vertx.ext.dropwizard.MatchType;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
-import java.util.ArrayList;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -40,6 +50,8 @@ public class BackendManager {
   private final Vertx vertx;
   private final ConfigManager configManager;
   private final CuratorFramework curatorClient;
+  private AsyncStorage storage;
+  private GenericObjectPool<ByteBuffer> bufferPool;
 
   public BackendManager(String configFilePath) throws Exception {
     this(new ConfigManager(configFilePath));
@@ -60,6 +72,8 @@ public class BackendManager {
     this.curatorClient = createCuratorClient();
     curatorClient.start();
     curatorClient.blockUntilConnected(configManager.getCuratorConfig().getInteger("connection.timeout.ms", 10000), TimeUnit.MILLISECONDS);
+
+    initStorage();
   }
 
   public Future<Void> close() {
@@ -84,6 +98,8 @@ public class BackendManager {
     AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
     SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getMaxSimultaneousProfiles());
+
+    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(configManager.getStorageConfig().getString("base.dir", "profiles"), storage, bufferPool);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore, processGroupAssociationStore);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, processGroupAssociationStore, aggregationWindowLookupStore, simultaneousWorkAssignmentCounter);
@@ -125,6 +141,23 @@ public class BackendManager {
     return result;
   }
 
+  private void initStorage() {
+    JsonObject s3Config = configManager.getS3Config();
+
+    ExecutorService storageExecSvc = new InstrumentedExecutorService(Executors.newFixedThreadPool(configManager.getStorageThreadPoolSize()),
+            SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY), "executors.fixed_thread_pool.storage");
+
+    this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
+            storageExecSvc);
+
+    JsonObject bufferPoolConfig = configManager.getFixedSizeBufferPool();
+
+    GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
+    poolConfig.setMaxTotal(bufferPoolConfig.getInteger("max.total"));
+    poolConfig.setMaxIdle(bufferPoolConfig.getInteger("max.idle"));
+
+    this.bufferPool = new GenericObjectPool<>(new ByteBufferPoolFactory(bufferPoolConfig.getInteger("buffer.size"), false), poolConfig);
+  }
 
   private CuratorFramework createCuratorClient() {
     JsonObject curatorConfig = configManager.getCuratorConfig();

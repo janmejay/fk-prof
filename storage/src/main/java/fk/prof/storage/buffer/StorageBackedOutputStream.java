@@ -40,7 +40,7 @@ public class StorageBackedOutputStream extends OutputStream {
                                      FileNamingStrategy fileNameStrategy) {
         this.storage = storage;
         this.fileNameStrategy = fileNameStrategy;
-        this.part = 1;
+        this.part = 0;
         this.bufferPool = bufferPool;
 
         this.buf = null;

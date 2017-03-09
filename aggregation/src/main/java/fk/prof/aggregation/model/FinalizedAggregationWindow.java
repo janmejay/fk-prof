@@ -8,12 +8,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class FinalizedAggregationWindow {
-  private final String appId;
-  private final String clusterId;
-  private final String procId;
-  private final LocalDateTime start;
-  private final LocalDateTime endedAt;
-  private final Collection<RecorderInfo> recorders;
+  protected final String appId;
+  protected final String clusterId;
+  protected final String procId;
+  protected final LocalDateTime start;
+  protected final LocalDateTime endedAt;
+  protected final Collection<RecorderInfo> recorders;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
