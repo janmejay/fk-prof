@@ -1,13 +1,24 @@
 package fk.prof.userapi.verticles;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
+import fk.prof.userapi.model.AggregationWindowSummary;
 import fk.prof.userapi.model.FilteredProfiles;
+import fk.prof.userapi.model.json.ProtoSerializers;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientOptions;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
@@ -24,16 +35,17 @@ import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.io.FileNotFoundException;
 import java.net.ServerSocket;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for {@link HttpVerticle} using mocked behaviour of ProfileStoreAPIImpl
@@ -74,6 +86,7 @@ public class RouterVerticleTest {
 
     @Before
     public void setUp(TestContext testContext) throws Exception {
+        ProtoSerializers.registerSerializers(Json.mapper);
         vertx = Vertx.vertx();
         ServerSocket socket = new ServerSocket(0);
         port = socket.getLocalPort();
@@ -83,14 +96,17 @@ public class RouterVerticleTest {
                 "  \"http.port\": " + String.valueOf(port) + ",\n" +
                 "  \"http.instances\": 1,\n" +
                 "  \"req.timeout\": 2500,\n" +
+                "  \"profile.retention.duration.min\": 30,\n" +
+                "  \"aggregation_window.duration.min\": 30,\n" +
                 "  \"storage\":\"S3\",\n" +
                 "  \"S3\" : {\n" +
-                "    \"end.point\" : \"http://10.47.2.3:80\",\n" +
-                "    \"access.key\": \"66ZX9WC7ZRO6S5BSO8TG\",\n" +
-                "    \"secret.key\": \"fGEJrdiSWNJlsZTiIiTPpUntDm0wCRV4tYbwu2M+\"\n" +
+                "    \"end.point\" : \"\",\n" +
+                "    \"access.key\": \"\",\n" +
+                "    \"secret.key\": \"\"\n" +
                 "  }\n" +
                 "}\n"));
         client = vertx.createHttpClient();
+
         vertx.deployVerticle(routerVerticle, deploymentOptions, testContext.asyncAssertSuccess());
     }
 
@@ -362,18 +378,27 @@ public class RouterVerticleTest {
     public void TestGetProfilesRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
 
-        FilteredProfiles pProfile = new FilteredProfiles(P_TIME_STAMP, P_TIME_STAMP.plusSeconds(1800), Sets.newSet(P_WORKTYPE));
+        AggregatedProfileNamingStrategy pProfile = new AggregatedProfileNamingStrategy("profiles", 1, P_APP_ID, P_CLUSTER_ID, P_PROC, P_TIME_STAMP, 1800);
+        AggregationWindowSummary dummySummary = new AggregationWindowSummary(
+                AggregatedProfileModel.Header.newBuilder().setFormatVersion(1).setAggregationStartTime(P_TIME_STAMP.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)).setAggregationEndTime(P_TIME_STAMP.plusSeconds(1800).format(DateTimeFormatter.ISO_ZONED_DATE_TIME)).build(),
+                AggregatedProfileModel.TraceCtxNames.newBuilder().addAllName(Arrays.asList("trace1", "trace2")).build(),
+                AggregatedProfileModel.RecorderList.getDefaultInstance(), null, null);
 
-        FilteredProfiles nPProfile = new FilteredProfiles(P_TIME_STAMP, P_TIME_STAMP.plusSeconds(1500), Sets.newSet(NP_WORKTYPE));
+        String encodedSummary = Json.encode(dummySummary);
 
         doAnswer(invocation -> {
-            CompletableFuture.supplyAsync(() -> Sets.newSet(pProfile)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            CompletableFuture.supplyAsync(() -> Arrays.asList(pProfile)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
             return null;
         }).when(profileDiscoveryAPI).getProfilesInTimeWindow(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(P_TIME_STAMP), eq(DURATION));
         doAnswer(invocation -> {
-            CompletableFuture.supplyAsync(Sets::<FilteredProfiles>newSet).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            CompletableFuture.supplyAsync(() -> Collections.EMPTY_LIST).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
             return null;
         }).when(profileDiscoveryAPI).getProfilesInTimeWindow(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(NP_TIME_STAMP), eq(DURATION));
+        doAnswer(invocation -> {
+            Future<AggregationWindowSummary> summary = invocation.getArgument(0);
+            summary.complete(dummySummary);
+            return null;
+        }).when(profileDiscoveryAPI).loadSummary(any(), eq(pProfile));
 
         Future<Void> pAndCorrectPrefix = Future.future();
         Future<Void> pAndIncorrectPrefix = Future.future();
@@ -382,11 +407,9 @@ public class RouterVerticleTest {
         client.getNow(port, "localhost", "/profiles/" + P_APP_ID + URL_SEPARATOR + P_CLUSTER_ID + URL_SEPARATOR + P_PROC + "?start=" + P_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
             httpClientResponse.bodyHandler(buffer -> {
-                testContext.assertTrue(buffer.toString().contains(P_WORKTYPE));
-                testContext.assertFalse(buffer.toString().contains(NP_WORKTYPE));
+                testContext.assertTrue(buffer.toString().equals("{\"failed\":[],\"succeeded\":[" + encodedSummary + "]}"));
                 pAndCorrectPrefix.complete();
             });
-
         });
         client.getNow(port, "localhost", "/profiles/" + P_APP_ID + URL_SEPARATOR + P_CLUSTER_ID + URL_SEPARATOR + P_PROC + "?start=" + NP_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
             testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
@@ -403,7 +426,48 @@ public class RouterVerticleTest {
             });
 
         CompositeFuture.all(pAndCorrectPrefix, pAndIncorrectPrefix, pAndNoPrefix).setHandler(compositeFutureAsyncResult -> async.complete());
+    }
 
+    @Test
+    public void TestGetProfilesRoute_shouldReturnFailedProfilesIfThereIsExceptionWhenLoadingFiles(TestContext testContext) throws Exception {
+        final Async async = testContext.async();
+
+        String errorMsg = "took too long";
+
+        // file to fetch
+        AggregatedProfileNamingStrategy pProfile = new AggregatedProfileNamingStrategy("profiles", 1, P_APP_ID, P_CLUSTER_ID, P_PROC, P_TIME_STAMP, 1800);
+
+        // expected response
+        Map<String, Object> expectedMap = new HashMap<>();
+        expectedMap.put("failed", Arrays.asList(new HttpVerticle.ErroredGetSummaryResponse(pProfile.startTime, pProfile.duration, errorMsg)));
+        expectedMap.put("succeeded", Collections.EMPTY_LIST);
+
+        String expectedResponse = Json.encode(expectedMap);
+
+        // found the file
+        doAnswer(invocation -> {
+            CompletableFuture.supplyAsync(() -> Arrays.asList(pProfile)).whenComplete((res, error) -> completeFuture(res, error, invocation.getArgument(0)));
+            return null;
+        }).when(profileDiscoveryAPI).getProfilesInTimeWindow(any(), any(), eq(P_APP_ID), eq(P_CLUSTER_ID), eq(P_PROC), eq(P_TIME_STAMP), eq(DURATION));
+
+        // but throw timeout exception when loading it
+        doAnswer(invocation -> {
+            Future<AggregationWindowSummary> summary = invocation.getArgument(0);
+            summary.fail(new TimeoutException(errorMsg));
+            return null;
+        }).when(profileDiscoveryAPI).loadSummary(any(), eq(pProfile));
+
+        // make the request
+        Future<Void> f1 = Future.future();
+        client.getNow(port, "localhost", "/profiles/" + P_APP_ID + URL_SEPARATOR + P_CLUSTER_ID + URL_SEPARATOR + P_PROC + "?start=" + P_ENCODED_TIME_STAMP + "&duration=" + DURATION, httpClientResponse -> {
+            testContext.assertEquals(httpClientResponse.statusCode(), HttpResponseStatus.OK.code());
+            httpClientResponse.bodyHandler(buffer -> {
+                testContext.assertTrue(buffer.toString().equals(expectedResponse));
+                f1.complete();
+            });
+        });
+
+        f1.setHandler(res -> async.complete());
     }
 
     private <T> void completeFuture(T result, Throwable error, Future<T> future) {

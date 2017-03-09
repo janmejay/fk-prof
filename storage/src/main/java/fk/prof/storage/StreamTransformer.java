@@ -24,19 +24,27 @@ public final class StreamTransformer {
         return new PipedOutputStream(new PipedInputStream(pipeBufferSize));
     }
 
-    public static OutputStream zip(OutputStream out) throws IOException {
+    public static GZIPOutputStream zip(OutputStream out) throws IOException {
         return zip(out, DEFAULT_GZIP_BUFFER_SIZE);
     }
 
-    public static OutputStream zip(OutputStream out, int zipBufferSize) throws IOException {
+    public static GZIPOutputStream zip(OutputStream out, int zipBufferSize) throws IOException {
         return new GZIPOutputStream(out, zipBufferSize);
     }
 
-    public static InputStream unzip(InputStream in) throws IOException {
+    public static GZIPInputStream unzip(InputStream in) throws IOException {
         return new GZIPInputStream(in, DEFAULT_GZIP_BUFFER_SIZE);
     }
 
-    public static InputStream unzip(InputStream in, int zipBufferSize) throws IOException {
+    public static GZIPInputStream unzip(InputStream in, int zipBufferSize) throws IOException {
         return new GZIPInputStream(in, zipBufferSize);
+    }
+
+    public static byte[] compress(byte[] bytes) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        GZIPOutputStream zout = zip(out);
+        zout.write(bytes);
+        zout.close();
+        return out.toByteArray();
     }
 }

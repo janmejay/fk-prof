@@ -1,15 +1,19 @@
 package fk.prof.aggregation.model;
 
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
 import fk.prof.aggregation.state.AggregationState;
+import org.hamcrest.core.IsCollectionContaining;
+import org.joda.time.LocalDate;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.ZonedDateTime;
+import java.util.*;
 
 import static org.hamcrest.core.AnyOf.anyOf;
 import static org.hamcrest.core.Is.is;
@@ -21,35 +25,60 @@ import static org.junit.Assert.*;
 public class ModelToProtoTest {
 
     @Test
+    public void testAggregationFileName() {
+        String base = "profiles";
+        String appid = "app1";
+        String clusterid = "cluster1";
+        String procid = "proc1";
+        ZonedDateTime dateTime = ZonedDateTime.now(Clock.systemUTC());
+        int duration = 60;
+
+        for(WorkType workType: WorkType.values()) {
+            AggregatedProfileNamingStrategy filename = new AggregatedProfileNamingStrategy(base, 1, appid, clusterid, procid, dateTime, duration, workType);
+            AggregatedProfileNamingStrategy parsedFilename = AggregatedProfileNamingStrategy.fromFileName(filename.getFileName(0));
+            assertThat(parsedFilename, is(filename));
+        }
+
+        // summary file
+        AggregatedProfileNamingStrategy summaryFilename = new AggregatedProfileNamingStrategy(base, 1, appid, clusterid, procid, dateTime, duration);
+        AggregatedProfileNamingStrategy parsed = AggregatedProfileNamingStrategy.fromFileName(summaryFilename.getFileName(0));
+        assertThat(parsed, is(summaryFilename));
+
+        assertThat(parsed.isSummaryFile, is(true));
+    }
+
+    @Test
     public void testProfileSummary_aggregationWindowsShouldProperlyBuildSummaryProto() {
         LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
         FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", now, now.plusSeconds(1200),
+                recorders(),
                 buildMap(
-                        101l, new FinalizedProfileWorkInfo(1, AggregationState.COMPLETED, now.plusSeconds(10), now.plusSeconds(90), buildMap("trace1", 5, "trace2", 10), buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80)),
-                        102l, new FinalizedProfileWorkInfo(1, AggregationState.ABORTED, now.plusSeconds(100), now.plusSeconds(200), buildMap("trace1", 10, "trace2", 10), buildMap(WorkType.cpu_sample_work, 1000, WorkType.thread_sample_work, 800))
+                        101l, new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED, now.plusSeconds(10), now.plusSeconds(90), buildMap("trace1", 5, "trace2", 10), buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80)),
+                        102l, new FinalizedProfileWorkInfo(1, 1, AggregationState.ABORTED, now.plusSeconds(100), now.plusSeconds(200), buildMap("trace1", 10, "trace2", 10), buildMap(WorkType.cpu_sample_work, 1000, WorkType.thread_sample_work, 800))
                         ),
                 null
                 );
 
-        ProfilesSummary s = window.buildProfileSummaryProto(WorkType.cpu_sample_work, buildTraceList("trace1", 500, "trace2", 600));
+        Iterable<ProfileWorkInfo> infos = window.buildProfileWorkInfoProto(WorkType.cpu_sample_work, buildTraceList("trace1", "trace2"));
 
-        assertNotNull(s);
+        assertNotNull(infos);
+
+        List<ProfileWorkInfo> infosAsList = new ArrayList();
+        infos.forEach(infosAsList::add);
 
         // all profiles are group under 1 source, because source info is not being populated yet.
-        assertEquals(s.getProfilesCount(), 1);
-        PerSourceProfileSummary ps =  s.getProfiles(0);
-        assertEquals(ps.getProfilesCount(), 2);
-        assertThat(ps.getProfiles(0).getStatus(), anyOf(is(AggregationStatus.Completed), is(AggregationStatus.Aborted)));
+        assertEquals(infosAsList.size(), 2);
+        assertThat(infosAsList.get(0).getStatus(), anyOf(is(AggregationStatus.Completed), is(AggregationStatus.Aborted)));
 
         ProfileWorkInfo info1, info2;
 
-        if(ps.getProfiles(0).getStatus().equals(AggregationStatus.Completed)) {
-            info1 = ps.getProfiles(0);
-            info2 = ps.getProfiles(1);
+        if(infosAsList.get(0).getStatus().equals(AggregationStatus.Completed)) {
+            info1 = infosAsList.get(0);
+            info2 = infosAsList.get(1);
         }
         else {
-            info1 = ps.getProfiles(1);
-            info2 = ps.getProfiles(0);
+            info1 = infosAsList.get(1);
+            info2 = infosAsList.get(0);
         }
 
         assertThat(info1.getDuration(), is(80));
@@ -58,8 +87,11 @@ public class ModelToProtoTest {
         assertThat(info1.getStartOffset(), is(10));
         assertThat(info2.getStartOffset(), is(100));
 
-        assertThat(info1.getSampleCount(), is(100));
-        assertThat(info2.getSampleCount(), is(1000));
+        assertThat(info1.getSampleCountCount(), is(1));
+        assertThat(info1.getSampleCountList(), IsCollectionContaining.hasItems(ProfileWorkInfo.SampleCount.newBuilder().setWorkType(WorkType.cpu_sample_work).setSampleCount(100).build()));
+
+        assertThat(info2.getSampleCountCount(), is(1));
+        assertThat(info2.getSampleCountList(), IsCollectionContaining.hasItems(ProfileWorkInfo.SampleCount.newBuilder().setWorkType(WorkType.cpu_sample_work).setSampleCount(1000).build()));
 
         assertThat(info1.getTraceCoverageMapCount(), is(2));
     }
@@ -68,15 +100,18 @@ public class ModelToProtoTest {
     public void testBuildWorkInfo_profileWorkInfoShouldProperlyBuildWorkInfoProto() {
         LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
-        FinalizedProfileWorkInfo wi1 = new FinalizedProfileWorkInfo(1, AggregationState.COMPLETED, now, now.plusMinutes(1),
+        FinalizedProfileWorkInfo wi1 = new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED, now, now.plusMinutes(1),
                 buildMap("trace1", 5, "trace2", 10, "trace3", 15),
                 buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80));
 
-        ProfileWorkInfo workInfo = wi1.buildProfileWorkInfoProto(WorkType.cpu_sample_work, now, buildTraceList("trace1", 50, "trace2", 50));
+        ProfileWorkInfo workInfo = wi1.buildProfileWorkInfoProto(WorkType.cpu_sample_work, now, buildTraceList("trace1", "trace2"));
 
         assertEquals(workInfo.getDuration(), 60);
         assertEquals(workInfo.getRecorderVersion(), 1);
-        assertEquals(workInfo.getSampleCount(), 100);
+        assertThat(workInfo.getSampleCountCount(), is(1));
+        assertThat(workInfo.getSampleCountList(), IsCollectionContaining.hasItems(
+                ProfileWorkInfo.SampleCount.newBuilder().setWorkType(WorkType.cpu_sample_work).setSampleCount(100).build()
+        ));
         assertEquals(workInfo.getStartOffset(), 0);
         assertEquals(workInfo.getStatus(), AggregationStatus.Completed);
         assertEquals(workInfo.getTraceCoverageMapCount(), 2);
@@ -139,23 +174,52 @@ public class ModelToProtoTest {
         assertThat(in.available(), is(0));
     }
 
-    @Test
-    public void genTestFile() {
-        MethodIdLookup idLookup = new MethodIdLookup();
-        CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
+    private Set<RecorderInfo> recorders() {
+        Set<RecorderInfo> recorders = new HashSet<>();
+        recorders.addAll(
+                Arrays.asList(
+                    AggregatedProfileModel.RecorderInfo.newBuilder()
+                            .setIp("192.168.1.1")
+                            .setHostname("some-box-1")
+                            .setAppId("app1")
+                            .setInstanceGroup("ig1")
+                            .setCluster("cluster1")
+                            .setInstanceId("instance1")
+                            .setProcessName("svc1")
+                            .setVmId("vm1")
+                            .setZone("chennai-1")
+                            .setInstanceType("c1.xlarge").build(),
+                    AggregatedProfileModel.RecorderInfo.newBuilder()
+                            .setIp("192.168.1.2")
+                            .setHostname("some-box-2")
+                            .setAppId("app1")
+                            .setInstanceGroup("ig1")
+                            .setCluster("cluster1")
+                            .setInstanceId("instance2")
+                            .setProcessName("svc1")
+                            .setVmId("vm2")
+                            .setZone("chennai-1")
+                            .setInstanceType("c1.xlarge").build()));
+        return recorders;
     }
 
-    private TraceCtxDetail buildTraceCtxDetails(String name, int count) {
-        return TraceCtxDetail.newBuilder().setName(name).setSampleCount(count).build();
+
+
+    private TraceCtxDetail buildTraceCtxDetails(int idx, int count) {
+        return TraceCtxDetail.newBuilder().setTraceIdx(idx).setSampleCount(count).build();
     }
 
-    private TraceCtxList buildTraceList(Object... objects) {
+    private TraceCtxNames buildTraceList(String... traces) {
+        return TraceCtxNames.newBuilder().addAllName(Arrays.asList(traces)).build();
+    }
+
+    private TraceCtxDetailList buildTraceList(Object... objects) {
         assert objects.length % 2 == 0;
 
-        TraceCtxList.Builder builder = TraceCtxList.newBuilder();
+        TraceCtxDetailList.Builder builder = TraceCtxDetailList.newBuilder();
 
         for(int i = 0 ; i < objects.length; i += 2) {
-            builder.addAllTraceCtx(buildTraceCtxDetails((String)objects[i], (Integer)objects[i+1]));
+            builder.addTraceCtx(buildTraceCtxDetails((Integer)objects[i], (Integer)objects[i+1]));
         }
 
         return builder.build();

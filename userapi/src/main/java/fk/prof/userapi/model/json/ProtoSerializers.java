@@ -22,7 +22,7 @@ public class ProtoSerializers {
         module.addSerializer(AggregatedProfileModel.FrameNode.class, new FrameNodeSerializer());
         module.addSerializer(AggregatedProfileModel.CPUSamplingNodeProps.class, new CpuSampleFrameNodePropsSerializer());
         module.addSerializer(AggregatedProfileModel.Header.class, new HeaderSerializer());
-        module.addSerializer(AggregatedProfileModel.ProfileSourceInfo.class, new ProfileSourceInfoSerializer());
+        module.addSerializer(AggregatedProfileModel.RecorderInfo.class, new RecorderInfoSerializer());
         module.addSerializer(AggregatedProfileModel.ProfileWorkInfo.class, new ProfileWorkInfoSerializer());
         module.addSerializer(AggregatedProfileModel.TraceCtxDetail.class, new TraceCtxDetailsSerializer());
         om.registerModule(module);
@@ -57,7 +57,7 @@ public class ProtoSerializers {
         @Override
         public void serialize(AggregatedProfileModel.TraceCtxDetail value, JsonGenerator gen, SerializerProvider serializers) throws IOException, JsonProcessingException {
             gen.writeStartObject();
-            gen.writeStringField("name", value.getName());
+            gen.writeNumberField("trace_idx", value.getTraceIdx());
             gen.writeFieldName("props");
             gen.writeStartObject();
             gen.writeNumberField("samples", value.getSampleCount());
@@ -95,22 +95,29 @@ public class ProtoSerializers {
             gen.writeStringField("proc_id", header.getProcId());
             gen.writeStringField("aggregation_startTime", header.getAggregationStartTime());
             gen.writeStringField("aggregation_end_time", header.getAggregationEndTime());
-            gen.writeStringField("work_type", header.getWorkType().name());
+            if(header.hasWorkType()) {
+                gen.writeStringField("work_type", header.getWorkType().name());
+            }
             gen.writeEndObject();
         }
     }
 
-    static class ProfileSourceInfoSerializer extends StdSerializer<AggregatedProfileModel.ProfileSourceInfo> {
-        public ProfileSourceInfoSerializer() {
-            super(AggregatedProfileModel.ProfileSourceInfo.class);
+    static class RecorderInfoSerializer extends StdSerializer<AggregatedProfileModel.RecorderInfo> {
+        public RecorderInfoSerializer() {
+            super(AggregatedProfileModel.RecorderInfo.class);
         }
 
         @Override
-        public void serialize(AggregatedProfileModel.ProfileSourceInfo value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+        public void serialize(AggregatedProfileModel.RecorderInfo value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
             gen.writeStartObject();
             gen.writeStringField("ip", value.getIp());
             gen.writeStringField("hostname", value.getHostname());
+            gen.writeStringField("app_id", value.getAppId());
+            gen.writeStringField("instance_group", value.getInstanceGroup());
+            gen.writeStringField("cluster", value.getCluster());
+            gen.writeStringField("instace_id", value.getInstanceId());
             gen.writeStringField("process_name", value.getProcessName());
+            gen.writeStringField("vm_id", value.getVmId());
             gen.writeStringField("zone", value.getZone());
             gen.writeStringField("instance_type", value.getInstanceType());
             gen.writeEndObject();
@@ -128,10 +135,17 @@ public class ProtoSerializers {
             gen.writeNumberField("start_offset", value.getStartOffset());
             gen.writeNumberField("duration", value.getDuration());
             gen.writeNumberField("recorder_version", value.getRecorderVersion());
-            gen.writeNumberField("sample_count", value.getSampleCount());
+            gen.writeNumberField("recorder_idx", value.getRecorderIdx());
+
+            gen.writeObjectFieldStart("sample_count");
+            for(AggregatedProfileModel.ProfileWorkInfo.SampleCount sampleCount : value.getSampleCountList()) {
+                gen.writeNumberField(sampleCount.getWorkType().name(), sampleCount.getSampleCount());
+            }
+            gen.writeEndObject();
+
             gen.writeStringField("status", value.getStatus().name());
             gen.writeArrayFieldStart("trace_coverage_map");
-            for(AggregatedProfileModel.TraceCtxToCoveragePctMap keyValue: value.getTraceCoverageMapList()) {
+            for(AggregatedProfileModel.ProfileWorkInfo.TraceCtxToCoveragePctMap keyValue: value.getTraceCoverageMapList()) {
                 gen.writeStartArray();
                 gen.writeNumber(keyValue.getTraceCtxIdx());
                 gen.writeNumber(keyValue.getCoveragePct());

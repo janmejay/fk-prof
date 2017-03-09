@@ -1,31 +1,25 @@
 package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
-import fk.prof.aggregation.model.MethodIdLookup;
-import fk.prof.aggregation.model.CpuSamplingFrameNode;
-import fk.prof.aggregation.model.CpuSamplingTraceDetail;
-import fk.prof.aggregation.model.FinalizedAggregationWindow;
-import fk.prof.aggregation.model.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.model.*;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.deployer.VerticleDeployer;
-import fk.prof.backend.deployer.impl.BackendDaemonVerticleDeployer;
 import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
 import fk.prof.backend.mock.MockProfileObjects;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
-import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
-import io.vertx.core.*;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -39,17 +33,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 @RunWith(VertxUnitRunner.class)
 public class ProfileApiTest {
@@ -109,7 +99,7 @@ public class ProfileApiTest {
         Map<Long, FinalizedProfileWorkInfo> expectedWorkLookup = new HashMap<>();
         expectedWorkLookup.put(workId, expectedWorkInfo);
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, null,
+            awStart, null, Collections.EMPTY_LIST,
             expectedWorkLookup, expectedAggregationBucket);
         context.assertTrue(expected.equals(actual));
         async.complete();
@@ -160,7 +150,7 @@ public class ProfileApiTest {
         expectedWorkLookup.put(workId3, expectedWorkInfo3);
 
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, null,
+            awStart, null, Collections.EMPTY_LIST,
             expectedWorkLookup, expectedAggregationBucket);
 
         context.assertTrue(expected.equals(actual));
@@ -470,7 +460,7 @@ public class ProfileApiTest {
   private FinalizedProfileWorkInfo getExpectedWorkInfo(LocalDateTime startedAt, LocalDateTime endedAt, Map<AggregatedProfileModel.WorkType, Integer> samplesMap) {
     Map<String, Integer> expectedTraceCoverages = new HashMap<>();
     expectedTraceCoverages.put("1", 5);
-    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, AggregationState.COMPLETED,
+    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED,
         startedAt, endedAt, expectedTraceCoverages, samplesMap);
     return expectedProfileWorkInfo;
   }

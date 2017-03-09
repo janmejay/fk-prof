@@ -30,12 +30,25 @@ public class FinalizedCpuSamplingAggregationBucket {
         && this.traceDetailLookup.equals(other.traceDetailLookup);
   }
 
-  protected TraceCtxList buildTraceCtxListProto() {
-    TraceCtxList.Builder builder = TraceCtxList.newBuilder();
-    for(String trace: traceDetailLookup.keySet()) {
-      builder.addAllTraceCtx(TraceCtxDetail.newBuilder()
-          .setName(trace).setSampleCount(traceDetailLookup.get(trace).getSampleCount()));
+  protected TraceCtxNames buildTraceNamesProto() {
+    TraceCtxNames.Builder builder = TraceCtxNames.newBuilder();
+    builder.addAllName(traceDetailLookup.keySet());
+    return builder.build();
+  }
+
+  protected TraceCtxDetailList buildTraceCtxListProto(TraceCtxNames traces) {
+    TraceCtxDetailList.Builder builder = TraceCtxDetailList.newBuilder();
+
+    int index = 0;
+    for(String trace: traces.getNameList()) {
+      CpuSamplingTraceDetail traceDetail = traceDetailLookup.getOrDefault(trace, null);
+      if(traceDetail != null) {
+        builder.addTraceCtx(TraceCtxDetail.newBuilder().setTraceIdx(index).setSampleCount(traceDetail.getSampleCount()));
+      }
+
+      ++index;
     }
+
     return builder.build();
   }
 
