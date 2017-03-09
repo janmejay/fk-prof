@@ -39,15 +39,11 @@ enum AggregationStatus {
 	Partial = 4;     	// in case of the connection errors
 }
 
-message RecorderList {
-	repeated RecorderInfo recorders = 1;
-}
-
 message ProfileWorkInfo {	
 	required uint32 startOffset = 1;				// offset in seconds from the current header.aggregationStartTime
 	required uint32 duration = 2;
 	optional uint32 recorderVersion = 3;
-	optional uint32 recorderIdx = 7; 				// idx to recorderList
+	optional RecorderInfo recorderInfo = 7;
 	repeated SampleCount sampleCount = 4;
 	optional AggregationStatus status = 5;
 	repeated TraceCtxToCoveragePctMap traceCoverageMap = 6;

@@ -381,8 +381,7 @@ public class RouterVerticleTest {
         AggregatedProfileNamingStrategy pProfile = new AggregatedProfileNamingStrategy("profiles", 1, P_APP_ID, P_CLUSTER_ID, P_PROC, P_TIME_STAMP, 1800);
         AggregationWindowSummary dummySummary = new AggregationWindowSummary(
                 AggregatedProfileModel.Header.newBuilder().setFormatVersion(1).setAggregationStartTime(P_TIME_STAMP.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)).setAggregationEndTime(P_TIME_STAMP.plusSeconds(1800).format(DateTimeFormatter.ISO_ZONED_DATE_TIME)).build(),
-                AggregatedProfileModel.TraceCtxNames.newBuilder().addAllName(Arrays.asList("trace1", "trace2")).build(),
-                AggregatedProfileModel.RecorderList.getDefaultInstance(), null, null);
+                AggregatedProfileModel.TraceCtxNames.newBuilder().addAllName(Arrays.asList("trace1", "trace2")).build(), null, null);
 
         String encodedSummary = Json.encode(dummySummary);
 

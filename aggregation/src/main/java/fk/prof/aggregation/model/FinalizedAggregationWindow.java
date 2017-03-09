@@ -81,14 +81,6 @@ public class FinalizedAggregationWindow {
     return buildHeaderProto(version, null);
   }
 
-  protected RecorderList buildRecorderListProto() {
-    List<RecorderInfo> recorders = new ArrayList<>();
-    for(FinalizedProfileWorkInfo workInfo : workInfoLookup.values()) {
-       workInfo.updateRecorderIdx(recorders);
-    }
-    return RecorderList.newBuilder().addAllRecorders(recorders).build();
-  }
-
   /**
    * Builds an iterable of {@link} PerRecorderProfileSummary for a workType.
    * @param workType

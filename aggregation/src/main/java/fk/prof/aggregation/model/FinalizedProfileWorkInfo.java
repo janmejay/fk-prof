@@ -20,8 +20,6 @@ public class FinalizedProfileWorkInfo {
   private final Map<String, Integer> traceCoverages;
   private final Map<WorkType, Integer> samples;
 
-  private int recorderIdx;
-
   public FinalizedProfileWorkInfo(int recorderVersion,
                                   RecorderInfo recorderInfo,
                                   AggregationState state,
@@ -90,15 +88,6 @@ public class FinalizedProfileWorkInfo {
     return traceCoverages.keySet();
   }
 
-  protected void updateRecorderIdx(List<RecorderInfo> recorders) {
-    int idx = recorders.indexOf(recorderInfo);
-    if (idx == -1) {
-      idx = recorders.size();
-      recorders.add(recorderInfo);
-    }
-    recorderIdx = idx;
-  }
-
   protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxNames traces) {
     if(workType == null || samples.containsKey(workType)) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
@@ -108,7 +97,7 @@ public class FinalizedProfileWorkInfo {
               .setStatus(toAggregationStatusProto(state));
 
       if(recorderInfo != null) {
-        builder.setRecorderIdx(recorderIdx);
+        builder.setRecorderInfo(recorderInfo);
       }
 
       if(workType != null) {
