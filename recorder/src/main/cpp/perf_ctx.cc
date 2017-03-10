@@ -10,6 +10,7 @@ PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
 }
 
 metrics::Mtr* s_m_bad_pairing;
+metrics::Mtr* s_m_nesting_overflow;
 
 PerfCtx::ThreadTracker::ThreadTracker(Registry& _reg, ProbPct& _pct, int _tid) :
     reg(_reg), pct(_pct), ignore_count(0), effective_start(0), effective_end(0), record(false), tid(_tid) {
@@ -32,6 +33,7 @@ void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
     }
 
     if (actual_stack.size() == PerfCtx::MAX_NESTING) {
+        if (ignore_count == 0) s_m_nesting_overflow->mark();
         ignore_count++;
         return;
     }
@@ -174,6 +176,7 @@ PerfCtx::Registry::Registry() :
     s_c_merge_new(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "merge", "new"})) {
 
     s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "bad_pairing");
+    s_m_nesting_overflow = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "nesting_overflow");
     load_unused_primes(MAX_USER_CTX_COUNT);
 }
 

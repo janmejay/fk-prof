@@ -18,7 +18,6 @@ Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, C
     s_t_associate_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})),
     s_c_associate_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate", "failures"})),
 
-    s_v_working(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working"})),
     s_v_work_cpu_sampling(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working", "cpu_sampling"})),
 
     s_c_work_success(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retire", "success"})),
@@ -447,7 +446,6 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                         populate_recording_header(rh, w, controller_id, controller_version);
                         writer->write_header(rh);
                     }
-                    s_v_working.update(1);
                     
                     for (auto i = 0; i < w.work_size(); i++) {
                         auto work = w.work(i);

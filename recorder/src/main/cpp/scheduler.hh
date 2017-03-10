@@ -37,6 +37,7 @@ private:
     metrics::Timer& s_t_wait;
     metrics::Timer& s_t_exec;
     metrics::Hist& s_h_exec_spree_len;
+    metrics::Ctr& s_c_q_sz;
 };
 
 #endif
