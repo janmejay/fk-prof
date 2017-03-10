@@ -1,19 +1,51 @@
 {
-  "vertxOptions": {
-    "blockedThreadCheckInterval": 60000
+  "backend.http.port": 2491,
+  "leader.http.port": 2496,
+  "load.report.interval.secs": 60,
+  "backend.http.server": {
+    "idle.timeout.secs": 120
   },
-  "deploymentOptions": {
-    "http.instances": 2,
+  "leader.http.server": {
+    "idle.timeout.secs": 120
+  },
+  "http.client": {
+    "connect.timeout.ms": 5000,
+    "idle.timeout.secs": 120,
+    "max.attempts": 3,
+    "keepalive": true,
+    "compression": true
+  },
+  "vertxOptions": {
+    "blockedThreadCheckInterval": 1000
+  },
+  "backendHttpOptions": {
     "config": {
-      "http.port": 9300,
+      "verticle.count": 2,
+      "report.load": true,
       "parser": {
         "recordingheader.max.bytes": 1024,
         "wse.max.bytes": 1048576
-      },
-      "aggregator": {
-        "window.duration.mins": 20,
-        "window.tolerance.secs": 60
       }
     }
+  },
+  "curatorOptions": {
+    "connection.url": "",
+    "namespace": "fkprof",
+    "connection.timeout.ms": 5000,
+    "session.timeout.ms": 60000,
+    "max.retries": 3
+  },
+  "leaderElectionOptions": {
+    "worker": true,
+    "config": {
+      "aggregation.enabled": false,
+      "leader.watching.path": "/backends",
+      "leader.mutex.path": "/leader",
+      "leader.sleep.ms": 60000
+    }
+  },
+  "leaderHttpOptions": {
+    "backend.association.path": "/association",
+    "load.miss.tolerance": 1
   }
 }

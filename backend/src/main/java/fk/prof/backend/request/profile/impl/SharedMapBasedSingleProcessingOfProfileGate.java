@@ -20,12 +20,16 @@ public class SharedMapBasedSingleProcessingOfProfileGate implements ISingleProce
       logger.error(String.format("Profile for work_id=%d is already being aggregated in a separate request", workId));
       throw new AggregationFailure(String.format("Profile is already being aggregated for work_id=%d in a different request", workId));
     }
-    logger.debug(String.format("Profile for work_id=%d eligible for aggregation", workId));
+    if(logger.isDebugEnabled()) {
+      logger.debug(String.format("Profile for work_id=%d eligible for aggregation", workId));
+    }
   }
 
   public void finish(long workId) {
     workIdsInPipeline.remove(workId);
-    logger.debug(String.format("Profile for work_id=%d removed from processing pipeline", workId));
+    if(logger.isDebugEnabled()) {
+      logger.debug(String.format("Profile for work_id=%d removed from processing pipeline", workId));
+    }
   }
 
 }

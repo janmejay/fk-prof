@@ -10,13 +10,15 @@ import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
+import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
 import fk.prof.backend.mock.MockProfileObjects;
+import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.service.IProfileWorkService;
 import fk.prof.backend.service.ProfileWorkService;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -43,28 +45,29 @@ import java.util.zip.Checksum;
 public class ProfileApiTest {
 
   private static Vertx vertx;
+  private static ConfigManager configManager;
   private static Integer port;
   private static IProfileWorkService profileWorkService;
   private static AtomicLong workIdCounter = new AtomicLong(0);
 
   @BeforeClass
-  public static void setUp(TestContext context) throws IOException {
+  public static void setUp(TestContext context) throws Exception {
     ConfigManager.setDefaultSystemProperties();
-    JsonObject config = ConfigManager.loadFileAsJson(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
-    JsonObject vertxConfig = config.getJsonObject("vertxOptions");
-    JsonObject deploymentConfig = config.getJsonObject("deploymentOptions");
-    assert deploymentConfig != null;
+    ConfigManager configManager = new ConfigManager(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile());
 
-    vertx = vertxConfig != null ? Vertx.vertx(new VertxOptions(vertxConfig)) : Vertx.vertx();
+    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
     profileWorkService = new ProfileWorkService();
-    port = deploymentConfig.getJsonObject("config").getInteger("http.port");
-    DeploymentOptions deploymentOptions = new DeploymentOptions(deploymentConfig);
-    VertxManager.deployHttpVerticles(vertx, deploymentOptions, 2, profileWorkService);
+    port = configManager.getBackendHttpPort();
+
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, new InMemoryLeaderStore(configManager.getIPAddress()), profileWorkService);
+    backendVerticleDeployer.deploy();
+    //Wait for some time for verticles to be deployed
+    Thread.sleep(1000);
   }
 
   @AfterClass
   public static void tearDown(TestContext context) {
-    VertxManager.close(vertx);
+    vertx.close();
   }
 
   @Test
@@ -91,7 +94,7 @@ public class ProfileApiTest {
         Map<Long, FinalizedProfileWorkInfo> expectedWorkLookup = new HashMap<>();
         expectedWorkLookup.put(workId, expectedWorkInfo);
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, awStart.plusMinutes(20).plusSeconds(60),
+            awStart, awStart.plusMinutes(20).plusSeconds(60), null,
             expectedWorkLookup, expectedAggregationBucket);
 
         context.assertTrue(expected.equals(actual));
@@ -145,7 +148,7 @@ public class ProfileApiTest {
         expectedWorkLookup.put(workId3, expectedWorkInfo3);
 
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, awStart.plusMinutes(20).plusSeconds(60),
+            awStart, awStart.plusMinutes(20).plusSeconds(60), null,
             expectedWorkLookup, expectedAggregationBucket);
 
         context.assertTrue(expected.equals(actual));
@@ -440,7 +443,7 @@ public class ProfileApiTest {
   private FinalizedProfileWorkInfo getExpectedWorkInfo(LocalDateTime startedAt, LocalDateTime endedAt, Map<AggregatedProfileModel.WorkType, Integer> samplesMap) {
     Map<String, Integer> expectedTraceCoverages = new HashMap<>();
     expectedTraceCoverages.put("1", 5);
-    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, AggregationState.COMPLETED,
+    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED,
         startedAt, endedAt, expectedTraceCoverages, samplesMap);
     return expectedProfileWorkInfo;
   }

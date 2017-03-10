@@ -2,11 +2,12 @@
   "http.port": 8082,
   "http.instances": 1,
   "req.timeout": 10000,
-  "profile.retention.duration": 30,
+  "profile.retention.duration.min": 30,
+  "aggregation_window.duration.min": 30,
   "storage": "S3",
   "S3": {
-    "end.point": "http://10.47.2.3:80",
-    "access.key": "66ZX9WC7ZRO6S5BSO8TG",
-    "secret.key": "fGEJrdiSWNJlsZTiIiTPpUntDm0wCRV4tYbwu2M+"
+    "end.point": "<endpoint>",
+    "access.key": "<access_key>",
+    "secret.key": "<secret_key>"
   }
 }

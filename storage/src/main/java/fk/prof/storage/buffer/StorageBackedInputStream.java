@@ -98,6 +98,11 @@ public class StorageBackedInputStream extends InputStream {
             bytesToRead -= bytesRead;
         }
 
+        // if reached eof and nothing read
+        if(len - bytesToRead == 0 && eof) {
+            return -1;
+        }
+
         return len - bytesToRead;
     }
 
@@ -124,9 +129,15 @@ public class StorageBackedInputStream extends InputStream {
             if(e.getCause() instanceof ObjectNotFoundException) {
                 // mark eof
                 eof = true;
-                final String msg = "File: " + nextFileName + " could not be found";
-                LOGGER.error(msg, e);
-                throw new FileNotFoundException(msg + ". Cause: " + e.getMessage());
+                buf = null;
+                futureInputStream = null;
+
+                // specific check to throw only in case the first part is not available.
+                if(part == 0) {
+                    final String msg = "File: " + nextFileName + " could not be found";
+                    LOGGER.error(msg, e);
+                    throw new FileNotFoundException(msg + ". Cause: " + e.getMessage());
+                }
             }
             else {
                 LOGGER.error("Unexpected error while fetching file: {}", nextFileName, e);
