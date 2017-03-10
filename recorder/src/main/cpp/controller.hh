@@ -28,12 +28,7 @@
 
 class Controller {
 public:
-    explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
-        jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr) {
-        current_work.set_work_id(0);
-        current_work_state = recording::WorkResponse::complete;
-        current_work_result = recording::WorkResponse::success;
-    }
+    explicit Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg);
 
     virtual ~Controller() {}
 
@@ -67,9 +62,19 @@ private:
     WRes current_work_result;
     Time::Pt work_start, work_end;
 
-    void startSampling();
+    //[metrics......
+    metrics::Timer& s_t_poll_rpc;
+    metrics::Ctr& s_c_poll_rpc_failures;
+    
+    metrics::Timer& s_t_associate_rpc;
+    metrics::Ctr& s_c_associate_rpc_failures;
 
-    void stopSampling();
+    metrics::Value& s_v_work_cpu_sampling;
+
+    metrics::Ctr& s_c_work_success;
+    metrics::Ctr& s_c_work_failure;
+    metrics::Ctr& s_c_work_retired;
+    //......metrics]
 
     void run();
     
@@ -79,8 +84,8 @@ private:
 
     void with_current_work(std::function<void(W&, WSt&, WRes&, Time::Pt&, Time::Pt&)> proc);
 
-    void issueWork(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version);
-    void retireWork(const std::uint64_t work_id);
+    void issue_work(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version);
+    void retire_work(const std::uint64_t work_id);
 
     void issue(const recording::Work& w);
     void retire(const recording::Work& w);

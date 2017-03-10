@@ -1,4 +1,3 @@
-
 # binaries
 build*
 target/
@@ -8,6 +7,9 @@ target/
 
 # JDK crashes
 hs_err_pid*
+
+# local configuration
+recorder_env.properties
 
 # output files
 log-*.hpl
@@ -47,6 +49,7 @@ cscope.*
 
 .#*
 core
+
 # ui
 npm-debug.log
 ui/public/*

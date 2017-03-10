@@ -26,12 +26,28 @@ TRACE_DEFINE_BEGIN(Processor, kTraceProcessorTotal)
     TRACE_DEFINE("chech that processor is running")
 TRACE_DEFINE_END(Processor, kTraceProcessorTotal);
 
+#define METRIC_TYPE "cpu_samp_proc"
+
+Processor::Processor(jvmtiEnv* jvmti, CircularQueue& buffer, SignalHandler& handler, int interval)
+    : jvmti_(jvmti), buffer_(buffer), isRunning_(false), handler_(handler), interval_(interval),
+
+      s_h_pop_spree_len(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "length"})),
+      s_t_pop_spree_tm(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "time"})),
+
+      s_t_yield_tm(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "sched_yield", "time"})) {}
+
+
 void Processor::run() {
     int popped = 0;
 
     while (true) {
-        while (buffer_.pop()) {
-            ++popped;
+        {
+            auto _ = s_t_pop_spree_tm.time_scope();
+
+            int poppped_before = popped;
+            while (buffer_.pop()) ++popped;
+
+            s_h_pop_spree_len.update(popped - poppped_before);
         }
 
         if (popped > 200) {
@@ -45,7 +61,10 @@ void Processor::run() {
             break;
         }
 
-        sched_yield();
+        {
+            auto _ = s_t_yield_tm.time_scope();
+            sched_yield();
+        }
     }
 
     handler_.stopSigprof();

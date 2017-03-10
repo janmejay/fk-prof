@@ -17,7 +17,7 @@
     }
 
 TEST(BlockingRingBuffer_should_RW_____when_read_ptr_before_write_ptr) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -38,7 +38,7 @@ TEST(BlockingRingBuffer_should_RW_____when_read_ptr_before_write_ptr) {
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____one_shot) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -55,7 +55,7 @@ TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____one_shot) {
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____across_2_writes) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -73,7 +73,7 @@ TEST(BlockingRingBuffer_should_RW_____when_write_ptr_wraps_over____across_2_writ
 }
 
 TEST(BlockingRingBuffer_should_RW_____when_read_ptr_wraps_over____across_2_reads) { //one shot case is already tested
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -92,7 +92,7 @@ TEST(BlockingRingBuffer_should_RW_____when_read_ptr_wraps_over____across_2_reads
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_write) { 
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -104,7 +104,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_write) {
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_write____but_needs_wrapping_over) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -118,7 +118,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_write____but_needs_wrapping_ov
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_read) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -131,7 +131,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_read) {
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_read____but_needs_wrapping_over) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100];
     BlockingRingBuffer ring(100);
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -146,7 +146,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_read____but_needs_wrapping_ove
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_not_read____but_is_a_non_blocking_read_call) {
-    init_logger();
+    TestEnv _;
     std::uint8_t buff[100];
     BlockingRingBuffer ring(100);
     auto start = std::chrono::steady_clock::now();
@@ -155,7 +155,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_not_read____but_is_a_non_block
 }
 
 TEST(BlockingRingBuffer_should_not_block_when_can_not_write____but_is_a_non_blocking_write_call) {
-    init_logger();
+    TestEnv _;
     std::uint8_t buff[100];
     BlockingRingBuffer ring(100);
     CHECK_EQUAL(100, ring.write(buff, 0, 100));
@@ -165,7 +165,7 @@ TEST(BlockingRingBuffer_should_not_block_when_can_not_write____but_is_a_non_bloc
 }
 
 TEST(BlockingRingBuffer_should_not_write____more_than_available_capacity) {
-    init_logger();
+    TestEnv _;
     std::uint8_t buff[100];
     for (int i = 0; i < sizeof(buff); i++) {
         buff[i] = i % 256;
@@ -179,7 +179,7 @@ TEST(BlockingRingBuffer_should_not_write____more_than_available_capacity) {
 }
 
 TEST(BlockingRingBuffer_should_not_read____more_than_available_content) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
@@ -204,7 +204,7 @@ void write_after_sleep(std::uint32_t ms, BlockingRingBuffer& ring, std::uint8_t*
 }
 
 TEST(BlockingRingBuffer_should_block_write____if_it_became_full_midway_of_a_write) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_read_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -230,7 +230,7 @@ TEST(BlockingRingBuffer_should_block_write____if_it_became_full_midway_of_a_writ
 }
 
 TEST(BlockingRingBuffer_should_block_read____if_it_became_empty_midway_of_a_read) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -258,7 +258,7 @@ TEST(BlockingRingBuffer_should_block_read____if_it_became_empty_midway_of_a_read
 }
 
 TEST(BlockingRingBuffer_should_block_read____if_no_data_has_ever_been_written_to_ring) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -279,7 +279,7 @@ TEST(BlockingRingBuffer_should_block_read____if_no_data_has_ever_been_written_to
 }
 
 TEST(BlockingRingBuffer_should_block_write____if_ring_is_full___and_no_data_has_ever_been_read) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -302,7 +302,7 @@ TEST(BlockingRingBuffer_should_block_write____if_ring_is_full___and_no_data_has_
 }
 
 TEST(BlockingRingBuffer_should_block_read____when_ring_is_empty___but_has_seen_some_io_before_becoming_empty) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -325,7 +325,7 @@ TEST(BlockingRingBuffer_should_block_read____when_ring_is_empty___but_has_seen_s
 }
 
 TEST(BlockingRingBuffer_should_block_write____when_ring_is_full___but_has_seen_reads_too_before_becoming_full) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -354,7 +354,7 @@ TEST(BlockingRingBuffer_should_block_write____when_ring_is_full___but_has_seen_r
 }
 
 TEST(BlockingRingBuffer_should_not_block_on_read____if_0_byte_read_is_requested) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -373,7 +373,7 @@ TEST(BlockingRingBuffer_should_not_block_on_read____if_0_byte_read_is_requested)
 }
 
 TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requested) {
-    init_logger();
+    TestEnv _;
     std::uint32_t bytes_written_after_sleep = 0;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -394,7 +394,7 @@ TEST(BlockingRingBuffer_should_not_block_on_write____if_0_byte_write_is_requeste
 }
 
 TEST(BlockingRingBuffer_should_reset_and_drop_data____when_clered) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
@@ -439,7 +439,7 @@ void write_to_ring(BlockingRingBuffer& ring, std::uint8_t *buff, std::uint32_t b
 }
 
 TEST(BlockingRingBuffer_should_have_no_data_loss____in_the_face_of_concurrent_reads_and_writes) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[1024];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i % 256;
@@ -492,7 +492,7 @@ void make_readonly_after_sleep(std::uint32_t ms, BlockingRingBuffer& ring) {
 }
 
 TEST(BlockingRingBuffer_should_not_block_reads____or_allow_writes____when_readonly) {
-    init_logger();
+    TestEnv _;
     std::uint8_t buff[100];
     BlockingRingBuffer ring(100);
     
@@ -510,11 +510,11 @@ TEST(BlockingRingBuffer_should_not_block_reads____or_allow_writes____when_readon
 
     start = std::chrono::steady_clock::now();
     CHECK_EQUAL(0, ring.write(buff, 0, 20));
-    CHECK_CLOSE(2, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
+    CHECK_CLOSE(7, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
 }
 
 TEST(BlockingRingBuffer_should_not_block_writes____when_readonly____but_should_allow_completion_of_read) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[200];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i;
@@ -542,7 +542,7 @@ TEST(BlockingRingBuffer_should_not_block_writes____when_readonly____but_should_a
 }
 
 TEST(BlockingRingBuffer_should_block____if_reset____after_making_readonly) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[200], read_buff[200];
     std::uint32_t bytes_written_after_sleep = 0, bytes_read_after_sleep = 0;
     for (int i = 0; i < sizeof(write_buff); i++) {
@@ -577,7 +577,7 @@ TEST(BlockingRingBuffer_should_block____if_reset____after_making_readonly) {
 }
 
 TEST(BlockingRingBuffer_should_cancel_inflight_writes____when_readonly) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[200], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i;
@@ -600,7 +600,7 @@ TEST(BlockingRingBuffer_should_cancel_inflight_writes____when_readonly) {
 }
 
 TEST(BlockingRingBuffer_should_return_inflight_reads____when_readonly____without_waiting_for_buff_to_fill) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[100], read_buff[100];
     for (int i = 0; i < sizeof(write_buff); i++) {
         write_buff[i] = i;
@@ -621,7 +621,7 @@ TEST(BlockingRingBuffer_should_return_inflight_reads____when_readonly____without
 }
 
 TEST(BlockingRingBuffer_should_allow_reads_and_writes____larger_than_ring_sz) {
-    init_logger();
+    TestEnv _;
     std::uint8_t write_buff[200], read_buff[150];
     std::uint32_t bytes_written_after_sleep = 0;
     for (int i = 0; i < sizeof(write_buff); i++) {

@@ -19,7 +19,7 @@ std::uint32_t time_poll(Scheduler& s, bool expected_return = true) {
 }
 
 TEST(Scheduler___one_at_a_time___just_expired) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 0;
     Scheduler s;
 
@@ -37,7 +37,7 @@ TEST(Scheduler___one_at_a_time___just_expired) {
 }
 
 TEST(Scheduler___one_at_a_time___pre_expired) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 0;
     Scheduler s;
 
@@ -53,7 +53,7 @@ TEST(Scheduler___one_at_a_time___pre_expired) {
 }
 
 TEST(Scheduler___several___pre_expired) {
-    init_logger();
+    TestEnv _;
     int order_tracker[] = {0, 0};
     Scheduler s;
 
@@ -72,7 +72,7 @@ TEST(Scheduler___several___pre_expired) {
 }
 
 TEST(Scheduler___several___future) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 0;
     Scheduler s;
 
@@ -102,7 +102,7 @@ TEST(Scheduler___several___future) {
 }
 
 TEST(Scheduler___too_many_pops) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 0;
     Scheduler s;
 
@@ -117,7 +117,7 @@ void schedule_after_sleep(std::uint32_t ms, Scheduler& s, std::uint32_t sched_de
 }
 
 TEST(Scheduler___schedules_in_desired_order___when_another_thd_enqueues___during_poll_wait) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 0;
     int co_trigger_tracker = 0;
     Scheduler s;
@@ -163,7 +163,7 @@ TEST(Scheduler___schedules_in_desired_order___when_another_thd_enqueues___during
 }
 
 TEST(Scheduler___schedules_correctly___when_one_tasks_enqueues_another) {
-    init_logger();
+    TestEnv _;
     int order_tracker = 1;
     Scheduler s;
 

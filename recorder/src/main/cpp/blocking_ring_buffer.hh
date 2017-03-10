@@ -17,16 +17,20 @@ private:
     std::uint32_t write_noblock(const std::uint8_t *from, std::uint32_t& offset, std::uint32_t& sz);
     std::uint32_t read_noblock(std::uint8_t *to, std::uint32_t& offset, std::uint32_t& sz);
 
+    metrics::Timer& s_t_write;
+    metrics::Timer& s_t_write_wait;
+    metrics::Hist& s_h_write_sz;
+
+    metrics::Timer& s_t_read;
+    metrics::Timer& s_t_read_wait;
+    metrics::Hist& s_h_read_sz;
+
 public:
     static constexpr std::uint32_t DEFAULT_RING_SZ = 1024 * 1024;
     
-    BlockingRingBuffer(std::uint32_t _capacity = DEFAULT_RING_SZ) : read_idx(0), write_idx(0), capacity(_capacity), available(0), buff(new std::uint8_t[capacity]), allow_writes(true) {
-        logger->trace("Created a ring of capacity: {}, available: {}", capacity, available);
-    }
+    BlockingRingBuffer(std::uint32_t _capacity = DEFAULT_RING_SZ);
 
-    ~BlockingRingBuffer() {
-        delete[] buff;
-    }
+    ~BlockingRingBuffer();
 
     std::uint32_t write(const std::uint8_t *from, std::uint32_t offset, std::uint32_t sz, bool do_block = true);
 

@@ -20,9 +20,7 @@ TRACE_DECLARE(Processor, kTraceProcessorTotal);
 class Processor {
 
 public:
-    explicit Processor(jvmtiEnv* jvmti, CircularQueue& buffer, SignalHandler& handler, int interval)
-        : jvmti_(jvmti), buffer_(buffer), isRunning_(false), handler_(handler), interval_(interval) {
-    }
+    explicit Processor(jvmtiEnv* jvmti, CircularQueue& buffer, SignalHandler& handler, int interval);
 
     void start(JNIEnv *jniEnv);
 
@@ -44,6 +42,10 @@ private:
     int interval_;
 
     ThdProcP thd_proc;
+
+    metrics::Hist& s_h_pop_spree_len;
+    metrics::Timer& s_t_pop_spree_tm;
+    metrics::Timer& s_t_yield_tm;
 
     void startCallback(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg);
 
