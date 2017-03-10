@@ -37,7 +37,6 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
             if (! ctx_tracker->should_record()) {
-                s_c_cpu_samp_drop_norec.inc();
                 SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
                 return;
             }
@@ -141,8 +140,6 @@ Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::
     : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer), tts(max_stack_depth), ongoing_conf(false),
 
       s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
-
-      s_c_cpu_samp_drop_norec(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "no_rec"})),
 
       s_c_cpu_samp_err_no_jni(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
       s_c_cpu_samp_err_unexpected(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),

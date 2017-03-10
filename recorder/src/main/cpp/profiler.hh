@@ -106,7 +106,6 @@ private:
     std::atomic<bool> ongoing_conf;
 
     metrics::Ctr& s_c_cpu_samp_total;
-    metrics::Ctr& s_c_cpu_samp_drop_norec;
     metrics::Ctr& s_c_cpu_samp_err_no_jni;
     metrics::Ctr& s_c_cpu_samp_err_unexpected;
     metrics::Ctr& s_c_cpu_samp_gc;
