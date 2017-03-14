@@ -8,6 +8,7 @@ import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.model.slot.WorkSlotWeightCalculator;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.BitOperationUtil;
+import fk.prof.backend.util.proto.BackendDTOProtoUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -133,6 +134,11 @@ public class AggregationWindowPlanner {
     currentAggregationWindowIndex++;
 
     if (currentAggregationWindowIndex == relevantAggregationWindowIndexForWorkProfile && latestWorkProfile != null) {
+      if(logger.isDebugEnabled()) {
+        logger.debug("Initializing aggregation window with index=" + currentAggregationWindowIndex +
+            ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
+            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestWorkProfile));
+      }
       try {
         int targetRecordersCount = processGroupContextForScheduling.getRecorderTargetCountToMeetCoverage(latestWorkProfile.getCoveragePct());
         Recorder.WorkAssignment.Builder[] workAssignmentBuilders = new Recorder.WorkAssignment.Builder[targetRecordersCount];
@@ -150,6 +156,10 @@ public class AggregationWindowPlanner {
           workIds[i] = workAssignmentBuilder.getWorkId();
         }
         setupAggregationWindow(workAssignmentBuilders, workIds);
+        logger.info("Initialized aggregation window with index=" + currentAggregationWindowIndex +
+            ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
+            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestWorkProfile) +
+            ", work_count=" + targetRecordersCount);
       } catch (Exception ex) {
         reset();
         //TODO: log this as metric somewhere, fatal failure wrt to aggregation window
@@ -176,8 +186,9 @@ public class AggregationWindowPlanner {
         processGroup.getCluster(),
         processGroup.getProcName(),
         windowStart,
+        aggregationWindowDurationInMins * 60,
         workIds);
-      processGroupContextForScheduling.updateWorkAssignmentSchedule(workAssignmentSchedule);
+    processGroupContextForScheduling.updateWorkAssignmentSchedule(workAssignmentSchedule);
     aggregationWindowLookupStore.associateAggregationWindow(workIds, currentAggregationWindow);
   }
 

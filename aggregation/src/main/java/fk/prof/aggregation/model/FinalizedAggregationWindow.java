@@ -13,6 +13,7 @@ public class FinalizedAggregationWindow {
   private final String procId;
   private final LocalDateTime start;
   private final LocalDateTime endedAt;
+  private final int durationInSecs;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
@@ -21,6 +22,7 @@ public class FinalizedAggregationWindow {
                                     String procId,
                                     LocalDateTime start,
                                     LocalDateTime endedAt,
+                                    int durationInSecs,
                                     Map<Long, FinalizedProfileWorkInfo> workInfoLookup,
                                     FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket) {
     this.appId = appId;
@@ -28,6 +30,7 @@ public class FinalizedAggregationWindow {
     this.procId = procId;
     this.start = start;
     this.endedAt = endedAt;
+    this.durationInSecs = durationInSecs;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
   }
@@ -55,6 +58,7 @@ public class FinalizedAggregationWindow {
         && this.clusterId.equals(other.clusterId)
         && this.procId.equals(other.procId)
         && this.start.equals(other.start)
+        && this.durationInSecs == other.durationInSecs
         && this.endedAt == null ? other.endedAt == null : this.endedAt.equals(other.endedAt)
         && this.workInfoLookup.equals(other.workInfoLookup)
         && this.cpuSamplingAggregationBucket.equals(other.cpuSamplingAggregationBucket);

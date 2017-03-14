@@ -6,8 +6,8 @@ import fk.prof.backend.deployer.impl.LeaderElectionParticipatorVerticleDeployer;
 import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
 import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
 import fk.prof.backend.leader.election.LeaderElectedTask;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
+import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
@@ -47,7 +47,7 @@ public class AssociationApiTest {
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
   private BackendAssociationStore backendAssociationStore;
-  private ProcessGroupAssociationStore processGroupAssociationStore;
+  private AssociatedProcessGroups associatedProcessGroups;
   private PolicyStore policyStore;
   private InMemoryLeaderStore inMemoryLeaderStore;
   private ConfigManager configManager;
@@ -71,10 +71,10 @@ public class AssociationApiTest {
 
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
     inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
-    processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     policyStore = new PolicyStore();
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new AggregationWindowLookupStoreImpl(), processGroupAssociationStore);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new AggregationWindowLookupStoreImpl(), associatedProcessGroups);
     backendHttpVerticleDeployer.deploy();
     //Wait for some time for deployment to complete
     Thread.sleep(1000);

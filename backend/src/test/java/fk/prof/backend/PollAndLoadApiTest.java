@@ -8,8 +8,8 @@ import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import fk.prof.backend.model.assignment.AggregationWindowPlanner;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
+import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
 import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
@@ -61,7 +61,7 @@ public class PollAndLoadApiTest {
   private TestingServer testingServer;
 
   private InMemoryLeaderStore leaderStore;
-  private ProcessGroupAssociationStore processGroupAssociationStore;
+  private AssociatedProcessGroups associatedProcessGroups;
   private AggregationWindowLookupStore aggregationWindowLookupStore;
   private WorkSlotPool workSlotPool;
   private BackendAssociationStore backendAssociationStore;
@@ -94,15 +94,15 @@ public class PollAndLoadApiTest {
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
     leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
     when(leaderStore.isLeader()).thenReturn(false);
-    processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
     aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     policyStore = spy(new PolicyStore());
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
-        aggregationWindowLookupStore, processGroupAssociationStore);
+        aggregationWindowLookupStore, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
-        processGroupAssociationStore, aggregationWindowLookupStore, workSlotPool);
+        associatedProcessGroups, aggregationWindowLookupStore, workSlotPool);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.result().cause());

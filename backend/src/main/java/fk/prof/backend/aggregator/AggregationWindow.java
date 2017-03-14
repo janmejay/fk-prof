@@ -11,6 +11,8 @@ import recording.Recorder;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -20,19 +22,24 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final String clusterId;
   private final String procId;
   private LocalDateTime start = null, endedAt = null;
+  private final int durationInSecs;
 
-  private final ConcurrentHashMap<Long, ProfileWorkInfo> workInfoLookup = new ConcurrentHashMap<>();
+  private final Map<Long, ProfileWorkInfo> workInfoLookup;
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   public AggregationWindow(String appId, String clusterId, String procId,
-                           LocalDateTime start, long[] workIds) {
+                           LocalDateTime start, int durationInSecs, long[] workIds) {
     this.appId = appId;
     this.clusterId = clusterId;
     this.procId = procId;
     this.start = start;
+    this.durationInSecs = durationInSecs;
+
+    Map<Long, ProfileWorkInfo> workInfoModifiableLookup = new HashMap<>();
     for (int i = 0; i < workIds.length; i++) {
-      this.workInfoLookup.put(workIds[i], new ProfileWorkInfo());
+      workInfoModifiableLookup.put(workIds[i], new ProfileWorkInfo());
     }
+    this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
   }
 
   public AggregationState startProfile(long workId, int recorderVersion, LocalDateTime startedAt) throws AggregationFailure {
@@ -147,7 +154,8 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
             entry -> entry.getValue().finalizeEntity()));
 
     return new FinalizedAggregationWindow(
-        appId, clusterId, procId, start, endedAt, finalizedWorkInfoLookup,
+        appId, clusterId, procId, start, endedAt, durationInSecs,
+        finalizedWorkInfoLookup,
         cpuSamplingAggregationBucket.finalizeEntity()
     );
   }

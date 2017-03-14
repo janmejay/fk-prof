@@ -5,7 +5,7 @@ import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.assignment.AggregationWindowPlannerStore;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
@@ -29,7 +29,7 @@ public class BackendDaemon extends AbstractVerticle {
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final ProcessGroupAssociationStore processGroupAssociationStore;
+  private final AssociatedProcessGroups associatedProcessGroups;
   private final WorkSlotPool workSlotPool;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final String ipAddress;
@@ -42,7 +42,7 @@ public class BackendDaemon extends AbstractVerticle {
 
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,
-                       ProcessGroupAssociationStore processGroupAssociationStore,
+                       AssociatedProcessGroups associatedProcessGroups,
                        AggregationWindowLookupStore aggregationWindowLookupStore,
                        WorkSlotPool workSlotPool) {
     this.configManager = configManager;
@@ -51,7 +51,7 @@ public class BackendDaemon extends AbstractVerticle {
     this.backendHttpPort = configManager.getBackendHttpPort();
 
     this.leaderReadContext = leaderReadContext;
-    this.processGroupAssociationStore = processGroupAssociationStore;
+    this.associatedProcessGroups = associatedProcessGroups;
     this.aggregationWindowLookupStore = aggregationWindowLookupStore;
     this.workSlotPool = workSlotPool;
   }
@@ -114,7 +114,7 @@ public class BackendDaemon extends AbstractVerticle {
                   try {
                     loadTickCounter++;
                     Recorder.ProcessGroups assignedProcessGroups = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroups.parser(), ar.result().getResponse());
-                    processGroupAssociationStore.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
+                    associatedProcessGroups.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
                       switch (processGroupAssociationResult) {
                         case ADDED:
                           this.aggregationWindowPlannerStore.associateAggregationWindowPlannerIfAbsent(processGroupDetail);
