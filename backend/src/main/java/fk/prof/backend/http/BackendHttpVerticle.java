@@ -3,6 +3,7 @@ package fk.prof.backend.http;
 import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
+import fk.prof.backend.exception.BadRequestException;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
 import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
@@ -139,7 +140,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
-        throw new IllegalArgumentException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
+        throw new BadRequestException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
 
       Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.receivePoll(pollReq);
@@ -156,7 +157,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
         pollRes = pollResBuilder.setAssignment(nextWorkAssignment).build();
         AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
         if (aggregationWindow == null) {
-          throw new IllegalArgumentException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
+          throw new BadRequestException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
               nextWorkAssignment.getWorkId()));
         }
         aggregationWindow.updateRecorderInfo(nextWorkAssignment.getWorkId(), pollReq.getRecorderInfo());

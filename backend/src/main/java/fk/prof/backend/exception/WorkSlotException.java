@@ -43,14 +43,4 @@ public class WorkSlotException extends RuntimeException implements ProfException
   public boolean isServerFailure() {
     return serverFailure;
   }
-
-  public static WorkSlotException failure(Throwable throwable) {
-    if (throwable instanceof WorkSlotException) {
-      return (WorkSlotException) throwable;
-    }
-    if (throwable.getMessage() == null) {
-      return new WorkSlotException("No message provided", throwable.getCause());
-    }
-    return new WorkSlotException(throwable.getMessage(), throwable.getCause());
-  }
 }

@@ -43,14 +43,4 @@ public class BackendAssociationException extends RuntimeException implements Pro
   public boolean isServerFailure() {
     return serverFailure;
   }
-
-  public static BackendAssociationException failure(Throwable throwable) {
-    if (throwable instanceof BackendAssociationException) {
-      return (BackendAssociationException) throwable;
-    }
-    if (throwable.getMessage() == null) {
-      return new BackendAssociationException("No message provided", throwable.getCause());
-    }
-    return new BackendAssociationException(throwable.getMessage(), throwable.getCause());
-  }
 }

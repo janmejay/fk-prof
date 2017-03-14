@@ -30,10 +30,8 @@ public class WorkAssignmentSchedule {
 
   public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
-                                int profileDurationInSecs)
-      throws IllegalArgumentException {
-
-    // breathing space at the start, this will usually be a lower value that window tolerance
+                                int profileDurationInSecs) {
+    // breathing space at the start, this will usually be a lower value than window tolerance
     int windowStartToleranceInSecs = bootstrapConfig.getSchedulingBufferInSecs() * 2;
     //actual time span for which schedule is calculated
     int effectiveWindowDurationInSecs = (bootstrapConfig.getWindowDurationInMins() * 60) - bootstrapConfig.getWindowEndToleranceInSecs() - windowStartToleranceInSecs;

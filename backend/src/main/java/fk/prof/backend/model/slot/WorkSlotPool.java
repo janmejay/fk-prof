@@ -24,7 +24,7 @@ public class WorkSlotPool {
       throw new WorkSlotException("Required slots should be a positive quantity, requested=" + required);
     }
     if(required > available) {
-      throw new WorkSlotException("Not enough slots available, configured capacity=" + capacity + ", available=" + available);
+      throw new WorkSlotException("Not enough slots available, configured capacity=" + capacity + ", available=" + available, true);
     }
     List<WorkSlot> acquired = IntStream.range(0, required)
         .mapToObj(i -> new WorkSlot())
