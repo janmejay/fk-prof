@@ -34,7 +34,10 @@ public class BackendDaemonVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected DeploymentOptions getDeploymentOptions() {
-    return new DeploymentOptions(getConfigManager().getBackendDaemonDeploymentConfig());
+    DeploymentOptions deploymentOptions = new DeploymentOptions(getConfigManager().getBackendDaemonDeploymentConfig());
+    //Backend daemon should never be deployed more than once, so hardcoding verticle count to 1, to protect from illegal configuration
+    deploymentOptions.getConfig().put("verticle.count", 1);
+    return deploymentOptions;
   }
 
   @Override
