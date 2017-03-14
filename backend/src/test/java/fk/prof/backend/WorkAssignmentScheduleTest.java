@@ -32,8 +32,10 @@ public class WorkAssignmentScheduleTest {
     Assert.assertNotNull(r1);
     Assert.assertTrue(r1.getDelay() < 10);
 
-    //already fetched for 1st recorder
-    Assert.assertNull(was.getNextWorkAssignment(buildRI("1")));
+    //already fetched for 1st recorder, so should return same work id
+    Recorder.WorkAssignment r2 = was.getNextWorkAssignment(buildRI("1"));
+    Assert.assertNotNull(r2);
+    Assert.assertEquals(r1.getWorkId(), r2.getWorkId());
 
     //exhaust all entries scheduled in slot 1
     Assert.assertNotNull(was.getNextWorkAssignment(buildRI("2")));
@@ -56,6 +58,7 @@ public class WorkAssignmentScheduleTest {
     WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
+    System.out.println(r1);
     Assert.assertNotNull(r1);
     Assert.assertTrue(r1.getDelay() < 4);
 

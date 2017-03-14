@@ -8,9 +8,7 @@ import recording.Recorder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
-import java.util.PriorityQueue;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -25,7 +23,7 @@ public class WorkAssignmentSchedule {
   private final int maxConcurrentlyScheduledEntries;
 
   private final PriorityQueue<ScheduleEntry> entries = new PriorityQueue<>();
-  private Set<RecorderIdentifier> assignedRecorders = new HashSet<>();
+  private Map<RecorderIdentifier, ScheduleEntry> assignedScheduleEntries = new HashMap<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
   public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
@@ -88,11 +86,12 @@ public class WorkAssignmentSchedule {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {
         try {
-          if(this.assignedRecorders.contains(recorderIdentifier)) {
-            return null;
+          ScheduleEntry scheduleEntry = this.assignedScheduleEntries.get(recorderIdentifier);
+          if(scheduleEntry != null) {
+            ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - referenceTimeInNanos), minAcceptableDelayForWorkAssignmentInSecs, maxAcceptableDelayForWorkAssignmentInSecs);
+            return value.workAssignment;
           }
 
-          ScheduleEntry scheduleEntry;
           while((scheduleEntry = this.entries.peek()) != null) {
             ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - referenceTimeInNanos), minAcceptableDelayForWorkAssignmentInSecs, maxAcceptableDelayForWorkAssignmentInSecs);
             if(value.tooEarly) {
@@ -100,7 +99,7 @@ public class WorkAssignmentSchedule {
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
               if(value.workAssignment != null) {
-                this.assignedRecorders.add(recorderIdentifier);
+                this.assignedScheduleEntries.put(recorderIdentifier, scheduleEntry);
                 return value.workAssignment;
               }
             }

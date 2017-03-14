@@ -143,18 +143,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
         throw new BadRequestException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
 
-      Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.receivePoll(pollReq);
-      Recorder.PollRes.Builder pollResBuilder = Recorder.PollRes.newBuilder()
-          .setControllerVersion(backendVersion)
-          .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
-          .setLocalTime(nextWorkAssignment == null
-              ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-              : nextWorkAssignment.getIssueTime());
-      Recorder.PollRes pollRes;
-      if(nextWorkAssignment == null) {
-        pollRes = pollResBuilder.build();
-      } else {
-        pollRes = pollResBuilder.setAssignment(nextWorkAssignment).build();
+      Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.getWorkAssignment(pollReq);
+      if(nextWorkAssignment != null) {
         AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
         if (aggregationWindow == null) {
           throw new BadRequestException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
@@ -162,7 +152,17 @@ public class BackendHttpVerticle extends AbstractVerticle {
         }
         aggregationWindow.updateRecorderInfo(nextWorkAssignment.getWorkId(), pollReq.getRecorderInfo());
       }
-      context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
+
+      Recorder.PollRes.Builder pollResBuilder = Recorder.PollRes.newBuilder()
+          .setControllerVersion(backendVersion)
+          .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
+          .setLocalTime(nextWorkAssignment == null
+              ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+              : nextWorkAssignment.getIssueTime());
+      if(nextWorkAssignment != null) {
+        pollResBuilder.setAssignment(nextWorkAssignment);
+      }
+      context.response().end(ProtoUtil.buildBufferFromProto(pollResBuilder.build()));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);
