@@ -17,10 +17,10 @@ public class WorkSlotWeightCalculator {
     weights.put(BackendDTO.WorkType.monitor_wait_work, 1);
   }
 
-  public static int weight(BackendDTO.WorkProfile workProfile) {
+  public static int weight(BackendDTO.RecordingPolicy recordingPolicy) {
     int baseSlots = 0;
-    if (workProfile.getWorkCount() > 0) {
-      for(BackendDTO.Work work: workProfile.getWorkList()) {
+    if (recordingPolicy.getWorkCount() > 0) {
+      for(BackendDTO.Work work: recordingPolicy.getWorkList()) {
         baseSlots += weights.get(work.getWType());
       }
     }

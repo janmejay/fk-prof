@@ -41,37 +41,37 @@ public class AggregationWindowPlanner {
   private final WorkSlotPool workSlotPool;
   private final ProcessGroupContextForScheduling processGroupContextForScheduling;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
-  private final Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor;
+  private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
 
   private final Recorder.ProcessGroup processGroup;
   private final int aggregationWindowDurationInMins;
-  private final int workProfileRefreshBufferInSecs;
+  private final int policyRefreshBufferInSecs;
   private final Future<Long> aggregationWindowScheduleTimer;
 
   private AggregationWindow currentAggregationWindow = null;
-  private BackendDTO.WorkProfile latestWorkProfile = null;
+  private BackendDTO.RecordingPolicy latestRecordingPolicy = null;
 
   private int currentAggregationWindowIndex = 0;
-  private int relevantAggregationWindowIndexForWorkProfile = 0;
+  private int relevantAggregationWindowIndexForRecordingPolicy = 0;
   private List<WorkSlotPool.WorkSlot> occupiedSlots = null;
 
   public AggregationWindowPlanner(Vertx vertx,
                                   int aggregationWindowDurationInMins,
-                                  int workProfileRefreshBufferInSecs,
+                                  int policyRefreshBufferInSecs,
                                   WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig,
                                   WorkSlotPool workSlotPool,
                                   ProcessGroupContextForScheduling processGroupContextForScheduling,
                                   AggregationWindowLookupStore aggregationWindowLookupStore,
-                                  Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor) {
+                                  Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.processGroupContextForScheduling = Preconditions.checkNotNull(processGroupContextForScheduling);
     this.processGroup = processGroupContextForScheduling.getProcessGroup();
-    this.workForBackendRequestor = Preconditions.checkNotNull(workForBackendRequestor);
+    this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
     this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
     this.workAssignmentScheduleBootstrapConfig = Preconditions.checkNotNull(workAssignmentScheduleBootstrapConfig);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
     this.aggregationWindowDurationInMins = aggregationWindowDurationInMins;
-    this.workProfileRefreshBufferInSecs = workProfileRefreshBufferInSecs;
+    this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
 
     this.aggregationWindowScheduleTimer = Future.future();
     getWorkForNextAggregationWindow(currentAggregationWindowIndex + 1).setHandler(ar -> {
@@ -108,17 +108,17 @@ public class AggregationWindowPlanner {
    * Not adding any guarantees here, but a lead of few minutes for this method's execution should ensure that the request to get work should complete in time for next aggregation window
    */
   private Future<Void> getWorkForNextAggregationWindow(int aggregationWindowIndex) {
-    latestWorkProfile = null;
+    latestRecordingPolicy = null;
     Future<Void> result = Future.future();
-    this.workForBackendRequestor.apply(processGroup).setHandler(ar -> {
-      relevantAggregationWindowIndexForWorkProfile = aggregationWindowIndex;
+    this.policyForBackendRequestor.apply(processGroup).setHandler(ar -> {
+      relevantAggregationWindowIndexForRecordingPolicy = aggregationWindowIndex;
       if(ar.failed()) {
         //Cannot fetch work from leader, so chill out and let this aggregation window go by
         //TODO: Metric to indicate failure to fetch work for this process group from leader
         logger.error("Error fetching work from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) + ", error=" + ar.cause().getMessage());
         result.fail(ar.cause());
       } else {
-        latestWorkProfile = ar.result();
+        latestRecordingPolicy = ar.result();
         if(logger.isDebugEnabled()) {
           logger.debug("Fetched work successfully from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
         }
@@ -133,24 +133,24 @@ public class AggregationWindowPlanner {
     expireCurrentAggregationWindow();
     currentAggregationWindowIndex++;
 
-    if (currentAggregationWindowIndex == relevantAggregationWindowIndexForWorkProfile && latestWorkProfile != null) {
+    if (currentAggregationWindowIndex == relevantAggregationWindowIndexForRecordingPolicy && latestRecordingPolicy != null) {
       if(logger.isDebugEnabled()) {
         logger.debug("Initializing aggregation window with index=" + currentAggregationWindowIndex +
             ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
-            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestWorkProfile));
+            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestRecordingPolicy));
       }
       try {
-        int targetRecordersCount = processGroupContextForScheduling.getRecorderTargetCountToMeetCoverage(latestWorkProfile.getCoveragePct());
+        int targetRecordersCount = processGroupContextForScheduling.getRecorderTargetCountToMeetCoverage(latestRecordingPolicy.getCoveragePct());
         Recorder.WorkAssignment.Builder[] workAssignmentBuilders = new Recorder.WorkAssignment.Builder[targetRecordersCount];
         long workIds[] = new long[targetRecordersCount];
         for (int i = 0; i < workIds.length; i++) {
           Recorder.WorkAssignment.Builder workAssignmentBuilder = Recorder.WorkAssignment.newBuilder()
               .setWorkId(BitOperationUtil.constructLongFromInts(BACKEND_IDENTIFIER, workIdCounter++))
-              .addAllWork(latestWorkProfile.getWorkList().stream()
+              .addAllWork(latestRecordingPolicy.getWorkList().stream()
                   .map(RecorderProtoUtil::translateWorkFromBackendDTO)
                   .collect(Collectors.toList()))
-              .setDescription(latestWorkProfile.getDescription())
-              .setDuration(latestWorkProfile.getDuration());
+              .setDescription(latestRecordingPolicy.getDescription())
+              .setDuration(latestRecordingPolicy.getDuration());
 
           workAssignmentBuilders[i] = workAssignmentBuilder;
           workIds[i] = workAssignmentBuilder.getWorkId();
@@ -158,7 +158,7 @@ public class AggregationWindowPlanner {
         setupAggregationWindow(workAssignmentBuilders, workIds);
         logger.info("Initialized aggregation window with index=" + currentAggregationWindowIndex +
             ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
-            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestWorkProfile) +
+            ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestRecordingPolicy) +
             ", work_count=" + targetRecordersCount);
       } catch (Exception ex) {
         reset();
@@ -170,15 +170,15 @@ public class AggregationWindowPlanner {
       logger.error("Skipping work assignments and setup of aggregation window because work profile was not fetched in time for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
     }
 
-    vertx.setTimer(((aggregationWindowDurationInMins * 60) - workProfileRefreshBufferInSecs) * MILLIS_IN_SEC,
+    vertx.setTimer(((aggregationWindowDurationInMins * 60) - policyRefreshBufferInSecs) * MILLIS_IN_SEC,
         timerId -> getWorkForNextAggregationWindow(currentAggregationWindowIndex + 1));
   }
 
   private void setupAggregationWindow(Recorder.WorkAssignment.Builder[] workAssignmentBuilders, long[] workIds)
       throws Exception {
     LocalDateTime windowStart = LocalDateTime.now(Clock.systemUTC());
-    WorkAssignmentSchedule workAssignmentSchedule = new WorkAssignmentSchedule(workAssignmentScheduleBootstrapConfig, workAssignmentBuilders, latestWorkProfile.getDuration());
-    int requiredSlots = workAssignmentSchedule.getMaxConcurrentlyScheduledEntries() * WorkSlotWeightCalculator.weight(latestWorkProfile);
+    WorkAssignmentSchedule workAssignmentSchedule = new WorkAssignmentSchedule(workAssignmentScheduleBootstrapConfig, workAssignmentBuilders, latestRecordingPolicy.getDuration());
+    int requiredSlots = workAssignmentSchedule.getMaxConcurrentlyScheduledEntries() * WorkSlotWeightCalculator.weight(latestRecordingPolicy);
 
     occupiedSlots = workSlotPool.acquire(requiredSlots);
     currentAggregationWindow = new AggregationWindow(

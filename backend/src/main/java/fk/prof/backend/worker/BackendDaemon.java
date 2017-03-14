@@ -80,7 +80,7 @@ public class BackendDaemon extends AbstractVerticle {
         vertx,
         config().getInteger("aggregation.window.duration.mins", 30),
         config().getInteger("aggregation.window.end.tolerance.secs", 120),
-        config().getInteger("workprofile.refresh.offset.secs", 300),
+        config().getInteger("policy.refresh.offset.secs", 300),
         config().getInteger("scheduling.buffer.secs", 30),
         config().getInteger("work.assignment.max.delay.secs", 120),
         workSlotPool,
@@ -149,8 +149,8 @@ public class BackendDaemon extends AbstractVerticle {
     vertx.setTimer(configManager.getLoadReportIntervalInSeconds() * 1000, timerId -> postLoadToLeader());
   }
 
-  private Future<BackendDTO.WorkProfile> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
-    Future<BackendDTO.WorkProfile> result = Future.future();
+  private Future<BackendDTO.RecordingPolicy> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
+    Future<BackendDTO.RecordingPolicy> result = Future.future();
     String leaderIPAddress;
     if((leaderIPAddress = leaderReadContext.getLeaderIPAddress()) != null) {
       try {
@@ -180,8 +180,8 @@ public class BackendDaemon extends AbstractVerticle {
                 return;
               }
               try {
-                BackendDTO.WorkProfile workProfile = ProtoUtil.buildProtoFromBuffer(BackendDTO.WorkProfile.parser(), ar.result().getResponse());
-                result.complete(workProfile);
+                BackendDTO.RecordingPolicy recordingPolicy = ProtoUtil.buildProtoFromBuffer(BackendDTO.RecordingPolicy.parser(), ar.result().getResponse());
+                result.complete(recordingPolicy);
               } catch (Exception ex) {
                 result.fail("Error parsing work response returned by leader for process group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
               }

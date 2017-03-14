@@ -19,22 +19,22 @@ public class AggregationWindowPlannerStore {
   private final Vertx vertx;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final WorkSlotPool workSlotPool;
-  private final Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor;
+  private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
   private final WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig;
   private final int aggregationWindowDurationInMins;
-  private final int workProfileRefreshBufferInSecs;
+  private final int policyRefreshBufferInSecs;
 
   public AggregationWindowPlannerStore(Vertx vertx,
                                        int windowDurationInMins,
                                        int windowEndToleranceInSecs,
-                                       int workProfileRefreshBufferInSecs,
+                                       int policyRefreshBufferInSecs,
                                        int schedulingBufferInSecs,
                                        int maxAcceptableDelayForWorkAssignmentInSecs,
                                        WorkSlotPool workSlotPool,
                                        AggregationWindowLookupStore aggregationWindowLookupStore,
-                                       Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor) {
+                                       Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
-    this.workForBackendRequestor = Preconditions.checkNotNull(workForBackendRequestor);
+    this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
     this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
     this.workAssignmentScheduleBootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(windowDurationInMins,
@@ -42,7 +42,7 @@ public class AggregationWindowPlannerStore {
         schedulingBufferInSecs,
         maxAcceptableDelayForWorkAssignmentInSecs);
     this.aggregationWindowDurationInMins = windowDurationInMins;
-    this.workProfileRefreshBufferInSecs = workProfileRefreshBufferInSecs;
+    this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
   }
 
   /**
@@ -54,12 +54,12 @@ public class AggregationWindowPlannerStore {
       AggregationWindowPlanner aggregationWindowPlanner = new AggregationWindowPlanner(
           vertx,
           aggregationWindowDurationInMins,
-          workProfileRefreshBufferInSecs,
+          policyRefreshBufferInSecs,
           workAssignmentScheduleBootstrapConfig,
           workSlotPool,
           processGroupContextForScheduling,
           aggregationWindowLookupStore,
-          workForBackendRequestor);
+          policyForBackendRequestor);
       this.lookup.put(processGroupContextForScheduling.getProcessGroup(), aggregationWindowPlanner);
       return true;
     }

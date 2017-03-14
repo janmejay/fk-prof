@@ -58,7 +58,7 @@
     "config": {
       "aggregation.window.duration.mins": 30,
       "aggregation.window.end.tolerance.secs": 120,
-      "workprofile.refresh.offset.secs": 300,
+      "policy.refresh.offset.secs": 300,
       "scheduling.buffer.secs": 30,
       "work.assignment.max.delay.secs": 120
     }

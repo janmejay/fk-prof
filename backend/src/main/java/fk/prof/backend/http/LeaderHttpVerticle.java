@@ -120,9 +120,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       String procName = context.request().getParam("procName");
       Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
 
-      BackendDTO.WorkProfile workProfile = this.policyStore.get(processGroup);
-      if(workProfile != null) {
-        context.response().end(ProtoUtil.buildBufferFromProto(workProfile));
+      BackendDTO.RecordingPolicy recordingPolicy = this.policyStore.get(processGroup);
+      if(recordingPolicy != null) {
+        context.response().end(ProtoUtil.buildBufferFromProto(recordingPolicy));
       } else {
         context.response().setStatusCode(400);
         context.response().end();

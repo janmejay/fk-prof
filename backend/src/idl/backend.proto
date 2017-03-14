@@ -9,7 +9,7 @@ message LoadReportRequest {
     required int64 curr_tick = 4;
 }
 
-message WorkProfile {
+message RecordingPolicy {
     required uint32 duration = 1;
     required uint32 coverage_pct = 2;
     repeated Work work = 3;

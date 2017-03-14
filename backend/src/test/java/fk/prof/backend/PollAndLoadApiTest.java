@@ -189,13 +189,13 @@ public class PollAndLoadApiTest {
   public void testFetchForWorkForAggregationWindow(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
-    policyStore.put(processGroup, buildWorkProfile(1));
+    policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.WorkProfile>() {
+    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
       @Override
-      public BackendDTO.WorkProfile answer(InvocationOnMock invocationOnMock) throws Throwable {
+      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
         latch.countDown();
-        return (BackendDTO.WorkProfile)invocationOnMock.callRealMethod();
+        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
       }
     });
 
@@ -231,14 +231,14 @@ public class PollAndLoadApiTest {
   public void testAggregationWindowSetupAndPollResponse(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
-    policyStore.put(processGroup, buildWorkProfile(1));
+    policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.WorkProfile>() {
+    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
       @Override
-      public BackendDTO.WorkProfile answer(InvocationOnMock invocationOnMock) throws Throwable {
+      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
         //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
         boolean released = latch.await(8, TimeUnit.SECONDS);
-        return (BackendDTO.WorkProfile)invocationOnMock.callRealMethod();
+        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
       }
     });
 
@@ -364,8 +364,8 @@ public class PollAndLoadApiTest {
     return future;
   }
 
-  private BackendDTO.WorkProfile buildWorkProfile(int profileDuration) {
-    return BackendDTO.WorkProfile.newBuilder()
+  private BackendDTO.RecordingPolicy buildRecordingPolicy(int profileDuration) {
+    return BackendDTO.RecordingPolicy.newBuilder()
         .setDuration(profileDuration)
         .setCoveragePct(100)
         .setDescription("Test work profile")

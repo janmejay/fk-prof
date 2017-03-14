@@ -58,7 +58,6 @@ public class WorkAssignmentScheduleTest {
     WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
-    System.out.println(r1);
     Assert.assertNotNull(r1);
     Assert.assertTrue(r1.getDelay() < 4);
 
