@@ -1,6 +1,7 @@
 {
   "ip.address": "127.0.0.1",
   "backend.version": 1,
+  "backend.id": 1,
   "backend.http.port": 2491,
   "leader.http.port": 2496,
   "load.report.interval.secs": 1,

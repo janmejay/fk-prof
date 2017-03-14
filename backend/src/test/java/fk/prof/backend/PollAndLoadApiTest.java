@@ -294,7 +294,7 @@ public class PollAndLoadApiTest {
                                 context.assertEquals(200, ar4.result().getStatusCode());
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
-                                context.assertEquals(BitOperationUtil.constructLongFromInts(AggregationWindowPlanner.BACKEND_IDENTIFIER, 1),
+                                context.assertEquals(BitOperationUtil.constructLongFromInts(configManager.getBackendId(), 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
                               } catch (Exception ex) {

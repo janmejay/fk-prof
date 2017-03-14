@@ -17,6 +17,7 @@ public class AggregationWindowPlannerStore {
   private final Map<Recorder.ProcessGroup, AggregationWindowPlanner> lookup = new HashMap<>();
 
   private final Vertx vertx;
+  private final int backendId;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final WorkSlotPool workSlotPool;
   private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
@@ -25,6 +26,7 @@ public class AggregationWindowPlannerStore {
   private final int policyRefreshBufferInSecs;
 
   public AggregationWindowPlannerStore(Vertx vertx,
+                                       int backendId,
                                        int windowDurationInMins,
                                        int windowEndToleranceInSecs,
                                        int policyRefreshBufferInSecs,
@@ -34,6 +36,7 @@ public class AggregationWindowPlannerStore {
                                        AggregationWindowLookupStore aggregationWindowLookupStore,
                                        Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
+    this.backendId = backendId;
     this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
     this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
@@ -53,6 +56,7 @@ public class AggregationWindowPlannerStore {
     if (!this.lookup.containsKey(processGroupContextForScheduling.getProcessGroup())) {
       AggregationWindowPlanner aggregationWindowPlanner = new AggregationWindowPlanner(
           vertx,
+          backendId,
           aggregationWindowDurationInMins,
           policyRefreshBufferInSecs,
           workAssignmentScheduleBootstrapConfig,

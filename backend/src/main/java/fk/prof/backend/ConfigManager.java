@@ -16,6 +16,7 @@ import java.util.Properties;
 public class ConfigManager {
   private static final String IP_ADDRESS_KEY = "ip.address";
   private static final String BACKEND_VERSION_KEY = "backend.version";
+  private static final String BACKEND_ID_KEY = "backend.id";
   private static final String BACKEND_HTTP_PORT_KEY = "backend.http.port";
   private static final String LEADER_HTTP_PORT_KEY = "leader.http.port";
   private static final String BACKEND_HTTP_SERVER_OPTIONS_KEY = "backend.http.server";
@@ -54,6 +55,10 @@ public class ConfigManager {
 
   public int getBackendVersion() {
     return config.getInteger(BACKEND_VERSION_KEY);
+  }
+
+  public int getBackendId() {
+    return config.getInteger(BACKEND_ID_KEY);
   }
 
   public int getBackendHttpPort() {

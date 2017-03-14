@@ -18,10 +18,9 @@ public class AggregationWindowLookupStoreImpl implements AggregationWindowLookup
 
   //NOTE: Called always by backend daemon thread and not on http event loop
   @Override
-  public void associateAggregationWindow(long[] workIds, AggregationWindow aggregationWindow)
+  public void associateAggregationWindow(final long[] workIds, AggregationWindow aggregationWindow)
       throws IllegalStateException {
     Preconditions.checkNotNull(aggregationWindow);
-    Preconditions.checkNotNull(workIds);
     for(int i = 0;i < workIds.length;i++) {
       if(this.windowLookup.containsKey(workIds[i])) {
         throw new IllegalStateException(String.format("Aggregation window already associated with work_id=%d", workIds[i]));
