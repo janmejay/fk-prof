@@ -20,7 +20,8 @@ public class RecorderDetailTest {
 
     //send poll with default work response
     boolean updated = recorderDetail.receivePoll(Recorder.PollReq.newBuilder()
-        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(1).build())
+//        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(1).build())
+        .setRecorderInfo(recorderInfoBuilder.build())  //TODO: hack for missing recorder tick, remove
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(0)
@@ -38,7 +39,8 @@ public class RecorderDetailTest {
 
     //send poll with running work
     updated = recorderDetail.receivePoll(Recorder.PollReq.newBuilder()
-        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(4).build())
+//        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(4).build())
+        .setRecorderInfo(recorderInfoBuilder.build())  //TODO: hack for missing recorder tick, remove
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(1)
@@ -51,7 +53,8 @@ public class RecorderDetailTest {
 
     //send poll with lower tick than before
     updated = recorderDetail.receivePoll(Recorder.PollReq.newBuilder()
-        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(3).build())
+//        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(3).build())
+        .setRecorderInfo(recorderInfoBuilder.build()) //TODO: hack for missing recorder tick, remove
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(1)
@@ -63,7 +66,8 @@ public class RecorderDetailTest {
     //send poll with completed work
     //send poll with lower tick than before
     updated = recorderDetail.receivePoll(Recorder.PollReq.newBuilder()
-        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(5).build())
+//        .setRecorderInfo(recorderInfoBuilder.setRecorderTick(5).build())
+        .setRecorderInfo(recorderInfoBuilder.build()) //TODO: hack for missing recorder tick, remove
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(1)
@@ -93,7 +97,7 @@ public class RecorderDetailTest {
         .setInstanceType("1")
         .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
         .setProcName("1")
-        .setRecorderTick(0)
+//        .setRecorderTick(0)  //TODO: hack for missing recorder tick, remove comment
         .setRecorderUptime(100)
         .setRecorderVersion(1)
         .setVmId("1")

@@ -45,7 +45,6 @@
       "aggregation.enabled": false,
       "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
-      "leader.sleep.ms": 60000,
       "kill.behavior": "DO_NOTHING"
     }
   },

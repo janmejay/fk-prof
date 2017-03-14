@@ -157,7 +157,7 @@ public class PollAndLoadApiTest {
     when(leaderStore.getLeader())
         .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(configManager.getLeaderHttpPort()).build());
     try {
-      makeRequestGetAssociation(processGroup).setHandler(ar -> {
+      makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
         if (ar.failed()) {
           context.fail(ar.cause());
         }
@@ -165,7 +165,7 @@ public class PollAndLoadApiTest {
         //Wait for sometime for load to get reported at least twice
         vertx.setTimer(2500, timerId1 -> {
           try {
-            makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+            makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
               if (ar2.failed()) {
                 context.fail(ar2.cause());
               }
@@ -204,7 +204,7 @@ public class PollAndLoadApiTest {
     //Wait for sometime for load to get reported twice, so that backend gets marked as available
     vertx.setTimer(2500, timerId -> {
       try {
-        makeRequestGetAssociation(processGroup).setHandler(ar -> {
+        makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
           if (ar.failed()) {
             context.fail(ar.cause());
           }
@@ -259,7 +259,7 @@ public class PollAndLoadApiTest {
         //Wait for sometime for load to get reported twice, so that backend gets marked as available
         vertx.setTimer(2500, timerId -> {
           try {
-            makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+            makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
               if (ar2.failed()) {
                 context.fail(ar2.cause());
               }
@@ -330,7 +330,7 @@ public class PollAndLoadApiTest {
 
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.RecorderInfo payload)
       throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
@@ -383,7 +383,7 @@ public class PollAndLoadApiTest {
         .setAppId(processGroup.getAppId())
         .setCluster(processGroup.getCluster())
         .setProcName(processGroup.getProcName())
-        .setRecorderTick(tick)
+//        .setRecorderTick(tick) //TODO: hack for missing recorder tick, remove comment
         .setHostname("1")
         .setInstanceGrp("1")
         .setInstanceId("1")
@@ -403,6 +403,25 @@ public class PollAndLoadApiTest {
         .setWorkResult(Recorder.WorkResponse.WorkResult.success)
         .setWorkState(workState)
         .setElapsedTime(100)
+        .build();
+  }
+
+  private static Recorder.RecorderInfo buildRecorderInfoFromProcessGroup(Recorder.ProcessGroup processGroup) {
+    return Recorder.RecorderInfo.newBuilder()
+        .setAppId(processGroup.getAppId())
+        .setCluster(processGroup.getCluster())
+        .setProcName(processGroup.getProcName())
+//        .setRecorderTick(1) //TODO: hack for missing recorder tick, remove comment
+        .setHostname("1")
+        .setInstanceGrp("1")
+        .setInstanceId("1")
+        .setInstanceType("1")
+        .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
+        .setRecorderUptime(100)
+        .setRecorderVersion(1)
+        .setVmId("1")
+        .setZone("1")
+        .setIp("1")
         .build();
   }
 

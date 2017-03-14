@@ -46,7 +46,7 @@ public class BackendManager {
   }
 
   public BackendManager(ConfigManager configManager) throws Exception {
-    ConfigManager.setDefaultSystemProperties();
+//    ConfigManager.setDefaultSystemProperties();
     this.configManager = Preconditions.checkNotNull(configManager);
 
     VertxOptions vertxOptions = new VertxOptions(configManager.getVertxConfig());

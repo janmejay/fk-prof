@@ -3,6 +3,8 @@ package fk.prof.backend.model.assignment;
 import com.google.common.base.Preconditions;
 import recording.Recorder;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class RecorderDetail {
   private static final double NANOSECONDS_IN_SECOND = Math.pow(10, 9);
 
@@ -13,13 +15,17 @@ public class RecorderDetail {
   private Long lastReportedTime = null;
   private Recorder.WorkResponse currentWorkResponse;
 
+  //TODO: Remove this ASAP. Dirty hack for e2e testing because ticks are not sent by recorder as of now
+  private AtomicLong tick = new AtomicLong(0);
+
   public RecorderDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {
     this.recorderIdentifier = Preconditions.checkNotNull(recorderIdentifier);
     this.thresholdForDefunctRecorderInNanos = (long)(thresholdForDefunctRecorderInSecs * NANOSECONDS_IN_SECOND);
   }
 
   public synchronized boolean receivePoll(Recorder.PollReq pollReq) {
-    long currTick = pollReq.getRecorderInfo().getRecorderTick();
+//    long currTick = pollReq.getRecorderInfo().getRecorderTick(); //TODO: Remove this comment. dirty hack for e2e testing because ticke are not sent by recorder right now
+    long currTick = tick.getAndIncrement();
     boolean timeUpdated = false;
     //NOTE: this is assuming that curr tick is always unsigned and does not wrap around.
     //here curr tick = 0 has a special meaning to reset the tick.

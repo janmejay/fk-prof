@@ -1,10 +1,10 @@
 {
-  "ip.address": "127.0.0.1",
+  "ip.address": "vmnathost",
   "backend.version": 1,
   "backend.http.port": 2491,
   "leader.http.port": 2496,
-  "load.report.interval.secs": 60,
-  "recorder.defunct.threshold.secs": 120,
+  "load.report.interval.secs": 10,
+  "recorder.defunct.threshold.secs": 30,
   "max.simultaneous.profiles": 100,
   "backend.http.server": {
     "idle.timeout.secs": 120
@@ -36,7 +36,7 @@
     "connection.url": "",
     "namespace": "fkprof",
     "connection.timeout.ms": 5000,
-    "session.timeout.ms": 60000,
+    "session.timeout.ms": 5000,
     "max.retries": 3
   },
   "leaderElectionOptions": {
@@ -45,7 +45,7 @@
       "aggregation.enabled": false,
       "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
-      "kill.behavior": "KILL"
+      "kill.behavior": "DO_NOTHING"
     }
   },
   "leaderHttpOptions": {
@@ -55,11 +55,11 @@
   "daemonOptions": {
     "worker": true,
     "config": {
-      "aggregation.window.duration.mins": 30,
-      "aggregation.window.end.tolerance.secs": 120,
-      "workprofile.refresh.offset.secs": 300,
-      "scheduling.buffer.secs": 30,
-      "work.assignment.max.delay.secs": 120
+      "aggregation.window.duration.mins": 2,
+      "aggregation.window.end.tolerance.secs": 10,
+      "workprofile.refresh.offset.secs": 30,
+      "scheduling.buffer.secs": 10,
+      "work.assignment.max.delay.secs": 90
     }
   }
 }

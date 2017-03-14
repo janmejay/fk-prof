@@ -21,10 +21,10 @@ public class InMemoryLeaderStore implements LeaderReadContext, LeaderWriteContex
   @Override
   public synchronized void setLeader(BackendDTO.LeaderDetail leaderDetail) {
     if (leaderDetail == null) {
-      logger.info(String.format("Removed backend node as leader. Node IP = %s",
-          this.currentLeaderDetail == null ? "" : BackendProtoUtil.leaderDetailCompactRepr(this.currentLeaderDetail)));
+      logger.info(String.format("Removing backend node as leader. Node IP = %s",
+          this.currentLeaderDetail == null ? "" : BackendProtoUtil.leaderDetailCompactRepr(leaderDetail)));
     } else {
-      logger.info(String.format("Set backend leader. Node IP = %s", BackendProtoUtil.leaderDetailCompactRepr(this.currentLeaderDetail)));
+      logger.info(String.format("Setting backend leader. Node IP = %s", BackendProtoUtil.leaderDetailCompactRepr(leaderDetail)));
     }
     this.currentLeaderDetail = leaderDetail;
     this.leader = this.currentLeaderDetail != null && this.currentLeaderDetail.equals(selfLeaderDetail);

@@ -9,7 +9,9 @@
     </Console>
   </Appenders>
   <Loggers>
-    <Logger name="fk" level="debug" />
+    <Logger name="fk" level="debug" additivity="false">
+      <AppenderRef ref="console" />
+    </Logger>
     <Logger name="io.vertx.ext.web.handler.impl.LoggerHandlerImpl" level="info" additivity="false">
       <AppenderRef ref="request"/>
     </Logger>

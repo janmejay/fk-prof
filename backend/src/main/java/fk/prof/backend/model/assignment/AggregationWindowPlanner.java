@@ -190,7 +190,7 @@ public class AggregationWindowPlanner {
       simultaneousWorkAssignmentCounter.releaseSlots(currentlyOccupiedWorkAssignmentSlots);
       FinalizedAggregationWindow finalizedAggregationWindow = currentAggregationWindow.expireWindow(aggregationWindowLookupStore);
       //TODO: Serialization and persistence of aggregated profile should hookup here
-
+      logger.info("Initiating serialization and write of aggregated profile");
       reset(); //this should be the last statement in this method
     }
   }

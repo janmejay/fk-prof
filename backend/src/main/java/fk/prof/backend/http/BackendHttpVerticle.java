@@ -93,9 +93,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
     router.put(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
         .handler(this::handlePutAssociation);
 
-    router.post(ApiPathConstants.BACKEND_POST_POLL)
+    router.put(ApiPathConstants.BACKEND_POST_POLL)
         .handler(BodyHandler.create().setBodyLimit(1024 * 100));
-    router.post(ApiPathConstants.BACKEND_POST_POLL)
+    router.put(ApiPathConstants.BACKEND_POST_POLL)
         .handler(this::handlePostPoll);
 
     return router;
@@ -177,7 +177,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
     BackendDTO.LeaderDetail leaderDetail = verifyLeaderAvailabilityOrFail(context.response());
     if (leaderDetail != null) {
       try {
-        Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
+        Recorder.RecorderInfo recorderInfo = ProtoUtil.buildProtoFromBuffer(Recorder.RecorderInfo.parser(), context.getBody());
+        Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(recorderInfo);
         ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
         if(processGroupContextForPolling != null) {
           Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(ipAddress).setPort(backendHttpPort).build();
@@ -186,7 +187,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
         }
 
         //Proxy request to leader if self(backend) is not associated with the recorder
-        makeRequestGetAssociation(leaderDetail, processGroup).setHandler(ar -> {
+        makeRequestGetAssociation(leaderDetail, recorderInfo).setHandler(ar -> {
           if(ar.succeeded()) {
             context.response().setStatusCode(ar.result().getStatusCode());
             context.response().end(ar.result().getResponse());
@@ -217,7 +218,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(BackendDTO.LeaderDetail leaderDetail, Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(BackendDTO.LeaderDetail leaderDetail, Recorder.RecorderInfo payload)
       throws IOException {
     Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(

@@ -33,6 +33,8 @@ import org.junit.runner.RunWith;
 import recording.Recorder;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -99,7 +101,7 @@ public class AssociationApiTest {
       throws IOException {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-    makeRequestGetAssociation(processGroup).setHandler(ar -> {
+    makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
       if(ar.succeeded()) {
         context.assertEquals(503, ar.result().getStatusCode());
         async.complete();
@@ -132,7 +134,7 @@ public class AssociationApiTest {
 
           //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
           Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-          makeRequestGetAssociation(processGroup).setHandler(ar -> {
+          makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
             if (ar.succeeded()) {
               context.assertEquals(400, ar.result().getStatusCode());
               async.complete();
@@ -178,7 +180,7 @@ public class AssociationApiTest {
 
           //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
           Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-          makeRequestGetAssociation(processGroup).setHandler(ar -> {
+          makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
             if(ar.succeeded()) {
               context.assertEquals(400, ar.result().getStatusCode());
               try {
@@ -186,7 +188,7 @@ public class AssociationApiTest {
                     .setHandler(ar1 -> {
                       context.assertTrue(ar1.succeeded());
                       try {
-                        makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+                        makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
                           context.assertTrue(ar2.succeeded());
                           context.assertEquals(200, ar2.result().getStatusCode());
                           try {
@@ -217,7 +219,7 @@ public class AssociationApiTest {
     });
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.RecorderInfo payload)
     throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
@@ -233,6 +235,25 @@ public class AssociationApiTest {
         }).exceptionHandler(ex -> future.fail(ex));
     request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
+  }
+
+  private static Recorder.RecorderInfo buildRecorderInfoFromProcessGroup(Recorder.ProcessGroup processGroup) {
+    return Recorder.RecorderInfo.newBuilder()
+        .setAppId(processGroup.getAppId())
+        .setCluster(processGroup.getCluster())
+        .setProcName(processGroup.getProcName())
+//        .setRecorderTick(1) //TODO: hack for missing recorder tick, remove comment
+        .setHostname("1")
+        .setInstanceGrp("1")
+        .setInstanceId("1")
+        .setInstanceType("1")
+        .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
+        .setRecorderUptime(100)
+        .setRecorderVersion(1)
+        .setVmId("1")
+        .setZone("1")
+        .setIp("1")
+        .build();
   }
 
   private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestReportLoad(BackendDTO.LoadReportRequest payload)

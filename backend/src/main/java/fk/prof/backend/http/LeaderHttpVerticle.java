@@ -6,6 +6,7 @@ import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -97,7 +98,8 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private void handlePutAssociation(RoutingContext context) {
     try {
-      Recorder.ProcessGroup processGroup = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroup.parser(), context.getBody());
+      Recorder.RecorderInfo recorderInfo = ProtoUtil.buildProtoFromBuffer(Recorder.RecorderInfo.parser(), context.getBody());
+      Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(recorderInfo);
       backendAssociationStore.getAssociatedBackend(processGroup).setHandler(ar -> {
         //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
         if(ar.succeeded()) {

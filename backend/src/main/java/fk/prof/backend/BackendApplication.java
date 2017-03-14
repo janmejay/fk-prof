@@ -9,7 +9,7 @@ public class BackendApplication {
   private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
 
   public static void main(String[] args) throws Exception {
-    ConfigManager.setDefaultSystemProperties();
+//    ConfigManager.setDefaultSystemProperties();
     CommandLineParser parser = new DefaultParser();
     Options options = new Options();
     options.addOption(Option.builder("c")

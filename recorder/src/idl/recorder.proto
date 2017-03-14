@@ -14,7 +14,7 @@ message RecorderInfo {
   required string local_time = 11;
   required uint32 recorder_version = 12;
   required uint32 recorder_uptime = 13;
-  required uint64 recorder_tick = 14;
+//  required uint64 recorder_tick = 14; //TODO: Temporarily commenting out this field because recorder does not send tick. REMOVE the comment
 }
 
 message AssignedBackend {
