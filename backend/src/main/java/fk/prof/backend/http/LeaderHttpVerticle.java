@@ -10,6 +10,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -45,21 +46,15 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
 
-    router.post(ApiPathConstants.LEADER_POST_LOAD)
-        .handler(BodyHandler.create().setBodyLimit(64));
-    router.post(ApiPathConstants.LEADER_POST_LOAD)
-        .handler(this::handlePostLoad);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.LEADER_POST_LOAD,
+        BodyHandler.create().setBodyLimit(64), this::handlePostLoad);
 
-    router.put(ApiPathConstants.LEADER_PUT_ASSOCIATION)
-        .handler(BodyHandler.create().setBodyLimit(1024 * 10));
-    router.put(ApiPathConstants.LEADER_PUT_ASSOCIATION)
-        .handler(this::handlePutAssociation);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.LEADER_PUT_ASSOCIATION,
+        BodyHandler.create().setBodyLimit(1024 * 10), this::handlePutAssociation);
 
     String apiPathForGetWork = ApiPathConstants.LEADER_GET_WORK + "/:appId/:clusterId/:procName";
-    router.get(apiPathForGetWork)
-        .handler(BodyHandler.create().setBodyLimit(1024 * 10));
-    router.get(apiPathForGetWork)
-        .handler(this::handleGetWork);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, apiPathForGetWork,
+        BodyHandler.create().setBodyLimit(1024 * 100), this::handleGetWork);
 
     return router;
   }

@@ -2,8 +2,11 @@ package fk.prof.backend.http;
 
 import fk.prof.backend.exception.HttpFailure;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Handler;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 
 public class HttpHelper {
@@ -30,5 +33,12 @@ public class HttpHelper {
         .setCompressionSupported(true)
         .setIdleTimeout(httpServerConfig.getInteger("idle.timeout.secs", 120));
     return serverOptions;
+  }
+
+  @SafeVarargs
+  public static void attachHandlersToRoute(Router router, HttpMethod method, String route, Handler<RoutingContext>... requestHandlers) {
+    for(Handler<RoutingContext> handler: requestHandlers) {
+      router.route(method, route).handler(handler);
+    }
   }
 }
