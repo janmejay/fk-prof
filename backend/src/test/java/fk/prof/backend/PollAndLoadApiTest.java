@@ -9,9 +9,8 @@ import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import fk.prof.backend.model.assignment.AggregationWindowPlanner;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
-import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
@@ -64,7 +63,7 @@ public class PollAndLoadApiTest {
   private InMemoryLeaderStore leaderStore;
   private ProcessGroupAssociationStore processGroupAssociationStore;
   private AggregationWindowLookupStore aggregationWindowLookupStore;
-  private SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private WorkSlotPool workSlotPool;
   private BackendAssociationStore backendAssociationStore;
   private PolicyStore policyStore;
 
@@ -96,14 +95,14 @@ public class PollAndLoadApiTest {
     leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
     when(leaderStore.isLeader()).thenReturn(false);
     processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
-    simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getMaxSimultaneousProfiles());
+    workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
     aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
     policyStore = spy(new PolicyStore());
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
         aggregationWindowLookupStore, processGroupAssociationStore);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
-        processGroupAssociationStore, aggregationWindowLookupStore, simultaneousWorkAssignmentCounter);
+        processGroupAssociationStore, aggregationWindowLookupStore, workSlotPool);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.result().cause());

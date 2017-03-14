@@ -5,7 +5,7 @@
   "leader.http.port": 2496,
   "load.report.interval.secs": 1,
   "recorder.defunct.threshold.secs": 120,
-  "max.simultaneous.profiles": 100,
+  "slot.pool.capacity": 100,
   "backend.http.server": {
     "idle.timeout.secs": 60
   },

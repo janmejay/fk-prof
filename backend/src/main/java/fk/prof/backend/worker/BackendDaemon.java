@@ -6,8 +6,8 @@ import fk.prof.backend.http.ProfHttpClient;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.assignment.AggregationWindowPlannerStore;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.election.LeaderReadContext;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
@@ -30,7 +30,7 @@ public class BackendDaemon extends AbstractVerticle {
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
   private final ProcessGroupAssociationStore processGroupAssociationStore;
-  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private final WorkSlotPool workSlotPool;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
   private final String ipAddress;
   private final int leaderHttpPort;
@@ -44,7 +44,7 @@ public class BackendDaemon extends AbstractVerticle {
                        LeaderReadContext leaderReadContext,
                        ProcessGroupAssociationStore processGroupAssociationStore,
                        AggregationWindowLookupStore aggregationWindowLookupStore,
-                       SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter) {
+                       WorkSlotPool workSlotPool) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderHttpPort = configManager.getLeaderHttpPort();
@@ -53,7 +53,7 @@ public class BackendDaemon extends AbstractVerticle {
     this.leaderReadContext = leaderReadContext;
     this.processGroupAssociationStore = processGroupAssociationStore;
     this.aggregationWindowLookupStore = aggregationWindowLookupStore;
-    this.simultaneousWorkAssignmentCounter = simultaneousWorkAssignmentCounter;
+    this.workSlotPool = workSlotPool;
   }
 
   @Override
@@ -83,7 +83,7 @@ public class BackendDaemon extends AbstractVerticle {
         config().getInteger("workprofile.refresh.offset.secs", 300),
         config().getInteger("scheduling.buffer.secs", 30),
         config().getInteger("work.assignment.max.delay.secs", 120),
-        simultaneousWorkAssignmentCounter,
+        workSlotPool,
         aggregationWindowLookupStore,
         this::getWorkFromLeader);
   }
@@ -106,12 +106,13 @@ public class BackendDaemon extends AbstractVerticle {
                     .setIp(ipAddress)
                     .setPort(backendHttpPort)
                     .setLoad(load)
-                    .setCurrTick(loadTickCounter++)
+                    .setCurrTick(loadTickCounter)
                     .build()))
             .setHandler(ar -> {
               if(ar.succeeded()) {
                 if(ar.result().getStatusCode() == 200) {
                   try {
+                    loadTickCounter++;
                     Recorder.ProcessGroups assignedProcessGroups = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroups.parser(), ar.result().getResponse());
                     processGroupAssociationStore.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
                       switch (processGroupAssociationResult) {

@@ -23,7 +23,7 @@ public class ConfigManager {
   private static final String HTTP_CLIENT_OPTIONS_KEY = "http.client";
   private static final String LOAD_REPORT_INTERVAL_KEY = "load.report.interval.secs";
   private static final String RECORDER_DEFUNCT_THRESHOLD_KEY = "recorder.defunct.threshold.secs";
-  private static final String MAX_SIMULTANEOUS_PROFILES_KEY = "max.simultaneous.profiles";
+  private static final String SLOT_POOL_CAPACITY_KEY = "slot.pool.capacity";
   private static final String VERTX_OPTIONS_KEY = "vertxOptions";
   private static final String BACKEND_HTTP_DEPLOYMENT_OPTIONS_KEY = "backendHttpOptions";
   private static final String CURATOR_OPTIONS_KEY = "curatorOptions";
@@ -72,8 +72,8 @@ public class ConfigManager {
     return config.getInteger(RECORDER_DEFUNCT_THRESHOLD_KEY, 120);
   }
 
-  public int getMaxSimultaneousProfiles() {
-    return config.getInteger(MAX_SIMULTANEOUS_PROFILES_KEY, 10);
+  public int getSlotPoolCapacity() {
+    return config.getInteger(SLOT_POOL_CAPACITY_KEY, 10);
   }
 
   public JsonObject getBackendHttpServerConfig() {

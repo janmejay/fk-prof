@@ -4,7 +4,6 @@ import fk.prof.backend.exception.BackendAssociationException;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;

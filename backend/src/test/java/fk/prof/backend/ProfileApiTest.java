@@ -11,21 +11,17 @@ import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.deployer.VerticleDeployer;
-import fk.prof.backend.deployer.impl.BackendDaemonVerticleDeployer;
 import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
 import fk.prof.backend.mock.MockProfileObjects;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
 import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
 import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
-import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -49,7 +45,6 @@ import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 @RunWith(VertxUnitRunner.class)
 public class ProfileApiTest {

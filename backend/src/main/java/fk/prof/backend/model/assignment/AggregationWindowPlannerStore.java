@@ -2,6 +2,7 @@ package fk.prof.backend.model.assignment;
 
 import com.google.common.base.Preconditions;
 import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
@@ -17,9 +18,9 @@ public class AggregationWindowPlannerStore {
 
   private final Vertx vertx;
   private final AggregationWindowLookupStore aggregationWindowLookupStore;
-  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private final WorkSlotPool workSlotPool;
   private final Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor;
-  private final WorkAssignmentScheduleFactory workAssignmentScheduleFactory;
+  private final WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig;
   private final int aggregationWindowDurationInMins;
   private final int workProfileRefreshBufferInSecs;
 
@@ -29,14 +30,14 @@ public class AggregationWindowPlannerStore {
                                        int workProfileRefreshBufferInSecs,
                                        int schedulingBufferInSecs,
                                        int maxAcceptableDelayForWorkAssignmentInSecs,
-                                       SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter,
+                                       WorkSlotPool workSlotPool,
                                        AggregationWindowLookupStore aggregationWindowLookupStore,
                                        Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.workForBackendRequestor = Preconditions.checkNotNull(workForBackendRequestor);
     this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
-    this.simultaneousWorkAssignmentCounter = Preconditions.checkNotNull(simultaneousWorkAssignmentCounter);
-    this.workAssignmentScheduleFactory = new WorkAssignmentScheduleFactory(windowDurationInMins,
+    this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
+    this.workAssignmentScheduleBootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(windowDurationInMins,
         windowEndToleranceInSecs,
         schedulingBufferInSecs,
         maxAcceptableDelayForWorkAssignmentInSecs);
@@ -54,8 +55,8 @@ public class AggregationWindowPlannerStore {
           vertx,
           aggregationWindowDurationInMins,
           workProfileRefreshBufferInSecs,
-          workAssignmentScheduleFactory,
-          simultaneousWorkAssignmentCounter,
+          workAssignmentScheduleBootstrapConfig,
+          workSlotPool,
           processGroupContextForScheduling,
           aggregationWindowLookupStore,
           workForBackendRequestor);

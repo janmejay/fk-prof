@@ -28,37 +28,21 @@ public class WorkAssignmentSchedule {
   private Set<RecorderIdentifier> assignedRecorders = new HashSet<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
-  public WorkAssignmentSchedule(int windowDurationInMins,
-                                int windowEndToleranceInSecs,
-                                int schedulingBufferInSecs,
-                                int minAcceptableDelayForWorkAssignmentInSecs,
-                                int maxAcceptableDelayForWorkAssignmentInSecs,
+  public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
-                                int coveragePct,
-                                int maxConcurrentSlotsAllowed,
                                 int profileDurationInSecs)
       throws IllegalArgumentException {
 
     // breathing space at the start, this will usually be a lower value that window tolerance
-    int windowStartToleranceInSecs = schedulingBufferInSecs * 2;
+    int windowStartToleranceInSecs = bootstrapConfig.getSchedulingBufferInSecs() * 2;
     //actual time span for which schedule is calculated
-    int effectiveWindowDurationInSecs = (windowDurationInMins * 60) - windowEndToleranceInSecs - windowStartToleranceInSecs;
-    int effectiveProfileDurationInSecs = profileDurationInSecs + schedulingBufferInSecs;
+    int effectiveWindowDurationInSecs = (bootstrapConfig.getWindowDurationInMins() * 60) - bootstrapConfig.getWindowEndToleranceInSecs() - windowStartToleranceInSecs;
+    int effectiveProfileDurationInSecs = profileDurationInSecs + bootstrapConfig.getSchedulingBufferInSecs();
     int maxScheduleEntriesWithNoOverlap = effectiveWindowDurationInSecs / effectiveProfileDurationInSecs;
-    int maxScheduleEntriesWithOverlap = maxScheduleEntriesWithNoOverlap * maxConcurrentSlotsAllowed;
     int targetScheduleEntries = workAssignmentBuilders.length;
-    if (maxScheduleEntriesWithOverlap < targetScheduleEntries) {
-      throw new IllegalArgumentException(String.format("Not possible to setup schedule for " +
-          "vm_coverage=%d, target_profiles=%d, profile_duration_secs=%d, max concurrent slots=%d",
-          coveragePct, targetScheduleEntries, profileDurationInSecs, maxConcurrentSlotsAllowed));
-    }
 
-    this.minAcceptableDelayForWorkAssignmentInSecs = minAcceptableDelayForWorkAssignmentInSecs;
-    this.maxAcceptableDelayForWorkAssignmentInSecs = maxAcceptableDelayForWorkAssignmentInSecs;
-    if(this.maxAcceptableDelayForWorkAssignmentInSecs < (this.minAcceptableDelayForWorkAssignmentInSecs * 2)) {
-      throw new IllegalArgumentException(String.format("Max acceptable delay for work assignment = %d" +
-          "should be at least be twice of min acceptable delay for work assignment = %d", maxAcceptableDelayForWorkAssignmentInSecs, minAcceptableDelayForWorkAssignmentInSecs));
-    }
+    this.minAcceptableDelayForWorkAssignmentInSecs = bootstrapConfig.getMinAcceptableDelayForWorkAssignmentInSecs();
+    this.maxAcceptableDelayForWorkAssignmentInSecs = bootstrapConfig.getMaxAcceptableDelayForWorkAssignmentInSecs();
 
     this.referenceTimeInNanos = System.nanoTime();
     long initialOffsetInNanos = windowStartToleranceInSecs * NANOS_IN_SEC;
