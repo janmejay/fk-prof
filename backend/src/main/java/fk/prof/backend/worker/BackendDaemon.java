@@ -10,6 +10,7 @@ import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.URLUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
@@ -21,10 +22,11 @@ import recording.Recorder;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.HashMap;
+import java.util.Map;
 
 public class BackendDaemon extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
-  private static String ENCODING = "UTF-8";
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
@@ -150,11 +152,13 @@ public class BackendDaemon extends AbstractVerticle {
     String leaderIPAddress;
     if((leaderIPAddress = leaderReadContext.getLeaderIPAddress()) != null) {
       try {
-        String requestPath = new StringBuilder(ApiPathConstants.LEADER_GET_WORK)
-            .append('/').append(URLEncoder.encode(processGroup.getAppId(), ENCODING))
-            .append('/').append(URLEncoder.encode(processGroup.getCluster(), ENCODING))
-            .append('/').append(URLEncoder.encode(processGroup.getProcName(), ENCODING))
-            .toString();
+
+        String requestPath = URLUtil.buildPathWithRequestParams(ApiPathConstants.LEADER_GET_WORK,
+            processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("ip", configManager.getIPAddress());
+        queryParams.put("port", Integer.toString(configManager.getBackendHttpPort()));
+        requestPath = URLUtil.buildPathWithQueryParams(requestPath, queryParams);
 
         //TODO: Support configuring max retries at request level because this request should definitely be retried on failure while other requests like posting load to backend need not be
         httpClient.requestAsync(
