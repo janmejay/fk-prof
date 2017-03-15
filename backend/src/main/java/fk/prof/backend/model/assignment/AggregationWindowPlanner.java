@@ -19,6 +19,7 @@ import recording.Recorder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ public class AggregationWindowPlanner {
   private final ProcessGroupContextForScheduling processGroupContextForScheduling;
   private final ActiveAggregationWindows activeAggregationWindows;
   private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
+  private final Consumer<FinalizedAggregationWindow> aggregationWindowPersistor;
 
   private final Recorder.ProcessGroup processGroup;
   private final int aggregationWindowDurationInMins;
@@ -55,12 +57,14 @@ public class AggregationWindowPlanner {
                                   WorkSlotPool workSlotPool,
                                   ProcessGroupContextForScheduling processGroupContextForScheduling,
                                   ActiveAggregationWindows activeAggregationWindows,
-                                  Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
+                                  Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor,
+                                  Consumer<FinalizedAggregationWindow> aggregationWindowPersistor) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.backendId = backendId;
     this.processGroupContextForScheduling = Preconditions.checkNotNull(processGroupContextForScheduling);
     this.processGroup = processGroupContextForScheduling.getProcessGroup();
     this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
+    this.aggregationWindowPersistor = aggregationWindowPersistor;
     this.activeAggregationWindows = Preconditions.checkNotNull(activeAggregationWindows);
     this.workAssignmentScheduleBootstrapConfig = Preconditions.checkNotNull(workAssignmentScheduleBootstrapConfig);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
@@ -203,8 +207,7 @@ public class AggregationWindowPlanner {
     if(currentAggregationWindow != null) {
       try {
         FinalizedAggregationWindow finalizedAggregationWindow = currentAggregationWindow.expireWindow(activeAggregationWindows);
-        //TODO: Serialization and persistence of aggregated profile should hookup here
-
+        aggregationWindowPersistor.accept(finalizedAggregationWindow);
       } finally {
         reset();
       }

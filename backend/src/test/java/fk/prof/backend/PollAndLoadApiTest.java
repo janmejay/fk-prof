@@ -1,6 +1,7 @@
 package fk.prof.backend;
 
 import com.google.common.io.Files;
+import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.http.ProfHttpClient;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +67,7 @@ public class PollAndLoadApiTest {
   private WorkSlotPool workSlotPool;
   private BackendAssociationStore backendAssociationStore;
   private PolicyStore policyStore;
+  private AggregationWindowStorage aggregationWindowStorage;
 
   private String backendDaemonVerticleDeployment;
   private List<String> backendHttpVerticleDeployments;
@@ -97,11 +100,12 @@ public class PollAndLoadApiTest {
     workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
     activeAggregationWindows = new ActiveAggregationWindowsImpl();
     policyStore = spy(new PolicyStore());
+    aggregationWindowStorage = mock(AggregationWindowStorage.class);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
         activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
-        associatedProcessGroups, activeAggregationWindows, workSlotPool);
+        associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.result().cause());

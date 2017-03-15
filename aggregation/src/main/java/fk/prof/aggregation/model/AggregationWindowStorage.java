@@ -25,9 +25,9 @@ public class AggregationWindowStorage {
 
     private final static Logger logger = LoggerFactory.getLogger(AggregationWindowStorage.class);
 
-    private String baseDir;
-    private AsyncStorage storage;
-    private GenericObjectPool<ByteBuffer> bufferPool;
+    private final String baseDir;
+    private final AsyncStorage storage;
+    private final GenericObjectPool<ByteBuffer> bufferPool;
 
     public AggregationWindowStorage(String baseDir, AsyncStorage storage, GenericObjectPool<ByteBuffer> bufferPool) {
         this.baseDir = baseDir;
@@ -49,14 +49,12 @@ public class AggregationWindowStorage {
     private void store(FinalizedAggregationWindow aggregationWindow, AggregatedProfileModel.WorkType workType) throws IOException {
         AggregatedProfileNamingStrategy filename = getFilename(aggregationWindow, workType);
         AggregationWindowSerializer serializer = new AggregationWindowSerializer(aggregationWindow, workType);
-
         writeToStream(serializer, filename);
     }
 
     private void storeSummary(FinalizedAggregationWindow aggregationWindow) throws IOException {
         AggregatedProfileNamingStrategy filename = getSummaryFilename(aggregationWindow);
         AggregationWindowSummarySerializer serializer = new AggregationWindowSummarySerializer(aggregationWindow);
-
         writeToStream(serializer, filename);
     }
 
@@ -105,6 +103,6 @@ public class AggregationWindowStorage {
     private AggregatedProfileNamingStrategy getSummaryFilename(FinalizedAggregationWindow aw) {
         ZonedDateTime start = aw.start.atOffset(ZoneOffset.UTC).toZonedDateTime();
         int duration = (int)aw.start.until(aw.endedAt, ChronoUnit.SECONDS);
-        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, duration);
+        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSummarySerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, duration);
     }
 }

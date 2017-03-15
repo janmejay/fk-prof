@@ -13,7 +13,7 @@ public class FinalizedAggregationWindow {
   protected final String procId;
   protected final LocalDateTime start;
   protected final LocalDateTime endedAt;
-  private final int durationInSecs;
+  protected final int durationInSecs;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
@@ -45,6 +45,15 @@ public class FinalizedAggregationWindow {
   }
 
   @Override
+  public String toString() {
+    return "app_id=" + appId +
+    ", cluster_id=" + clusterId +
+    ", proc_id=" + procId +
+    ", start=" + start +
+    ", end=" + endedAt;
+  }
+
+  @Override
   public boolean equals(Object o) {
     if (o == this) {
       return true;
@@ -70,6 +79,7 @@ public class FinalizedAggregationWindow {
         .setWorkType(workType)
         .setAggregationEndTime(endedAt == null ? null : endedAt.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAggregationStartTime(start.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
+        .setWindowDuration(durationInSecs)
         .setAppId(appId)
         .setClusterId(clusterId)
         .setProcId(procId);

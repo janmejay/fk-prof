@@ -100,7 +100,7 @@ public class BackendManager {
     AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(configManager.getStorageConfig().getString("base.dir", "profiles"), storage, bufferPool);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, activeAggregationWindows, associatedProcessGroups);
-    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool);
+    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
     CompositeFuture backendDeploymentFuture = CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy());
     backendDeploymentFuture.setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {
@@ -141,15 +141,12 @@ public class BackendManager {
 
   private void initStorage() {
     JsonObject s3Config = configManager.getS3Config();
-
     ExecutorService storageExecSvc = new InstrumentedExecutorService(Executors.newFixedThreadPool(configManager.getStorageThreadPoolSize()),
-            SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY), "executors.fixed_thread_pool.storage");
-
+        SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY), "executors.fixed_thread_pool.storage");
     this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
-            storageExecSvc);
+        storageExecSvc);
 
     JsonObject bufferPoolConfig = configManager.getFixedSizeBufferPool();
-
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
     poolConfig.setMaxTotal(bufferPoolConfig.getInteger("max.total"));
     poolConfig.setMaxIdle(bufferPoolConfig.getInteger("max.idle"));

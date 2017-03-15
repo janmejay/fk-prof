@@ -1,5 +1,7 @@
 package fk.prof.backend.worker;
 
+import fk.prof.aggregation.model.AggregationWindowStorage;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
@@ -33,6 +35,7 @@ public class BackendDaemon extends AbstractVerticle {
   private final AssociatedProcessGroups associatedProcessGroups;
   private final WorkSlotPool workSlotPool;
   private final ActiveAggregationWindows activeAggregationWindows;
+  private final AggregationWindowStorage aggregationWindowStorage;
   private final String ipAddress;
   private final int leaderHttpPort;
   private final int backendHttpPort;
@@ -45,7 +48,8 @@ public class BackendDaemon extends AbstractVerticle {
                        LeaderReadContext leaderReadContext,
                        AssociatedProcessGroups associatedProcessGroups,
                        ActiveAggregationWindows activeAggregationWindows,
-                       WorkSlotPool workSlotPool) {
+                       WorkSlotPool workSlotPool,
+                       AggregationWindowStorage aggregationWindowStorage) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderHttpPort = configManager.getLeaderHttpPort();
@@ -55,6 +59,7 @@ public class BackendDaemon extends AbstractVerticle {
     this.associatedProcessGroups = associatedProcessGroups;
     this.activeAggregationWindows = activeAggregationWindows;
     this.workSlotPool = workSlotPool;
+    this.aggregationWindowStorage = aggregationWindowStorage;
   }
 
   @Override
@@ -80,7 +85,8 @@ public class BackendDaemon extends AbstractVerticle {
         config().getInteger("work.assignment.max.delay.secs", 120),
         workSlotPool,
         activeAggregationWindows,
-        this::getWorkFromLeader);
+        this::getWorkFromLeader,
+        this::serializeAndPersistAggregationWindow);
   }
 
   private void postLoadToLeader() {
@@ -194,6 +200,23 @@ public class BackendDaemon extends AbstractVerticle {
     }
 
     return result;
+  }
+
+  private void serializeAndPersistAggregationWindow(FinalizedAggregationWindow finalizedAggregationWindow) {
+    vertx.executeBlocking(future -> {
+      try {
+        aggregationWindowStorage.store(finalizedAggregationWindow);
+        future.complete();
+      } catch (Exception ex) {
+        future.fail(ex);
+      }
+    }, result -> {
+      if(result.succeeded()) {
+        logger.info("Successfully persisted aggregation_window=" + finalizedAggregationWindow);
+      } else {
+        logger.error("Error while persisting aggregation_window=" + finalizedAggregationWindow, result.cause());
+      }
+    });
   }
 
 }
