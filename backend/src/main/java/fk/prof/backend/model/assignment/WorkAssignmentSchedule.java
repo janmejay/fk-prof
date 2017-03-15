@@ -38,7 +38,7 @@ public class WorkAssignmentSchedule {
     // breathing space at the start, this will usually be a lower value than window tolerance
     int dWinStartPad = bootstrapConfig.getSchedulingBufferInSecs() * 2;
     //actual time span for which schedule is calculated
-    int dEffectiveWinLen = (bootstrapConfig.getWindowDurationInMins() * 60) - bootstrapConfig.getWindowEndToleranceInSecs() - dWinStartPad;
+    int dEffectiveWinLen = bootstrapConfig.getWindowDurationInSecs() - bootstrapConfig.getWindowEndToleranceInSecs() - dWinStartPad;
     int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
     int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
     int cRequired = workAssignmentBuilders.length;

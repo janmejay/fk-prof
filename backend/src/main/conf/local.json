@@ -57,7 +57,7 @@
   "daemonOptions": {
     "worker": true,
     "config": {
-      "aggregation.window.duration.mins": 30,
+      "aggregation.window.duration.secs": 1800,
       "aggregation.window.end.tolerance.secs": 120,
       "policy.refresh.offset.secs": 300,
       "scheduling.buffer.secs": 30,

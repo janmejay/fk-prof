@@ -35,10 +35,10 @@ public class AggregationWindowPlanner {
   private final ProcessGroupContextForScheduling processGroupContextForScheduling;
   private final ActiveAggregationWindows activeAggregationWindows;
   private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
-  private final Consumer<FinalizedAggregationWindow> aggregationWindowPersistor;
+  private final Consumer<FinalizedAggregationWindow> aggregationWindowWriter;
 
   private final Recorder.ProcessGroup processGroup;
-  private final int aggregationWindowDurationInMins;
+  private final int aggregationWindowDurationInSecs;
   private final int policyRefreshBufferInSecs;
   private final Future<Long> aggregationWindowScheduleTimer;
 
@@ -51,24 +51,24 @@ public class AggregationWindowPlanner {
 
   public AggregationWindowPlanner(Vertx vertx,
                                   int backendId,
-                                  int aggregationWindowDurationInMins,
+                                  int aggregationWindowDurationInSecs,
                                   int policyRefreshBufferInSecs,
                                   WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig,
                                   WorkSlotPool workSlotPool,
                                   ProcessGroupContextForScheduling processGroupContextForScheduling,
                                   ActiveAggregationWindows activeAggregationWindows,
                                   Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor,
-                                  Consumer<FinalizedAggregationWindow> aggregationWindowPersistor) {
+                                  Consumer<FinalizedAggregationWindow> aggregationWindowWriter) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.backendId = backendId;
     this.processGroupContextForScheduling = Preconditions.checkNotNull(processGroupContextForScheduling);
     this.processGroup = processGroupContextForScheduling.getProcessGroup();
     this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
-    this.aggregationWindowPersistor = aggregationWindowPersistor;
+    this.aggregationWindowWriter = aggregationWindowWriter;
     this.activeAggregationWindows = Preconditions.checkNotNull(activeAggregationWindows);
     this.workAssignmentScheduleBootstrapConfig = Preconditions.checkNotNull(workAssignmentScheduleBootstrapConfig);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
-    this.aggregationWindowDurationInMins = aggregationWindowDurationInMins;
+    this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
     this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
 
     this.aggregationWindowScheduleTimer = Future.future();
@@ -81,7 +81,7 @@ public class AggregationWindowPlanner {
       // NOTE: The above is a fringe scenario since aggregation window duration is going to be in excess of 20 minutes
       // Still, there is a way to detect if this build-up happens. If aggregation window switch event happens before work profile is fetched, we publish a metric
       // If /leader/work API latency is within bounds but this metric is high, this implies a build-up of aggregation window events
-      long periodicTimerId = vertx.setPeriodic(aggregationWindowDurationInMins * 60 * MILLIS_IN_SEC,
+      long periodicTimerId = vertx.setPeriodic(aggregationWindowDurationInSecs * MILLIS_IN_SEC,
           timerId -> aggregationWindowSwitcher());
       this.aggregationWindowScheduleTimer.complete(periodicTimerId);
     });
@@ -171,7 +171,7 @@ public class AggregationWindowPlanner {
       logger.error("Skipping work assignments and setup of aggregation window because work profile was not fetched in time for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
     }
 
-    vertx.setTimer(((aggregationWindowDurationInMins * 60) - policyRefreshBufferInSecs) * MILLIS_IN_SEC,
+    vertx.setTimer((aggregationWindowDurationInSecs - policyRefreshBufferInSecs) * MILLIS_IN_SEC,
         timerId -> {
       int windowIndex = currentAggregationWindowIndex + 1;
       Future<Void> fut = getWorkForNextAggregationWindow(windowIndex);
@@ -197,7 +197,7 @@ public class AggregationWindowPlanner {
         processGroup.getCluster(),
         processGroup.getProcName(),
         windowStart,
-        aggregationWindowDurationInMins * 60,
+        aggregationWindowDurationInSecs,
         workIds);
     processGroupContextForScheduling.updateWorkAssignmentSchedule(workAssignmentSchedule);
     activeAggregationWindows.associateAggregationWindow(workIds, currentAggregationWindow);
@@ -207,7 +207,7 @@ public class AggregationWindowPlanner {
     if(currentAggregationWindow != null) {
       try {
         FinalizedAggregationWindow finalizedAggregationWindow = currentAggregationWindow.expireWindow(activeAggregationWindows);
-        aggregationWindowPersistor.accept(finalizedAggregationWindow);
+        aggregationWindowWriter.accept(finalizedAggregationWindow);
       } finally {
         reset();
       }

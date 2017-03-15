@@ -3,7 +3,7 @@
   "http.instances": 1,
   "req.timeout": 10000,
   "profile.retention.duration.min": 30,
-  "aggregation_window.duration.min": 30,
+  "aggregation_window.duration.secs": 1800,
   "storage": "S3",
   "S3": {
     "end.point": "<endpoint>",

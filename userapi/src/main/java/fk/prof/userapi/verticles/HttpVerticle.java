@@ -6,7 +6,6 @@ import fk.prof.storage.StreamTransformer;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
-import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerResponse;
@@ -30,7 +29,7 @@ import java.util.*;
 public class HttpVerticle extends AbstractVerticle {
 
     public static final String BASE_DIR = "profiles";
-    public int aggregationWindowDurationInMin = 30;
+    public int aggregationWindowDurationInSecs = 1800;
 
     private ProfileStoreAPI profileStoreAPI;
 
@@ -54,7 +53,7 @@ public class HttpVerticle extends AbstractVerticle {
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
-        this.aggregationWindowDurationInMin = config().getInteger("aggregation_window.duration.min");
+        this.aggregationWindowDurationInSecs = config().getInteger("aggregation_window.duration.secs");
 
         Router router = configureRouter();
         vertx.createHttpServer()
@@ -246,7 +245,7 @@ public class HttpVerticle extends AbstractVerticle {
     private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
                                                           AggregatedProfileModel.WorkType workType, String startTime) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInMin * 60, workType);
+        return new AggregatedProfileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
     }
 
     private boolean safeContains(String str, String subStr) {

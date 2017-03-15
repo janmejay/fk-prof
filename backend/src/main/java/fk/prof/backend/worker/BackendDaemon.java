@@ -78,7 +78,7 @@ public class BackendDaemon extends AbstractVerticle {
     return new AggregationWindowPlannerStore(
         vertx,
         configManager.getBackendId(),
-        config().getInteger("aggregation.window.duration.mins", 30),
+        config().getInteger("aggregation.window.duration.secs", 1800),
         config().getInteger("aggregation.window.end.tolerance.secs", 120),
         config().getInteger("policy.refresh.offset.secs", 300),
         config().getInteger("scheduling.buffer.secs", 30),
