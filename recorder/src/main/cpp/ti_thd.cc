@@ -22,7 +22,13 @@ struct ThreadTargetProc {
     std::mutex m;
     std::condition_variable v;
 
-    ThreadTargetProc(void* _arg, jvmtiStartFunction _run_fn, const char* _name) : arg(_arg), run_fn(_run_fn), name(_name), running(false) {
+    metrics::Ctr& s_c_thds;
+
+    ThreadTargetProc(void* _arg, jvmtiStartFunction _run_fn, const char* _name) :
+        arg(_arg), run_fn(_run_fn), name(_name), running(false),
+
+        s_c_thds(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "threads", "running"})) {
+
         logger->trace("ThreadTargetProc for '{}' created", name);
     }
 
@@ -42,7 +48,7 @@ struct ThreadTargetProc {
         running = false;
         v.notify_all();
         logger->trace("Thread '{}' stopped", name);
-
+        s_c_thds.dec();
     }
 
     void mark_started() {
@@ -50,17 +56,29 @@ struct ThreadTargetProc {
         assert(! running);
         running = true;
         logger->trace("Thread '{}' started", name);
+        s_c_thds.inc();
     }
 };
 
 typedef std::shared_ptr<ThreadTargetProc> ThdProcP;
 
+struct StartStopMarker {
+    ThreadTargetProc& ttp;
+
+    StartStopMarker(ThreadTargetProc& _ttp) : ttp(_ttp) {
+        ttp.mark_started();
+    }
+
+    ~StartStopMarker() {
+        ttp.mark_stopped();
+    }
+};
+
 static void thread_target_proc_wrapper(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     auto ttp = static_cast<ThreadTargetProc*>(arg);
     quiesce_sigprof(ttp->name.c_str());
-    ttp->mark_started();
+    StartStopMarker ssm(*ttp);
     ttp->run_fn(jvmti_env, jni_env, ttp->arg);
-    ttp->mark_stopped();
 }
 
 ThdProcP start_new_thd(JavaVM *jvm, jvmtiEnv *jvmti, const char* thd_name, jvmtiStartFunction run_fn, void *arg) {

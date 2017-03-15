@@ -15,11 +15,8 @@ public class TestJni {
         if (loaded.compareAndSet(false, true)) {
             String linkTargetPath = new File("build/libtestjni" + Platforms.getDynamicLibraryExtension()).getAbsolutePath();
             System.load(linkTargetPath);
-            setupLogger();
         }
     }
-    
-    private native static void setupLogger(); 
     
     public native void setupPerfCtx();
     public native void teardownPerfCtx();

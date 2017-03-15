@@ -139,7 +139,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
 
 
 TEST(ProfileSerializer__should_write_cpu_samples) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -304,7 +304,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -418,7 +418,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
 
 TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -516,7 +516,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
 }
 
 TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_should_incrementally_push___index_data_mapping) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -692,7 +692,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -767,7 +767,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 }
 
 TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
-    init_logger();
+    TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;

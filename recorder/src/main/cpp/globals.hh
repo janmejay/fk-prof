@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <chrono>
+#include "metrics.hh"
 
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>

@@ -69,11 +69,7 @@ public:
 
 class Profiler {
 public:
-    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq)
-        : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer), tts(max_stack_depth), ongoing_conf(false) {
-        set_sampling_freq(_sampling_freq);
-        configure();
-    }
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq);
 
     bool start(JNIEnv *jniEnv);
 
@@ -108,6 +104,11 @@ private:
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
+
+    metrics::Ctr& s_c_cpu_samp_total;
+    metrics::Ctr& s_c_cpu_samp_err_no_jni;
+    metrics::Ctr& s_c_cpu_samp_err_unexpected;
+    metrics::Ctr& s_c_cpu_samp_gc;
 
     void set_sampling_freq(std::uint32_t sampling_freq);
 

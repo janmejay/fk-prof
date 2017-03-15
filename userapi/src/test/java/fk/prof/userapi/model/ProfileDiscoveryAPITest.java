@@ -1,5 +1,7 @@
 package fk.prof.userapi.model;
 
+import fk.prof.aggregation.AggregatedProfileNamingStrategy;
+import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
@@ -20,7 +22,9 @@ import org.mockito.internal.util.collections.Sets;
 
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -43,13 +47,20 @@ public class ProfileDiscoveryAPITest {
     private AsyncStorage asyncStorage;
     private Vertx vertx;
 
+    String[] objects = {
+            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
+            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
+            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/summary/0001",
+    };
+
+    AggregatedProfileNamingStrategy[] filenames = Stream.of(objects).map(AggregatedProfileNamingStrategy::fromFileName).toArray(AggregatedProfileNamingStrategy[]::new);
+
     private Set<String> getObjList(String prefix, boolean recursive) {
-        String objects[] = {
-                "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
-                "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
-                "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
-                "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
-        };
+
         Set<String> resultObjects = new HashSet<>();
         for (String obj : objects) {
             if (obj.indexOf(prefix) == 0) {
@@ -168,20 +179,20 @@ public class ProfileDiscoveryAPITest {
         Map<List<Object>, Collection<?>> appIdTestPairs = new HashMap<List<Object>, Collection<?>>() {
             {
                 put(Arrays.asList("app1", "cluster1", "process1", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1600),
-                        Sets.newSet(profile1, profile2));
+                        Sets.newSet(filenames[4], filenames[6]));
                 put(Arrays.asList("app1", "cluster1", "process1", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1900),
-                        Sets.newSet(profile1, profile2));
+                        Sets.newSet(filenames[4], filenames[6]));
                 put(Arrays.asList("foo", "bar", "main", ZonedDateTime.parse("2017-01-20T12:37:20.551+05:30"), 1900),
-                        Sets.newSet(profile3));
+                        Sets.newSet(filenames[2]));
             }
         };
 
         List<Future> futures = new ArrayList<>();
         for (Map.Entry<List<Object>, Collection<?>> entry : appIdTestPairs.entrySet()) {
-            Future<Set<FilteredProfiles>> f = Future.future();
+            Future<List<AggregatedProfileNamingStrategy>> f = Future.future();
             futures.add(f);
 
-            f.setHandler(res -> context.assertEquals(entry.getValue(), res.result()));
+            f.setHandler(res -> context.assertEquals(entry.getValue(), Sets.newSet(res.result().toArray())));
             profileDiscoveryAPI.getProfilesInTimeWindow(f, BASE_DIR,
                     (String)entry.getKey().get(0), (String)entry.getKey().get(1), (String)entry.getKey().get(2), (ZonedDateTime)entry.getKey().get(3), (Integer)entry.getKey().get(4));
         }
