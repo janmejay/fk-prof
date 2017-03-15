@@ -14,6 +14,7 @@ message RecorderInfo {
   required string local_time = 11;
   required uint32 recorder_version = 12;
   required uint32 recorder_uptime = 13;
+  required uint64 recorder_tick = 14;
 }
 
 message AssignedBackend {

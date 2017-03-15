@@ -7,6 +7,7 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 
 public class ProfHttpClient {
   private final Vertx vertx;
@@ -126,9 +127,18 @@ public class ProfHttpClient {
       return this;
     }
 
+    public Builder setConfig(JsonObject httpClientConfig) {
+      keepAlive(httpClientConfig.getBoolean("keepalive", false));
+      useCompression(httpClientConfig.getBoolean("compression", true));
+      setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 2000));
+      setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 3));
+      setMaxAttempts(httpClientConfig.getInteger("max.attempts", 1));
+      return this;
+    }
+
     public ProfHttpClient build(Vertx vertx) {
       if(vertx == null) {
-        throw new IllegalStateException("Vertx instance is required");
+        throw new IllegalArgumentException("Vertx instance is required");
       }
 
       return new ProfHttpClient(vertx, maxAttempts, keepAlive,

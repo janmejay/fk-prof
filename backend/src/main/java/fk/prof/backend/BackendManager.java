@@ -2,16 +2,18 @@ package fk.prof.backend;
 
 import com.google.common.base.Preconditions;
 import fk.prof.backend.deployer.VerticleDeployer;
-import fk.prof.backend.deployer.impl.BackendHttpVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderElectionParticipatorVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
-import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
+import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.leader.election.LeaderElectedTask;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
+import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.service.ProfileWorkService;
+import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
+import fk.prof.backend.model.policy.PolicyStore;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -25,6 +27,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * TODO: Deployment process is liable to changes later
@@ -76,16 +79,24 @@ public class BackendManager {
   public Future<Void> launch() {
     Future result = Future.future();
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
-    ProfileWorkService profileWorkService = new ProfileWorkService();
+    ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
+    AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    WorkSlotPool workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, profileWorkService);
-    backendHttpVerticleDeployer.deploy().setHandler(backendDeployResult -> {
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, activeAggregationWindows, associatedProcessGroups);
+    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool);
+    CompositeFuture backendDeploymentFuture = CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy());
+    backendDeploymentFuture.setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {
         try {
-          List<String> backendDeployments = backendDeployResult.result().list();
+          List<String> backendDeployments = backendDeployResult.result().list().stream()
+              .flatMap(fut -> ((CompositeFuture)fut).list().stream())
+              .map(deployment -> (String)deployment)
+              .collect(Collectors.toList());
 
           BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
-          VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore);
+          PolicyStore policyStore = new PolicyStore();
+          VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
           Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
 
           VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(

@@ -7,7 +7,7 @@ import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
 import fk.prof.backend.request.profile.parser.WseParser;
-import fk.prof.backend.service.IProfileWorkService;
+import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 public class RecordedProfileProcessor {
   private static Logger logger = LoggerFactory.getLogger(RecordedProfileProcessor.class);
 
-  private IProfileWorkService profileWorkService;
+  private AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
   private ISingleProcessingOfProfileGate singleProcessingOfProfileGate;
 
   private RecordedProfileHeader header = null;
@@ -33,9 +33,9 @@ public class RecordedProfileProcessor {
 
   private boolean intermediateWseEntry = false;
 
-  public RecordedProfileProcessor(IProfileWorkService profileWorkService, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
+  public RecordedProfileProcessor(AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
                                   int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
-    this.profileWorkService = profileWorkService;
+    this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
     this.singleProcessingOfProfileGate = singleProcessingOfProfileGate;
     this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader);
     this.wseParser = new WseParser(maxAllowedBytesForWse);
@@ -71,7 +71,7 @@ public class RecordedProfileProcessor {
           workId = header.getRecordingHeader().getWorkAssignment().getWorkId();
 
           singleProcessingOfProfileGate.accept(workId);
-          aggregationWindow = profileWorkService.getAssociatedAggregationWindow(workId);
+          aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(workId);
           if (aggregationWindow == null) {
             throw new AggregationFailure(String.format("workId=%d not found, cannot continue receiving associated profile",
                 workId));
@@ -97,6 +97,11 @@ public class RecordedProfileProcessor {
       }
     } catch (IOException ex) {
       //NOTE: Ignore this exception. Can happen because incomplete request has been received. Chunks can be received later
+    } catch (Exception ex) {
+      if(workId != 0) {
+        singleProcessingOfProfileGate.finish(workId);
+      }
+      throw ex;
     }
   }
 
@@ -122,7 +127,7 @@ public class RecordedProfileProcessor {
 
   private void processWse(Recorder.Wse wse) throws AggregationFailure {
     indexes.update(wse.getIndexedData());
-    aggregationWindow.updateWorkInfo(workId, wse);
+    aggregationWindow.updateWorkInfoWithWSE(workId, wse);
     aggregationWindow.aggregate(wse, indexes);
   }
 

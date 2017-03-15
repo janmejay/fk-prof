@@ -8,11 +8,12 @@ import java.util.Set;
 
 public class BackendDetail {
   private static final double NANOSECONDS_IN_SECOND = Math.pow(10, 9);
+
   private final String backendIPAddress;
   private final long thresholdForDefunctInNanoSeconds;
   private final Set<Recorder.ProcessGroup> associatedProcessGroups;
 
-  private long lastReportedTick;
+  private long lastReportedTick = 0;
   //lastReportedTime is null unless backend reports stable load at least once (i.e. currTick reported by backend > 0)
   private volatile Long lastReportedTime;
   private float lastReportedLoad;
@@ -30,7 +31,6 @@ public class BackendDetail {
     this.backendIPAddress = backendIPAddress;
     this.thresholdForDefunctInNanoSeconds = (long)(loadReportIntervalInSeconds * (loadMissTolerance + 1) * NANOSECONDS_IN_SECOND);
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
-    this.lastReportedTick = 0;
   }
 
   /**
@@ -42,7 +42,7 @@ public class BackendDetail {
    */
   public synchronized boolean reportLoad(float load, long currTick) {
     boolean timeUpdated = false;
-    if(currTick == 0 || this.lastReportedTick <= currTick) {
+    if(currTick == 0 || this.lastReportedTick < currTick) {
       this.lastReportedTick = currTick;
       if(currTick > 0) {
         this.lastReportedTime = System.nanoTime();

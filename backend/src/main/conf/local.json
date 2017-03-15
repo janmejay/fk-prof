@@ -1,7 +1,12 @@
 {
+  "ip.address": "127.0.0.1",
+  "backend.version": 1,
+  "backend.id": 1,
   "backend.http.port": 2491,
   "leader.http.port": 2496,
   "load.report.interval.secs": 60,
+  "recorder.defunct.threshold.secs": 120,
+  "slot.pool.capacity": 100,
   "backend.http.server": {
     "idle.timeout.secs": 120
   },
@@ -16,7 +21,7 @@
     "compression": true
   },
   "vertxOptions": {
-    "blockedThreadCheckInterval": 1000
+    "blockedThreadCheckInterval": 1000000
   },
   "backendHttpOptions": {
     "config": {
@@ -41,11 +46,22 @@
       "aggregation.enabled": false,
       "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
-      "leader.sleep.ms": 60000
+      "leader.sleep.ms": 60000,
+      "kill.behavior": "KILL"
     }
   },
   "leaderHttpOptions": {
     "backend.association.path": "/association",
     "load.miss.tolerance": 1
+  },
+  "daemonOptions": {
+    "worker": true,
+    "config": {
+      "aggregation.window.duration.mins": 30,
+      "aggregation.window.end.tolerance.secs": 120,
+      "policy.refresh.offset.secs": 300,
+      "scheduling.buffer.secs": 30,
+      "work.assignment.max.delay.secs": 120
+    }
   }
 }

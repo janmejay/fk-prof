@@ -50,7 +50,7 @@ public class ModelToProtoTest {
     @Test
     public void testProfileSummary_aggregationWindowsShouldProperlyBuildSummaryProto() {
         LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
-        FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", now, now.plusSeconds(1200),
+        FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", now, now.plusSeconds(1200), 1200,
                 recorders(),
                 buildMap(
                         101l, new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED, now.plusSeconds(10), now.plusSeconds(90), buildMap("trace1", 5, "trace2", 10), buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80)),

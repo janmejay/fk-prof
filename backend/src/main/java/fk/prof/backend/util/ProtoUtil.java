@@ -1,7 +1,6 @@
 package fk.prof.backend.util;
 
-import com.google.protobuf.AbstractMessage;
-import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.*;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -15,10 +14,7 @@ public class ProtoUtil {
     return AggregatedProfileModel.WorkType.forNumber(recorderWorkType.getNumber());
   }
 
-  public static String processGroupCompactRepr(Recorder.ProcessGroup processGroup) {
-    return String.format("%s,%s,%s", processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
-  }
-
+  //Avoids double byte copy to create a vertx buffer
   public static Buffer buildBufferFromProto(AbstractMessage message) throws IOException {
     int serializedSize = message.getSerializedSize();
     ByteBuf byteBuf = Unpooled.buffer(serializedSize, Integer.MAX_VALUE);
@@ -26,5 +22,11 @@ public class ProtoUtil {
     message.writeTo(codedOutputStream);
     byteBuf.writerIndex(serializedSize);
     return Buffer.buffer(byteBuf);
+  }
+
+  //Proto parser operates directly on underlying byte array, avoids byte copy
+  public static <T extends AbstractMessage> T buildProtoFromBuffer(Parser<T> parser, Buffer buffer)
+      throws InvalidProtocolBufferException {
+    return parser.parseFrom(CodedInputStream.newInstance(buffer.getByteBuf().nioBuffer()));
   }
 }

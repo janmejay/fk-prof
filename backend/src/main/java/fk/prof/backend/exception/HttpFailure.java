@@ -1,5 +1,6 @@
 package fk.prof.backend.exception;
 
+
 public class HttpFailure extends RuntimeException {
   private int statusCode;
 
@@ -51,9 +52,15 @@ public class HttpFailure extends RuntimeException {
     if (throwable instanceof HttpFailure) {
       return (HttpFailure) throwable;
     }
-    if (throwable instanceof AggregationFailure) {
-      AggregationFailure exception = (AggregationFailure) throwable;
+    if (throwable instanceof ProfException) {
+      ProfException exception = (ProfException) throwable;
       return new HttpFailure(throwable, exception.isServerFailure() ? 500 : 400);
+    }
+    if(throwable instanceof IllegalArgumentException) {
+      return new HttpFailure(throwable.getMessage(), 400);
+    }
+    if(throwable instanceof IllegalStateException) {
+      return new HttpFailure(throwable.getMessage(), 500);
     }
     if (throwable.getMessage() == null) {
       return new HttpFailure("No message provided", throwable.getCause());

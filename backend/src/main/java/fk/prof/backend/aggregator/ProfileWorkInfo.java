@@ -19,14 +19,21 @@ import java.util.Map;
 /**
  * Non getter methods in this class are not thread-safe
  * But, this should not be a concern because instances of this class are maintained for every work id
- * Updates to state associated with a work id happens in context of a request (single thread)
+ * Updates to state associated with a work id happens in context of a request (profile or poll request)
+ * Since we do not retry /profile requests from recorder, there can not be competing threads trying to update (except <pre>updateRecorderInfo</pre> method which is accessed on /poll request which can be retried)
+ * If /profile requests are retried, this class will not be able to guarantee consistent state of members and state mutating methods like abortprofile, completeprofile, startprofile etc will need special handling
  */
 public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo> {
   private int recorderVersion;
   private AggregationState state = AggregationState.SCHEDULED;
   private LocalDateTime startedAt = null, endedAt = null;
+  private Recorder.RecorderInfo recorderInfo;
   private final HashObjIntMap<String> traceCoverages = HashObjIntMaps.newUpdatableMap();
   private final HashObjIntMap<Recorder.WorkType> workTypeSamples = HashObjIntMaps.newUpdatableMap();
+
+  public void updateRecorderInfo(Recorder.RecorderInfo recorderInfo) {
+    this.recorderInfo = recorderInfo;
+  }
 
   public void updateWSESpecificDetails(Recorder.Wse wse) {
     for (Recorder.TraceContext trace : wse.getIndexedData().getTraceCtxList()) {
@@ -64,10 +71,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   }
 
   public AggregationState abortProfile() {
-    if(!processStateEvent(AggregationStateEvent.ABORT_PROFILE)) {
-      throw new IllegalStateException(String.format("Invalid event %s for current state %s",
-          AggregationStateEvent.ABORT_PROFILE, state));
-    }
+    processStateEvent(AggregationStateEvent.ABORT_PROFILE);
     return state;
   }
 

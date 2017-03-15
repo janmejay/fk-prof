@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * TODO: Add recorder info(aggregated proto) to this class, accept it in constructor which is called from ProfileWorkInfo#buildFinalizedEntity method
+ */
 public class FinalizedProfileWorkInfo {
   private final int recorderVersion;
   private final Integer recorderIdx;
@@ -59,6 +62,10 @@ public class FinalizedProfileWorkInfo {
   //NOTE: Exposing this to make the class more testable since endedAt has generated value
   public LocalDateTime getEndedAt() {
     return endedAt;
+  }
+
+  public AggregationState getState() {
+    return state;
   }
 
   @Override
