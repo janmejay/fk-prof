@@ -118,10 +118,10 @@ public class LeaderAPILoadAndAssociationTest {
   @Test(timeout = 5000)
   public void getAssociationForProcessGroups(TestContext context) throws IOException {
     final Async async = context.async();
-    BackendDTO.LoadReportRequest loadRequest1 = BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.5f).setCurrTick(1).build();
-    BackendDTO.LoadReportRequest loadRequest2 = BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.5f).setCurrTick(1).build();
+    BackendDTO.LoadReportRequest.Builder loadRequestBuilder1 = BackendDTO.LoadReportRequest.newBuilder().setIp("1").setPort(1).setLoad(0.5f);
+    BackendDTO.LoadReportRequest.Builder loadRequestBuilder2 = BackendDTO.LoadReportRequest.newBuilder().setIp("2").setPort(1).setLoad(0.5f);
 
-    makeRequestReportLoad(loadRequest1)
+    makeRequestReportLoad(loadRequestBuilder1.clone().setCurrTick(1).build())
         .setHandler(ar1 -> {
           if(ar1.succeeded()) {
             try {
@@ -136,7 +136,7 @@ public class LeaderAPILoadAndAssociationTest {
                               if (ar3.succeeded()) {
                                 context.assertEquals("1", ar3.result().getHost());
                                 try {
-                                  makeRequestReportLoad(loadRequest2)
+                                  makeRequestReportLoad(loadRequestBuilder2.clone().setCurrTick(1).build())
                                       .setHandler(ar4 -> {
                                         if (ar4.succeeded()) {
                                           try {
@@ -146,7 +146,7 @@ public class LeaderAPILoadAndAssociationTest {
                                                     context.assertEquals("2", ar5.result().getHost());
                                                     vertx.setTimer(3000, timerId -> {
                                                       try {
-                                                        makeRequestReportLoad(loadRequest1)
+                                                        makeRequestReportLoad(loadRequestBuilder1.clone().setCurrTick(2).build())
                                                             .setHandler(ar6 -> {
                                                               if (ar6.succeeded()) {
                                                                 try {

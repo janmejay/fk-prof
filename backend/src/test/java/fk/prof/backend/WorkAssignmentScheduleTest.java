@@ -2,7 +2,7 @@ package fk.prof.backend;
 
 import fk.prof.backend.model.assignment.RecorderIdentifier;
 import fk.prof.backend.model.assignment.WorkAssignmentSchedule;
-import fk.prof.backend.model.assignment.WorkAssignmentScheduleFactory;
+import fk.prof.backend.model.assignment.WorkAssignmentScheduleBootstrapConfig;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,17 +24,18 @@ public class WorkAssignmentScheduleTest {
 
   @Test
   public void testFetchOfWorkAssignmentWithMaxDelay() throws InterruptedException {
-    WorkAssignmentScheduleFactory factory = new WorkAssignmentScheduleFactory(1, 10, 5, 10);
-    WorkAssignmentSchedule was = factory.getNewWorkAssignmentSchedule(mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]),
-        100, 4, 5);
-    Assert.assertEquals(3, was.getMaxConcurrentlyScheduledEntries());
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 5, 10);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
+    Assert.assertEquals(3, was.getMaxOverlap());
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
     Assert.assertNotNull(r1);
     Assert.assertTrue(r1.getDelay() < 10);
 
-    //already fetched for 1st recorder
-    Assert.assertNull(was.getNextWorkAssignment(buildRI("1")));
+    //already fetched for 1st recorder, so should return same work id
+    Recorder.WorkAssignment r2 = was.getNextWorkAssignment(buildRI("1"));
+    Assert.assertNotNull(r2);
+    Assert.assertEquals(r1.getWorkId(), r2.getWorkId());
 
     //exhaust all entries scheduled in slot 1
     Assert.assertNotNull(was.getNextWorkAssignment(buildRI("2")));
@@ -44,18 +45,17 @@ public class WorkAssignmentScheduleTest {
     Assert.assertNull(was.getNextWorkAssignment(buildRI("4")));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testBuildingOfScheduleWithTooLessConcurrentEntriesAllowed() throws InterruptedException {
-    WorkAssignmentScheduleFactory factory = new WorkAssignmentScheduleFactory(1, 10, 5, 10);
-    WorkAssignmentSchedule was = factory.getNewWorkAssignmentSchedule(mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]),
-          100, 1, 5);
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 5, 10);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
+    Assert.assertTrue(was.getMaxOverlap() > 1);
   }
 
   @Test
   public void testFetchOfWorkAssignmentWithMinDelay() throws InterruptedException {
-    WorkAssignmentScheduleFactory factory = new WorkAssignmentScheduleFactory(1, 10, 2, 10);
-    WorkAssignmentSchedule was = factory.getNewWorkAssignmentSchedule(mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]),
-        100, 2, 5);
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 2, 10);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
     Assert.assertNotNull(r1);

@@ -1,7 +1,8 @@
 package fk.prof.backend.model.assignment;
 
 import com.google.common.base.Preconditions;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.Future;
@@ -16,32 +17,35 @@ public class AggregationWindowPlannerStore {
   private final Map<Recorder.ProcessGroup, AggregationWindowPlanner> lookup = new HashMap<>();
 
   private final Vertx vertx;
-  private final AggregationWindowLookupStore aggregationWindowLookupStore;
-  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
-  private final Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor;
-  private final WorkAssignmentScheduleFactory workAssignmentScheduleFactory;
+  private final int backendId;
+  private final ActiveAggregationWindows activeAggregationWindows;
+  private final WorkSlotPool workSlotPool;
+  private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
+  private final WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig;
   private final int aggregationWindowDurationInMins;
-  private final int workProfileRefreshBufferInSecs;
+  private final int policyRefreshBufferInSecs;
 
   public AggregationWindowPlannerStore(Vertx vertx,
+                                       int backendId,
                                        int windowDurationInMins,
                                        int windowEndToleranceInSecs,
-                                       int workProfileRefreshBufferInSecs,
+                                       int policyRefreshBufferInSecs,
                                        int schedulingBufferInSecs,
                                        int maxAcceptableDelayForWorkAssignmentInSecs,
-                                       SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter,
-                                       AggregationWindowLookupStore aggregationWindowLookupStore,
-                                       Function<Recorder.ProcessGroup, Future<BackendDTO.WorkProfile>> workForBackendRequestor) {
+                                       WorkSlotPool workSlotPool,
+                                       ActiveAggregationWindows activeAggregationWindows,
+                                       Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
-    this.workForBackendRequestor = Preconditions.checkNotNull(workForBackendRequestor);
-    this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
-    this.simultaneousWorkAssignmentCounter = Preconditions.checkNotNull(simultaneousWorkAssignmentCounter);
-    this.workAssignmentScheduleFactory = new WorkAssignmentScheduleFactory(windowDurationInMins,
+    this.backendId = backendId;
+    this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
+    this.activeAggregationWindows = Preconditions.checkNotNull(activeAggregationWindows);
+    this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
+    this.workAssignmentScheduleBootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(windowDurationInMins,
         windowEndToleranceInSecs,
         schedulingBufferInSecs,
         maxAcceptableDelayForWorkAssignmentInSecs);
     this.aggregationWindowDurationInMins = windowDurationInMins;
-    this.workProfileRefreshBufferInSecs = workProfileRefreshBufferInSecs;
+    this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
   }
 
   /**
@@ -52,13 +56,14 @@ public class AggregationWindowPlannerStore {
     if (!this.lookup.containsKey(processGroupContextForScheduling.getProcessGroup())) {
       AggregationWindowPlanner aggregationWindowPlanner = new AggregationWindowPlanner(
           vertx,
+          backendId,
           aggregationWindowDurationInMins,
-          workProfileRefreshBufferInSecs,
-          workAssignmentScheduleFactory,
-          simultaneousWorkAssignmentCounter,
+          policyRefreshBufferInSecs,
+          workAssignmentScheduleBootstrapConfig,
+          workSlotPool,
           processGroupContextForScheduling,
-          aggregationWindowLookupStore,
-          workForBackendRequestor);
+          activeAggregationWindows,
+          policyForBackendRequestor);
       this.lookup.put(processGroupContextForScheduling.getProcessGroup(), aggregationWindowPlanner);
       return true;
     }

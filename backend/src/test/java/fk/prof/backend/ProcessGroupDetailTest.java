@@ -60,7 +60,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    Recorder.WorkAssignment response = processGroupDetail.receivePoll(pollReq1);
+    Recorder.WorkAssignment response = processGroupDetail.getWorkAssignment(pollReq1);
     context.assertNull(response);
 
     //Update wa such that it returns non-null for mockRIBuilders.get(0), null for mockRIBuilders.get(1)
@@ -74,7 +74,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    response = processGroupDetail.receivePoll(pollReq2);
+    response = processGroupDetail.getWorkAssignment(pollReq2);
     context.assertEquals(wa, response);
 
     Recorder.PollReq pollReq3 = Recorder.PollReq.newBuilder()
@@ -85,7 +85,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    response = processGroupDetail.receivePoll(pollReq3);
+    response = processGroupDetail.getWorkAssignment(pollReq3);
     context.assertNull(response);
   }
 
@@ -100,7 +100,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    processGroupDetail.receivePoll(pollReq1);
+    processGroupDetail.getWorkAssignment(pollReq1);
 
     //Ensure first recorder goes defunct
     Thread.sleep(1000);
@@ -113,7 +113,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.unknown)
             .setWorkState(Recorder.WorkResponse.WorkState.running).build())
         .build();
-    processGroupDetail.receivePoll(pollReq2);
+    processGroupDetail.getWorkAssignment(pollReq2);
 
     Recorder.PollReq pollReq3 = Recorder.PollReq.newBuilder()
         .setRecorderInfo(mockRIBuilders.get(2).setRecorderTick(1).build())
@@ -123,7 +123,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    processGroupDetail.receivePoll(pollReq3);
+    processGroupDetail.getWorkAssignment(pollReq3);
 
     context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
     context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
@@ -139,7 +139,7 @@ public class ProcessGroupDetailTest {
             .setWorkResult(Recorder.WorkResponse.WorkResult.success)
             .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
         .build();
-    processGroupDetail.receivePoll(pollReq4);
+    processGroupDetail.getWorkAssignment(pollReq4);
     context.assertEquals(3, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
     context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
     context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(34));

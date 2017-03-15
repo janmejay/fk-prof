@@ -7,6 +7,7 @@ void Scheduler::schedule(Time::Pt time, Scheduler::Cb task) {
     logger->debug("Scheduling {} {}s in future", typeid(task).name(), sec_in_future.count());//TODO: handle me better
     std::lock_guard<std::mutex> g(m);
     q.push({time, task});
+    s_c_q_sz.inc();
     auto top_expiry = q.top().first;
     if (time < top_expiry) {
         nearest_entry_changed.notify_one();
@@ -23,7 +24,8 @@ bool is_expired(const Time::Pt& tm) {
 
 typedef std::unique_lock<std::mutex> Lock;
 
-void block_for_expiry(const Scheduler::Q& q, Lock& l, std::condition_variable& expiry_plan) {
+void wait_for_expiry(const Scheduler::Q& q, Lock& l, std::condition_variable& expiry_plan, metrics::Timer& s_t_wait) {
+    auto _ = s_t_wait.time_scope();
     while (true) {
         auto top_expiry = q.top().first;
         if (is_expired(top_expiry)) break;
@@ -43,12 +45,14 @@ struct Unlocker {
     }
 };
 
-void execute_top(Scheduler::Q& q, Lock& l) {
+void execute_top(Scheduler::Q& q, Lock& l, metrics::Timer& s_t_exec, metrics::Ctr& s_c_q_sz) {
     Scheduler::Ent sched_for = std::move(q.top());
     q.pop();
+    s_c_q_sz.dec();
     logger->debug("Scheduler is now triggering {}", typeid(sched_for).name());
     {
         Unlocker ul(l);
+        auto _ = s_t_exec.time_scope();
         sched_for.second();
     }
 }
@@ -56,16 +60,31 @@ void execute_top(Scheduler::Q& q, Lock& l) {
 bool Scheduler::poll() {
     Lock l(m);
     if (q.empty()) {
+        s_m_runout.mark();
         return false;
     }
 
-    block_for_expiry(q, l, nearest_entry_changed);
+    wait_for_expiry(q, l, nearest_entry_changed, s_t_wait);
 
-    execute_top(q, l);
+    execute_top(q, l, s_t_exec, s_c_q_sz);
+    auto i = 1;
 
     while ((! q.empty()) && is_expired(q.top().first)) {
-        execute_top(q, l);
+        execute_top(q, l, s_t_exec, s_c_q_sz);
+        i++;
     }
+    s_h_exec_spree_len.update(i);
 
     return true;
 }
+
+#define METRIC_TYPE "scheduler"
+
+Scheduler::Scheduler() :
+    s_m_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "queue"}, "runout")),
+    s_t_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "sched", "wait"})),
+    s_t_exec(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "sched", "exec"})),
+    s_h_exec_spree_len(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRIC_TYPE, "sched", "exec_spree"})),
+    s_c_q_sz(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "queue", "sz"})) {}
+
+Scheduler::~Scheduler() {}

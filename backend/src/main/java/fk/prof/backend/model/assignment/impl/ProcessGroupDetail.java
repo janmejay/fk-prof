@@ -40,7 +40,7 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
    * @return
    */
   @Override
-  public Recorder.WorkAssignment receivePoll(Recorder.PollReq pollReq) {
+  public Recorder.WorkAssignment getWorkAssignment(Recorder.PollReq pollReq) {
     RecorderIdentifier recorderIdentifier = RecorderIdentifier.from(pollReq.getRecorderInfo());
     //TODO: clean-up job to remove recorders from lookup which have been defunct for a long long time
     //The above is only a problem if the same backend stays associated with recorder for a long time, otherwise ProcessGroupDetail will be GC-eligible on de-association

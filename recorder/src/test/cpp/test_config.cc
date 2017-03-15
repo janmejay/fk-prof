@@ -7,6 +7,7 @@
 #include "../../main/cpp/config.hh"
 
 TEST(ParsesAllOptions) {
+    TestEnv _;
     std::string str("service_endpoint=http://10.20.30.40:9070,"
                     "ip=50.60.70.80,"
                     "host=foo.host,"
@@ -47,6 +48,7 @@ TEST(ParsesAllOptions) {
 }
 
 TEST(DefaultAppropriately) {
+    TestEnv _;
     std::string str("service_endpoint=http://10.20.30.40:9070,"
                     "ip=50.60.70.80,"
                     "host=foo.host,"

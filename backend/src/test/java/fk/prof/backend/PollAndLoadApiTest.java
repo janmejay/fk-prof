@@ -5,13 +5,11 @@ import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.http.ProfHttpClient;
 import fk.prof.backend.leader.election.LeaderElectedTask;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
-import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
-import fk.prof.backend.model.assignment.AggregationWindowPlanner;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
-import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
-import fk.prof.backend.model.assignment.impl.SimultaneousWorkAssignmentCounterImpl;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
+import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
+import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
@@ -62,9 +60,9 @@ public class PollAndLoadApiTest {
   private TestingServer testingServer;
 
   private InMemoryLeaderStore leaderStore;
-  private ProcessGroupAssociationStore processGroupAssociationStore;
-  private AggregationWindowLookupStore aggregationWindowLookupStore;
-  private SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
+  private AssociatedProcessGroups associatedProcessGroups;
+  private ActiveAggregationWindows activeAggregationWindows;
+  private WorkSlotPool workSlotPool;
   private BackendAssociationStore backendAssociationStore;
   private PolicyStore policyStore;
 
@@ -95,15 +93,15 @@ public class PollAndLoadApiTest {
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
     leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
     when(leaderStore.isLeader()).thenReturn(false);
-    processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
-    simultaneousWorkAssignmentCounter = new SimultaneousWorkAssignmentCounterImpl(configManager.getMaxSimultaneousProfiles());
-    aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
+    activeAggregationWindows = new ActiveAggregationWindowsImpl();
     policyStore = spy(new PolicyStore());
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
-        aggregationWindowLookupStore, processGroupAssociationStore);
+        activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
-        processGroupAssociationStore, aggregationWindowLookupStore, simultaneousWorkAssignmentCounter);
+        associatedProcessGroups, activeAggregationWindows, workSlotPool);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.result().cause());
@@ -190,13 +188,13 @@ public class PollAndLoadApiTest {
   public void testFetchForWorkForAggregationWindow(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
-    policyStore.put(processGroup, buildWorkProfile(1));
+    policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.WorkProfile>() {
+    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
       @Override
-      public BackendDTO.WorkProfile answer(InvocationOnMock invocationOnMock) throws Throwable {
+      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
         latch.countDown();
-        return (BackendDTO.WorkProfile)invocationOnMock.callRealMethod();
+        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
       }
     });
 
@@ -232,14 +230,14 @@ public class PollAndLoadApiTest {
   public void testAggregationWindowSetupAndPollResponse(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
-    policyStore.put(processGroup, buildWorkProfile(1));
+    policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.WorkProfile>() {
+    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
       @Override
-      public BackendDTO.WorkProfile answer(InvocationOnMock invocationOnMock) throws Throwable {
+      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
         //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
         boolean released = latch.await(8, TimeUnit.SECONDS);
-        return (BackendDTO.WorkProfile)invocationOnMock.callRealMethod();
+        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
       }
     });
 
@@ -295,7 +293,7 @@ public class PollAndLoadApiTest {
                                 context.assertEquals(200, ar4.result().getStatusCode());
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
-                                context.assertEquals(BitOperationUtil.constructLongFromInts(AggregationWindowPlanner.BACKEND_IDENTIFIER, 1),
+                                context.assertEquals(BitOperationUtil.constructLongFromInts(configManager.getBackendId(), 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
                               } catch (Exception ex) {
@@ -365,8 +363,8 @@ public class PollAndLoadApiTest {
     return future;
   }
 
-  private BackendDTO.WorkProfile buildWorkProfile(int profileDuration) {
-    return BackendDTO.WorkProfile.newBuilder()
+  private BackendDTO.RecordingPolicy buildRecordingPolicy(int profileDuration) {
+    return BackendDTO.RecordingPolicy.newBuilder()
         .setDuration(profileDuration)
         .setCoveragePct(100)
         .setDescription("Test work profile")

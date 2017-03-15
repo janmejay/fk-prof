@@ -10,13 +10,13 @@ import java.util.Map;
  * TODO: Liable for refactoring. Dummy impl for now
  */
 public class PolicyStore {
-  private final Map<Recorder.ProcessGroup, BackendDTO.WorkProfile> store = new HashMap<>();
+  private final Map<Recorder.ProcessGroup, BackendDTO.RecordingPolicy> store = new HashMap<>();
 
-  public void put(Recorder.ProcessGroup processGroup, BackendDTO.WorkProfile workProfile) {
-    this.store.put(processGroup, workProfile);
+  public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) {
+    this.store.put(processGroup, recordingPolicy);
   }
 
-  public BackendDTO.WorkProfile get(Recorder.ProcessGroup processGroup) {
+  public BackendDTO.RecordingPolicy get(Recorder.ProcessGroup processGroup) {
     return this.store.get(processGroup);
   }
 }

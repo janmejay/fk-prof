@@ -43,14 +43,4 @@ public class AggregationFailure extends RuntimeException implements ProfExceptio
   public boolean isServerFailure() {
     return serverFailure;
   }
-
-  public static AggregationFailure failure(Throwable throwable) {
-    if (throwable instanceof AggregationFailure) {
-      return (AggregationFailure) throwable;
-    }
-    if (throwable.getMessage() == null) {
-      return new AggregationFailure("No message provided", throwable.getCause());
-    }
-    return new AggregationFailure(throwable.getMessage(), throwable.getCause());
-  }
 }

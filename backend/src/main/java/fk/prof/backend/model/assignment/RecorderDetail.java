@@ -40,11 +40,8 @@ public class RecorderDetail {
   }
 
   public boolean canAcceptWork() {
-    if (!isDefunct() &&
-        (currentWorkResponse.getWorkId() == 0 || Recorder.WorkResponse.WorkState.complete.equals(currentWorkResponse.getWorkState()))) {
-      return true;
-    }
-    return false;
+    return !isDefunct() &&
+        (currentWorkResponse.getWorkId() == 0 || Recorder.WorkResponse.WorkState.complete.equals(currentWorkResponse.getWorkState()));
   }
 
   @Override

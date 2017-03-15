@@ -7,11 +7,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
-public class ProcessGroupAssociationStoreImpl implements ProcessGroupAssociationStore, ProcessGroupDiscoveryContext {
+public class AssociatedProcessGroupsImpl implements AssociatedProcessGroups, ProcessGroupDiscoveryContext {
   private final Map<Recorder.ProcessGroup, ProcessGroupDetail> processGroupLookup = new ConcurrentHashMap<>();
   private final int thresholdForDefunctRecorderInSecs;
 
-  public ProcessGroupAssociationStoreImpl(int thresholdForDefunctRecorderInSecs) {
+  public AssociatedProcessGroupsImpl(int thresholdForDefunctRecorderInSecs) {
     this.thresholdForDefunctRecorderInSecs = thresholdForDefunctRecorderInSecs;
   }
 
