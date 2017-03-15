@@ -4,7 +4,7 @@ import com.google.common.base.Preconditions;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.leader.election.LeaderElectedTask;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.assignment.AssociatedProcessGroups;
 import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
 import fk.prof.backend.model.slot.WorkSlotPool;
@@ -12,7 +12,7 @@ import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.ProcessGroupCountBasedBackendComparator;
 import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationStore;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
+import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import fk.prof.backend.model.policy.PolicyStore;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
@@ -79,12 +79,12 @@ public class BackendManager {
   public Future<Void> launch() {
     Future result = Future.future();
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress());
-    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
+    ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
     AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     WorkSlotPool workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore, associatedProcessGroups);
-    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, aggregationWindowLookupStore, workSlotPool);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, activeAggregationWindows, associatedProcessGroups);
+    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool);
     CompositeFuture backendDeploymentFuture = CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy());
     backendDeploymentFuture.setHandler(backendDeployResult -> {
       if (backendDeployResult.succeeded()) {

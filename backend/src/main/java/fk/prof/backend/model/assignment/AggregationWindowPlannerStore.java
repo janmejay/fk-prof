@@ -1,7 +1,7 @@
 package fk.prof.backend.model.assignment;
 
 import com.google.common.base.Preconditions;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
@@ -18,7 +18,7 @@ public class AggregationWindowPlannerStore {
 
   private final Vertx vertx;
   private final int backendId;
-  private final AggregationWindowLookupStore aggregationWindowLookupStore;
+  private final ActiveAggregationWindows activeAggregationWindows;
   private final WorkSlotPool workSlotPool;
   private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
   private final WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig;
@@ -33,12 +33,12 @@ public class AggregationWindowPlannerStore {
                                        int schedulingBufferInSecs,
                                        int maxAcceptableDelayForWorkAssignmentInSecs,
                                        WorkSlotPool workSlotPool,
-                                       AggregationWindowLookupStore aggregationWindowLookupStore,
+                                       ActiveAggregationWindows activeAggregationWindows,
                                        Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.backendId = backendId;
     this.policyForBackendRequestor = Preconditions.checkNotNull(policyForBackendRequestor);
-    this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
+    this.activeAggregationWindows = Preconditions.checkNotNull(activeAggregationWindows);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
     this.workAssignmentScheduleBootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(windowDurationInMins,
         windowEndToleranceInSecs,
@@ -62,7 +62,7 @@ public class AggregationWindowPlannerStore {
           workAssignmentScheduleBootstrapConfig,
           workSlotPool,
           processGroupContextForScheduling,
-          aggregationWindowLookupStore,
+          activeAggregationWindows,
           policyForBackendRequestor);
       this.lookup.put(processGroupContextForScheduling.getProcessGroup(), aggregationWindowPlanner);
       return true;

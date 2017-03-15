@@ -3,7 +3,7 @@ package fk.prof.backend.deployer.impl;
 import com.google.common.base.Preconditions;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.deployer.VerticleDeployer;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.assignment.AssociatedProcessGroups;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.slot.WorkSlotPool;
@@ -16,19 +16,19 @@ public class BackendDaemonVerticleDeployer extends VerticleDeployer {
 
   private final LeaderReadContext leaderReadContext;
   private final AssociatedProcessGroups associatedProcessGroups;
-  private final AggregationWindowLookupStore aggregationWindowLookupStore;
+  private final ActiveAggregationWindows activeAggregationWindows;
   private final WorkSlotPool workSlotPool;
 
   public BackendDaemonVerticleDeployer(Vertx vertx,
                                        ConfigManager configManager,
                                        LeaderReadContext leaderReadContext,
                                        AssociatedProcessGroups associatedProcessGroups,
-                                       AggregationWindowLookupStore aggregationWindowLookupStore,
+                                       ActiveAggregationWindows activeAggregationWindows,
                                        WorkSlotPool workSlotPool) {
     super(vertx, configManager);
     this.leaderReadContext = Preconditions.checkNotNull(leaderReadContext);
     this.associatedProcessGroups = Preconditions.checkNotNull(associatedProcessGroups);
-    this.aggregationWindowLookupStore = Preconditions.checkNotNull(aggregationWindowLookupStore);
+    this.activeAggregationWindows = Preconditions.checkNotNull(activeAggregationWindows);
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
   }
 
@@ -42,6 +42,6 @@ public class BackendDaemonVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected Verticle buildVerticle() {
-    return new BackendDaemon(getConfigManager(), leaderReadContext, associatedProcessGroups, aggregationWindowLookupStore, workSlotPool);
+    return new BackendDaemon(getConfigManager(), leaderReadContext, associatedProcessGroups, activeAggregationWindows, workSlotPool);
   }
 }

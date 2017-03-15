@@ -2,12 +2,12 @@ package fk.prof.backend.model.aggregation.impl;
 
 import com.google.common.base.Preconditions;
 import fk.prof.backend.aggregator.AggregationWindow;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AggregationWindowLookupStoreImpl implements AggregationWindowLookupStore {
+public class ActiveAggregationWindowsImpl implements ActiveAggregationWindows {
   private Map<Long, AggregationWindow> windowLookup = new ConcurrentHashMap<>();
 
   //NOTE: Called on http event loop

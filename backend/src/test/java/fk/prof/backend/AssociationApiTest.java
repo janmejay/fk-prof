@@ -14,7 +14,7 @@ import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationSt
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
+import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import fk.prof.backend.http.ProfHttpClient;
 import fk.prof.backend.util.ProtoUtil;
 import io.vertx.core.*;
@@ -74,7 +74,7 @@ public class AssociationApiTest {
     associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     policyStore = new PolicyStore();
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new AggregationWindowLookupStoreImpl(), associatedProcessGroups);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), associatedProcessGroups);
     backendHttpVerticleDeployer.deploy();
     //Wait for some time for deployment to complete
     Thread.sleep(1000);

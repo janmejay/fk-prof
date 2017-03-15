@@ -3,7 +3,7 @@ package fk.prof.backend.worker;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.assignment.AggregationWindowPlannerStore;
 import fk.prof.backend.model.assignment.AssociatedProcessGroups;
 import fk.prof.backend.model.election.LeaderReadContext;
@@ -19,7 +19,6 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 
@@ -31,7 +30,7 @@ public class BackendDaemon extends AbstractVerticle {
   private final LeaderReadContext leaderReadContext;
   private final AssociatedProcessGroups associatedProcessGroups;
   private final WorkSlotPool workSlotPool;
-  private final AggregationWindowLookupStore aggregationWindowLookupStore;
+  private final ActiveAggregationWindows activeAggregationWindows;
   private final String ipAddress;
   private final int leaderHttpPort;
   private final int backendHttpPort;
@@ -43,7 +42,7 @@ public class BackendDaemon extends AbstractVerticle {
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,
                        AssociatedProcessGroups associatedProcessGroups,
-                       AggregationWindowLookupStore aggregationWindowLookupStore,
+                       ActiveAggregationWindows activeAggregationWindows,
                        WorkSlotPool workSlotPool) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
@@ -52,7 +51,7 @@ public class BackendDaemon extends AbstractVerticle {
 
     this.leaderReadContext = leaderReadContext;
     this.associatedProcessGroups = associatedProcessGroups;
-    this.aggregationWindowLookupStore = aggregationWindowLookupStore;
+    this.activeAggregationWindows = activeAggregationWindows;
     this.workSlotPool = workSlotPool;
   }
 
@@ -65,14 +64,7 @@ public class BackendDaemon extends AbstractVerticle {
 
   private ProfHttpClient buildHttpClient() {
     JsonObject httpClientConfig = configManager.getHttpClientConfig();
-    ProfHttpClient httpClient = ProfHttpClient.newBuilder()
-        .keepAlive(httpClientConfig.getBoolean("keepalive", false))
-        .useCompression(httpClientConfig.getBoolean("compression", true))
-        .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 2000))
-        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 3))
-        .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 1))
-        .build(vertx);
-    return httpClient;
+    return ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
   }
 
   private AggregationWindowPlannerStore buildAggregationWindowPlannerStore() {
@@ -85,7 +77,7 @@ public class BackendDaemon extends AbstractVerticle {
         config().getInteger("scheduling.buffer.secs", 30),
         config().getInteger("work.assignment.max.delay.secs", 120),
         workSlotPool,
-        aggregationWindowLookupStore,
+        activeAggregationWindows,
         this::getWorkFromLeader);
   }
 
@@ -110,8 +102,12 @@ public class BackendDaemon extends AbstractVerticle {
                     .setCurrTick(loadTickCounter)
                     .build()))
             .setHandler(ar -> {
-              if(ar.succeeded()) {
-                if(ar.result().getStatusCode() == 200) {
+              try {
+                if(ar.failed()) {
+                  logger.error("Error when reporting load to leader", ar.cause());
+                } else if (ar.result().getStatusCode() != 200) {
+                  logger.error("Non OK status returned by leader when reporting load, status=" + ar.result().getStatusCode());
+                } else {
                   try {
                     loadTickCounter++;
                     Recorder.ProcessGroups assignedProcessGroups = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroups.parser(), ar.result().getResponse());
@@ -126,17 +122,16 @@ public class BackendDaemon extends AbstractVerticle {
                       }
                     });
                   } catch (Exception ex) {
-                    logger.error("Error parsing response returned by leader when reporting load");
+                    logger.error("Error parsing response returned by leader when reporting load", ex);
                   }
-                } else {
-                  logger.error("Non OK status returned by leader when reporting load, status=" + ar.result().getStatusCode());
                 }
-              } else {
-                logger.error("Error when reporting load to leader", ar.cause());
+              } catch (Exception ex) {
+                logger.error("Unexpected error when reporting load to leader", ex);
+              } finally {
+                setupTimerForReportingLoad();
               }
-              setupTimerForReportingLoad();
             });
-      } catch (IOException ex) {
+      } catch (Exception ex) {
         logger.error("Error building load request body", ex);
         setupTimerForReportingLoad();
       }

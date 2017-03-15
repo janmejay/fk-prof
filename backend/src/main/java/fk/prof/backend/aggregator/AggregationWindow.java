@@ -5,7 +5,7 @@ import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWindow> {
@@ -83,15 +82,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
    * > De associates assigned work with this aggregation window
    * > Updates ended at time for aggregation window
    * > Finalizes the window
-   * @param aggregationWindowLookupStore
+   * @param activeAggregationWindows
    * @return finalized aggregation window
    */
-  public FinalizedAggregationWindow expireWindow(AggregationWindowLookupStore aggregationWindowLookupStore) {
+  public FinalizedAggregationWindow expireWindow(ActiveAggregationWindows activeAggregationWindows) {
     ensureEntityIsWriteable();
 
     abortOngoingProfiles();
     long[] workIds = this.workInfoLookup.keySet().stream().mapToLong(Long::longValue).toArray();
-    aggregationWindowLookupStore.deAssociateAggregationWindow(workIds);
+    activeAggregationWindows.deAssociateAggregationWindow(workIds);
     this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return finalizeEntity();
   }

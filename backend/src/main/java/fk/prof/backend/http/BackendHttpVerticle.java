@@ -67,13 +67,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     JsonObject httpClientConfig = configManager.getHttpClientConfig();
-    httpClient = ProfHttpClient.newBuilder()
-        .keepAlive(httpClientConfig.getBoolean("keepalive", true))
-        .useCompression(httpClientConfig.getBoolean("compression", true))
-        .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 5000))
-        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 120))
-        .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 3))
-        .build(vertx);
+    httpClient = ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
