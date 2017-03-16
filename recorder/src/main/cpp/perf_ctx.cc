@@ -355,12 +355,14 @@ JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong
     } catch (const PerfCtx::IncorrectEnterExitPairing& e) {
         env->ThrowNew(env->FindClass("fk/prof/IncorrectContextException"), e.what());
     }
+    thd_info->release();
 }
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* env, jobject self, jlong ctx_id) {
     auto thd_info = get_thread_map().get(env);
     SPDLOG_TRACE(logger, "Begining perf-ctx {} for jniEnv: {}", ctx_id, reinterpret_cast<std::uint64_t>(env));
     thd_info->ctx_tracker.enter(static_cast<PerfCtx::TracePt>(ctx_id));
+    thd_info->release();
 }
 
 

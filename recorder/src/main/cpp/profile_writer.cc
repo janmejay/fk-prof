@@ -104,6 +104,7 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
         } else {
             ss->set_thread_id(known_thd->second);
         }
+        info->release();
     } else {
         ss->set_error(translate_forte_error(trace.num_frames));
     }
