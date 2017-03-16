@@ -11,20 +11,20 @@ TEST(ParsesAllOptions) {
     std::string str("service_endpoint=http://10.20.30.40:9070,"
                     "ip=50.60.70.80,"
                     "host=foo.host,"
-                    "appid=bar_app,"
-                    "igrp=baz_grp,"
+                    "app_id=bar_app,"
+                    "inst_grp=baz_grp,"
                     "cluster=quux_cluster,"
-                    "instid=corge_iid,"
+                    "inst_id=corge_iid,"
                     "proc=grault_proc,"
-                    "vmid=garply_vmid,"
+                    "vm_id=garply_vm_id,"
                     "zone=waldo_zone,"
-                    "ityp=c0.medium,"
-                    "backoffStart=2,"
-                    "backoffMultiplier=3,"
-                    "maxRetries=7,"
-                    "backoffMax=15,"
-                    "logLvl=warn,"
-                    "pollItvl=30");
+                    "inst_type=c0.medium,"
+                    "backoff_start=2,"
+                    "backoff_multiplier=3,"
+                    "max_retries=7,"
+                    "backoff_max=15,"
+                    "log_lvl=warn,"
+                    "poll_itvl=30");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -35,7 +35,7 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL("quux_cluster", options.cluster);
     CHECK_EQUAL("corge_iid", options.inst_id);
     CHECK_EQUAL("grault_proc", options.proc);
-    CHECK_EQUAL("garply_vmid", options.vm_id);
+    CHECK_EQUAL("garply_vm_id", options.vm_id);
     CHECK_EQUAL("waldo_zone", options.zone);
     CHECK_EQUAL("c0.medium", options.inst_typ);
     CHECK_EQUAL(2, options.backoff_start);
@@ -52,14 +52,14 @@ TEST(DefaultAppropriately) {
     std::string str("service_endpoint=http://10.20.30.40:9070,"
                     "ip=50.60.70.80,"
                     "host=foo.host,"
-                    "appid=bar_app,"
-                    "igrp=baz_grp,"
+                    "app_id=bar_app,"
+                    "inst_grp=baz_grp,"
                     "cluster=quux_cluster,"
-                    "instid=corge_iid,"
+                    "inst_id=corge_iid,"
                     "proc=grault_proc,"
-                    "vmid=garply_vmid,"
+                    "vm_id=garply_vm_id,"
                     "zone=waldo_zone,"
-                    "ityp=c0.medium");
+                    "inst_type=c0.medium");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -70,7 +70,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL("quux_cluster", options.cluster);
     CHECK_EQUAL("corge_iid", options.inst_id);
     CHECK_EQUAL("grault_proc", options.proc);
-    CHECK_EQUAL("garply_vmid", options.vm_id);
+    CHECK_EQUAL("garply_vm_id", options.vm_id);
     CHECK_EQUAL("waldo_zone", options.zone);
     CHECK_EQUAL("c0.medium", options.inst_typ);
     CHECK_EQUAL(5, options.backoff_start);
