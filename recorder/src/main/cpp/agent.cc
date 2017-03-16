@@ -312,7 +312,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     GlobalCtx::prob_pct = new ProbPct();
 
     formatter = new MetricFormatter::SyslogTsdbFormatter("proc=" + std::string(CONFIGURATION->proc));
-    metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, 11514);
+    metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, CONFIGURATION->metrics_dst_port);
     metrics_reporter->start();
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);

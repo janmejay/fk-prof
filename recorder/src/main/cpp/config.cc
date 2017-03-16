@@ -74,23 +74,26 @@ void ConfigurationOptions::load(const char* options) {
             } else if (strstr(key, "inst_typ") == key) {
                 inst_typ = safe_copy_string(value, next);
             } else if (strstr(key, "backoff_start") == key) {
-                backoff_start = (std::uint32_t) atoi(value);
+                backoff_start = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_start == 0) backoff_start = MIN_BACKOFF_START;
             } else if (strstr(key, "backoff_multiplier") == key) {
-                backoff_multiplier = (std::uint32_t) atoi(value);
+                backoff_multiplier = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_multiplier == 0) backoff_multiplier = DEFAULT_BACKOFF_MULTIPLIER;
             } else if (strstr(key, "max_retries") == key) {
-                max_retries = (std::uint32_t) atoi(value);
+                max_retries = static_cast<std::uint32_t>(atoi(value));
             } else if (strstr(key, "backoff_max") == key) {
-                backoff_max = (std::uint32_t) atoi(value);
+                backoff_max = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_max == 0) backoff_max = DEFAULT_BACKOFF_MAX;
             } else if (strstr(key, "log_lvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
                 log_level = resolv_log_level(val);
                 logger->warn("Log-level set to: {}", log_level);
             } else if (strstr(key, "poll_itvl") == key) {
-                poll_itvl = (std::uint32_t) atoi(value);
+                poll_itvl = static_cast<std::uint32_t>(atoi(value));
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;
+            } else if (strstr(key, "metrics_dst_port") == key) {
+                metrics_dst_port = static_cast<std::uint16_t>(atoi(value));
+                if (metrics_dst_port == 0) metrics_dst_port = DEFAULT_METRICS_DEST_PORT;
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }

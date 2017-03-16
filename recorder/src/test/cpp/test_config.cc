@@ -24,7 +24,8 @@ TEST(ParsesAllOptions) {
                     "max_retries=7,"
                     "backoff_max=15,"
                     "log_lvl=warn,"
-                    "poll_itvl=30");
+                    "poll_itvl=30,"
+                    "metrics_dst_port=10203");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -44,7 +45,7 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL(15, options.backoff_max);
     CHECK_EQUAL(spdlog::level::warn, options.log_level);
     CHECK_EQUAL(30, options.poll_itvl);
-
+    CHECK_EQUAL(10203, options.metrics_dst_port);
 }
 
 TEST(DefaultAppropriately) {
@@ -79,6 +80,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL(10 * 60, options.backoff_max);
     CHECK_EQUAL(spdlog::level::info, options.log_level);
     CHECK_EQUAL(60, options.poll_itvl);
+    CHECK_EQUAL(11514, options.metrics_dst_port);
 }
 
 TEST(SafelyTerminatesStrings) {
