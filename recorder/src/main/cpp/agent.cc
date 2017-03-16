@@ -259,6 +259,14 @@ void log_level_self_test() {
     logger->critical(LST "*critical*");
 }
 
+std::string tsdb_tags() {
+    std::string tags = "prefix_override=fkpr";
+    if (CONFIGURATION->proc != nullptr) {
+        tags += (" proc=" + std::string(CONFIGURATION->proc));
+    }
+    return tags;
+}
+
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;
@@ -311,7 +319,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     GlobalCtx::ctx_reg = new PerfCtx::Registry();
     GlobalCtx::prob_pct = new ProbPct();
 
-    formatter = new MetricFormatter::SyslogTsdbFormatter("proc=" + std::string(CONFIGURATION->proc));
+    formatter = new MetricFormatter::SyslogTsdbFormatter(tsdb_tags());
     metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, CONFIGURATION->metrics_dst_port);
     metrics_reporter->start();
     
