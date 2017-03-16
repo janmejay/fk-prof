@@ -3,19 +3,6 @@
 ASGCTType Asgct::asgct_;
 IsGCActiveType Asgct::is_gc_active_;
 
-TRACE_DEFINE_BEGIN(Profiler, kTraceProfilerTotal)
-    TRACE_DEFINE("start failed")
-    TRACE_DEFINE("start succeeded")
-    TRACE_DEFINE("set sampling interval failed")
-    TRACE_DEFINE("set sampling interval succeeded")
-    TRACE_DEFINE("set stack frames to capture failed")
-    TRACE_DEFINE("set stack frames to capture succeeded")
-    TRACE_DEFINE("set new file failed")
-    TRACE_DEFINE("set new file succeeded")
-    TRACE_DEFINE("stop failed")
-    TRACE_DEFINE("stop succeeded")
-TRACE_DEFINE_END(Profiler, kTraceProfilerTotal);
-
 static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
     std::shared_ptr<Profiler> cpu_profiler = GlobalCtx::recording.cpu_profiler;
     if (cpu_profiler.get() == nullptr) {
@@ -76,12 +63,10 @@ bool Profiler::start(JNIEnv *jniEnv) {
     /* within critical section */
 
     if (__is_running()) {
-        TRACE(Profiler, kTraceProfilerStartFailed);
         logError("WARN: Start called but sampling is already running\n");
         return true;
     }
 
-    TRACE(Profiler, kTraceProfilerStartOk);
 
     // reference back to Profiler::handle on the singleton
     // instance of Profiler
@@ -96,7 +81,6 @@ void Profiler::stop() {
     SimpleSpinLockGuard<true> guard(ongoing_conf);
 
     if (!__is_running()) {
-        TRACE(Profiler, kTraceProfilerStopFailed);
         return;
     }
 

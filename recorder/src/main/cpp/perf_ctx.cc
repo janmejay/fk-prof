@@ -87,7 +87,6 @@ void PerfCtx::ThreadTracker::enter(PerfCtx::TracePt pt) {
         effective_end++;
         break;
     }
-
 }
 
 void PerfCtx::ThreadTracker::exit(PerfCtx::TracePt pt) throw (IncorrectEnterExitPairing) {

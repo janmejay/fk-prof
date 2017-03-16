@@ -6,16 +6,6 @@
 #include "signal_handler.hh"
 #include "circular_queue.hh"
 #include "ti_thd.hh"
-#include "trace.hh"
-
-const int kTraceProcessorTotal = 3;
-
-const int kTraceProcessorStart = 0;
-const int kTraceProcessorStop = 1;
-const int kTraceProcessorRunning = 2;
-
-TRACE_DECLARE(Processor, kTraceProcessorTotal);
-
 
 class Processor {
 

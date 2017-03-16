@@ -20,23 +20,6 @@ using std::ofstream;
 using std::ostringstream;
 using std::string;
 
-#include "trace.hh"
-
-const int kTraceProfilerTotal = 10;
-
-const int kTraceProfilerStartFailed = 0;
-const int kTraceProfilerStartOk = 1;
-const int kTraceProfilerSetIntervalFailed = 2;
-const int kTraceProfilerSetIntervalOk = 3;
-const int kTraceProfilerSetFramesFailed = 4;
-const int kTraceProfilerSetFramesOk = 5;
-const int kTraceProfilerSetFileFailed = 6;
-const int kTraceProfilerSetFileOk = 7;
-const int kTraceProfilerStopFailed = 8;
-const int kTraceProfilerStopOk = 9;
-
-TRACE_DECLARE(Profiler, kTraceProfilerTotal);
-
 template <bool blocking = true>
 class SimpleSpinLockGuard {
 private:
