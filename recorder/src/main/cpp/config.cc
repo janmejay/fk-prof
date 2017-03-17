@@ -94,6 +94,9 @@ void ConfigurationOptions::load(const char* options) {
             } else if (strstr(key, "metrics_dst_port") == key) {
                 metrics_dst_port = static_cast<std::uint16_t>(atoi(value));
                 if (metrics_dst_port == 0) metrics_dst_port = DEFAULT_METRICS_DEST_PORT;
+            } else if (strstr(key, "noctx_cov_pct") == key) {
+                noctx_cov_pct = static_cast<std::uint8_t>(atoi(value));
+                if (noctx_cov_pct > 100) noctx_cov_pct = 100;
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }

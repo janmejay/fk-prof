@@ -125,6 +125,10 @@ int PerfCtx::ThreadTracker::current(PerfCtx::ThreadTracker::EffectiveCtx& curr) 
     return len;
 }
 
+bool PerfCtx::ThreadTracker::in_ctx() {
+    return effective.size() > 0;
+}
+
 bool PerfCtx::ThreadTracker::should_record() {
     return record;
 }

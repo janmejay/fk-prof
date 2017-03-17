@@ -152,6 +152,31 @@ public class PerfCtxUnitTest {
     }
 
     @Test
+    public void shouldNotAllowContext_withNameSimilarTo_NOCTX_NAME() {
+        String noCtxName = testJni.getNoCtxName();
+        try {
+            new PerfCtx(noCtxName);
+            fail("Should not allow creation of perf-ctx with noctx-name");
+        } catch (IllegalArgumentException e) {
+            //ignore
+        }
+
+        try {
+            new PerfCtx(noCtxName.substring(0, noCtxName.length() / 2));
+            fail("Should not allow creation of perf-ctx with first 1/2 of noctx-name");
+        } catch (IllegalArgumentException e) {
+            //ignore
+        }
+
+        try {
+            new PerfCtx(noCtxName.substring(noCtxName.length() / 2));
+            fail("Should not allow creation of perf-ctx with last 1/2 of noctx-name");
+        } catch (IllegalArgumentException e) {
+            //ignore
+        }
+    }
+
+    @Test
     public void shouldTrackContext_whenUsedIn_TryWithResources_Style() {
         //testJni.getAndStubCtxIdStart(105);
         PerfCtx ctx = new PerfCtx("foo bar baz", 25);

@@ -532,7 +532,7 @@ void Controller::issue(const recording::CpuSampleWork& csw) {
     auto max_stack_depth = csw.max_frames();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
     
-    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq));
+    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
     JNIEnv *env = getJNIEnv(jvm);
     GlobalCtx::recording.cpu_profiler->start(env);
 }

@@ -2,6 +2,7 @@
 #include "../../main/cpp/perf_ctx.hh"
 #include "../../main/cpp/globals.hh"
 #include "../../main/cpp/thread_map.hh"
+#include "../../main/cpp/profile_writer.hh"
 #include "test_profile.hh"
 #include "test.hh"
 #include <jni.h>
@@ -83,6 +84,12 @@ JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCurrentCtx(JNIEnv* jni, jobject s
     PerfCtx::ThreadTracker::EffectiveCtx eff_ctx;
     auto count = ctx_tracker.current(eff_ctx);
     logger->info("Wrote {} entries to effective_ctx", count);
+    if ((count > 0) && (!ctx_tracker.in_ctx())) {
+        auto msg = Util::to_s("Thread tracker doesn't seem to be bahaving right, it has ", count, " entries, but doesn't think its in a ctx.");
+        jni->ThrowNew(jni->FindClass("java/lang/IllegalStateException"), msg.c_str());
+        return -1;
+    }
+
     jlong result[PerfCtx::MAX_NESTING];
 
     for (auto i = 0; i < count; i++) {
@@ -125,4 +132,8 @@ JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCtxMergeSemantic(JNIEnv* jni, job
 JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_isGenerated(JNIEnv* jni, jobject self, jlong tpt) {
     RESOLVE(tpt, false);
     return static_cast<jboolean>(is_gen);
+}
+
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getNoCtxName(JNIEnv* jni, jobject self) {
+    return jni->NewStringUTF(NOCTX_NAME);
 }

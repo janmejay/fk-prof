@@ -25,7 +25,8 @@ TEST(ParsesAllOptions) {
                     "backoff_max=15,"
                     "log_lvl=warn,"
                     "poll_itvl=30,"
-                    "metrics_dst_port=10203");
+                    "metrics_dst_port=10203,"
+                    "noctx_cov_pct=25");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -46,6 +47,7 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL(spdlog::level::warn, options.log_level);
     CHECK_EQUAL(30, options.poll_itvl);
     CHECK_EQUAL(10203, options.metrics_dst_port);
+    CHECK_EQUAL(25, options.noctx_cov_pct);
 }
 
 TEST(DefaultAppropriately) {
@@ -81,6 +83,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL(spdlog::level::info, options.log_level);
     CHECK_EQUAL(60, options.poll_itvl);
     CHECK_EQUAL(11514, options.metrics_dst_port);
+    CHECK_EQUAL(0, options.noctx_cov_pct);
 }
 
 TEST(SafelyTerminatesStrings) {

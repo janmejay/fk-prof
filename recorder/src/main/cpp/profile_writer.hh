@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#define NOCTX_NAME "~ OTHERS ~"
+
 class RawWriter {
 public:
     RawWriter() {}
@@ -110,7 +112,8 @@ private:
 
 public:
     ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
-                             PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds);
+                             PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,
+                             std::uint8_t _noctx_cov_pct);
 
     ~ProfileSerializingWriter();
 

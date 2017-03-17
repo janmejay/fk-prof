@@ -55,6 +55,7 @@ void stub(FnStub& method_lookup_stub, LineNoStub& line_no_lookup_stub, std::int6
     line_no_lookup_stub.insert({std::make_tuple(method_id, 10), 1});
     line_no_lookup_stub.insert({std::make_tuple(method_id, 20), 2});
     line_no_lookup_stub.insert({std::make_tuple(method_id, 30), 3});
+    line_no_lookup_stub.insert({std::make_tuple(method_id, 40), 4});
 }
 
 struct AccumulatingRawWriter : public RawWriter {
@@ -171,7 +172,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     SerializationFlushThresholds sft;
     TruncationThresholds tts(7);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 15);
 
     CircularQueue q(ps, 10);
     
@@ -236,10 +237,15 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     
     tmain.ctx_tracker.exit(ctx_bar);
 
+    frames[0].method_id = mid(c);
+    frames[0].lineno = 40;
+    q.push(ct, ThreadBucket::acq_bucket(&tmain));
+
     CHECK(q.pop());
     CHECK(q.pop());
     CHECK(q.pop());
-    CHECK(! q.pop());//because only 3 samples were pushed
+    CHECK(q.pop());
+    CHECK(! q.pop());//because only 4 samples were pushed
 
     ps.flush();
 
@@ -286,14 +292,15 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(3), e, "x/E.class", "x.E", "fn_e", "(J)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(4), f, "x/F.class", "x.F", "fn_f", "(J)I");
 
-    CHECK_EQUAL(3, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 7, "baz", 40, 4, false);
+    CHECK_EQUAL(4, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 15, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 6, "bar", 30, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(3), 7, "baz", 40, 4, false);
 
     auto cse = wse.cpu_sample_entry();
 
-    CHECK_EQUAL(3, cse.stack_sample_size());
+    CHECK_EQUAL(4, cse.stack_sample_size());
     auto s1 = {fr(d, 10, 1), fr(c, 10, 1), fr(d, 20, 2), fr(c, 20, 2), fr(y, 30, 3)};
     auto s1_ctxs = {5};
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, false); //TODO: fix this to actually record time-offset, right now we are using zero
@@ -303,6 +310,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     auto s3 = {fr(c, 10, 1), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s3_ctxs = {6};
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs, false);
+    auto s4 = {fr(c, 40, 4), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
+    auto s4_ctxs = {0};
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(3), 0, 4, s4, s4_ctxs, false);
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
@@ -333,7 +343,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     SerializationFlushThresholds sft;
     TruncationThresholds tts(7);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
 
     CircularQueue q(ps, 10);
     
@@ -403,9 +413,10 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
-    CHECK_EQUAL(2, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo > bar", 0, 0, true);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 6, "bar", 30, 1, false);
+    CHECK_EQUAL(3, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo > bar", 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 6, "bar", 30, 1, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -446,7 +457,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     SerializationFlushThresholds sft;
     sft.cpu_samples = 10;
     TruncationThresholds tts(7);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
 
     CircularQueue q(ps, 10);
     
@@ -504,8 +515,9 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
-    CHECK_EQUAL(1, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(2, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
 
     auto cse = wse.cpu_sample_entry();
     CHECK_EQUAL(10, cse.stack_sample_size());
@@ -546,7 +558,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     SerializationFlushThresholds sft;
     sft.cpu_samples = 10;
     TruncationThresholds tts(7);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
 
     CircularQueue q(ps, 10);
     
@@ -647,8 +659,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
-    CHECK_EQUAL(1, idx_data0.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(2, idx_data0.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 5, "foo", 20, 0, false);
 
     auto cse0 = wse0.cpu_sample_entry();
     CHECK_EQUAL(10, cse0.stack_sample_size());
@@ -713,7 +726,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     SerializationFlushThresholds sft;
     TruncationThresholds tts(7);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
 
     CircularQueue q(ps, 10);
     
@@ -754,7 +767,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     CHECK_EQUAL(0, idx_data.monitor_info_size());
     CHECK_EQUAL(0, idx_data.thread_info_size());
     CHECK_EQUAL(0, idx_data.method_info_size());
-    CHECK_EQUAL(0, idx_data.trace_ctx_size());
+    CHECK_EQUAL(1, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -797,7 +811,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
 
     SerializationFlushThresholds sft;
     TruncationThresholds tts(4);
-    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts);
+    ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
 
     CircularQueue q(ps, 10);
     
@@ -866,8 +880,9 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
 
-    CHECK_EQUAL(1, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(2, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
 
     auto cse = wse.cpu_sample_entry();
 

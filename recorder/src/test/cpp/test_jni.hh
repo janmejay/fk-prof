@@ -87,6 +87,14 @@ JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCtxMergeSemantic
 JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_isGenerated
   (JNIEnv *, jobject, jlong);
 
+/*
+ * Class:     fk_prof_TestJni
+ * Method:    getNoCtxName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getNoCtxName
+  (JNIEnv *, jobject);
+
 #ifdef __cplusplus
 }
 #endif
