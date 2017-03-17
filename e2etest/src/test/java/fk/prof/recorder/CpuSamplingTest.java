@@ -11,6 +11,7 @@ import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
@@ -27,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-import static fk.prof.recorder.AssociationTest.assertRecorderInfoAllGood;
+import static fk.prof.recorder.AssociationTest.assertRecorderInfoAllGood_AndGetTick;
 import static fk.prof.recorder.WorkHandlingTest.*;
 import static fk.prof.recorder.utils.Matchers.approximately;
 import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
@@ -104,8 +105,11 @@ public class CpuSamplingTest {
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
         long idx = 0;
+        Matcher<Long> recorderTickMatcher = is(0l);
+        long previousTick;
         for (WorkHandlingTest.PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            recorderTickMatcher = greaterThan(previousTick);
             assertItHadNoWork(prwt.req.getWorkLastIssued(), idx == 0 ? idx : idx + 99);
             if (idx > 0) {
                 assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
@@ -496,8 +500,11 @@ public class CpuSamplingTest {
 
     private void assertPollIntervalIsGood(PollReqWithTime[] pollReqs, long prevTime) {
         long idx = 0;
+        long previousTick;
+        Matcher<Long> recorderTickMatcher = is(0l);
         for (PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            recorderTickMatcher = greaterThan(previousTick);
             if (idx > 0) {
                 assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
             }

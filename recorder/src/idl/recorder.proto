@@ -48,7 +48,7 @@ message WorkResponse {
     failure = 2;
   }
   required WorkResult work_result = 3;
-  required uint32 elapsed_time = 5;
+  required uint32 elapsed_time = 4;
 }
 
 message WorkAssignment {

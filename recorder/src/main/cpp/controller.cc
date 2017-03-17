@@ -61,7 +61,7 @@ static void time_now_str(std::function<void(const char*)> fn) {
     fn(buffer);
 }
 
-static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time) {
+static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time, std::uint64_t poll_tick) {
     ri.set_ip(cfg.ip);
     ri.set_hostname(cfg.host);
     ri.set_app_id(cfg.app_id);
@@ -76,7 +76,7 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
             ri.set_local_time(now);
         });
     ri.set_recorder_version(RECORDER_VERION);
-    ri.set_recorder_tick(0);
+    ri.set_recorder_tick(poll_tick);
     auto now = Time::now();
     std::chrono::duration<double> uptime = now - start_time;
     ri.set_recorder_uptime(uptime.count());
@@ -163,9 +163,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     assigned.ParseFromArray(associate_response_buff.buff + associate_response_buff.read_end, associate_response_buff.write_end - associate_response_buff.read_end);
     const std::string& host = assigned.host();
     std::uint32_t port = assigned.port();
-    std::stringstream ss;
-    ss << "http://" << host << ":" << port << "/poll";
-    const std::string url = ss.str();
+    const std::string url = "http://" + host + ":" + std::to_string(port) + "/poll";
     logger->info("Connecting to associate: {}", url);
     std::uint32_t backoff_seconds = cfg.backoff_start;
     auto retries_used = 0;
@@ -191,9 +189,11 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     
     std::function<void()> poll_cb;
 
+    std::uint64_t poll_tick = 0;
+
     poll_cb = [&]() {
         recording::PollReq p_req;
-        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time);
+        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time, poll_tick);
 
         with_current_work([&p_req](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                 populate_issued_work_status(*p_req.mutable_work_last_issued(), w.work_id(), wst, wres, start_tm, end_tm);
@@ -215,6 +215,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
             next_tick += Time::sec(cfg.poll_itvl);
+            poll_tick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         } else {
             if (retries_used++ >= cfg.max_retries) {
                 logger->error("COMM failed too many times, giving up on the associate: {}", url);
@@ -256,7 +257,7 @@ void Controller::run() {
     while (keep_running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
         recording::RecorderInfo ri;
-        populate_recorder_info(ri, cfg, start_time);
+        populate_recorder_info(ri, cfg, start_time, 0);
         auto serialized_size = ri.ByteSize();
         send.ensure_free(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);
