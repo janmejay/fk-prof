@@ -36,21 +36,6 @@ public class FinalizedProfileWorkInfo {
     this.samples = samples;
   }
 
-  public FinalizedProfileWorkInfo(int recorderVersion,
-                                  AggregationState state,
-                                  LocalDateTime startedAt,
-                                  LocalDateTime endedAt,
-                                  Map<String, Integer> traceCoverages,
-                                  Map<WorkType, Integer> samples) {
-    this.recorderVersion = recorderVersion;
-    this.recorderInfo = null;
-    this.state = state;
-    this.startedAt = startedAt;
-    this.endedAt = endedAt;
-    this.traceCoverages = traceCoverages;
-    this.samples = samples;
-  }
-
   //NOTE: Exposing this to make the class more testable since startedAt has generated value
   public LocalDateTime getStartedAt() {
     return startedAt;
@@ -77,10 +62,10 @@ public class FinalizedProfileWorkInfo {
     FinalizedProfileWorkInfo other = (FinalizedProfileWorkInfo) o;
     return this.recorderVersion == other.recorderVersion
         && this.state.equals(other.state)
-        && this.startedAt.equals(other.startedAt)
-        && this.endedAt.equals(other.endedAt)
-        && this.traceCoverages.equals(other.traceCoverages)
-        && this.samples.equals(other.samples)
+        && (this.startedAt == null ? other.startedAt == null : this.startedAt.equals(other.startedAt))
+        && (this.endedAt == null ? other.endedAt == null : this.endedAt.equals(other.endedAt))
+        && (this.traceCoverages == null ? other.traceCoverages == null : this.traceCoverages.equals(other.traceCoverages))
+        && (this.samples == null ? other.samples == null : this.samples.equals(other.samples))
         && (this.recorderInfo == null ? other.recorderInfo == null : this.recorderInfo.equals(other.recorderInfo));
   }
 
@@ -89,12 +74,17 @@ public class FinalizedProfileWorkInfo {
   }
 
   protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxNames traces) {
-    if(workType == null || samples.containsKey(workType)) {
+    if(workType == null || (samples != null && samples.containsKey(workType))) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
-              .setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS))
-              .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
               .setStatus(toAggregationStatusProto(state));
+
+      if(startedAt != null) {
+        builder.setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS));
+        if(endedAt != null) {
+          builder.setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS));
+        }
+      }
 
       if(recorderInfo != null) {
         builder.setRecorderInfo(recorderInfo);
@@ -110,13 +100,15 @@ public class FinalizedProfileWorkInfo {
         }
       }
 
-      int index = 0;
-      for(String traceName: traces.getNameList()) {
-        Integer cvrg = traceCoverages.getOrDefault(traceName, null);
-        if(cvrg != null) {
-          builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(cvrg));
+      if(traceCoverages != null) {
+        int index = 0;
+        for (String traceName : traces.getNameList()) {
+          Integer cvrg = traceCoverages.getOrDefault(traceName, null);
+          if (cvrg != null) {
+            builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(cvrg));
+          }
+          ++index;
         }
-        ++index;
       }
 
       return builder.build();
