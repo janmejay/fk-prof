@@ -73,4 +73,15 @@ public class RecorderIdentifier {
     result = result * PRIME + this.instanceType.hashCode();
     return result;
   }
+
+  @Override
+  public String toString() {
+    return "ip=" + this.ip +
+        ", zone=" + this.zone +
+        ", host=" + this.hostname +
+        ", proc=" + this.procName +
+        ", cluster=" + this.cluster +
+        ", vm=" + this.vmId +
+        ", instance_type=" + instanceType;
+  }
 }

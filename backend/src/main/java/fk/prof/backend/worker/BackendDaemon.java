@@ -212,9 +212,9 @@ public class BackendDaemon extends AbstractVerticle {
       }
     }, result -> {
       if(result.succeeded()) {
-        logger.info("Successfully persisted aggregation_window=" + finalizedAggregationWindow);
+        logger.info("Successfully persisted aggregation_window: " + finalizedAggregationWindow);
       } else {
-        logger.error("Error while persisting aggregation_window=" + finalizedAggregationWindow, result.cause());
+        logger.error("Error while persisting aggregation_window: " + finalizedAggregationWindow, result.cause());
       }
     });
   }

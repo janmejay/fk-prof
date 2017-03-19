@@ -56,7 +56,7 @@
   "daemonOptions": {
     "worker": true,
     "config": {
-      "aggregation.window.duration.secs": 120,
+      "aggregation.window.duration.secs": 60,
       "aggregation.window.end.tolerance.secs": 10,
       "policy.refresh.offset.secs": 30,
       "scheduling.buffer.secs": 10,
@@ -66,8 +66,8 @@
   "storage": {
     "s3": {
       "endpoint": "http://127.0.0.1:13031",
-      "access.key": "",
-      "secret.key": ""
+      "access.key": "66ZX9WC7ZRO6S5BSO8TG",
+      "secret.key": "fGEJrdiSWNJlsZTiIiTPpUntDm0wCRV4tYbwu2M+"
     },
     "thread.pool.size": 50,
     "base.dir": "profiles"

@@ -48,6 +48,9 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
         key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
 
     boolean pollReceived = recorderDetail.receivePoll(pollReq);
+    if(logger.isDebugEnabled()) {
+      logger.debug("Poll received from recorder_instance: " + recorderIdentifier + ", and updated=" + pollReceived);
+    }
     if (pollReceived
         && workAssignmentSchedule != null
         && recorderDetail.canAcceptWork()) {

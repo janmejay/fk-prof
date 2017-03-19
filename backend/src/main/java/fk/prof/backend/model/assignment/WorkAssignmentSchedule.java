@@ -34,6 +34,7 @@ public class WorkAssignmentSchedule {
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
                                 int dProfileLen) {
     this.nRef = System.nanoTime();
+    int cRequired = workAssignmentBuilders.length;
 
     // breathing space at the start, this will usually be a lower value than window tolerance
     int dWinStartPad = bootstrapConfig.getSchedulingBufferInSecs() * 2;
@@ -41,7 +42,10 @@ public class WorkAssignmentSchedule {
     int dEffectiveWinLen = bootstrapConfig.getWindowDurationInSecs() - bootstrapConfig.getWindowEndToleranceInSecs() - dWinStartPad;
     int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
     int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
-    int cRequired = workAssignmentBuilders.length;
+    if(cMaxSerial == 0) {
+      throw new IllegalArgumentException("Not possible to schedule any work assignment because effective length of single profile=" + dEffectiveProfileLen +
+          " is greater than effective aggregation window length=" + dEffectiveWinLen);
+    }
 
     this.dMinDelay = bootstrapConfig.getMinAcceptableDelayForWorkAssignmentInSecs();
     this.dMaxDelay = bootstrapConfig.getMaxAcceptableDelayForWorkAssignmentInSecs();

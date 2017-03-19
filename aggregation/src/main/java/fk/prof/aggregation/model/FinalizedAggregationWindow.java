@@ -76,7 +76,6 @@ public class FinalizedAggregationWindow {
   protected Header buildHeaderProto(int version, WorkType workType) {
     Header.Builder builder = Header.newBuilder()
         .setFormatVersion(version)
-        .setWorkType(workType)
         .setAggregationEndTime(endedAt == null ? null : endedAt.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAggregationStartTime(start.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setWindowDuration(durationInSecs)
