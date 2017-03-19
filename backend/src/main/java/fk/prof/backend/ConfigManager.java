@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import io.vertx.core.json.JsonObject;
 
-import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,7 +36,7 @@ public class ConfigManager {
   private static final String STORAGE = "storage";
   private static final String S3 = "s3";
   private static final String THREAD_POOL_SIZE = "thread.pool.size";
-  private static final String FIXED_SIZE_POOL_KEY = "fixedSizebufferPool";
+  private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
 
   public static final String METRIC_REGISTRY = "vertx-registry";
 
@@ -153,8 +152,8 @@ public class ConfigManager {
     return storageConfig;
   }
 
-  public JsonObject getFixedSizeBufferPool() {
-    JsonObject poolConfig = config.getJsonObject("FIXED_SIZE_POOL_KEY", new JsonObject());
+  public JsonObject getBufferPoolConfig() {
+    JsonObject poolConfig = config.getJsonObject(BUFFER_POOL_OPTIONS_KEY, new JsonObject());
     if(poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
       throw new RuntimeException("buffer pool config is not proper");
     }

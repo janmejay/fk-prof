@@ -146,7 +146,7 @@ public class BackendManager {
     this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
         storageExecSvc);
 
-    JsonObject bufferPoolConfig = configManager.getFixedSizeBufferPool();
+    JsonObject bufferPoolConfig = configManager.getBufferPoolConfig();
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
     poolConfig.setMaxTotal(bufferPoolConfig.getInteger("max.total"));
     poolConfig.setMaxIdle(bufferPoolConfig.getInteger("max.idle"));
