@@ -52,10 +52,6 @@ public class HttpFailure extends RuntimeException {
     if (throwable instanceof HttpFailure) {
       return (HttpFailure) throwable;
     }
-    if (throwable instanceof AggregationFailure) {
-      AggregationFailure exception = (AggregationFailure) throwable;
-      return new HttpFailure(throwable, exception.isServerFailure() ? 500 : 400);
-    }
     if (throwable instanceof ProfException) {
       ProfException exception = (ProfException) throwable;
       return new HttpFailure(throwable, exception.isServerFailure() ? 500 : 400);

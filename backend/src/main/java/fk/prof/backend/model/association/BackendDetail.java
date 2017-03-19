@@ -42,7 +42,7 @@ public class BackendDetail {
    */
   public synchronized boolean reportLoad(float load, long currTick) {
     boolean timeUpdated = false;
-    if(currTick == 0 || this.lastReportedTick <= currTick) {
+    if(currTick == 0 || this.lastReportedTick < currTick) {
       this.lastReportedTick = currTick;
       if(currTick > 0) {
         this.lastReportedTime = System.nanoTime();

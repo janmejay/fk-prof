@@ -17,14 +17,6 @@ JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_generateCpusampleSimpleProfile
 
 /*
  * Class:     fk_prof_TestJni
- * Method:    setupLogger
- * Signature: ()V
- */
-JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupLogger
-  (JNIEnv *, jclass);
-
-/*
- * Class:     fk_prof_TestJni
  * Method:    setupPerfCtx
  * Signature: ()V
  */

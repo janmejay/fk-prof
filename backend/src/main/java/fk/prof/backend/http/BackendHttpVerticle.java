@@ -3,6 +3,7 @@ package fk.prof.backend.http;
 import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
+import fk.prof.backend.exception.BadRequestException;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
 import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
@@ -67,13 +68,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     JsonObject httpClientConfig = configManager.getHttpClientConfig();
-    httpClient = ProfHttpClient.newBuilder()
-        .keepAlive(httpClientConfig.getBoolean("keepalive", true))
-        .useCompression(httpClientConfig.getBoolean("compression", true))
-        .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 5000))
-        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 120))
-        .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 3))
-        .build(vertx);
+    httpClient = ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
@@ -86,17 +81,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
 
-    router.post(ApiPathConstants.AGGREGATOR_POST_PROFILE).handler(this::handlePostProfile);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.AGGREGATOR_POST_PROFILE,
+        this::handlePostProfile);
 
-    router.put(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
-        .handler(BodyHandler.create().setBodyLimit(1024 * 10));
-    router.put(ApiPathConstants.BACKEND_PUT_ASSOCIATION)
-        .handler(this::handlePutAssociation);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_PUT_ASSOCIATION,
+        BodyHandler.create().setBodyLimit(1024 * 10), this::handlePutAssociation);
 
-    router.put(ApiPathConstants.BACKEND_POST_POLL)
-        .handler(BodyHandler.create().setBodyLimit(1024 * 100));
-    router.put(ApiPathConstants.BACKEND_POST_POLL)
-        .handler(this::handlePostPoll);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_POST_POLL,
+        BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
 
     return router;
   }
@@ -143,29 +135,29 @@ public class BackendHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
-        throw new IllegalArgumentException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
+        throw new BadRequestException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
 
-      Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.receivePoll(pollReq);
+      Recorder.WorkAssignment nextWorkAssignment = processGroupContextForPolling.getWorkAssignment(pollReq);
+      if(nextWorkAssignment != null) {
+        AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
+        if (aggregationWindow == null) {
+          throw new BadRequestException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
+              nextWorkAssignment.getWorkId()));
+        }
+        aggregationWindow.updateRecorderInfo(nextWorkAssignment.getWorkId(), pollReq.getRecorderInfo());
+      }
+
       Recorder.PollRes.Builder pollResBuilder = Recorder.PollRes.newBuilder()
           .setControllerVersion(backendVersion)
           .setControllerId(Ints.fromByteArray(ipAddress.getBytes("UTF-8")))
           .setLocalTime(nextWorkAssignment == null
               ? LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
               : nextWorkAssignment.getIssueTime());
-      Recorder.PollRes pollRes;
-      if(nextWorkAssignment == null) {
-        pollRes = pollResBuilder.build();
-      } else {
-        pollRes = pollResBuilder.setAssignment(nextWorkAssignment).build();
-        AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
-        if (aggregationWindow == null) {
-          throw new IllegalArgumentException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
-              nextWorkAssignment.getWorkId()));
-        }
-        aggregationWindow.updateRecorderInfo(nextWorkAssignment.getWorkId(), pollReq.getRecorderInfo());
+      if(nextWorkAssignment != null) {
+        pollResBuilder.setAssignment(nextWorkAssignment);
       }
-      context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
+      context.response().end(ProtoUtil.buildBufferFromProto(pollResBuilder.build()));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);

@@ -8,7 +8,6 @@ import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -106,9 +105,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
       if(ar1.failed()) {
         context.fail(ar1.cause());
       } else {
-        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
         CompositeFuture.all(Arrays.asList(f3, f4, f5)).setHandler(ar2 -> {
           if(ar2.failed()) {
             context.fail(ar2.cause());
@@ -138,9 +137,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
       if(ar1.failed()) {
         context.fail(ar1.cause());
       } else {
-        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
         CompositeFuture.all(Arrays.asList(f3, f4, f5)).setHandler(ar2 -> {
           if(ar2.failed()) {
             context.fail(ar2.cause());
@@ -149,9 +148,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
             try {
               BackendAssociationStore anotherAssociationStore = new ZookeeperBasedBackendAssociationStore(
               vertx, curatorClient, backendAssociationPath, 2, 0, new ProcessGroupCountBasedBackendComparator());
-              Future<Recorder.AssignedBackend> f3_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-              Future<Recorder.AssignedBackend> f4_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-              Future<Recorder.AssignedBackend> f5_1 = anotherAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+              Future<Recorder.AssignedBackend> f3_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+              Future<Recorder.AssignedBackend> f4_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+              Future<Recorder.AssignedBackend> f5_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
               CompositeFuture.all(Arrays.asList(f3_1, f4_1, f5_1)).setHandler(ar3 -> {
                 if(ar3.failed()) {
                   context.fail(ar3.cause());
@@ -181,17 +180,17 @@ public class ZookeeperBasedBackendAssociationStoreTest {
       if(ar1.failed()) {
         context.fail(ar1.cause());
       } else {
-        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
         CompositeFuture.all(Arrays.asList(f3, f4, f5)).setHandler(ar2 -> {
           if(ar2.failed()) {
             context.fail(ar2.cause());
           } else {
             List<Recorder.AssignedBackend> associations = ar2.result().list();
-            Future<Recorder.AssignedBackend> f3_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-            Future<Recorder.AssignedBackend> f4_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-            Future<Recorder.AssignedBackend> f5_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+            Future<Recorder.AssignedBackend> f3_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+            Future<Recorder.AssignedBackend> f4_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+            Future<Recorder.AssignedBackend> f5_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
             CompositeFuture.all(Arrays.asList(f3_1, f4_1, f5_1)).setHandler(ar3 -> {
               if(ar3.failed()) {
                 context.fail(ar3.cause());
@@ -218,9 +217,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
       if(ar1.failed()) {
         context.fail(ar1.cause());
       } else {
-        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+        Future<Recorder.AssignedBackend> f3 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+        Future<Recorder.AssignedBackend> f4 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+        Future<Recorder.AssignedBackend> f5 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
         CompositeFuture.all(Arrays.asList(f3, f4, f5)).setHandler(ar2 -> {
           if(ar2.failed()) {
             context.fail(ar2.cause());
@@ -236,9 +235,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
                 if(ar3.failed()) {
                   context.fail(ar3.cause());
                 } else {
-                  Future<Recorder.AssignedBackend> f3_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(0));
-                  Future<Recorder.AssignedBackend> f4_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(1));
-                  Future<Recorder.AssignedBackend> f5_1 = backendAssociationStore.getAssociatedBackend(mockProcessGroups.get(2));
+                  Future<Recorder.AssignedBackend> f3_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
+                  Future<Recorder.AssignedBackend> f4_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
+                  Future<Recorder.AssignedBackend> f5_1 = backendAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
 
                   CompositeFuture.all(Arrays.asList(f3_1, f4_1, f5_1)).setHandler(ar4 -> {
                     if(ar4.failed()) {

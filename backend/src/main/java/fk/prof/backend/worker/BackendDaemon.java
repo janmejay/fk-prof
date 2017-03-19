@@ -1,15 +1,18 @@
 package fk.prof.backend.worker;
 
+import fk.prof.aggregation.model.AggregationWindowStorage;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.assignment.AggregationWindowPlannerStore;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.SimultaneousWorkAssignmentCounter;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
 import fk.prof.backend.model.election.LeaderReadContext;
+import fk.prof.backend.model.slot.WorkSlotPool;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
+import fk.prof.backend.util.URLUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
@@ -19,19 +22,20 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.HashMap;
+import java.util.Map;
 
 public class BackendDaemon extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
-  private static String ENCODING = "UTF-8";
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
-  private final ProcessGroupAssociationStore processGroupAssociationStore;
-  private final SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter;
-  private final AggregationWindowLookupStore aggregationWindowLookupStore;
+  private final AssociatedProcessGroups associatedProcessGroups;
+  private final WorkSlotPool workSlotPool;
+  private final ActiveAggregationWindows activeAggregationWindows;
+  private final AggregationWindowStorage aggregationWindowStorage;
   private final String ipAddress;
   private final int leaderHttpPort;
   private final int backendHttpPort;
@@ -42,18 +46,20 @@ public class BackendDaemon extends AbstractVerticle {
 
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,
-                       ProcessGroupAssociationStore processGroupAssociationStore,
-                       AggregationWindowLookupStore aggregationWindowLookupStore,
-                       SimultaneousWorkAssignmentCounter simultaneousWorkAssignmentCounter) {
+                       AssociatedProcessGroups associatedProcessGroups,
+                       ActiveAggregationWindows activeAggregationWindows,
+                       WorkSlotPool workSlotPool,
+                       AggregationWindowStorage aggregationWindowStorage) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderHttpPort = configManager.getLeaderHttpPort();
     this.backendHttpPort = configManager.getBackendHttpPort();
 
     this.leaderReadContext = leaderReadContext;
-    this.processGroupAssociationStore = processGroupAssociationStore;
-    this.aggregationWindowLookupStore = aggregationWindowLookupStore;
-    this.simultaneousWorkAssignmentCounter = simultaneousWorkAssignmentCounter;
+    this.associatedProcessGroups = associatedProcessGroups;
+    this.activeAggregationWindows = activeAggregationWindows;
+    this.workSlotPool = workSlotPool;
+    this.aggregationWindowStorage = aggregationWindowStorage;
   }
 
   @Override
@@ -65,27 +71,22 @@ public class BackendDaemon extends AbstractVerticle {
 
   private ProfHttpClient buildHttpClient() {
     JsonObject httpClientConfig = configManager.getHttpClientConfig();
-    ProfHttpClient httpClient = ProfHttpClient.newBuilder()
-        .keepAlive(httpClientConfig.getBoolean("keepalive", false))
-        .useCompression(httpClientConfig.getBoolean("compression", true))
-        .setConnectTimeoutInMs(httpClientConfig.getInteger("connect.timeout.ms", 2000))
-        .setIdleTimeoutInSeconds(httpClientConfig.getInteger("idle.timeout.secs", 3))
-        .setMaxAttempts(httpClientConfig.getInteger("max.attempts", 1))
-        .build(vertx);
-    return httpClient;
+    return ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
   }
 
   private AggregationWindowPlannerStore buildAggregationWindowPlannerStore() {
     return new AggregationWindowPlannerStore(
         vertx,
-        config().getInteger("aggregation.window.duration.mins", 30),
+        configManager.getBackendId(),
+        config().getInteger("aggregation.window.duration.secs", 1800),
         config().getInteger("aggregation.window.end.tolerance.secs", 120),
-        config().getInteger("workprofile.refresh.offset.secs", 300),
+        config().getInteger("policy.refresh.offset.secs", 300),
         config().getInteger("scheduling.buffer.secs", 30),
         config().getInteger("work.assignment.max.delay.secs", 120),
-        simultaneousWorkAssignmentCounter,
-        aggregationWindowLookupStore,
-        this::getWorkFromLeader);
+        workSlotPool,
+        activeAggregationWindows,
+        this::getWorkFromLeader,
+        this::serializeAndPersistAggregationWindow);
   }
 
   private void postLoadToLeader() {
@@ -106,14 +107,19 @@ public class BackendDaemon extends AbstractVerticle {
                     .setIp(ipAddress)
                     .setPort(backendHttpPort)
                     .setLoad(load)
-                    .setCurrTick(loadTickCounter++)
+                    .setCurrTick(loadTickCounter)
                     .build()))
             .setHandler(ar -> {
-              if(ar.succeeded()) {
-                if(ar.result().getStatusCode() == 200) {
+              try {
+                if(ar.failed()) {
+                  logger.error("Error when reporting load to leader", ar.cause());
+                } else if (ar.result().getStatusCode() != 200) {
+                  logger.error("Non OK status returned by leader when reporting load, status=" + ar.result().getStatusCode());
+                } else {
                   try {
+                    loadTickCounter++;
                     Recorder.ProcessGroups assignedProcessGroups = ProtoUtil.buildProtoFromBuffer(Recorder.ProcessGroups.parser(), ar.result().getResponse());
-                    processGroupAssociationStore.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
+                    associatedProcessGroups.updateProcessGroupAssociations(assignedProcessGroups, (processGroupDetail, processGroupAssociationResult) -> {
                       switch (processGroupAssociationResult) {
                         case ADDED:
                           this.aggregationWindowPlannerStore.associateAggregationWindowPlannerIfAbsent(processGroupDetail);
@@ -124,17 +130,16 @@ public class BackendDaemon extends AbstractVerticle {
                       }
                     });
                   } catch (Exception ex) {
-                    logger.error("Error parsing response returned by leader when reporting load");
+                    logger.error("Error parsing response returned by leader when reporting load", ex);
                   }
-                } else {
-                  logger.error("Non OK status returned by leader when reporting load, status=" + ar.result().getStatusCode());
                 }
-              } else {
-                logger.error("Error when reporting load to leader", ar.cause());
+              } catch (Exception ex) {
+                logger.error("Unexpected error when reporting load to leader", ex);
+              } finally {
+                setupTimerForReportingLoad();
               }
-              setupTimerForReportingLoad();
             });
-      } catch (IOException ex) {
+      } catch (Exception ex) {
         logger.error("Error building load request body", ex);
         setupTimerForReportingLoad();
       }
@@ -148,16 +153,18 @@ public class BackendDaemon extends AbstractVerticle {
     vertx.setTimer(configManager.getLoadReportIntervalInSeconds() * 1000, timerId -> postLoadToLeader());
   }
 
-  private Future<BackendDTO.WorkProfile> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
-    Future<BackendDTO.WorkProfile> result = Future.future();
+  private Future<BackendDTO.RecordingPolicy> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
+    Future<BackendDTO.RecordingPolicy> result = Future.future();
     BackendDTO.LeaderDetail leaderDetail;
     if((leaderDetail = leaderReadContext.getLeader()) != null) {
       try {
-        String requestPath = new StringBuilder(ApiPathConstants.LEADER_GET_WORK)
-            .append('/').append(URLEncoder.encode(processGroup.getAppId(), ENCODING))
-            .append('/').append(URLEncoder.encode(processGroup.getCluster(), ENCODING))
-            .append('/').append(URLEncoder.encode(processGroup.getProcName(), ENCODING))
-            .toString();
+
+        String requestPath = URLUtil.buildPathWithRequestParams(ApiPathConstants.LEADER_GET_WORK,
+            processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("ip", configManager.getIPAddress());
+        queryParams.put("port", Integer.toString(configManager.getBackendHttpPort()));
+        requestPath = URLUtil.buildPathWithQueryParams(requestPath, queryParams);
 
         //TODO: Support configuring max retries at request level because this request should definitely be retried on failure while other requests like posting load to backend need not be
         httpClient.requestAsync(
@@ -179,8 +186,8 @@ public class BackendDaemon extends AbstractVerticle {
                 return;
               }
               try {
-                BackendDTO.WorkProfile workProfile = ProtoUtil.buildProtoFromBuffer(BackendDTO.WorkProfile.parser(), ar.result().getResponse());
-                result.complete(workProfile);
+                BackendDTO.RecordingPolicy recordingPolicy = ProtoUtil.buildProtoFromBuffer(BackendDTO.RecordingPolicy.parser(), ar.result().getResponse());
+                result.complete(recordingPolicy);
               } catch (Exception ex) {
                 result.fail("Error parsing work response returned by leader for process group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
               }
@@ -193,6 +200,23 @@ public class BackendDaemon extends AbstractVerticle {
     }
 
     return result;
+  }
+
+  private void serializeAndPersistAggregationWindow(FinalizedAggregationWindow finalizedAggregationWindow) {
+    vertx.executeBlocking(future -> {
+      try {
+        aggregationWindowStorage.store(finalizedAggregationWindow);
+        future.complete();
+      } catch (Exception ex) {
+        future.fail(ex);
+      }
+    }, result -> {
+      if(result.succeeded()) {
+        logger.info("Successfully persisted aggregation_window=" + finalizedAggregationWindow);
+      } else {
+        logger.error("Error while persisting aggregation_window=" + finalizedAggregationWindow, result.cause());
+      }
+    });
   }
 
 }

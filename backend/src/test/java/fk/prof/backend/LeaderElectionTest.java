@@ -7,12 +7,12 @@ import fk.prof.backend.deployer.impl.LeaderElectionWatcherVerticleDeployer;
 import fk.prof.backend.deployer.impl.LeaderHttpVerticleDeployer;
 import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.mock.MockLeaderStores;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
-import fk.prof.backend.model.assignment.ProcessGroupAssociationStore;
-import fk.prof.backend.model.assignment.impl.ProcessGroupAssociationStoreImpl;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
+import fk.prof.backend.model.assignment.AssociatedProcessGroups;
+import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
-import fk.prof.backend.model.aggregation.impl.AggregationWindowLookupStoreImpl;
+import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import io.vertx.core.*;
 import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.ext.unit.TestContext;
@@ -114,13 +114,13 @@ public class LeaderElectionTest {
   @Test(timeout = 20000)
   public void leaderElectionAssertionsWithDisablingOfBackendDuties(TestContext testContext) throws InterruptedException {
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    AggregationWindowLookupStore aggregationWindowLookupStore = new AggregationWindowLookupStoreImpl();
-    ProcessGroupAssociationStore processGroupAssociationStore = new ProcessGroupAssociationStoreImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
+    AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort());
     List<String> backendDeployments = new ArrayList<>();
     CountDownLatch aggDepLatch = new CountDownLatch(1);
 
-    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, aggregationWindowLookupStore, processGroupAssociationStore);
+    VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, activeAggregationWindows, associatedProcessGroups);
     backendVerticleDeployer.deploy().setHandler(asyncResult -> {
       if (asyncResult.succeeded()) {
         backendDeployments.addAll(asyncResult.result().list());

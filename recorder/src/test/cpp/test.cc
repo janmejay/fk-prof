@@ -5,13 +5,19 @@
 LoggerP logger(nullptr);
 PerfCtx::Registry* GlobalCtx::ctx_reg = nullptr;
 ProbPct* GlobalCtx::prob_pct = nullptr;
+medida::MetricsRegistry* GlobalCtx::metrics_registry = nullptr;
 
-void init_logger() {
-    if (logger == nullptr) {
-        logger = spdlog::stdout_color_mt("console");
-        logger->set_level(spdlog::level::trace);
-        logger->set_pattern("{%t} %+");
-    }
+TestEnv::TestEnv() {
+    logger = spdlog::stdout_color_mt("console");
+    logger->set_level(spdlog::level::trace);
+    logger->set_pattern("{%t} %+");
+    GlobalCtx::metrics_registry = new medida::MetricsRegistry();
+}
+
+TestEnv::~TestEnv() {
+    logger.reset();
+    spdlog::drop_all();
+    delete GlobalCtx::metrics_registry;
 }
 
 static ThreadMap thread_map;

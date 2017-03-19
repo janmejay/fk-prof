@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import io.vertx.core.json.JsonObject;
 
+import javax.naming.ConfigurationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,7 @@ import java.util.Properties;
 public class ConfigManager {
   private static final String IP_ADDRESS_KEY = "ip.address";
   private static final String BACKEND_VERSION_KEY = "backend.version";
+  private static final String BACKEND_ID_KEY = "backend.id";
   private static final String BACKEND_HTTP_PORT_KEY = "backend.http.port";
   private static final String LEADER_HTTP_PORT_KEY = "leader.http.port";
   private static final String BACKEND_HTTP_SERVER_OPTIONS_KEY = "backend.http.server";
@@ -23,7 +25,7 @@ public class ConfigManager {
   private static final String HTTP_CLIENT_OPTIONS_KEY = "http.client";
   private static final String LOAD_REPORT_INTERVAL_KEY = "load.report.interval.secs";
   private static final String RECORDER_DEFUNCT_THRESHOLD_KEY = "recorder.defunct.threshold.secs";
-  private static final String MAX_SIMULTANEOUS_PROFILES_KEY = "max.simultaneous.profiles";
+  private static final String SLOT_POOL_CAPACITY_KEY = "slot.pool.capacity";
   private static final String VERTX_OPTIONS_KEY = "vertxOptions";
   private static final String BACKEND_HTTP_DEPLOYMENT_OPTIONS_KEY = "backendHttpOptions";
   private static final String CURATOR_OPTIONS_KEY = "curatorOptions";
@@ -32,6 +34,10 @@ public class ConfigManager {
   private static final String BACKEND_DAEMON_OPTIONS_KEY = "daemonOptions";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
+  private static final String STORAGE = "storage";
+  private static final String S3 = "s3";
+  private static final String THREAD_POOL_SIZE = "thread.pool.size";
+  private static final String FIXED_SIZE_POOL_KEY = "fixedSizebufferPool";
 
   public static final String METRIC_REGISTRY = "vertx-registry";
 
@@ -56,6 +62,10 @@ public class ConfigManager {
     return config.getInteger(BACKEND_VERSION_KEY);
   }
 
+  public int getBackendId() {
+    return config.getInteger(BACKEND_ID_KEY);
+  }
+
   public int getBackendHttpPort() {
     return config.getInteger(BACKEND_HTTP_PORT_KEY, 2491);
   }
@@ -72,8 +82,8 @@ public class ConfigManager {
     return config.getInteger(RECORDER_DEFUNCT_THRESHOLD_KEY, 120);
   }
 
-  public int getMaxSimultaneousProfiles() {
-    return config.getInteger(MAX_SIMULTANEOUS_PROFILES_KEY, 10);
+  public int getSlotPoolCapacity() {
+    return config.getInteger(SLOT_POOL_CAPACITY_KEY, 10);
   }
 
   public JsonObject getBackendHttpServerConfig() {
@@ -123,5 +133,31 @@ public class ConfigManager {
     Properties properties = System.getProperties();
     properties.computeIfAbsent(ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
     properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
+  }
+
+  public JsonObject getS3Config() {
+    return getStorageConfig().getJsonObject(S3);
+  }
+
+
+  public int getStorageThreadPoolSize() {
+    return getStorageConfig().getInteger(THREAD_POOL_SIZE, 10);
+  }
+
+  public JsonObject getStorageConfig() {
+    JsonObject storageConfig = config.getJsonObject(STORAGE);
+    if(storageConfig == null || storageConfig.isEmpty()) {
+      // TODO: convert these to configException
+      throw new RuntimeException("storage config is not present");
+    }
+    return storageConfig;
+  }
+
+  public JsonObject getFixedSizeBufferPool() {
+    JsonObject poolConfig = config.getJsonObject("FIXED_SIZE_POOL_KEY", new JsonObject());
+    if(poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
+      throw new RuntimeException("buffer pool config is not proper");
+    }
+    return poolConfig;
   }
 }

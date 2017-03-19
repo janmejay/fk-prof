@@ -4,6 +4,6 @@ import recording.Recorder;
 
 import java.util.function.BiConsumer;
 
-public interface ProcessGroupAssociationStore extends ProcessGroupDiscoveryContext {
+public interface AssociatedProcessGroups extends ProcessGroupDiscoveryContext {
   void updateProcessGroupAssociations(Recorder.ProcessGroups processGroups, BiConsumer<ProcessGroupContextForScheduling, ProcessGroupAssociationResult> postUpdateAction);
 }

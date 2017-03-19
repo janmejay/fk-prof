@@ -1,11 +1,12 @@
 {
   "ip.address": "vmnathost",
   "backend.version": 1,
+  "backend.id": 1,
   "backend.http.port": 2491,
   "leader.http.port": 2496,
   "load.report.interval.secs": 10,
   "recorder.defunct.threshold.secs": 30,
-  "max.simultaneous.profiles": 100,
+  "slot.pool.capacity": 100,
   "backend.http.server": {
     "idle.timeout.secs": 120
   },
@@ -55,11 +56,25 @@
   "daemonOptions": {
     "worker": true,
     "config": {
-      "aggregation.window.duration.mins": 2,
+      "aggregation.window.duration.secs": 120,
       "aggregation.window.end.tolerance.secs": 10,
-      "workprofile.refresh.offset.secs": 30,
+      "policy.refresh.offset.secs": 30,
       "scheduling.buffer.secs": 10,
       "work.assignment.max.delay.secs": 90
     }
+  },
+  "storage": {
+    "s3": {
+      "end.point": "http://127.0.0.1:13031",
+      "access.key": "",
+      "secret.key": ""
+    },
+    "thread.pool.size": 50,
+    "base.dir": "profiles"
+  },
+  "fixedSizebufferPool" : {
+    "max.total": 20,
+    "max.idle": 20,
+    "buffer.size": 10000000
   }
 }

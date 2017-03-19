@@ -19,7 +19,9 @@ import java.util.Map;
 /**
  * Non getter methods in this class are not thread-safe
  * But, this should not be a concern because instances of this class are maintained for every work id
- * Updates to state associated with a work id happens in context of a request (single thread)
+ * Updates to state associated with a work id happens in context of a request (profile or poll request)
+ * Since we do not retry /profile requests from recorder, there can not be competing threads trying to update (except <pre>updateRecorderInfo</pre> method which is accessed on /poll request which can be retried)
+ * If /profile requests are retried, this class will not be able to guarantee consistent state of members and state mutating methods like abortprofile, completeprofile, startprofile etc will need special handling
  */
 public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo> {
   private int recorderVersion;
@@ -109,7 +111,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
 
     return new FinalizedProfileWorkInfo(
         recorderVersion,
-        0,
+        recorderInfo != null ? ProtoUtil.mapToAggregatorRecorderInfo(recorderInfo) : null,
         state,
         startedAt,
         endedAt,

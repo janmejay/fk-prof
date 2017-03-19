@@ -86,7 +86,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
         try {
           /**TODO: Implement a cleanup job for backends which have been defunct for a long time, remove them from backenddetaillookup map
            * When implementing above, ensure cleanup operations in backenddetaillookup are consistent wrt get/iteration/update in
-           * {@link #getAssociatedBackend(Recorder.ProcessGroup)} and {@link #reportBackendLoad(BackendDTO.LoadReportRequest)}
+           * {@link #associateAndGetBackend(Recorder.ProcessGroup)} and {@link #reportBackendLoad(BackendDTO.LoadReportRequest)}
            */
           BackendDetail backendDetail = backendDetailLookup.computeIfAbsent(reportingBackend, (key) -> {
             try {
@@ -115,10 +115,10 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   private void updateLoadOfBackend(BackendDetail existingBackendDetail, BackendDTO.LoadReportRequest payload, Future<Recorder.ProcessGroups> result) {
     /**
      * NOTE: There is a possible race condition here
-     * t0(time) => request1: a recorder belonging to pg1(process group) calls /association which invokes {@link #getAssociatedBackend(Recorder.ProcessGroup)}
+     * t0(time) => request1: a recorder belonging to pg1(process group) calls /association which invokes {@link #associateAndGetBackend(Recorder.ProcessGroup)}
      *             pg1 is associated with b1(backend) which has become defunct so next operation to be executed is removal of b1 from available backends set
      * t1 => request2 b1 reports load and is added to available backend set (if not already present), response is returned
-     * t2 => request1: {@link #getAssociatedBackend(Recorder.ProcessGroup)} attempts to remove b1 from available backends set since it assumes it to be defunct and returns response by associating recorder with some other backend b2
+     * t2 => request1: {@link #associateAndGetBackend(Recorder.ProcessGroup)} attempts to remove b1 from available backends set since it assumes it to be defunct and returns response by associating recorder with some other backend b2
      * Above results in inconsistent state of availableBackends because even though b1 has reported load, it is not present in the set
      *
      * This race-condition should not lead to a permanent inconsistent state because on subsequent load reports, b1 will get added to available backends set again
@@ -132,7 +132,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
-  public Future<Recorder.AssignedBackend> getAssociatedBackend(Recorder.ProcessGroup processGroup) {
+  public Future<Recorder.AssignedBackend> associateAndGetBackend(Recorder.ProcessGroup processGroup) {
     Future<Recorder.AssignedBackend> result = Future.future();
     Recorder.AssignedBackend backendAssociation = processGroupToBackendLookup.get(processGroup);
 
@@ -260,6 +260,11 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     }
 
     return result;
+  }
+
+  @Override
+  public Recorder.AssignedBackend getAssociatedBackend(Recorder.ProcessGroup processGroup) {
+    return processGroupToBackendLookup.get(processGroup);
   }
 
   private void safelyReAddBackendToAvailableBackendSet(BackendDetail availableBackend) {

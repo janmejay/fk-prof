@@ -6,17 +6,13 @@ import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.exception.AggregationFailure;
-import fk.prof.backend.model.aggregation.AggregationWindowLookupStore;
+import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWindow> {
@@ -24,19 +20,24 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final String clusterId;
   private final String procId;
   private LocalDateTime start = null, endedAt = null;
+  private final int durationInSecs;
 
-  private final ConcurrentHashMap<Long, ProfileWorkInfo> workInfoLookup = new ConcurrentHashMap<>();
+  private final Map<Long, ProfileWorkInfo> workInfoLookup;
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   public AggregationWindow(String appId, String clusterId, String procId,
-                           LocalDateTime start, long[] workIds) {
+                           LocalDateTime start, int durationInSecs, long[] workIds) {
     this.appId = appId;
     this.clusterId = clusterId;
     this.procId = procId;
     this.start = start;
+    this.durationInSecs = durationInSecs;
+
+    Map<Long, ProfileWorkInfo> workInfoModifiableLookup = new HashMap<>();
     for (int i = 0; i < workIds.length; i++) {
-      this.workInfoLookup.put(workIds[i], new ProfileWorkInfo());
+      workInfoModifiableLookup.put(workIds[i], new ProfileWorkInfo());
     }
+    this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
   }
 
   public AggregationState startProfile(long workId, int recorderVersion, LocalDateTime startedAt) throws AggregationFailure {
@@ -80,15 +81,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
    * > De associates assigned work with this aggregation window
    * > Updates ended at time for aggregation window
    * > Finalizes the window
-   * @param aggregationWindowLookupStore
+   * @param activeAggregationWindows
    * @return finalized aggregation window
    */
-  public FinalizedAggregationWindow expireWindow(AggregationWindowLookupStore aggregationWindowLookupStore) {
+  public FinalizedAggregationWindow expireWindow(ActiveAggregationWindows activeAggregationWindows) {
     ensureEntityIsWriteable();
 
     abortOngoingProfiles();
     long[] workIds = this.workInfoLookup.keySet().stream().mapToLong(Long::longValue).toArray();
-    aggregationWindowLookupStore.deAssociateAggregationWindow(workIds);
+    activeAggregationWindows.deAssociateAggregationWindow(workIds);
     this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return finalizeEntity();
   }
@@ -133,7 +134,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     workInfo.updateWSESpecificDetails(wse);
   }
 
-  public void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
+  public synchronized void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
     ensureEntityIsWriteable();
 
     ProfileWorkInfo workInfo = workInfoLookup.get(workId);
@@ -150,11 +151,9 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
         .collect(Collectors.toMap(Map.Entry::getKey,
             entry -> entry.getValue().finalizeEntity()));
 
-    // TODO : build recorders list while starting profiles
-    List<AggregatedProfileModel.RecorderInfo> recorders = Collections.EMPTY_LIST;
-
     return new FinalizedAggregationWindow(
-        appId, clusterId, procId, start, endedAt, recorders, finalizedWorkInfoLookup,
+        appId, clusterId, procId, start, endedAt, durationInSecs,
+        finalizedWorkInfoLookup,
         cpuSamplingAggregationBucket.finalizeEntity()
     );
   }

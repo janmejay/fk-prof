@@ -8,86 +8,57 @@ import recording.Recorder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * vars prefixed with d are duration in seconds
+ * vars prefixed with n are duration in nanos
+ * vars prefixed with c are counters
+ */
 public class WorkAssignmentSchedule {
   private final static Logger logger = LoggerFactory.getLogger(WorkAssignmentSchedule.class);
   private final static long NANOS_IN_SEC = (long)Math.pow(10, 9);
 
-  private final long referenceTimeInNanos;
-  private final int minAcceptableDelayForWorkAssignmentInSecs;
-  private final int maxAcceptableDelayForWorkAssignmentInSecs;
-  private final int maxConcurrentlyScheduledEntries;
+  private final long nRef;
+  private final int dMinDelay;
+  private final int dMaxDelay;
+  private final int cMaxParallel;
 
   private final PriorityQueue<ScheduleEntry> entries = new PriorityQueue<>();
-  private Set<RecorderIdentifier> assignedRecorders = new HashSet<>();
+  private Map<RecorderIdentifier, ScheduleEntry> assignedSchedule = new HashMap<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
-  public WorkAssignmentSchedule(int windowDurationInMins,
-                                int windowEndToleranceInSecs,
-                                int schedulingBufferInSecs,
-                                int minAcceptableDelayForWorkAssignmentInSecs,
-                                int maxAcceptableDelayForWorkAssignmentInSecs,
+  public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
-                                int coveragePct,
-                                int maxConcurrentSlotsAllowed,
-                                int profileDurationInSecs)
-      throws IllegalArgumentException {
+                                int dProfileLen) {
+    this.nRef = System.nanoTime();
 
-    // breathing space at the start, this will usually be a lower value that window tolerance
-    int windowStartToleranceInSecs = schedulingBufferInSecs * 2;
+    // breathing space at the start, this will usually be a lower value than window tolerance
+    int dWinStartPad = bootstrapConfig.getSchedulingBufferInSecs() * 2;
     //actual time span for which schedule is calculated
-    int effectiveWindowDurationInSecs = (windowDurationInMins * 60) - windowEndToleranceInSecs - windowStartToleranceInSecs;
-    int effectiveProfileDurationInSecs = profileDurationInSecs + schedulingBufferInSecs;
-    int maxScheduleEntriesWithNoOverlap = effectiveWindowDurationInSecs / effectiveProfileDurationInSecs;
-    int maxScheduleEntriesWithOverlap = maxScheduleEntriesWithNoOverlap * maxConcurrentSlotsAllowed;
-    int targetScheduleEntries = workAssignmentBuilders.length;
-    if (maxScheduleEntriesWithOverlap < targetScheduleEntries) {
-      throw new IllegalArgumentException(String.format("Not possible to setup schedule for " +
-          "vm_coverage=%d, target_profiles=%d, profile_duration_secs=%d, max concurrent slots=%d",
-          coveragePct, targetScheduleEntries, profileDurationInSecs, maxConcurrentSlotsAllowed));
+    int dEffectiveWinLen = bootstrapConfig.getWindowDurationInSecs() - bootstrapConfig.getWindowEndToleranceInSecs() - dWinStartPad;
+    int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
+    int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
+    int cRequired = workAssignmentBuilders.length;
+
+    this.dMinDelay = bootstrapConfig.getMinAcceptableDelayForWorkAssignmentInSecs();
+    this.dMaxDelay = bootstrapConfig.getMaxAcceptableDelayForWorkAssignmentInSecs();
+    this.cMaxParallel = (int)Math.ceil((double)cRequired / cMaxSerial);
+
+    for(int i = 0; i < cRequired; i++) {
+      long nEntryStartPad = (dWinStartPad + ((i % cMaxSerial) * dEffectiveProfileLen)) * NANOS_IN_SEC;
+      this.entries.add(new ScheduleEntry(workAssignmentBuilders[i], nEntryStartPad));
     }
-
-    this.minAcceptableDelayForWorkAssignmentInSecs = minAcceptableDelayForWorkAssignmentInSecs;
-    this.maxAcceptableDelayForWorkAssignmentInSecs = maxAcceptableDelayForWorkAssignmentInSecs;
-    if(this.maxAcceptableDelayForWorkAssignmentInSecs < (this.minAcceptableDelayForWorkAssignmentInSecs * 2)) {
-      throw new IllegalArgumentException(String.format("Max acceptable delay for work assignment = %d" +
-          "should be at least be twice of min acceptable delay for work assignment = %d", maxAcceptableDelayForWorkAssignmentInSecs, minAcceptableDelayForWorkAssignmentInSecs));
-    }
-
-    this.referenceTimeInNanos = System.nanoTime();
-    long initialOffsetInNanos = windowStartToleranceInSecs * NANOS_IN_SEC;
-    int minOverlap = targetScheduleEntries / maxScheduleEntriesWithNoOverlap;
-
-    int currentWorkAssignmentIndex = 0;
-    for (int i = 0; (minOverlap > 0) && (i < maxScheduleEntriesWithNoOverlap); i++) {
-      long offsetInNanos = initialOffsetInNanos + (effectiveProfileDurationInSecs * i * NANOS_IN_SEC);
-      for(int j = 0; j < minOverlap; j++) {
-        this.entries.add(new ScheduleEntry(workAssignmentBuilders[currentWorkAssignmentIndex++], offsetInNanos));
-      }
-    }
-
-    int remainingAssignments = targetScheduleEntries % maxScheduleEntriesWithNoOverlap;
-    assert targetScheduleEntries == (currentWorkAssignmentIndex + remainingAssignments);
-    for (int i = 0; i < remainingAssignments; i++) {
-      long offsetInNanos = initialOffsetInNanos + (effectiveProfileDurationInSecs * i * NANOS_IN_SEC);
-      this.entries.add(new ScheduleEntry(workAssignmentBuilders[currentWorkAssignmentIndex++], offsetInNanos));
-    }
-
-    maxConcurrentlyScheduledEntries = minOverlap + (remainingAssignments > 0 ? 1 : 0);
   }
 
   /**
    * Returns the maximum number of concurrently scheduled entries in this schedule
    * @return
    */
-  public int getMaxConcurrentlyScheduledEntries() {
-    return maxConcurrentlyScheduledEntries;
+  public int getMaxOverlap() {
+    return cMaxParallel;
   }
 
   /**
@@ -106,19 +77,20 @@ public class WorkAssignmentSchedule {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {
         try {
-          if(this.assignedRecorders.contains(recorderIdentifier)) {
-            return null;
+          ScheduleEntry scheduleEntry = this.assignedSchedule.get(recorderIdentifier);
+          if(scheduleEntry != null) {
+            ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - nRef), dMinDelay, dMaxDelay);
+            return value.workAssignment;
           }
 
-          ScheduleEntry scheduleEntry;
           while((scheduleEntry = this.entries.peek()) != null) {
-            ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - referenceTimeInNanos), minAcceptableDelayForWorkAssignmentInSecs, maxAcceptableDelayForWorkAssignmentInSecs);
+            ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - nRef), dMinDelay, dMaxDelay);
             if(value.tooEarly) {
               return null; //Since this is a priority queue, no point checking subsequent entries if current entry indicates its too early
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
               if(value.workAssignment != null) {
-                this.assignedRecorders.add(recorderIdentifier);
+                this.assignedSchedule.put(recorderIdentifier, scheduleEntry);
                 return value.workAssignment;
               }
             }
@@ -144,33 +116,33 @@ public class WorkAssignmentSchedule {
     private final static Logger logger = LoggerFactory.getLogger(ScheduleEntry.class);
 
     private final Recorder.WorkAssignment.Builder workAssignmentBuilder;
-    private final long offsetFromReferenceInNanos;
+    private final long nStartPad;
 
-    public ScheduleEntry(Recorder.WorkAssignment.Builder workAssignmentBuilder, long offsetFromReferenceInNanos) {
+    public ScheduleEntry(Recorder.WorkAssignment.Builder workAssignmentBuilder, long nStartPad) {
       this.workAssignmentBuilder = Preconditions.checkNotNull(workAssignmentBuilder);
-      this.offsetFromReferenceInNanos = offsetFromReferenceInNanos;
+      this.nStartPad = nStartPad;
     }
 
     /**
-     * @param elapsedTimeSinceSchedulingInNanos
-     * @param minAcceptableDelayInSecs
-     * @param maxAcceptableDelayInSecs
+     * @param nElapsed
+     * @param dMinDelay
+     * @param dMaxDelay
      * @return value of schedule entry with appropriate flags set to indicate if its too early or too late to receive work assignment
      */
-    ScheduleEntryValue getValue(long elapsedTimeSinceSchedulingInNanos, int minAcceptableDelayInSecs, int maxAcceptableDelayInSecs) {
-      int remainingDelayInSecs = (int)((offsetFromReferenceInNanos - elapsedTimeSinceSchedulingInNanos) / NANOS_IN_SEC);
-      if (remainingDelayInSecs < minAcceptableDelayInSecs) {
-        logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), remainingDelayInSecs));
+    ScheduleEntryValue getValue(long nElapsed, int dMinDelay, int dMaxDelay) {
+      int dRemainingDelay = (int)((nStartPad - nElapsed) / NANOS_IN_SEC);
+      if (dRemainingDelay < dMinDelay) {
+        logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), dRemainingDelay));
         return new ScheduleEntryValue(null, false, true);
       }
-      if (remainingDelayInSecs > maxAcceptableDelayInSecs) {
-        logger.debug(String.format("Too early to hand over work assignment for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), remainingDelayInSecs));
+      if (dRemainingDelay > dMaxDelay) {
+        logger.debug(String.format("Too early to hand over work assignment for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), dRemainingDelay));
         return new ScheduleEntryValue(null, true, false);
       }
       return new ScheduleEntryValue(
           workAssignmentBuilder
               .clone()
-              .setDelay(remainingDelayInSecs)
+              .setDelay(dRemainingDelay)
               .setIssueTime(LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
               .build(),
           false, false);
@@ -178,7 +150,7 @@ public class WorkAssignmentSchedule {
 
     @Override
     public int compareTo(ScheduleEntry other) {
-      long diff = this.offsetFromReferenceInNanos - other.offsetFromReferenceInNanos;
+      long diff = this.nStartPad - other.nStartPad;
       return diff > 0 ? 1 : (diff < 0 ? -1 : 0);
     }
 

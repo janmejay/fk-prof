@@ -95,11 +95,24 @@ private:
     FlushCtr cpu_samples_flush_ctr;
 
     const TruncationThresholds& trunc_thresholds;
-    
-public:
-    ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr, PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds) : jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0), trunc_thresholds(_trunc_thresholds) {}
 
-    ~ProfileSerializingWriter() {}
+    metrics::Ctr& s_c_new_thd_info;
+    metrics::Ctr& s_c_new_ctx_info;
+    metrics::Ctr& s_c_total_mthd_info;
+    metrics::Ctr& s_c_new_mthd_info;
+
+    metrics::Ctr& s_c_bad_lineno;
+
+    metrics::Ctr& s_c_frame_snipped;
+
+    metrics::Mtr& s_m_stack_sample_err;
+    metrics::Mtr& s_m_cpu_sample_add;
+
+public:
+    ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
+                             PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds);
+
+    ~ProfileSerializingWriter();
 
     virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr);
 
