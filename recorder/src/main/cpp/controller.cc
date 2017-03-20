@@ -76,6 +76,7 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
             ri.set_local_time(now);
         });
     ri.set_recorder_version(RECORDER_VERION);
+    ri.set_recorder_tick(0);
     auto now = Time::now();
     std::chrono::duration<double> uptime = now - start_time;
     ri.set_recorder_uptime(uptime.count());

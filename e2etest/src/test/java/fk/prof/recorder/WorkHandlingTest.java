@@ -57,18 +57,18 @@ public class WorkHandlingTest {
         runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
                 "ip=10.20.30.40," +
                 "host=foo-host," +
-                "appid=bar-app," +
-                "igrp=baz-grp," +
+                "app_id=bar-app," +
+                "inst_grp=baz-grp," +
                 "cluster=quux-cluster," +
-                "instid=corge-iid," +
+                "inst_id=corge-iid," +
                 "proc=grault-proc," +
-                "vmid=garply-vmid," +
+                "vm_id=garply-vmid," +
                 "zone=waldo-zone," +
-                "ityp=c0.small," +
-                "backoffStart=2," +
-                "backoffMax=5," +
-                "pollItvl=1," +
-                "logLvl=trace"
+                "inst_typ=c0.small," +
+                "backoff_start=2," +
+                "backoff_max=5," +
+                "poll_itvl=1," +
+                "log_lvl=trace"
         );
     }
 
