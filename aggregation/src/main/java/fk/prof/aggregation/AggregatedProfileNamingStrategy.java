@@ -43,7 +43,7 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         this.isSummaryFile = false;
 
         fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode32(appId), encode32(clusterId),
-                procId, startTime, duration, workType.name());
+                encode32(procId), startTime, duration, workType.name());
     }
 
     public AggregatedProfileNamingStrategy(String baseDir, int version, String appId, String clusterId, String procId, ZonedDateTime startTime, int duration) {
@@ -58,7 +58,7 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         this.isSummaryFile = true;
 
         fileNamePrefix = String.format(FILE_FORMAT, baseDir, version, encode32(appId), encode32(clusterId),
-                procId, startTime, duration, "summary");
+                encode32(procId), startTime, duration, "summary");
     }
 
     public static AggregatedProfileNamingStrategy fromHeader(String baseDir, AggregatedProfileModel.Header header) {
@@ -86,11 +86,11 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         String[] tokens = path.split(DELIMITER);
 
         if("summary".equals(tokens[7])) {
-            return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), tokens[4],
+            return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), decode32(tokens[4]),
                     ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]));
         }
 
-        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), tokens[4],
+        return new AggregatedProfileNamingStrategy(tokens[0], Integer.parseInt(tokens[1].substring(1)), decode32(tokens[2]), decode32(tokens[3]), decode32(tokens[4]),
                 ZonedDateTime.parse(tokens[5], DateTimeFormatter.ISO_ZONED_DATE_TIME), Integer.parseInt(tokens[6]),
                 AggregatedProfileModel.WorkType.valueOf(tokens[7]));
     }
@@ -117,7 +117,6 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
         AggregatedProfileNamingStrategy that = (AggregatedProfileNamingStrategy) o;
 
         return fileNamePrefix.equals(that.fileNamePrefix);
-
     }
 
     @Override

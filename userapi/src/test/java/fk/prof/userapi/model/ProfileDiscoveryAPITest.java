@@ -48,13 +48,13 @@ public class ProfileDiscoveryAPITest {
     private Vertx vertx;
 
     String[] objects = {
-            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
-            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
-            "profiles/v0001/MZXW6===/MJQXE===/main/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
-            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
-            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
-            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
-            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/process1/2017-01-20T12:37:20.551+05:30/1800/summary/0001",
+            "profiles/v0001/MZXW6===/MJQXE===/NVQWS3Q=/2017-01-20T12:37:20.551+05:30/1500/thread_sample_work/0001",
+            "profiles/v0001/MZXW6===/MJQXE===/NVQWS3Q=/2017-01-20T12:37:20.551+05:30/1500/cpu_sample_work/0001",
+            "profiles/v0001/MZXW6===/MJQXE===/NVQWS3Q=/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/OBZG6Y3FONZTC===/2017-01-20T12:37:20.551+05:30/1500/monitor_contention_work/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/OBZG6Y3FONZTC===/2017-01-20T12:37:20.551+05:30/1500/summary/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/OBZG6Y3FONZTC===/2017-01-20T12:37:20.551+05:30/1800/monitor_wait_work/0001",
+            "profiles/v0001/MFYHAMI=/MNWHK43UMVZDC===/OBZG6Y3FONZTC===/2017-01-20T12:37:20.551+05:30/1800/summary/0001",
     };
 
     AggregatedProfileNamingStrategy[] filenames = Stream.of(objects).map(AggregatedProfileNamingStrategy::fromFileName).toArray(AggregatedProfileNamingStrategy[]::new);
