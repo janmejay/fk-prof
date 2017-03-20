@@ -27,7 +27,7 @@ public class StorageFactory {
     private static final String S3 = "S3";
     private static final String ACCESS_KEY = "access.key";
     private static final String SECRET_KEY = "secret.key";
-    private static final String END_POINT = "end.point";
+    private static final String END_POINT = "endpoint";
 
     private static S3AsyncStorage s3AsyncStorage = null;
 

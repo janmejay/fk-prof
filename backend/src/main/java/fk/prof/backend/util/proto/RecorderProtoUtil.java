@@ -21,6 +21,52 @@ public class RecorderProtoUtil {
     return assignedBackend == null ? null : String.format("%s,%s", assignedBackend.getHost(), assignedBackend.getPort());
   }
 
+  public static String recorderInfoCompactRepr(Recorder.RecorderInfo recorderInfo) {
+    if(recorderInfo == null) {
+      return null;
+    }
+    return "ip=" + recorderInfo.getIp() +
+        ", zone=" + recorderInfo.getZone() +
+        ", host=" + recorderInfo.getHostname() +
+        ", cluster=" + recorderInfo.getCluster() +
+        ", proc=" + recorderInfo.getProcName() +
+        ", vm=" + recorderInfo.getVmId() +
+        ", instance_type=" + recorderInfo.getInstanceType() +
+        ", rec_version=" + recorderInfo.getRecorderVersion();
+  }
+
+  public static String workResponseCompactRepr(Recorder.WorkResponse workResponse) {
+    if(workResponse == null) {
+      return null;
+    }
+    return "work_id=" + workResponse.getWorkId() +
+        ", state=" + workResponse.getWorkState() +
+        ", result=" + workResponse.getWorkResult() +
+        ", elapsed=" + workResponse.getElapsedTime();
+  }
+
+  public static String pollReqCompactRepr(Recorder.PollReq pollReq) {
+    if(pollReq == null) {
+      return null;
+    }
+    return "rec_info: " + recorderInfoCompactRepr(pollReq.getRecorderInfo()) +
+        ", work_resp: " + workResponseCompactRepr(pollReq.getWorkLastIssued());
+  }
+
+  public static String pollResCompactRepr(Recorder.PollRes pollRes) {
+    if(pollRes == null) {
+      return null;
+    }
+    if(pollRes.getAssignment() == null) {
+      return "ctrl_id=" + pollRes.getControllerId() + ", empty work assignment";
+    }
+    return "ctrl_id=" + pollRes.getControllerId() +
+        ", work_id=" + pollRes.getAssignment().getWorkId() +
+        ", issue=" + pollRes.getAssignment().getIssueTime() +
+        ", dur=" + pollRes.getAssignment().getDuration() +
+        ", delay=" + pollRes.getAssignment().getDelay();
+  }
+
   public static Recorder.Work translateWorkFromBackendDTO(BackendDTO.Work backendDTOWork) {
     return Recorder.Work.newBuilder()
         .setWType(translateWorkTypeFromBackendDTO(backendDTOWork.getWType()))

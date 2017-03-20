@@ -24,6 +24,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.shareddata.LocalMap;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -37,6 +39,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class BackendHttpVerticle extends AbstractVerticle {
+  private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
 
   private final ConfigManager configManager;
   private final LeaderReadContext leaderReadContext;
@@ -87,7 +90,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_PUT_ASSOCIATION,
         BodyHandler.create().setBodyLimit(1024 * 10), this::handlePutAssociation);
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_POST_POLL,
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_POLL,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
 
     return router;
@@ -132,6 +135,10 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private void handlePostPoll(RoutingContext context) {
     try {
       Recorder.PollReq pollReq = ProtoUtil.buildProtoFromBuffer(Recorder.PollReq.parser(), context.getBody());
+      if(logger.isDebugEnabled()) {
+        logger.debug("Poll request: " + RecorderProtoUtil.pollReqCompactRepr(pollReq));
+      }
+
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
@@ -157,7 +164,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
       if(nextWorkAssignment != null) {
         pollResBuilder.setAssignment(nextWorkAssignment);
       }
-      context.response().end(ProtoUtil.buildBufferFromProto(pollResBuilder.build()));
+
+      Recorder.PollRes pollRes = pollResBuilder.build();
+      if(logger.isDebugEnabled()) {
+        logger.debug("Poll response: " + RecorderProtoUtil.pollResCompactRepr(pollRes));
+      }
+      context.response().end(ProtoUtil.buildBufferFromProto(pollRes));
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);

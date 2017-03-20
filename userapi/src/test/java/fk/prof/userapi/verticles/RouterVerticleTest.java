@@ -100,7 +100,7 @@ public class RouterVerticleTest {
                 "  \"aggregation_window.duration.secs\": 1800,\n" +
                 "  \"storage\":\"S3\",\n" +
                 "  \"S3\" : {\n" +
-                "    \"end.point\" : \"\",\n" +
+                "    \"endpoint\" : \"\",\n" +
                 "    \"access.key\": \"\",\n" +
                 "    \"secret.key\": \"\"\n" +
                 "  }\n" +
