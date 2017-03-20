@@ -130,7 +130,7 @@ static int read_from_curl_response(char *in_buff, size_t size, size_t nmemb, voi
     return available;
 }
 
-CurlHeader make_header_list(const std::vector<const char*>& headers) {
+static CurlHeader make_header_list(const std::vector<const char*>& headers) {
     CurlHeader header_list(nullptr, curl_slist_free_all);
     for(auto hdr : headers) {
         auto new_head = curl_slist_append(header_list.get(), hdr);
@@ -140,6 +140,10 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
         }
     }
     return header_list;
+}
+
+static CurlHeader default_http_req_headers() {
+    return make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding: chunked"});
 }
 
 static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used, metrics::Timer& timer, metrics::Ctr& fail_ctr) {
@@ -169,7 +173,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     auto retries_used = 0;
 
     Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
+    CurlHeader header_list(default_http_req_headers());
     if (curl.get() == nullptr || header_list == nullptr) {
         logger->error("Controller couldn't talk to assigned backend failed because cURL init failed");
         return;
@@ -177,7 +181,6 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
     Buff send(1024);
     Buff recv(1024);
@@ -235,7 +238,7 @@ void Controller::run() {
     auto start_time = Time::now();
     CurlInit _;
     Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(make_header_list({ "Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
+    CurlHeader header_list(default_http_req_headers());
     Buff send(1024);
     Buff recv(1024);
     auto backoff_seconds = cfg.backoff_start;
@@ -247,7 +250,7 @@ void Controller::run() {
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
     std::string service_endpoint_url = cfg.service_endpoint + std::string("/association");
     curl_easy_setopt(curl.get(), CURLOPT_URL, service_endpoint_url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
 
     curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
     curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
@@ -392,7 +395,7 @@ public:
         logger->info("Will now post profile to associate: {}", url);
 
         Curl curl(curl_easy_init(), curl_easy_cleanup);
-        CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding: chunked"}));
+        CurlHeader header_list(default_http_req_headers());
         if (curl.get() == nullptr || header_list == nullptr) {
             logger->error("Controller couldn't post profile because cURL init failed");
             return;
@@ -400,7 +403,6 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
         ProfileDataReadCtx rd_ctx {&ring, &s_t_fill_wait, &s_h_req_chunk_sz};
 
