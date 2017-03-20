@@ -96,13 +96,11 @@ public class AggregationWindowStorage {
 
     private AggregatedProfileNamingStrategy getFilename(FinalizedAggregationWindow aw, AggregatedProfileModel.WorkType workType) {
         ZonedDateTime start = aw.start.atOffset(ZoneOffset.UTC).toZonedDateTime();
-        int duration = (int)aw.start.until(aw.endedAt, ChronoUnit.SECONDS);
-        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, duration, workType);
+        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, aw.durationInSecs, workType);
     }
 
     private AggregatedProfileNamingStrategy getSummaryFilename(FinalizedAggregationWindow aw) {
         ZonedDateTime start = aw.start.atOffset(ZoneOffset.UTC).toZonedDateTime();
-        int duration = (int)aw.start.until(aw.endedAt, ChronoUnit.SECONDS);
-        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSummarySerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, duration);
+        return new AggregatedProfileNamingStrategy(baseDir, AggregationWindowSummarySerializer.VERSION, aw.appId, aw.clusterId, aw.procId, start, aw.durationInSecs);
     }
 }
