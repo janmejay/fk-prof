@@ -83,7 +83,7 @@ TEST(SyslogTsdbFormatter__should_format_unitless_uint64) {
     stf.set_name(name);
 
     TM_AT(start);
-    auto msg = stf("temp", "gradiant", static_cast<std::uint64_t>(100));
+    auto msg = stf("temp", "gradient", static_cast<std::uint64_t>(100));
     TM_AT(end);
 
     SyslogTsdbMsg stm;
@@ -94,7 +94,7 @@ TEST(SyslogTsdbFormatter__should_format_unitless_uint64) {
     CHECK_EQUAL("baz.host", stm.host);
     CHECK_EQUAL("foo,bar", stm.tag);
     ASSERT_IS_BETWEEN(start_ts, end_ts, stm.tsd_ts);
-    CHECK_EQUAL("thermometer.temp.gradiant", stm.tsd_metric);
+    CHECK_EQUAL("thermometer.temp.gradient", stm.tsd_metric);
     CHECK_EQUAL("100", stm.tsd_value);
     CHECK_EQUAL("quux=corge grault=garply", stm.tsd_tags);
 }
@@ -194,7 +194,7 @@ TEST(SyslogTsdbFormatter__should_format_double_with_unit) {
 TEST(SyslogTsdbFormatter__should_format_uint64_with_unit__and__event_type) {
     MetricFormatter::SyslogTsdbFormatter stf("grault=garply", "bar,foo", "quux", 128);
 
-    std::string name = "temprature";
+    std::string name = "temperature";
     stf.set_name(name);
 
     TM_AT(start);
@@ -209,7 +209,7 @@ TEST(SyslogTsdbFormatter__should_format_uint64_with_unit__and__event_type) {
     CHECK_EQUAL("quux", stm.host);
     CHECK_EQUAL("bar,foo", stm.tag);
     ASSERT_IS_BETWEEN(start_ts, end_ts, stm.tsd_ts);
-    CHECK_EQUAL("temprature.near_surface.alcohol_thermometer.10_min_avg.C", stm.tsd_metric);
+    CHECK_EQUAL("temperature.near_surface.alcohol_thermometer.10_min_avg.C", stm.tsd_metric);
     CHECK_EQUAL("85", stm.tsd_value);
     CHECK_EQUAL("grault=garply", stm.tsd_tags);
 }
@@ -217,7 +217,7 @@ TEST(SyslogTsdbFormatter__should_format_uint64_with_unit__and__event_type) {
 TEST(SyslogTsdbFormatter__should_format_double_with_unit__and__event_type) {
     MetricFormatter::SyslogTsdbFormatter stf("grault=garply", "bar,foo", "quux", 128);
 
-    std::string name = "temprature";
+    std::string name = "temperature";
     stf.set_name(name);
 
     TM_AT(start);
@@ -232,7 +232,7 @@ TEST(SyslogTsdbFormatter__should_format_double_with_unit__and__event_type) {
     CHECK_EQUAL("quux", stm.host);
     CHECK_EQUAL("bar,foo", stm.tag);
     ASSERT_IS_BETWEEN(start_ts, end_ts, stm.tsd_ts);
-    CHECK_EQUAL("temprature.near_surface.alcohol_thermometer.10_min_avg.C", stm.tsd_metric);
+    CHECK_EQUAL("temperature.near_surface.alcohol_thermometer.10_min_avg.C", stm.tsd_metric);
     CHECK_EQUAL("85.7", stm.tsd_value);
     CHECK_EQUAL("grault=garply", stm.tsd_tags);
 }
@@ -248,7 +248,7 @@ TEST(SyslogTsdbFormatter__should_default_everything_sensibly) {
     stf.set_name(name);
 
     TM_AT(start);
-    auto msg = stf("temp", "gradiant", static_cast<std::uint64_t>(100));
+    auto msg = stf("temp", "gradient", static_cast<std::uint64_t>(100));
     TM_AT(end);
 
     SyslogTsdbMsg stm;
@@ -259,7 +259,7 @@ TEST(SyslogTsdbFormatter__should_default_everything_sensibly) {
     CHECK_EQUAL(actual_hostname, stm.host);
     CHECK_EQUAL("fkprof", stm.tag);
     ASSERT_IS_BETWEEN(start_ts, end_ts, stm.tsd_ts);
-    CHECK_EQUAL("thermometer.temp.gradiant", stm.tsd_metric);
+    CHECK_EQUAL("thermometer.temp.gradient", stm.tsd_metric);
     CHECK_EQUAL("100", stm.tsd_value);
     CHECK_EQUAL("grault=garply", stm.tsd_tags);
 }

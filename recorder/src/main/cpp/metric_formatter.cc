@@ -25,11 +25,11 @@ template <typename... SuffixFrags> void append(std::stringstream& ss, const std:
 template <typename V, typename... SuffixFrags> std::string line(std::uint16_t pri_sev, const std::string& host, const std::string& tags, const std::string& tsdb_tags, const std::string& name, const std::string& type, V v, const SuffixFrags&... suffixes) {
     std::time_t t = std::time(nullptr);
     std::tm tm = *std::localtime(&t);
-    char buffer[32];
-    strftime(buffer, sizeof(buffer),"%b %d %H:%M:%S", &tm);
+    char now_str[32];
+    strftime(now_str, sizeof(now_str),"%b %d %H:%M:%S", &tm);
 
     std::stringstream ss;
-    ss << "<" << pri_sev << ">" << buffer << " " << host << " " << tags << " " << t << " " << name << "." << type;
+    ss << "<" << pri_sev << ">" << now_str << " " << host << " " << tags << " " << t << " " << name << "." << type;
     append(ss, suffixes...);
     ss << " " << v << " " << tsdb_tags;
     return ss.str();
