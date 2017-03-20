@@ -26,7 +26,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   public AggregationWindow(String appId, String clusterId, String procId,
-                           LocalDateTime start, int durationInSecs, long[] workIds) {
+                           LocalDateTime start, int durationInSecs, long[] workIds, int workDurationInSec) {
     this.appId = appId;
     this.clusterId = clusterId;
     this.procId = procId;
@@ -35,7 +35,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
 
     Map<Long, ProfileWorkInfo> workInfoModifiableLookup = new HashMap<>();
     for (int i = 0; i < workIds.length; i++) {
-      workInfoModifiableLookup.put(workIds[i], new ProfileWorkInfo());
+      workInfoModifiableLookup.put(workIds[i], new ProfileWorkInfo(workDurationInSec));
     }
     this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
   }

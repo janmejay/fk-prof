@@ -27,9 +27,14 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   private int recorderVersion;
   private AggregationState state = AggregationState.SCHEDULED;
   private LocalDateTime startedAt = null, endedAt = null;
+  private int durationInSec;
   private Recorder.RecorderInfo recorderInfo;
   private final HashObjIntMap<String> traceCoverages = HashObjIntMaps.newUpdatableMap();
   private final HashObjIntMap<Recorder.WorkType> workTypeSamples = HashObjIntMaps.newUpdatableMap();
+
+  public ProfileWorkInfo(int durationInSec) {
+    this.durationInSec = durationInSec;
+  }
 
   public void updateRecorderInfo(Recorder.RecorderInfo recorderInfo) {
     this.recorderInfo = recorderInfo;
@@ -115,6 +120,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
         state,
         startedAt,
         endedAt,
+        durationInSec,
         traceCoverages,
         mappedWorkTypeSamples
     );

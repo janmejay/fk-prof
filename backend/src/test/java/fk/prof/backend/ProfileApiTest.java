@@ -14,7 +14,6 @@ import fk.prof.backend.model.assignment.impl.AssociatedProcessGroupsImpl;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
-import io.vertx.core.*;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -81,7 +80,7 @@ public class ProfileApiTest {
     long workId = workIdCounter.incrementAndGet();
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
     activeAggregationWindows.associateAggregationWindow(new long[] {workId},
-        new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId}));
+        new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId}, 60));
 
     final Async async = context.async();
     Future<ResponsePayload> future = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
@@ -114,7 +113,7 @@ public class ProfileApiTest {
     long workId2 = workIdCounter.incrementAndGet();
     long workId3 = workIdCounter.incrementAndGet();
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
-    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2, workId3});
+    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2, workId3}, 60);
     activeAggregationWindows.associateAggregationWindow(new long[] {workId1, workId2, workId3}, aw);
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
@@ -166,7 +165,7 @@ public class ProfileApiTest {
     long workId1 = workIdCounter.incrementAndGet();
     long workId2 = workId1;
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
-    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2});
+    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2}, 60);
     activeAggregationWindows.associateAggregationWindow(new long[] {workId1}, aw);
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
@@ -192,7 +191,7 @@ public class ProfileApiTest {
     long workId = workIdCounter.incrementAndGet();
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
     activeAggregationWindows.associateAggregationWindow(new long[] {workId},
-        new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId}));
+        new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId}, 60));
 
     final Async async = context.async();
     Future<ResponsePayload> f1 = makeProfileRequest(MockProfileObjects.getRecordingHeader(workId), getMockWseEntriesForSingleProfile());
@@ -272,7 +271,7 @@ public class ProfileApiTest {
     long workId2 = workIdCounter.incrementAndGet();
     long workId3 = workIdCounter.incrementAndGet();
     LocalDateTime awStart = LocalDateTime.now(Clock.systemUTC());
-    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2, workId3});
+    AggregationWindow aw = new AggregationWindow("a", "c", "p", awStart, 30 * 60, new long[]{workId1, workId2, workId3}, 60);
     activeAggregationWindows.associateAggregationWindow(new long[] {workId1, workId2, workId3}, aw);
     List<Recorder.Wse> wseList = getMockWseEntriesForMultipleProfiles();
 
@@ -343,7 +342,7 @@ public class ProfileApiTest {
     long workId = workIdCounter.incrementAndGet();
     if (!payloadStrategy.equals(HeaderPayloadStrategy.INVALID_WORK_ID)) {
       activeAggregationWindows.associateAggregationWindow(new long[] {workId},
-          new AggregationWindow("a", "c", "p", LocalDateTime.now(), 30 * 60, new long[]{workId}));
+          new AggregationWindow("a", "c", "p", LocalDateTime.now(), 30 * 60, new long[]{workId}, 60));
     }
 
     final Async async = context.async();
@@ -374,7 +373,7 @@ public class ProfileApiTest {
   private void makeInvalidWseProfileRequest(TestContext context, WsePayloadStrategy payloadStrategy, String errorToGrep) {
     long workId = workIdCounter.incrementAndGet();
     activeAggregationWindows.associateAggregationWindow(new long[] {workId},
-        new AggregationWindow("a", "c", "p", LocalDateTime.now(), 30 * 60, new long[]{workId}));
+        new AggregationWindow("a", "c", "p", LocalDateTime.now(), 30 * 60, new long[]{workId}, 60));
 
     final Async async = context.async();
     try {
@@ -462,7 +461,7 @@ public class ProfileApiTest {
     Map<String, Integer> expectedTraceCoverages = new HashMap<>();
     expectedTraceCoverages.put("1", 5);
     FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED,
-        startedAt, endedAt, expectedTraceCoverages, samplesMap);
+        startedAt, endedAt, 60, expectedTraceCoverages, samplesMap);
     return expectedProfileWorkInfo;
   }
 

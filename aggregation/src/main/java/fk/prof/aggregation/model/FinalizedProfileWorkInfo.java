@@ -17,6 +17,7 @@ public class FinalizedProfileWorkInfo {
   private final AggregationState state;
   private final LocalDateTime startedAt;
   private final LocalDateTime endedAt;
+  private final int durationInSec;
   private final Map<String, Integer> traceCoverages;
   private final Map<WorkType, Integer> samples;
 
@@ -25,6 +26,7 @@ public class FinalizedProfileWorkInfo {
                                   AggregationState state,
                                   LocalDateTime startedAt,
                                   LocalDateTime endedAt,
+                                  int durationInSec,
                                   Map<String, Integer> traceCoverages,
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
@@ -32,6 +34,7 @@ public class FinalizedProfileWorkInfo {
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
+    this.durationInSec = durationInSec;
     this.traceCoverages = traceCoverages;
     this.samples = samples;
   }
@@ -62,6 +65,7 @@ public class FinalizedProfileWorkInfo {
     FinalizedProfileWorkInfo other = (FinalizedProfileWorkInfo) o;
     return this.recorderVersion == other.recorderVersion
         && this.state.equals(other.state)
+        && this.durationInSec == other.durationInSec
         && (this.startedAt == null ? other.startedAt == null : this.startedAt.equals(other.startedAt))
         && (this.endedAt == null ? other.endedAt == null : this.endedAt.equals(other.endedAt))
         && (this.traceCoverages == null ? other.traceCoverages == null : this.traceCoverages.equals(other.traceCoverages))
@@ -77,13 +81,11 @@ public class FinalizedProfileWorkInfo {
     if(workType == null || (samples != null && samples.containsKey(workType))) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
-              .setStatus(toAggregationStatusProto(state));
+              .setStatus(toAggregationStatusProto(state))
+              .setDuration(durationInSec);
 
       if(startedAt != null) {
         builder.setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS));
-        if(endedAt != null) {
-          builder.setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS));
-        }
       }
 
       if(recorderInfo != null) {

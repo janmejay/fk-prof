@@ -198,7 +198,8 @@ public class AggregationWindowPlanner {
         processGroup.getProcName(),
         windowStart,
         aggregationWindowDurationInSecs,
-        workIds);
+        workIds,
+        latestRecordingPolicy.getDuration());
     processGroupContextForScheduling.updateWorkAssignmentSchedule(workAssignmentSchedule);
     activeAggregationWindows.associateAggregationWindow(workIds, currentAggregationWindow);
   }
