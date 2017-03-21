@@ -472,6 +472,10 @@ void Controller::retire_work(const std::uint64_t work_id) {
                 logger->warn("Stale work-retire call (target work_id was {}, current work_id is {}), ignoring", work_id, w.work_id());
                 return;//TODO: test me!
             }
+            if (wst == recording::WorkResponse::complete) {
+                logger->info("Work {} has already been retired (result: {}), ignoring stale retire call", work_id, wres);
+                return;
+            }
             logger->info("Will now retire work {}", work_id);
             for (auto i = 0; i < w.work_size(); i++) {
                 auto work = w.work(i);
