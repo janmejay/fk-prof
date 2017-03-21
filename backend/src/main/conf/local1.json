@@ -66,8 +66,8 @@
   "storage": {
     "s3": {
       "endpoint": "http://127.0.0.1:13031",
-      "access.key": "66ZX9WC7ZRO6S5BSO8TG",
-      "secret.key": "fGEJrdiSWNJlsZTiIiTPpUntDm0wCRV4tYbwu2M+"
+      "access.key": "",
+      "secret.key": ""
     },
     "thread.pool.size": 50,
     "base.dir": "profiles"

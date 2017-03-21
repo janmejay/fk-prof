@@ -123,4 +123,9 @@ public class AggregatedProfileNamingStrategy implements FileNamingStrategy {
     public int hashCode() {
         return fileNamePrefix.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return fileNamePrefix;
+    }
 }

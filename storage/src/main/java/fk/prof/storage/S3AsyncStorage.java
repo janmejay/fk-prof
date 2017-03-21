@@ -5,6 +5,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -17,6 +18,7 @@ import com.amazonaws.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
@@ -40,8 +42,6 @@ public class S3AsyncStorage implements AsyncStorage {
 
     public S3AsyncStorage(String endpoint, String accessKey, String secretKey, ExecutorService executorService) {
         assert !StringUtils.isNullOrEmpty(endpoint) : "S3 endpoint cannot be null/empty";
-        assert !StringUtils.isNullOrEmpty(accessKey) : "accessKey cannot be null/empty";
-        assert !StringUtils.isNullOrEmpty(secretKey) : "secretKey cannot be null/empty";
         assert executorService != null : "S3AsyncStorage.executorService cannot be null";
 
         this.endpoint = endpoint;
@@ -55,7 +55,15 @@ public class S3AsyncStorage implements AsyncStorage {
         ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setProtocol(Protocol.HTTP);
 
-        AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+        AWSCredentials credentials;
+        if(StringUtils.isNullOrEmpty(accessKey) || StringUtils.isNullOrEmpty(secretKey)) {
+            LOGGER.warn("S3 access key | secret key is empty. Trying anonymous credentials");
+            credentials = new AnonymousAWSCredentials();
+        }
+        else {
+            credentials = new BasicAWSCredentials(accessKey, secretKey);
+        }
+
         client = new AmazonS3Client(credentials, clientConfig);
         client.setEndpoint(endpoint);
         client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
@@ -71,10 +79,18 @@ public class S3AsyncStorage implements AsyncStorage {
                 client.putObject(objectPath.bucket, objectPath.fileName, content, meta);
                 // TODO expose metric for size written
             } catch (AmazonClientException e) {
-                LOGGER.error("S3 PutObject failed: {}", path, e);
+                // content InputStream is by default closed by the S3Client, so need to close it.
                 //TODO expose metric
+                LOGGER.error("S3 PutObject failed: {}", path, e);
+            } catch (Exception ex) {
+                //TODO expose metric
+                LOGGER.error("S3 PutObject failed with unexpected error: {}", path, ex);
+                try {
+                    content.close();
+                } catch (IOException ioEx) {
+                    LOGGER.error("Error closing inputstream for s3 file path: {}", path, ioEx);
+                }
             }
-            // content InputStream is by default closed by the S3Client, so need to close it.
         }, executorService);
     }
 

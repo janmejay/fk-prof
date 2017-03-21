@@ -84,13 +84,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.AGGREGATOR_POST_PROFILE,
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.AGGREGATOR_POST_PROFILE,
         this::handlePostProfile);
 
     HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_PUT_ASSOCIATION,
         BodyHandler.create().setBodyLimit(1024 * 10), this::handlePutAssociation);
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_POLL,
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_POST_POLL,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
 
     return router;

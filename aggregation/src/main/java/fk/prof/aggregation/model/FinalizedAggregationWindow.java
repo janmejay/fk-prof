@@ -47,10 +47,11 @@ public class FinalizedAggregationWindow {
   @Override
   public String toString() {
     return "app_id=" + appId +
-    ", cluster_id=" + clusterId +
-    ", proc_id=" + procId +
-    ", start=" + start +
-    ", end=" + endedAt;
+        ", cluster_id=" + clusterId +
+        ", proc_id=" + procId +
+        ", start=" + start +
+        ", end=" + endedAt +
+        ", duration=" + durationInSecs;
   }
 
   @Override

@@ -84,16 +84,29 @@ public class WorkAssignmentSchedule {
           ScheduleEntry scheduleEntry = this.assignedSchedule.get(recorderIdentifier);
           if(scheduleEntry != null) {
             ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - nRef), dMinDelay, dMaxDelay);
-            return value.workAssignment;
+            if(value.isValid()) {
+              return value.workAssignment;
+            } else {
+              // Work was already assigned to recorder, so this will not be a scenario when recorder is too early
+              // We will be here when scheduling miss has occurred (tooLate = true). This can happen in two scenarios:
+              // > poll request is received after recorder has completed the same assigned work
+              // > unable to receive work assignment earlier
+              // We cannot distinguish between above two over here, anyways, need to return null because of scheduling miss
+              return null;
+            }
           }
 
           while((scheduleEntry = this.entries.peek()) != null) {
             ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - nRef), dMinDelay, dMaxDelay);
             if(value.tooEarly) {
+              logger.debug(String.format("Too early to hand over work assignment for work_id=%d, remaining delay=%d", value.workAssignment.getWorkId(), value.workAssignment.getDelay()));
               return null; //Since this is a priority queue, no point checking subsequent entries if current entry indicates its too early
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
-              if(value.workAssignment != null) {
+              if (value.tooLate) {
+                logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", value.workAssignment.getWorkId(), value.workAssignment.getDelay()));
+              }
+              else {
                 this.assignedSchedule.put(recorderIdentifier, scheduleEntry);
                 return value.workAssignment;
               }
@@ -135,21 +148,15 @@ public class WorkAssignmentSchedule {
      */
     ScheduleEntryValue getValue(long nElapsed, int dMinDelay, int dMaxDelay) {
       int dRemainingDelay = (int)((nStartPad - nElapsed) / NANOS_IN_SEC);
-      if (dRemainingDelay < dMinDelay) {
-        logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), dRemainingDelay));
-        return new ScheduleEntryValue(null, false, true);
-      }
-      if (dRemainingDelay > dMaxDelay) {
-        logger.debug(String.format("Too early to hand over work assignment for work_id=%d, remaining delay=%d", workAssignmentBuilder.getWorkId(), dRemainingDelay));
-        return new ScheduleEntryValue(null, true, false);
-      }
+      boolean tooLate = dRemainingDelay < dMinDelay;
+      boolean tooEarly = dRemainingDelay > dMaxDelay;
       return new ScheduleEntryValue(
           workAssignmentBuilder
               .clone()
               .setDelay(dRemainingDelay)
               .setIssueTime(LocalDateTime.now(Clock.systemUTC()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
               .build(),
-          false, false);
+          tooEarly, tooLate);
     }
 
     @Override
@@ -163,22 +170,21 @@ public class WorkAssignmentSchedule {
       private final boolean tooEarly;
       private final boolean tooLate;
 
-      ScheduleEntryValue(Recorder.WorkAssignment workAssignment, boolean tooEarly, boolean tooLate) {
+      ScheduleEntryValue(final Recorder.WorkAssignment workAssignment, final boolean tooEarly, final boolean tooLate) {
         if(tooEarly && tooLate) {
           throw new IllegalArgumentException("Fetch of scheduling entry cannot be too early and too late simultaneously. Make up your mind!");
-        } else if (tooEarly || tooLate) {
-          if(workAssignment != null) {
-            throw new IllegalArgumentException("Work assignment should be set as null if the fetch is too early or too late");
-          }
-        } else {
-          if(workAssignment == null) {
-            throw new IllegalArgumentException("Valid work assignment should be returned if the fetch is done at correct time");
-          }
+        }
+        if(workAssignment == null) {
+          throw new IllegalArgumentException("Valid work assignment should be returned if the fetch is done at correct time");
         }
 
         this.workAssignment = workAssignment;
         this.tooEarly = tooEarly;
         this.tooLate = tooLate;
+      }
+
+      boolean isValid() {
+        return !tooEarly && !tooLate;
       }
     }
 

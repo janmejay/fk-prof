@@ -27,7 +27,7 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   @Override
   public void handle(Buffer requestBuffer) {
-//    System.err.println(String.format("buffer=%d, chunk=%d", runningBuffer.length(), requestBuffer.length()));
+//    try { logger.debug(String.format("buffer=%d, chunk=%d", inputStream.available(), requestBuffer.length())); } catch (Exception ex) {}
     if (!context.response().ended()) {
       inputStream.accept(requestBuffer.getByteBuf());
       try {

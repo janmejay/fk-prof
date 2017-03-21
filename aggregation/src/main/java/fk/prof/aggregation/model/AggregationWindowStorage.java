@@ -59,6 +59,10 @@ public class AggregationWindowStorage {
     }
 
     private void writeToStream(Serializer serializer, AggregatedProfileNamingStrategy filename) throws IOException {
+        if(logger.isDebugEnabled()) {
+            logger.debug("Attempting serialization and write of file: " + filename);
+        }
+
         OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename);
         GZIPOutputStream gout;
 
@@ -66,21 +70,24 @@ public class AggregationWindowStorage {
             gout = StreamTransformer.zip(out);
         }
         catch (IOException e) {
-            logger.error("could not zip outputStream", e);
+            logger.error("Could not zip outstream for file: " + filename, e);
             try {
                 out.close();
             }
             catch (IOException ee) {
-                logger.error("failed to close outStream for file: " + filename, ee);
+                logger.error("Failed to close outstream for file: " + filename, ee);
             }
             throw e;
         }
 
         try {
             serializer.serialize(out);
+            if(logger.isDebugEnabled()) {
+                logger.debug("Serialization and subsequent write successfully scheduled for file: " + filename);
+            }
         }
         catch (IOException e) {
-            logger.error("serialization to outStream failed", e);
+            logger.error("Serialization to outstream failed for file: " + filename, e);
             throw e;
         }
         finally {
@@ -88,7 +95,7 @@ public class AggregationWindowStorage {
                 gout.close();
             }
             catch (IOException e) {
-                logger.error("failed to close zipped outStream for file: " + filename);
+                logger.error("Failed to close zipped outstream for file: " + filename);
                 throw e;
             }
         }
