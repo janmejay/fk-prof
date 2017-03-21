@@ -212,7 +212,7 @@ public class BackendDaemon extends AbstractVerticle {
       }
     }, result -> {
       if(result.succeeded()) {
-        logger.info("Successfully saved profile for aggregation_window: " + finalizedAggregationWindow);
+        logger.info("Successfully initiated save of profile for aggregation_window: " + finalizedAggregationWindow);
       } else {
         logger.error("Error while saving profile for aggregation_window: " + finalizedAggregationWindow, result.cause());
       }

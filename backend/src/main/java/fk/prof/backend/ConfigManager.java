@@ -38,7 +38,7 @@ public class ConfigManager {
   private static final String THREAD_POOL_SIZE = "thread.pool.size";
   private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
 
-  public static final String METRIC_REGISTRY = "vertx-registry";
+  public static final String METRIC_REGISTRY = "backend-metric-registry";
 
   private final JsonObject config;
 
