@@ -125,7 +125,6 @@ set(TEST_FILES
     ${SRC_TEST}/test_cpu_sampling_profile_serialization.cc
     ${SRC_TEST}/test_config.cc
     ${SRC_TEST}/test.hh
-    ${SRC_TEST}/test_recording_serde.cc
     ${SRC_TEST}/test_checksum.cc
     ${SRC_TEST}/test_maps.cc
     ${SRC_TEST}/test_scheduler.cc

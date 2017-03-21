@@ -351,8 +351,10 @@ public class WorkHandlingTest {
         csum.update(req, 0, bytesBeforeChksum);
         assertThat((int) csum.getValue(), is(chksum));
 
-        while (bytesAfterChksum < req.length) {
+        while (true) {
             int wseLen = is.readUInt32();
+            if (wseLen == 0) break; //EOF condition
+            if (bytesAfterChksum >= req.length) throw new IllegalStateException("Stream ended before recorder EoF-marker");
             int wseLim = is.pushLimit(wseLen);
             Recorder.Wse.Builder wseBuilder = Recorder.Wse.newBuilder();
             wseBuilder.mergeFrom(is);
