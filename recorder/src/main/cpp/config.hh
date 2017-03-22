@@ -65,9 +65,7 @@ struct ConfigurationOptions {
 
     virtual ~ConfigurationOptions();
 
-    bool valid() {//TODO: ensure we check for valid config (implement defaulting before validity-check)
-        return true;
-    }
+    bool valid();
 
 private:
     void load(const char* options);
