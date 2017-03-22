@@ -43,6 +43,8 @@ struct ConfigurationOptions {
     spdlog::level::level_enum log_level;
     std::uint16_t metrics_dst_port;
 
+    std::uint8_t noctx_cov_pct;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -56,7 +58,8 @@ struct ConfigurationOptions {
         inst_typ(nullptr),
         backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), backoff_max(DEFAULT_BACKOFF_MAX), max_retries(DEFAULT_MAX_RETRIES),
         poll_itvl(DEFAULT_POLLING_INTERVAL),
-        log_level(spdlog::level::info), metrics_dst_port(DEFAULT_METRICS_DEST_PORT) {
+        log_level(spdlog::level::info), metrics_dst_port(DEFAULT_METRICS_DEST_PORT),
+        noctx_cov_pct(0) {
         load(options);
     }
 

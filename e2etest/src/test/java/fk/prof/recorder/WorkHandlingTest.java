@@ -6,6 +6,7 @@ import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
@@ -111,8 +112,11 @@ public class WorkHandlingTest {
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
         long idx = 0;
+        Matcher<Long> recorderTickMatcher = is(0l);
+        long previousTick;
         for (PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            recorderTickMatcher = greaterThan(previousTick);
             assertItHadNoWork(prwt.req.getWorkLastIssued(), idx == 0 ? idx : idx + 99);
             if (idx > 0) {
                 assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
@@ -148,8 +152,11 @@ public class WorkHandlingTest {
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
         long idx = 0;
+        Matcher<Long> recorderTickMatcher = is(0l);
+        long previousTick;
         for (PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            recorderTickMatcher = greaterThan(previousTick);
             if (idx > 0) {
                 assertThat(prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
             }
@@ -206,15 +213,7 @@ public class WorkHandlingTest {
         assertThat(assocAction[0].isDone(), is(true));
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
-        long idx = 0;
-        for (PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
-            if (idx > 0) {
-                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
-            }
-            prevTime = prwt.time;
-            idx++;
-        }
+        assertPollingWasAllGood(pollReqs, prevTime);
 
         assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
@@ -239,6 +238,21 @@ public class WorkHandlingTest {
         assertRecordingHeaderIsGood(hdr.getValue(), CONTROLLER_ID, CPU_SAMPLING_WORK_ID, cpuSamplingWorkIssueTime, 10, 2, 1, new Recorder.Work[] {w});
         
         assertThat(profileCalledSecondTime.getValue(), is(false));
+    }
+
+    private void assertPollingWasAllGood(PollReqWithTime[] pollReqs, long prevTime) {
+        long idx = 0;
+        Matcher<Long> recorderTickMatcher = is(0l);
+        long previousTick;
+        for (PollReqWithTime prwt : pollReqs) {
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            recorderTickMatcher = greaterThan(previousTick);
+            if (idx > 0) {
+                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
+            }
+            prevTime = prwt.time;
+            idx++;
+        }
     }
 
     @Test
@@ -273,15 +287,7 @@ public class WorkHandlingTest {
         assertThat(assocAction[0].isDone(), is(true));
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
-        long idx = 0;
-        for (PollReqWithTime prwt : pollReqs) {
-            assertRecorderInfoAllGood(prwt.req.getRecorderInfo());
-            if (idx > 0) {
-                assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
-            }
-            prevTime = prwt.time;
-            idx++;
-        }
+        assertPollingWasAllGood(pollReqs, prevTime);
 
         assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
@@ -453,23 +459,5 @@ public class WorkHandlingTest {
                 throw new RuntimeException(e);
             }
         };
-    }
-
-    public static void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
-        assertThat(recorderInfo.getIp(), is("10.20.30.40"));
-        assertThat(recorderInfo.getHostname(), is("foo-host"));
-        assertThat(recorderInfo.getAppId(), is("bar-app"));
-        assertThat(recorderInfo.getInstanceGrp(), is("baz-grp"));
-        assertThat(recorderInfo.getCluster(), is("quux-cluster"));
-        assertThat(recorderInfo.getInstanceId(), is("corge-iid"));
-        assertThat(recorderInfo.getProcName(), is("grault-proc"));
-        assertThat(recorderInfo.getVmId(), is("garply-vmid"));
-        assertThat(recorderInfo.getZone(), is("waldo-zone"));
-        assertThat(recorderInfo.getInstanceType(), is("c0.small"));
-        DateTime dateTime = ISODateTimeFormat.dateTimeParser().parseDateTime(recorderInfo.getLocalTime());
-        DateTime now = DateTime.now();
-        assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
-        assertThat(recorderInfo.getRecorderVersion(), is(1));
-        assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(60)));
     }
 }

@@ -5,6 +5,8 @@
 
 //for buff, no one uses read-end here, so it is inconsistent
 
+#define NOCTX_ID 0
+
 void ProfileWriter::flush() {
     w->write_unbuffered(data.buff, data.write_end, 0); //TODO: err-check me!
     data.write_end = 0;
@@ -104,6 +106,7 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
         } else {
             ss->set_thread_id(known_thd->second);
         }
+        info->release();
     } else {
         ss->set_error(translate_forte_error(trace.num_frames));
     }
@@ -141,9 +144,12 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
     if (snipped) s_c_frame_snipped.inc();
     ss->set_snipped(snipped);
 
-    if (trace.num_frames < 0) {
+    if (trace.num_frames <= 0) {
         s_m_stack_sample_err.mark();
         return;
+    }
+    if (ctx_len == 0) {
+        ss->add_trace_id(NOCTX_ID);
     }
 
     for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
@@ -200,8 +206,10 @@ void ProfileSerializingWriter::flush() {
 #define METRIC_TYPE "profile_serializer"
 
 ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
-                                                   PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds) :
-    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0), trunc_thresholds(_trunc_thresholds),
+                                                   PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,
+                                                   std::uint8_t _noctx_cov_pct) :
+    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
+    trunc_thresholds(_trunc_thresholds),
 
     s_c_new_thd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "thd_rpt", "new"})),
     s_c_new_ctx_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "ctx_rpt", "new"})),
@@ -223,6 +231,14 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
     s_c_bad_lineno.clear();
 
     s_c_frame_snipped.clear();
+
+    auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
+    auto new_ctx = idx_dat->add_trace_ctx();
+    new_ctx->set_trace_id(NOCTX_ID);
+    new_ctx->set_is_generated(false);
+    new_ctx->set_coverage_pct(_noctx_cov_pct);
+    new_ctx->set_merge(recording::TraceContext_MergeSemantics::TraceContext_MergeSemantics_parent);
+    new_ctx->set_trace_name(NOCTX_NAME);
 }
 
 ProfileSerializingWriter::~ProfileSerializingWriter() {}

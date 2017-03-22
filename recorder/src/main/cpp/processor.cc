@@ -20,12 +20,6 @@ void sleep_for_millis(uint period) {
 #endif
 }
 
-TRACE_DEFINE_BEGIN(Processor, kTraceProcessorTotal)
-    TRACE_DEFINE("start processor")
-    TRACE_DEFINE("stop processor")
-    TRACE_DEFINE("chech that processor is running")
-TRACE_DEFINE_END(Processor, kTraceProcessorTotal);
-
 #define METRIC_TYPE "cpu_samp_proc"
 
 Processor::Processor(jvmtiEnv* jvmti, CircularQueue& buffer, SignalHandler& handler, int interval)
@@ -77,19 +71,16 @@ void callbackToRunProcessor(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
 }
 
 void Processor::start(JNIEnv *jniEnv) {
-    TRACE(Processor, kTraceProcessorStart);
     isRunning_.store(true, std::memory_order_relaxed);
     thd_proc = start_new_thd(jniEnv, jvmti_, "Fk-Prof Processing Thread", callbackToRunProcessor, this);
 }
 
 void Processor::stop() {
-    TRACE(Processor, kTraceProcessorStop);
     isRunning_.store(false, std::memory_order_relaxed);
     await_thd_death(thd_proc);
     thd_proc.reset();
 }
 
 bool Processor::isRunning() const {
-    TRACE(Processor, kTraceProcessorRunning);
     return isRunning_.load(std::memory_order_relaxed);
 }
