@@ -450,11 +450,17 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                         populate_recording_header(rh, w, controller_id, controller_version);
                         writer->write_header(rh);
                     }
-                    
+
+                    JNIEnv *env = getJNIEnv(jvm);
+                    Processes processes;
                     for (auto i = 0; i < w.work_size(); i++) {
                         auto work = w.work(i);
-                        issue(work);
+                        issue(work, processes, env);
                     }
+
+                    processor.reset(new Processor(jvmti, std::move(processes)));
+                    processor->start(env);
+
                     start_tm = Time::now();
                     auto stop_at = start_tm + Time::sec(w.duration());
                     scheduler.schedule(stop_at, [&, work_id]() {
@@ -476,13 +482,18 @@ void Controller::retire_work(const std::uint64_t work_id) {
                 logger->info("Work {} has already been retired (result: {}), ignoring stale retire call", work_id, wres);
                 return;
             }
+
+            processor->stop();
+            processor.reset();
+
             logger->info("Will now retire work {}", work_id);
             for (auto i = 0; i < w.work_size(); i++) {
                 auto work = w.work(i);
                 retire(work);
             }
-            writer.reset();
             
+            writer.reset();
+
             logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);
             wst = recording::WorkResponse::complete;
             if ( wres == recording::WorkResponse::unknown) {
@@ -506,12 +517,12 @@ bool has_cpu_sample_work_p(const recording::Work& work) {
     return false;
 }
 
-void Controller::issue(const recording::Work& work) {
+void Controller::issue(const recording::Work& work, Processes& processes, JNIEnv* env) {
     auto w_type = work.w_type();
     switch(w_type) {
     case recording::WorkType::cpu_sample_work:
         if (has_cpu_sample_work_p(work)) {
-            issue(work.cpu_sample());
+            issue(work.cpu_sample(), processes, env);
             s_v_work_cpu_sampling.update(1);
         }
         return;
@@ -534,14 +545,14 @@ void Controller::retire(const recording::Work& work) {
     }
 }
 
-void Controller::issue(const recording::CpuSampleWork& csw) {
+void Controller::issue(const recording::CpuSampleWork& csw, Processes& processes, JNIEnv* env) {
     auto freq = csw.frequency();
     auto max_stack_depth = csw.max_frames();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
     
     GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
-    JNIEnv *env = getJNIEnv(jvm);
     GlobalCtx::recording.cpu_profiler->start(env);
+    processes.push_back(GlobalCtx::recording.cpu_profiler.get());
 }
 
 void Controller::retire(const recording::CpuSampleWork& csw) {
