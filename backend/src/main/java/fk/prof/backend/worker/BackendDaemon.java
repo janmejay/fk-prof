@@ -16,6 +16,7 @@ import fk.prof.backend.util.URLUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.WorkerExecutor;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -40,6 +41,7 @@ public class BackendDaemon extends AbstractVerticle {
   private final int leaderHttpPort;
   private final int backendHttpPort;
 
+  private WorkerExecutor serializationWorkerExecutor;
   private AggregationWindowPlannerStore aggregationWindowPlannerStore;
   private ProfHttpClient httpClient;
   private int loadTickCounter = 0;
@@ -66,6 +68,10 @@ public class BackendDaemon extends AbstractVerticle {
   public void start() {
     httpClient = buildHttpClient();
     aggregationWindowPlannerStore = buildAggregationWindowPlannerStore();
+
+    JsonObject poolConfig = configManager.getSerializationWorkerPoolConfig();
+    serializationWorkerExecutor = vertx.createSharedWorkerExecutor("aggregation.window.serialization.threadpool",
+            poolConfig.getInteger("size"), poolConfig.getInteger("timeout.secs") * 1000);
     postLoadToLeader();
   }
 
@@ -203,7 +209,7 @@ public class BackendDaemon extends AbstractVerticle {
   }
 
   private void serializeAndPersistAggregationWindow(FinalizedAggregationWindow finalizedAggregationWindow) {
-    vertx.executeBlocking(future -> {
+    serializationWorkerExecutor.executeBlocking(future -> {
       try {
         aggregationWindowStorage.store(finalizedAggregationWindow);
         future.complete();
@@ -218,5 +224,4 @@ public class BackendDaemon extends AbstractVerticle {
       }
     });
   }
-
 }

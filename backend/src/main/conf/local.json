@@ -64,13 +64,22 @@
       "work.assignment.max.delay.secs": 120
     }
   },
+  "serializationWorkerPool": {
+    "size": 50,
+    "timeout.secs": 20
+  },
   "storage": {
     "s3": {
       "end.point": "http://127.0.0.1:13031",
       "access.key": "",
       "secret.key": ""
     },
-    "thread.pool.size": 50,
+    "thread.pool": {
+      "coresize": 10,
+      "maxsize": 50,
+      "idletime.secs": 60,
+      "queue.maxsize": 50
+    },
     "base.dir": "profiles"
   },
   "fixedSizebufferPool" : {

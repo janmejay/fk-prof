@@ -1,6 +1,8 @@
 package fk.prof.backend;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.InstrumentedExecutorService;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
 import fk.prof.aggregation.model.AggregationWindowStorage;
@@ -21,6 +23,7 @@ import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
 import io.vertx.core.*;
+import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -35,9 +38,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -141,11 +142,21 @@ public class BackendManager {
 
   private void initStorage() {
     JsonObject s3Config = configManager.getS3Config();
-    ExecutorService storageExecSvc = new InstrumentedExecutorService(Executors.newFixedThreadPool(configManager.getStorageThreadPoolSize()),
-        SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY), "executors.fixed_thread_pool.storage");
+    JsonObject threadPoolConfig = configManager.getStorageThreadPoolConfig();
+    MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+    Counter threadPoolRejectionsCounter = metricRegistry.counter(MetricRegistry.name(S3AsyncStorage.class, "threadpool.rejections"));
+
+    // thread pool with bounded queue for s3 io.
+    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getInteger("queue.maxsize"));
+    ExecutorService storageExecSvc = new InstrumentedExecutorService(
+        new ThreadPoolExecutor(threadPoolConfig.getInteger("coresize"), threadPoolConfig.getInteger("maxsize"), threadPoolConfig.getInteger("idletime.secs"), TimeUnit.SECONDS, ioTaskQueue,
+                new AbortPolicy("s3ExectorSvc", threadPoolRejectionsCounter)),
+        metricRegistry, "executors.fixed_thread_pool.storage");
+
     this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
         storageExecSvc);
 
+    // buffer pool to temporarily store serialized bytes
     JsonObject bufferPoolConfig = configManager.getFixedSizeBufferPool();
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
     poolConfig.setMaxTotal(bufferPoolConfig.getInteger("max.total"));
@@ -180,5 +191,21 @@ public class BackendManager {
     LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
     builder.disableBackend(backendDeployments);
     return builder.build(vertx, leaderHttpVerticleDeployer);
+  }
+
+  public static class AbortPolicy implements RejectedExecutionHandler {
+
+    private String forExecutorSvc;
+    private Counter counter;
+
+    public AbortPolicy(String forExecutorSvc, Counter counter) {
+      this.forExecutorSvc = forExecutorSvc;
+      this.counter = counter;
+    }
+
+    public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+      counter.inc();
+      throw new RejectedExecutionException("Task rejected from " + forExecutorSvc);
+    }
   }
 }
