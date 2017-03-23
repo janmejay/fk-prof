@@ -80,6 +80,9 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
     auto now = Time::now();
     std::chrono::duration<double> uptime = now - start_time;
     ri.set_recorder_uptime(uptime.count());
+
+    auto c = ri.mutable_capabilities();
+    c->set_can_cpu_sample(cfg.allow_sigprof);
 }
 
 static void populate_issued_work_status(recording::WorkResponse& w_res, std::uint64_t work_id, recording::WorkResponse::WorkState state, recording::WorkResponse::WorkResult result, Time::Pt& start_tm, Time::Pt& end_tm) {
@@ -311,6 +314,13 @@ void Controller::accept_work(Buff& poll_response_buff, const std::string& host, 
                 start_tm = end_tm = Time::now();
 
                 if ((delay + w.duration()) > 0) {
+                    if (! capable(w)) {
+                        logger->critical("Ignoring work {}, as capability doesn't match", w.work_id());
+                        wst = recording::WorkResponse::complete;
+                        wres = recording::WorkResponse::failure;
+                        s_c_work_failure.inc();
+                        return;
+                    }
                     wst = recording::WorkResponse::pre_start;
                     wres = recording::WorkResponse::unknown;
                     issue_work(host, port, res.controller_id(), res.controller_version());
@@ -524,6 +534,25 @@ bool has_cpu_sample_work_p(const recording::Work& work) {
     return false;
 }
 
+bool Controller::capable(const W& w) {
+    for (auto i = 0; i < w.work_size(); i++) {
+        auto work = w.work(i);
+        if (! capable(work)) return false;
+    }
+    return true;
+}
+
+bool Controller::capable(const recording::Work& work) {
+    auto w_type = work.w_type();
+    switch(w_type) {
+    case recording::WorkType::cpu_sample_work:
+        return has_cpu_sample_work_p(work) && capable(work.cpu_sample());
+    default:
+        logger->error("Encountered unknown work type {}", w_type);
+        return false;
+    }
+}
+
 void Controller::prep(const recording::Work& work) {
     auto w_type = work.w_type();
     switch(w_type) {
@@ -533,7 +562,7 @@ void Controller::prep(const recording::Work& work) {
         }
         return;
     default:
-        logger->error("Encountered unknown work type {}", w_type);
+        assert(false);
     }
 }
 
@@ -547,7 +576,7 @@ void Controller::issue(const recording::Work& work, Processes& processes, JNIEnv
         }
         return;
     default:
-        logger->error("Encountered unknown work type {}", w_type);
+        assert(false);
     }
 }
 
@@ -561,8 +590,14 @@ void Controller::retire(const recording::Work& work) {
         }
         return;
     default:
-        logger->error("Encountered unknown work type {}", w_type);
+        assert(false);
     }
+}
+
+bool Controller::capable(const recording::CpuSampleWork& csw) {
+    bool capable = cfg.allow_sigprof;
+    if (! capable) logger->warn("Not capable of cpu-sampling work");
+    return capable;
 }
 
 void Controller::prep(const recording::CpuSampleWork& csw) {

@@ -15,7 +15,15 @@ message RecorderInfo {
   required uint32 recorder_version = 12;
   required uint32 recorder_uptime = 13;
   required uint64 recorder_tick = 14;
+  required RecorderCapabilities capabilities = 15;
 }
+
+message RecorderCapabilities {
+  optional bool can_cpu_sample = 1 [default = false];
+  optional bool can_trace_elapsed_time = 2 [default = false];
+  optional bool can_trace_offcpu_time = 3 [default = false];
+  optional bool can_trace_alloc = 4 [default = false];
+};
 
 message AssignedBackend {
   required string host = 1;

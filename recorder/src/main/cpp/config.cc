@@ -100,6 +100,8 @@ void ConfigurationOptions::load(const char* options) {
                     logger->warn("NoCtx coverage pct is too high at {}, re-setting it to 100", noctx_cov_pct);
                     noctx_cov_pct = 100;
                 }
+            } else if (strstr(key, "allow_sigprof") == key) {
+                allow_sigprof = (std::string(value) == "y");
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
