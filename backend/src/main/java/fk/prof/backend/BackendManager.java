@@ -35,6 +35,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.KeeperException;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -72,6 +73,7 @@ public class BackendManager {
     this.curatorClient = createCuratorClient();
     curatorClient.start();
     curatorClient.blockUntilConnected(configManager.getCuratorConfig().getInteger("connection.timeout.ms", 10000), TimeUnit.MILLISECONDS);
+    ensureRequiredZkNodesPresent();
 
     initStorage();
   }
@@ -174,6 +176,14 @@ public class BackendManager {
         .sessionTimeoutMs(curatorConfig.getInteger("session.timeout.ms", 60000))
         .namespace(curatorConfig.getString("namespace", "fkprof"))
         .build();
+  }
+
+  private void ensureRequiredZkNodesPresent() throws  Exception {
+    try {
+      curatorClient.create().forPath(configManager.getLeaderHttpDeploymentConfig().getString("backend.association.path", "/association"));
+    } catch (KeeperException.NodeExistsException ex) {
+      logger.warn(ex);
+    }
   }
 
   private BackendAssociationStore createBackendAssociationStore(
