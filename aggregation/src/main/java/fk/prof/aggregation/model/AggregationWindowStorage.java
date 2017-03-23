@@ -81,7 +81,7 @@ public class AggregationWindowStorage {
         }
 
         try {
-            serializer.serialize(out);
+            serializer.serialize(gout);
             if(logger.isDebugEnabled()) {
                 logger.debug("Serialization and subsequent write successfully scheduled for file: " + filename);
             }

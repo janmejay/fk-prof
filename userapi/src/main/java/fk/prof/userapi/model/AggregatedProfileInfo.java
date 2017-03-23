@@ -37,10 +37,7 @@ public class AggregatedProfileInfo {
     }
 
     public int getDuration() {
-        ZonedDateTime start = getStart();
-        ZonedDateTime end = ZonedDateTime.parse(header.getAggregationEndTime(), DateTimeFormatter.ISO_ZONED_DATE_TIME);
-
-        return (int)start.until(end, ChronoUnit.SECONDS);
+        return header.getWindowDuration();
     }
 
     public Iterable<String> getTraces() {

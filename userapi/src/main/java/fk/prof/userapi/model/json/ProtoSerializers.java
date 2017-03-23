@@ -137,7 +137,7 @@ public class ProtoSerializers {
             gen.writeNumberField("recorder_version", value.getRecorderVersion());
 
             if(value.hasRecorderInfo()) {
-                gen.writeObjectFieldStart("recorder_info");
+                gen.writeFieldName("recorder_info");
                 JsonSerializer recorderInfoSerializer = serializers.findValueSerializer(AggregatedProfileModel.RecorderInfo.class);
                 recorderInfoSerializer.serialize(value.getRecorderInfo(), gen, serializers);
             }

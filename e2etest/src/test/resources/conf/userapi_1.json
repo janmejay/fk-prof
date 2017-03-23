@@ -3,11 +3,11 @@
   "http.instances": 1,
   "req.timeout": 10000,
   "profile.retention.duration.min": 30,
-  "aggregation_window.duration.secs": 1800,
+  "aggregation_window.duration.secs": 60,
   "storage": "S3",
   "S3": {
-    "endpoint": "<endpoint>",
-    "access.key": "<access_key>",
-    "secret.key": "<secret_key>"
+    "endpoint": "http://127.0.0.1:13031",
+    "access.key": "",
+    "secret.key": ""
   }
 }
