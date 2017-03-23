@@ -8,13 +8,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class FinalizedAggregationWindow {
-  private final String appId;
-  private final String clusterId;
-  private final String procId;
-  private final LocalDateTime start;
-  private final LocalDateTime endedAt;
-  private final int durationInSecs;
-  private final Collection<RecorderInfo> recorders;
+  protected final String appId;
+  protected final String clusterId;
+  protected final String procId;
+  protected final LocalDateTime start;
+  protected final LocalDateTime endedAt;
+  protected final int durationInSecs;
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
@@ -24,7 +23,6 @@ public class FinalizedAggregationWindow {
                                     LocalDateTime start,
                                     LocalDateTime endedAt,
                                     int durationInSecs,
-                                    Collection<RecorderInfo> recorders,
                                     Map<Long, FinalizedProfileWorkInfo> workInfoLookup,
                                     FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket) {
     this.appId = appId;
@@ -33,7 +31,6 @@ public class FinalizedAggregationWindow {
     this.start = start;
     this.endedAt = endedAt;
     this.durationInSecs = durationInSecs;
-    this.recorders = recorders;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
   }
@@ -45,6 +42,15 @@ public class FinalizedAggregationWindow {
   //NOTE: This is computed on expiry of aggregation window, null otherwise. Having a getter here to make this testable
   public LocalDateTime getEndedAt() {
     return this.endedAt;
+  }
+
+  @Override
+  public String toString() {
+    return "app_id=" + appId +
+    ", cluster_id=" + clusterId +
+    ", proc_id=" + procId +
+    ", start=" + start +
+    ", end=" + endedAt;
   }
 
   @Override
@@ -70,8 +76,10 @@ public class FinalizedAggregationWindow {
   protected Header buildHeaderProto(int version, WorkType workType) {
     Header.Builder builder = Header.newBuilder()
         .setFormatVersion(version)
+        .setWorkType(workType)
         .setAggregationEndTime(endedAt == null ? null : endedAt.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAggregationStartTime(start.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
+        .setWindowDuration(durationInSecs)
         .setAppId(appId)
         .setClusterId(clusterId)
         .setProcId(procId);
@@ -85,10 +93,6 @@ public class FinalizedAggregationWindow {
 
   protected Header buildHeaderProto(int version) {
     return buildHeaderProto(version, null);
-  }
-
-  protected RecorderList buildRecorderListProto() {
-    return RecorderList.newBuilder().addAllRecorders(recorders).build();
   }
 
   /**
@@ -120,10 +124,10 @@ public class FinalizedAggregationWindow {
     }
 
     // using first profile.tracesCount * 2 as initial capacity to avoid array resize. All recorded profiles have almost same set of traces.
-    int initialCapacity = workInfoLookup.values().iterator().next().recordedTraces().size() * 2;
+    int initialCapacity = workInfoLookup.values().iterator().next().getRecordedTraces().size() * 2;
     Set<String> traces = new HashSet<>(initialCapacity);
 
-    workInfoLookup.values().stream().forEach(e -> traces.addAll(e.recordedTraces()));
+    workInfoLookup.values().stream().forEach(e -> traces.addAll(e.getRecordedTraces()));
 
     builder.addAllName(traces);
 

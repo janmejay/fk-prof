@@ -135,7 +135,12 @@ public class ProtoSerializers {
             gen.writeNumberField("start_offset", value.getStartOffset());
             gen.writeNumberField("duration", value.getDuration());
             gen.writeNumberField("recorder_version", value.getRecorderVersion());
-            gen.writeNumberField("recorder_idx", value.getRecorderIdx());
+
+            if(value.hasRecorderInfo()) {
+                gen.writeFieldName("recorder_info");
+                JsonSerializer recorderInfoSerializer = serializers.findValueSerializer(AggregatedProfileModel.RecorderInfo.class);
+                recorderInfoSerializer.serialize(value.getRecorderInfo(), gen, serializers);
+            }
 
             gen.writeObjectFieldStart("sample_count");
             for(AggregatedProfileModel.ProfileWorkInfo.SampleCount sampleCount : value.getSampleCountList()) {

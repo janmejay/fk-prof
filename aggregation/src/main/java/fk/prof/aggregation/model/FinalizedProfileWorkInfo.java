@@ -6,32 +6,29 @@ import fk.prof.aggregation.state.AggregationState;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * TODO: Add recorder info(aggregated proto) to this class, accept it in constructor which is called from ProfileWorkInfo#buildFinalizedEntity method
- */
 public class FinalizedProfileWorkInfo {
   private final int recorderVersion;
-  private final Integer recorderIdx;
+  private final RecorderInfo recorderInfo;
   private final AggregationState state;
   private final LocalDateTime startedAt;
   private final LocalDateTime endedAt;
   private final Map<String, Integer> traceCoverages;
   private final Map<WorkType, Integer> samples;
 
-  // TODO add source info also.
   public FinalizedProfileWorkInfo(int recorderVersion,
-                                  int recorderIdx,
+                                  RecorderInfo recorderInfo,
                                   AggregationState state,
                                   LocalDateTime startedAt,
                                   LocalDateTime endedAt,
                                   Map<String, Integer> traceCoverages,
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
-    this.recorderIdx = recorderIdx;
+    this.recorderInfo = recorderInfo;
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
@@ -46,7 +43,7 @@ public class FinalizedProfileWorkInfo {
                                   Map<String, Integer> traceCoverages,
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
-    this.recorderIdx = null;
+    this.recorderInfo = null;
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
@@ -84,10 +81,10 @@ public class FinalizedProfileWorkInfo {
         && this.endedAt.equals(other.endedAt)
         && this.traceCoverages.equals(other.traceCoverages)
         && this.samples.equals(other.samples)
-        && (this.recorderIdx == null ? other.recorderIdx == null : this.recorderIdx.equals(other.recorderIdx));
+        && (this.recorderInfo == null ? other.recorderInfo == null : this.recorderInfo.equals(other.recorderInfo));
   }
 
-  protected Set<String> recordedTraces() {
+  protected Set<String> getRecordedTraces() {
     return traceCoverages.keySet();
   }
 
@@ -99,8 +96,8 @@ public class FinalizedProfileWorkInfo {
               .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
               .setStatus(toAggregationStatusProto(state));
 
-      if(recorderIdx != null) {
-        builder.setRecorderIdx(recorderIdx);
+      if(recorderInfo != null) {
+        builder.setRecorderInfo(recorderInfo);
       }
 
       if(workType != null) {

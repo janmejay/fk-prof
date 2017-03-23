@@ -14,6 +14,20 @@ public class ProtoUtil {
     return AggregatedProfileModel.WorkType.forNumber(recorderWorkType.getNumber());
   }
 
+  public static AggregatedProfileModel.RecorderInfo mapToAggregatorRecorderInfo(Recorder.RecorderInfo r) {
+    return AggregatedProfileModel.RecorderInfo.newBuilder()
+            .setAppId(r.getAppId())
+            .setCluster(r.getCluster())
+            .setProcessName(r.getProcName())
+            .setHostname(r.getHostname())
+            .setInstanceGroup(r.getInstanceGrp())
+            .setInstanceId(r.getInstanceId())
+            .setInstanceType(r.getInstanceType())
+            .setIp(r.getIp())
+            .setVmId(r.getVmId())
+            .setZone(r.getZone()).build();
+  }
+
   //Avoids double byte copy to create a vertx buffer
   public static Buffer buildBufferFromProto(AbstractMessage message) throws IOException {
     int serializedSize = message.getSerializedSize();

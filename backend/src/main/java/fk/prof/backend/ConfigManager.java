@@ -33,6 +33,11 @@ public class ConfigManager {
   private static final String BACKEND_DAEMON_OPTIONS_KEY = "daemonOptions";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
+  private static final String STORAGE = "storage";
+  private static final String S3 = "s3";
+  private static final String THREAD_POOL = "thread.pool";
+  private static final String FIXED_SIZE_POOL_KEY = "fixedSizebufferPool";
+  private static final String SERIALIZATION_WORKER_POOL_KEY = "serializationWorkerPool";
 
   public static final String METRIC_REGISTRY = "vertx-registry";
 
@@ -128,5 +133,43 @@ public class ConfigManager {
     Properties properties = System.getProperties();
     properties.computeIfAbsent(ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> ConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
     properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
+  }
+
+  public JsonObject getS3Config() {
+    return getStorageConfig().getJsonObject(S3);
+  }
+
+
+  public JsonObject getStorageThreadPoolConfig() {
+    JsonObject tpConfig = getStorageConfig().getJsonObject(THREAD_POOL);
+    checkNotEmpty(tpConfig, "thread pool");
+    return tpConfig;
+  }
+
+  public JsonObject getStorageConfig() {
+    JsonObject storageConfig = config.getJsonObject(STORAGE);
+    checkNotEmpty(storageConfig, "storage");
+    return storageConfig;
+  }
+
+  public JsonObject getFixedSizeBufferPool() {
+    JsonObject poolConfig = config.getJsonObject(FIXED_SIZE_POOL_KEY, new JsonObject());
+    if(poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
+      throw new RuntimeException("buffer pool config is not proper");
+    }
+    return poolConfig;
+  }
+
+  public JsonObject getSerializationWorkerPoolConfig() {
+    JsonObject poolConfig = config.getJsonObject(SERIALIZATION_WORKER_POOL_KEY, new JsonObject());
+    checkNotEmpty(poolConfig, "serialization pool");
+    return poolConfig;
+  }
+
+  private void checkNotEmpty(JsonObject json, String tag) {
+    if(json == null || json.isEmpty()) {
+      // TODO: convert these to configException
+      throw new RuntimeException(tag + " config is not present");
+    }
   }
 }

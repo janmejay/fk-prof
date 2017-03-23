@@ -1,18 +1,18 @@
 package fk.prof.backend.model.assignment;
 
 public class WorkAssignmentScheduleBootstrapConfig {
-  private final int windowDurationInMins;
+  private final int windowDurationInSecs;
   private final int windowEndToleranceInSecs;
   private final int schedulingBufferInSecs;
   private final int minAcceptableDelayForWorkAssignmentInSecs;
   private final int maxAcceptableDelayForWorkAssignmentInSecs;
 
-  public WorkAssignmentScheduleBootstrapConfig(int windowDurationInMins,
+  public WorkAssignmentScheduleBootstrapConfig(int windowDurationInSecs,
                                                int windowEndToleranceInSecs,
                                                int schedulingBufferInSecs,
                                                int maxAcceptableDelayForWorkAssignmentInSecs)
       throws IllegalArgumentException {
-    this.windowDurationInMins = windowDurationInMins;
+    this.windowDurationInSecs = windowDurationInSecs;
     this.windowEndToleranceInSecs = windowEndToleranceInSecs;
     this.schedulingBufferInSecs = schedulingBufferInSecs;
     this.maxAcceptableDelayForWorkAssignmentInSecs = maxAcceptableDelayForWorkAssignmentInSecs;
@@ -24,8 +24,8 @@ public class WorkAssignmentScheduleBootstrapConfig {
     }
   }
 
-  public int getWindowDurationInMins() {
-    return windowDurationInMins;
+  public int getWindowDurationInSecs() {
+    return windowDurationInSecs;
   }
 
   public int getWindowEndToleranceInSecs() {

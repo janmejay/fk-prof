@@ -24,7 +24,7 @@ public class WorkAssignmentScheduleTest {
 
   @Test
   public void testFetchOfWorkAssignmentWithMaxDelay() throws InterruptedException {
-    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 5, 10);
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 5, 10);
     WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
     Assert.assertEquals(3, was.getMaxOverlap());
 
@@ -47,14 +47,14 @@ public class WorkAssignmentScheduleTest {
 
   @Test
   public void testBuildingOfScheduleWithTooLessConcurrentEntriesAllowed() throws InterruptedException {
-    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 5, 10);
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 5, 10);
     WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
     Assert.assertTrue(was.getMaxOverlap() > 1);
   }
 
   @Test
   public void testFetchOfWorkAssignmentWithMinDelay() throws InterruptedException {
-    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(1, 10, 2, 10);
+    WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 2, 10);
     WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));

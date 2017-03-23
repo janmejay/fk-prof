@@ -1,6 +1,7 @@
 package fk.prof.backend;
 
 import com.google.common.io.Files;
+import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
 import fk.prof.backend.http.ProfHttpClient;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +67,7 @@ public class PollAndLoadApiTest {
   private WorkSlotPool workSlotPool;
   private BackendAssociationStore backendAssociationStore;
   private PolicyStore policyStore;
+  private AggregationWindowStorage aggregationWindowStorage;
 
   private String backendDaemonVerticleDeployment;
   private List<String> backendHttpVerticleDeployments;
@@ -97,11 +100,12 @@ public class PollAndLoadApiTest {
     workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
     activeAggregationWindows = new ActiveAggregationWindowsImpl();
     policyStore = spy(new PolicyStore());
+    aggregationWindowStorage = mock(AggregationWindowStorage.class);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
         activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
-        associatedProcessGroups, activeAggregationWindows, workSlotPool);
+        associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
         context.fail(ar.result().cause());
@@ -226,19 +230,18 @@ public class PollAndLoadApiTest {
     });
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 15000)
   public void testAggregationWindowSetupAndPollResponse(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
     policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
-      @Override
-      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
-        //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
-        boolean released = latch.await(8, TimeUnit.SECONDS);
-        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
-      }
+    when(policyStore.get(processGroup)).then(invocationOnMock -> {
+      //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
+      System.out.println("Fetching policy before wait");
+      latch.await(8, TimeUnit.SECONDS);
+      System.out.println("Fetching policy after wait");
+      return invocationOnMock.callRealMethod();
     });
 
     Recorder.PollReq pollReq = Recorder.PollReq.newBuilder()
@@ -246,6 +249,7 @@ public class PollAndLoadApiTest {
         .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
         .build();
     Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(configManager.getIPAddress()).setPort(configManager.getBackendHttpPort()).build();
+
     makePollRequest(assignedBackend, pollReq).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -254,6 +258,7 @@ public class PollAndLoadApiTest {
         //400 returned because backend is not associated with the process group of recorder sending poll request
         context.assertEquals(400, ar1.result().getStatusCode());
         //Wait for sometime for load to get reported twice, so that backend gets marked as available
+        System.out.println("first poll done");
         vertx.setTimer(2500, timerId -> {
           try {
             makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
@@ -261,6 +266,7 @@ public class PollAndLoadApiTest {
                 context.fail(ar2.cause());
               }
               context.assertEquals(200, ar2.result().getStatusCode());
+              System.out.println("then association call done");
               try {
                 //wait for some time so that backend reports load
                 vertx.setTimer(1500, timerId1 -> {
@@ -275,6 +281,7 @@ public class PollAndLoadApiTest {
                       }
                       try {
                         context.assertEquals(200, ar3.result().getStatusCode());
+                        System.out.println("this the the second poll call");
                         Recorder.PollRes pollRes1 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar3.result().getResponse());
                         context.assertEquals(Recorder.WorkAssignment.getDefaultInstance(), pollRes1.getAssignment());
                         //countdown latch, so that work is returned by leader and aggregation window is setup, waiting for 1 sec before making another poll request
@@ -283,7 +290,7 @@ public class PollAndLoadApiTest {
                             .setRecorderInfo(buildRecorderInfo(processGroup, 3))
                             .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
                             .build();
-                        vertx.setTimer(1500, timerId2 -> {
+                        vertx.setTimer(2500, timerId2 -> {
                           try {
                             makePollRequest(assignedBackend, pollReq2).setHandler(ar4 -> {
                               if(ar4.failed()) {
@@ -291,8 +298,10 @@ public class PollAndLoadApiTest {
                               }
                               try {
                                 context.assertEquals(200, ar4.result().getStatusCode());
+                                System.out.println("last poll call");
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
+                                System.out.println("Got work: " + pollRes2.getAssignment().getWorkId());
                                 context.assertEquals(BitOperationUtil.constructLongFromInts(configManager.getBackendId(), 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
