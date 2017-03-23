@@ -66,7 +66,7 @@ bool Profiler::start(JNIEnv *jniEnv) {
     /* within critical section */
 
     if (running) {
-        logError("WARN: Start called but sampling is already running\n");
+        logger->warn("Start called but sampling is already running");
         return true;
     }
 

@@ -46,8 +46,6 @@ namespace GlobalCtx {
     extern ProbPct* prob_pct;
 }
 
-void logError(const char *__restrict format, ...);
-
 Profiler *getProfiler();
 void setProfiler(Profiler *p);
 
@@ -94,7 +92,7 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
     JVMTI_ERROR_MESSAGE_CLEANUP_RET(error, "JVMTI error {}", retval, cleanup)
 
 // Wrap JVMTI functions in this in functions that expect a return value.
-#define JVMTI_ERROR_RET(error, retval)                                           \
+#define JVMTI_ERROR_RET(error, retval)                                         \
   JVMTI_ERROR_CLEANUP_RET(error, retval, /* nothing */)
 
 // Wrap JVMTI functions in this in void functions.
@@ -105,7 +103,7 @@ const int MAX_FRAMES_TO_CAPTURE = 2048;
   {                                                                            \
     int err;                                                                   \
     if ((err = (error)) != JVMTI_ERROR_NONE) {                                 \
-      logError("JVMTI error %d\n", err);                                       \
+        logger->critical("JVMTI error {}", err);                               \
       cleanup;                                                                 \
       return;                                                                  \
     }                                                                          \
