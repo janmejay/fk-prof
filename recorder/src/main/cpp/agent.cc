@@ -11,6 +11,7 @@
 #include "controller.hh"
 #include "perf_ctx.hh"
 #include "prob_pct.hh"
+#include "metric_formatter.hh"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define GETENV_NEW_THREAD_ASYNC_UNSAFE
@@ -23,7 +24,8 @@ static ThreadMap threadMap;
 PerfCtx::Registry* GlobalCtx::ctx_reg;
 ProbPct* GlobalCtx::prob_pct;
 medida::MetricsRegistry* GlobalCtx::metrics_registry;
-medida::reporting::CollectdReporter* metrics_reporter;
+medida::reporting::UdpReporter* metrics_reporter;
+MetricFormatter::SyslogTsdbFormatter *formatter;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -257,6 +259,14 @@ void log_level_self_test() {
     logger->critical(LST "*critical*");
 }
 
+std::string tsdb_tags() {
+    std::string tags = "prefix_override=fkpr";
+    if (CONFIGURATION->proc != nullptr) {
+        tags += (" proc=" + std::string(CONFIGURATION->proc));
+    }
+    return tags;
+}
+
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;
@@ -309,7 +319,8 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     GlobalCtx::ctx_reg = new PerfCtx::Registry();
     GlobalCtx::prob_pct = new ProbPct();
 
-    metrics_reporter = new medida::reporting::CollectdReporter(*GlobalCtx::metrics_registry);
+    formatter = new MetricFormatter::SyslogTsdbFormatter(tsdb_tags());
+    metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, CONFIGURATION->metrics_dst_port);
     metrics_reporter->start();
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
@@ -324,6 +335,7 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
 
     delete controller;
     delete metrics_reporter;
+    delete formatter;
     delete GlobalCtx::ctx_reg;
     delete GlobalCtx::prob_pct;
     delete GlobalCtx::metrics_registry;

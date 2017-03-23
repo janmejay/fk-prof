@@ -37,7 +37,7 @@ public class AggregationWindowStorage {
 
     public void store(FinalizedAggregationWindow aggregationWindow) throws IOException {
 
-        // right now only cpu_sample date is available. In future data related to other pivots like thread, contentions will be collected and serialized here.
+        // right now only cpu_sample data is available. In future data related to other pivots like thread, contentions will be collected and serialized here.
 
         // cpu_sample
         store(aggregationWindow, AggregatedProfileModel.WorkType.cpu_sample_work);
@@ -81,7 +81,7 @@ public class AggregationWindowStorage {
         }
 
         try {
-            serializer.serialize(out);
+            serializer.serialize(gout);
             if(logger.isDebugEnabled()) {
                 logger.debug("Serialization and subsequent write successfully scheduled for file: " + filename);
             }

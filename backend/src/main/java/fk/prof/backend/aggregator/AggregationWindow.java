@@ -134,7 +134,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     workInfo.updateWSESpecificDetails(wse);
   }
 
-  public synchronized void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
+  public void updateRecorderInfo(long workId, Recorder.RecorderInfo recorderInfo) {
     ensureEntityIsWriteable();
 
     ProfileWorkInfo workInfo = workInfoLookup.get(workId);

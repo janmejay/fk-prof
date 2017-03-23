@@ -155,6 +155,7 @@ namespace PerfCtx {
         void exit(TracePt pt) throw (IncorrectEnterExitPairing);
         int current(EffectiveCtx& curr);
         bool should_record();
+        bool in_ctx();
     };
 };
 

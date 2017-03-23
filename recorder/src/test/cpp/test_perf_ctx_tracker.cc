@@ -22,6 +22,12 @@ PerfCtx::TracePt reg(Registry& r, const char* name, PerfCtx::MergeSemantic m = P
     return r.find_or_bind(name, 0, static_cast<std::uint8_t>(m));
 }
 
+#define LOAD_AND_ASSERT_CURRENT_CTX_IS(expected_len, ctx, into)  \
+    {                                                            \
+        CHECK_EQUAL(expected_len, ctx.current(into));            \
+        CHECK_EQUAL((expected_len > 0), ctx.in_ctx());           \
+    }
+
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
     TestEnv _;
     Registry r;
@@ -30,25 +36,25 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_merging_to_parent) {
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(10);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{10}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.enter(20);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.enter(30);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(30);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(20);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(10);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
@@ -58,7 +64,7 @@ TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
     ThreadTracker t_ctx(r, prob_pct, 210);
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(10);
     t_ctx.enter(20);
     try {
@@ -68,12 +74,12 @@ TEST(ThreadPerfCtxTracker__should_not_allow_unpaired_pop) {
         CHECK_EQUAL("Expected 20 got 10", e.what());
     }
     std::array<TracePt, 1> expected{{10}};
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(20);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(10);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
@@ -90,68 +96,68 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_scoping_under_parent) {
     reg(r, "3");
     reg(r, "5");
     reg(r, "7");
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     //now we exit 2 nearest scopes and push them in opposite order
     
     t_ctx.exit(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     //permutation id now is 4 and not 5, while combination-id is the same (this distinguishes 2>7>3>5 from 2>7>5>3
 
     t_ctx.exit(SCOPED_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 3) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent) {
@@ -171,48 +177,48 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
     reg(r, "11");
     reg(r, "13");
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     
     t_ctx.enter(SCOPED_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 11);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 13);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 17);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3 * 11) << GENERATED_COMBINATION_SHIFT) | 0xE;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
 
     t_ctx.exit(42); //this is gibberish, doesn't matter, because ctx-tracer is ignoring it (its beyond 5 levels)
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     t_ctx.exit(42); //gibberish again, same as above
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     try {
@@ -224,26 +230,26 @@ TEST(ThreadPerfCtxTracker__not_nest_beyond_max_depth__when_scoping_under_parent)
     
     t_ctx.exit(SCOPED_MASK | 11);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_under_parent) {
@@ -263,74 +269,74 @@ TEST(ThreadPerfCtxTracker__not_exceed_max_depth_due_to_recursion___when_scoping_
     reg(r, "11");
     reg(r, "13");
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 11);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.enter(SCOPED_MASK | 5);
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     t_ctx.enter(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 7);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3 * 7) << GENERATED_COMBINATION_SHIFT) | 0x14;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 13);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(1729);//gibberish
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5 * 3) << GENERATED_COMBINATION_SHIFT) | 0x5;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 3);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.exit(SCOPED_MASK | 5);
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     t_ctx.exit(SCOPED_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 11) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 11);
     expected[0] = 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when_strict_scoping_under_parent__and_starting_out_with_scoped_ctx) {
@@ -349,66 +355,66 @@ TEST(ThreadPerfCtxTracker__should_track_recursion__and_handle_scoping_well__when
     reg(r, "5", PerfCtx::MergeSemantic::scoped_strict);
     reg(r, "7");
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(SCOPED_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{SCOPED_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_STRICT_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_STRICT_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     
     t_ctx.enter(SCOPED_STRICT_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x12;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.enter(100 - 1);//gibberish
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.exit(i);//gibberish
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     t_ctx.exit(SCOPED_STRICT_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5 * 5) << GENERATED_COMBINATION_SHIFT) | 0x4;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_STRICT_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7 * 5) << GENERATED_COMBINATION_SHIFT) | 0x1;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_STRICT_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = SCOPED_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____and_handle_overflow_well) {
@@ -423,66 +429,66 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_stacking_over_parent_____
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(PARENT_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{PARENT_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(STACK_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(PARENT_MASK | 4);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(STACK_MASK | 9);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 9;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
     
     t_ctx.enter(STACK_MASK | 5);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 5;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.enter(100 - 1);//gibberish
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.exit(i);//gibberish
-        CHECK_EQUAL(1, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 1);
     }
 
     t_ctx.exit(STACK_MASK | 5);
     expected[0] = STACK_MASK | 9;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(STACK_MASK | 9);
     expected[0] = STACK_MASK | 7;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 4);
     expected[0] = STACK_MASK | 7;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(STACK_MASK | 7);
     expected[0] = PARENT_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) {
@@ -497,34 +503,34 @@ TEST(ThreadPerfCtxTracker__should_handle_stacking_merge_semantic_for_first_ctx) 
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(STACK_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, 1> expected{{STACK_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(STACK_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(PARENT_MASK | 4);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACK_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 4);
     expected[0] = STACK_MASK | 7;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(STACK_MASK | 7);
     expected[0] = STACK_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(STACK_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent_____and_handle_overflow_well) {
@@ -538,33 +544,33 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(PARENT_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, MAX_NESTING> expected{{PARENT_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(DUP_MASK | 7);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.enter(PARENT_MASK | 4);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.enter(DUP_MASK | 9);
-    CHECK_EQUAL(3, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(3, t_ctx, curr);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
     expected[2] = DUP_MASK | 9;
     CHECK_ARRAY_EQUAL(expected, curr, 3);
     
     t_ctx.enter(DUP_MASK | 5);
-    CHECK_EQUAL(4, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(4, t_ctx, curr);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
     expected[2] = DUP_MASK | 9;
@@ -573,13 +579,13 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.enter(100 - 1);//gibberish
-        CHECK_EQUAL(4, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(4, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 4);
     }
 
     for (auto i = 0; i < 100; i++) {
         t_ctx.exit(i);//gibberish
-        CHECK_EQUAL(4, t_ctx.current(curr));
+        LOAD_AND_ASSERT_CURRENT_CTX_IS(4, t_ctx, curr);
         CHECK_ARRAY_EQUAL(expected, curr, 4);
     }
 
@@ -587,28 +593,28 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__when_duplicating_over_parent__
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
     expected[2] = DUP_MASK | 9;
-    CHECK_EQUAL(3, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(3, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 3);
 
     t_ctx.exit(DUP_MASK | 9);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(PARENT_MASK | 4);
     expected[0] = PARENT_MASK | 2;
     expected[1] = DUP_MASK | 7;
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(DUP_MASK | 7);
     expected[0] = PARENT_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first_ctx) {
@@ -622,20 +628,20 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(DUP_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, MAX_NESTING> expected{{DUP_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(DUP_MASK | 7);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = DUP_MASK | 2;
     expected[1] = DUP_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.enter(PARENT_MASK | 4);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = DUP_MASK | 2;
     expected[1] = DUP_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
@@ -643,16 +649,16 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_merge_for_first
     t_ctx.exit(PARENT_MASK | 4);
     expected[0] = DUP_MASK | 2;
     expected[1] = DUP_MASK | 7;
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(DUP_MASK | 7);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(DUP_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by_scoping_elements) {
@@ -674,25 +680,25 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
     reg(r, "13");
 
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(DUP_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, MAX_NESTING> expected{{DUP_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(SCOPED_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(DUP_MASK | 5);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     expected[1] = DUP_MASK | 5;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.enter(DUP_MASK | 11);
-    CHECK_EQUAL(3, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(3, t_ctx, curr);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     expected[1] = DUP_MASK | 5;
     expected[2] = DUP_MASK | 11;
@@ -702,21 +708,21 @@ TEST(ThreadPerfCtxTracker__should_understand_ctx__with_duplicate_chain_broken_by
     t_ctx.exit(DUP_MASK | 11);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
     expected[1] = DUP_MASK | 5;
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(DUP_MASK | 5);
     expected[0] = MERGE_GENERATED_TYPE | ((2 * 7) << GENERATED_COMBINATION_SHIFT);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(SCOPED_MASK | 7);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(DUP_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_chain_broken_by_stacking_elements) {
@@ -730,25 +736,25 @@ TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_cha
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(DUP_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, MAX_NESTING> expected{{DUP_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(STACKED_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = STACKED_MASK | 7;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(DUP_MASK | 4);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = STACKED_MASK | 7;
     expected[1] = DUP_MASK | 4;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.enter(DUP_MASK | 9);
-    CHECK_EQUAL(3, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(3, t_ctx, curr);
     expected[0] = STACKED_MASK | 7;
     expected[1] = DUP_MASK | 4;
     expected[2] = DUP_MASK | 9;
@@ -757,21 +763,21 @@ TEST(ThreadPerfCtxTracker__should_understand_duplicating_ctx__with_duplicate_cha
     t_ctx.exit(DUP_MASK | 9);
     expected[0] = STACKED_MASK | 7;
     expected[1] = DUP_MASK | 4;
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(DUP_MASK | 4);
     expected[0] = STACKED_MASK | 7;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(STACKED_MASK | 7);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(DUP_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_merge_elements_between_2_duplicate) {
@@ -785,45 +791,45 @@ TEST(ThreadPerfCtxTracker__should_duplicating__when_chain_has_several_parent_mer
 
     std::array<TracePt, MAX_NESTING> curr;
 
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
     t_ctx.enter(DUP_MASK | 2);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     std::array<TracePt, MAX_NESTING> expected{{DUP_MASK | 2}};
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(PARENT_MASK | 7);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = DUP_MASK | 2;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(PARENT_MASK | 4);
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     expected[0] = DUP_MASK | 2;
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.enter(DUP_MASK | 9);
-    CHECK_EQUAL(2, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(2, t_ctx, curr);
     expected[0] = DUP_MASK | 2;
     expected[1] = DUP_MASK | 9;
     CHECK_ARRAY_EQUAL(expected, curr, 2);
 
     t_ctx.exit(DUP_MASK | 9);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 4);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(PARENT_MASK | 7);
     expected[0] = DUP_MASK | 2;
-    CHECK_EQUAL(1, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(1, t_ctx, curr);
     CHECK_ARRAY_EQUAL(expected, curr, 1);
 
     t_ctx.exit(DUP_MASK | 2);
-    CHECK_EQUAL(0, t_ctx.current(curr));
+    LOAD_AND_ASSERT_CURRENT_CTX_IS(0, t_ctx, curr);
 }
 
 TEST(ThreadPerfCtxTracker__should_turn_on_recording_enough_times_to_meet_desired_coverage) {

@@ -14,7 +14,7 @@ message RecorderInfo {
   required string local_time = 11;
   required uint32 recorder_version = 12;
   required uint32 recorder_uptime = 13;
-//  required uint64 recorder_tick = 14; //TODO: Temporarily commenting out this field because recorder does not send tick. REMOVE the comment
+  required uint64 recorder_tick = 14;
 }
 
 message AssignedBackend {
@@ -48,7 +48,7 @@ message WorkResponse {
     failure = 2;
   }
   required WorkResult work_result = 3;
-  required uint32 elapsed_time = 5;
+  required uint32 elapsed_time = 4;
 }
 
 message WorkAssignment {

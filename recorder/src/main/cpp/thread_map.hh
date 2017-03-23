@@ -77,15 +77,12 @@ struct ThreadBucket {
 	~ThreadBucket() {
 		delete[] name;
 	}
-};
 
-
-template <typename MapProvider>
-class ThreadMapBase {
-private:
-	MapProvider map;
-
-	static ThreadBucket *acq_bucket(ThreadBucket *tb) {
+    // This function is public purely to aid testing
+    ////  and should never be called outside of tests.
+    // DO NOT CALL THIS unless you REALLY know what
+    ////  you are doing.
+    static ThreadBucket *acq_bucket(ThreadBucket *tb) {
 		if (tb != nullptr) {
 			int prev = tb->refs.fetch_add(1, std::memory_order_relaxed);
 			if (prev > 0) {
@@ -95,6 +92,13 @@ private:
 		}
 		return nullptr;
 	}
+};
+
+
+template <typename MapProvider>
+class ThreadMapBase {
+private:
+	MapProvider map;
 
 public:
 
@@ -116,7 +120,7 @@ public:
 	}
 
 	ThreadBucket *get(JNIEnv *jni_env) {
-		ThreadBucket *info = acq_bucket((ThreadBucket*)map.get((map::KeyType)jni_env));
+		ThreadBucket *info = ThreadBucket::acq_bucket((ThreadBucket*)map.get((map::KeyType)jni_env));
 		if (info != nullptr)
 			GCHelper::signalSafepoint(info->localEpoch);
 		return info;

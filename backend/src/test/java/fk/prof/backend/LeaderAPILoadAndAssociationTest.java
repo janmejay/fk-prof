@@ -127,12 +127,12 @@ public class LeaderAPILoadAndAssociationTest {
         .setHandler(ar1 -> {
           if(ar1.succeeded()) {
             try {
-              makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(0)))
+              makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(0)))
                   .setHandler(ar2 -> {
                     if (ar2.succeeded()) {
                       try {
                         context.assertEquals("1", ar2.result().getHost());
-                        makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(1)))
+                        makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(1)))
                             .setHandler(ar3 -> {
                               if (ar3.succeeded()) {
                                 context.assertEquals("1", ar3.result().getHost());
@@ -141,7 +141,7 @@ public class LeaderAPILoadAndAssociationTest {
                                       .setHandler(ar4 -> {
                                         if (ar4.succeeded()) {
                                           try {
-                                            makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
+                                            makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
                                                 .setHandler(ar5 -> {
                                                   if (ar5.succeeded()) {
                                                     context.assertEquals("2", ar5.result().getHost());
@@ -151,7 +151,7 @@ public class LeaderAPILoadAndAssociationTest {
                                                             .setHandler(ar6 -> {
                                                               if (ar6.succeeded()) {
                                                                 try {
-                                                                  makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
+                                                                  makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
                                                                       .setHandler(ar7 -> {
                                                                         if (ar7.succeeded()) {
                                                                           context.assertEquals("1", ar7.result().getHost());
@@ -228,11 +228,11 @@ public class LeaderAPILoadAndAssociationTest {
     return future;
   }
 
-  private Future<Recorder.AssignedBackend> makeRequestGetAssociation(Recorder.RecorderInfo payload)
+  private Future<Recorder.AssignedBackend> makeRequestPostAssociation(Recorder.RecorderInfo payload)
       throws IOException {
     Future<Recorder.AssignedBackend> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .put(port, "localhost", "/leader/association")
+        .post(port, "localhost", "/leader/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
@@ -252,7 +252,7 @@ public class LeaderAPILoadAndAssociationTest {
         .setAppId(processGroup.getAppId())
         .setCluster(processGroup.getCluster())
         .setProcName(processGroup.getProcName())
-//        .setRecorderTick(1) //TODO: hack for missing recorder tick, remove comment
+        .setRecorderTick(1)
         .setHostname("1")
         .setInstanceGrp("1")
         .setInstanceId("1")

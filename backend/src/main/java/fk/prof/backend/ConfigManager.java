@@ -35,8 +35,9 @@ public class ConfigManager {
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
   private static final String STORAGE = "storage";
   private static final String S3 = "s3";
-  private static final String THREAD_POOL_SIZE = "thread.pool.size";
+  private static final String THREAD_POOL = "thread.pool";
   private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
+  private static final String SERIALIZATION_WORKER_POOL_KEY = "serializationWorkerPool";
 
   public static final String METRIC_REGISTRY = "backend-metric-registry";
 
@@ -139,16 +140,15 @@ public class ConfigManager {
   }
 
 
-  public int getStorageThreadPoolSize() {
-    return getStorageConfig().getInteger(THREAD_POOL_SIZE, 10);
+  public JsonObject getStorageThreadPoolConfig() {
+    JsonObject tpConfig = getStorageConfig().getJsonObject(THREAD_POOL);
+    checkNotEmpty(tpConfig, "thread pool");
+    return tpConfig;
   }
 
   public JsonObject getStorageConfig() {
     JsonObject storageConfig = config.getJsonObject(STORAGE);
-    if(storageConfig == null || storageConfig.isEmpty()) {
-      // TODO: convert these to configException
-      throw new RuntimeException("storage config is not present");
-    }
+    checkNotEmpty(storageConfig, "storage");
     return storageConfig;
   }
 
@@ -158,5 +158,18 @@ public class ConfigManager {
       throw new RuntimeException("buffer pool config is not proper");
     }
     return poolConfig;
+  }
+
+  public JsonObject getSerializationWorkerPoolConfig() {
+    JsonObject poolConfig = config.getJsonObject(SERIALIZATION_WORKER_POOL_KEY, new JsonObject());
+    checkNotEmpty(poolConfig, "serialization pool");
+    return poolConfig;
+  }
+
+  private void checkNotEmpty(JsonObject json, String tag) {
+    if(json == null || json.isEmpty()) {
+      // TODO: convert these to configException
+      throw new RuntimeException(tag + " config is not present");
+    }
   }
 }

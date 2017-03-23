@@ -57,40 +57,46 @@ void ConfigurationOptions::load(const char* options) {
                 ip = safe_copy_string(value, next);
             } else if (strstr(key, "host") == key) {
                 host = safe_copy_string(value, next);
-            } else if (strstr(key, "appid") == key) {
+            } else if (strstr(key, "app_id") == key) {
                 app_id = safe_copy_string(value, next);
-            } else if (strstr(key, "igrp") == key) {
+            } else if (strstr(key, "inst_grp") == key) {
                 inst_grp = safe_copy_string(value, next);
             } else if (strstr(key, "cluster") == key) {
                 cluster = safe_copy_string(value, next);
-            } else if (strstr(key, "instid") == key) {
+            } else if (strstr(key, "inst_id") == key) {
                 inst_id = safe_copy_string(value, next);
             } else if (strstr(key, "proc") == key) {
                 proc = safe_copy_string(value, next);
-            } else if (strstr(key, "vmid") == key) {
+            } else if (strstr(key, "vm_id") == key) {
                 vm_id = safe_copy_string(value, next);
             } else if (strstr(key, "zone") == key) {
                 zone = safe_copy_string(value, next);
-            } else if (strstr(key, "ityp") == key) {
+            } else if (strstr(key, "inst_typ") == key) {
                 inst_typ = safe_copy_string(value, next);
-            } else if (strstr(key, "backoffStart") == key) {
-                backoff_start = (std::uint32_t) atoi(value);
+            } else if (strstr(key, "backoff_start") == key) {
+                backoff_start = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_start == 0) backoff_start = MIN_BACKOFF_START;
-            } else if (strstr(key, "backoffMultiplier") == key) {
-                backoff_multiplier = (std::uint32_t) atoi(value);
+            } else if (strstr(key, "backoff_multiplier") == key) {
+                backoff_multiplier = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_multiplier == 0) backoff_multiplier = DEFAULT_BACKOFF_MULTIPLIER;
-            } else if (strstr(key, "maxRetries") == key) {
-                max_retries = (std::uint32_t) atoi(value);
-            } else if (strstr(key, "backoffMax") == key) {
-                backoff_max = (std::uint32_t) atoi(value);
+            } else if (strstr(key, "max_retries") == key) {
+                max_retries = static_cast<std::uint32_t>(atoi(value));
+            } else if (strstr(key, "backoff_max") == key) {
+                backoff_max = static_cast<std::uint32_t>(atoi(value));
                 if (backoff_max == 0) backoff_max = DEFAULT_BACKOFF_MAX;
-            } else if (strstr(key, "logLvl") == key) {
+            } else if (strstr(key, "log_lvl") == key) {
                 ConfArg val(safe_copy_string(value, next), safe_free_string);
                 log_level = resolv_log_level(val);
                 logger->warn("Log-level set to: {}", log_level);
-            } else if (strstr(key, "pollItvl") == key) {
-                poll_itvl = (std::uint32_t) atoi(value);
+            } else if (strstr(key, "poll_itvl") == key) {
+                poll_itvl = static_cast<std::uint32_t>(atoi(value));
                 if (poll_itvl == 0) poll_itvl = DEFAULT_POLLING_INTERVAL;
+            } else if (strstr(key, "metrics_dst_port") == key) {
+                metrics_dst_port = static_cast<std::uint16_t>(atoi(value));
+                if (metrics_dst_port == 0) metrics_dst_port = DEFAULT_METRICS_DEST_PORT;
+            } else if (strstr(key, "noctx_cov_pct") == key) {
+                noctx_cov_pct = static_cast<std::uint8_t>(atoi(value));
+                if (noctx_cov_pct > 100) noctx_cov_pct = 100;
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }

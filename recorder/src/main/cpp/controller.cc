@@ -61,7 +61,7 @@ static void time_now_str(std::function<void(const char*)> fn) {
     fn(buffer);
 }
 
-static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time) {
+static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time, std::uint64_t poll_tick) {
     ri.set_ip(cfg.ip);
     ri.set_hostname(cfg.host);
     ri.set_app_id(cfg.app_id);
@@ -76,6 +76,7 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
             ri.set_local_time(now);
         });
     ri.set_recorder_version(RECORDER_VERION);
+    ri.set_recorder_tick(poll_tick);
     auto now = Time::now();
     std::chrono::duration<double> uptime = now - start_time;
     ri.set_recorder_uptime(uptime.count());
@@ -129,7 +130,7 @@ static int read_from_curl_response(char *in_buff, size_t size, size_t nmemb, voi
     return available;
 }
 
-CurlHeader make_header_list(const std::vector<const char*>& headers) {
+static CurlHeader make_header_list(const std::vector<const char*>& headers) {
     CurlHeader header_list(nullptr, curl_slist_free_all);
     for(auto hdr : headers) {
         auto new_head = curl_slist_append(header_list.get(), hdr);
@@ -139,6 +140,10 @@ CurlHeader make_header_list(const std::vector<const char*>& headers) {
         }
     }
     return header_list;
+}
+
+static CurlHeader default_http_req_headers() {
+    return make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding: chunked"});
 }
 
 static inline bool do_call(Curl& curl, const char* url, const char* functional_area, std::uint32_t retries_used, metrics::Timer& timer, metrics::Ctr& fail_ctr) {
@@ -162,15 +167,13 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     assigned.ParseFromArray(associate_response_buff.buff + associate_response_buff.read_end, associate_response_buff.write_end - associate_response_buff.read_end);
     const std::string& host = assigned.host();
     std::uint32_t port = assigned.port();
-    std::stringstream ss;
-    ss << "http://" << host << ":" << port << "/poll";
-    const std::string url = ss.str();
+    const std::string url = "http://" + host + ":" + std::to_string(port) + "/poll";
     logger->info("Connecting to associate: {}", url);
     std::uint32_t backoff_seconds = cfg.backoff_start;
     auto retries_used = 0;
 
     Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
+    CurlHeader header_list(default_http_req_headers());
     if (curl.get() == nullptr || header_list == nullptr) {
         logger->error("Controller couldn't talk to assigned backend failed because cURL init failed");
         return;
@@ -178,7 +181,6 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
     Buff send(1024);
     Buff recv(1024);
@@ -190,9 +192,11 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     
     std::function<void()> poll_cb;
 
+    std::uint64_t poll_tick = 0;
+
     poll_cb = [&]() {
         recording::PollReq p_req;
-        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time);
+        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time, poll_tick);
 
         with_current_work([&p_req](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                 populate_issued_work_status(*p_req.mutable_work_last_issued(), w.work_id(), wst, wres, start_tm, end_tm);
@@ -214,6 +218,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
             backoff_seconds = cfg.backoff_start;
             retries_used = 0;
             next_tick += Time::sec(cfg.poll_itvl);
+            poll_tick = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         } else {
             if (retries_used++ >= cfg.max_retries) {
                 logger->error("COMM failed too many times, giving up on the associate: {}", url);
@@ -233,7 +238,7 @@ void Controller::run() {
     auto start_time = Time::now();
     CurlInit _;
     Curl curl(curl_easy_init(), curl_easy_cleanup);
-    CurlHeader header_list(make_header_list({ "Content-type: application/octet-stream", "Transfer-Encoding:", "Expect:"}));
+    CurlHeader header_list(default_http_req_headers());
     Buff send(1024);
     Buff recv(1024);
     auto backoff_seconds = cfg.backoff_start;
@@ -245,7 +250,7 @@ void Controller::run() {
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
     std::string service_endpoint_url = cfg.service_endpoint + std::string("/association");
     curl_easy_setopt(curl.get(), CURLOPT_URL, service_endpoint_url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
 
     curl_easy_setopt(curl.get(), CURLOPT_READDATA, &send);
     curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
@@ -255,7 +260,7 @@ void Controller::run() {
     while (keep_running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
         recording::RecorderInfo ri;
-        populate_recorder_info(ri, cfg, start_time);
+        populate_recorder_info(ri, cfg, start_time, 0);
         auto serialized_size = ri.ByteSize();
         send.ensure_free(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);
@@ -390,7 +395,7 @@ public:
         logger->info("Will now post profile to associate: {}", url);
 
         Curl curl(curl_easy_init(), curl_easy_cleanup);
-        CurlHeader header_list(make_header_list({"Content-type: application/octet-stream", "Transfer-Encoding: chunked"}));
+        CurlHeader header_list(default_http_req_headers());
         if (curl.get() == nullptr || header_list == nullptr) {
             logger->error("Controller couldn't post profile because cURL init failed");
             return;
@@ -398,7 +403,6 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list.get());
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_UPLOAD, 1L);
 
         ProfileDataReadCtx rd_ctx {&ring, &s_t_fill_wait, &s_h_req_chunk_sz};
 
@@ -468,6 +472,10 @@ void Controller::retire_work(const std::uint64_t work_id) {
                 logger->warn("Stale work-retire call (target work_id was {}, current work_id is {}), ignoring", work_id, w.work_id());
                 return;//TODO: test me!
             }
+            if (wst == recording::WorkResponse::complete) {
+                logger->info("Work {} has already been retired (result: {}), ignoring stale retire call", work_id, wres);
+                return;
+            }
             logger->info("Will now retire work {}", work_id);
             for (auto i = 0; i < w.work_size(); i++) {
                 auto work = w.work(i);
@@ -531,7 +539,7 @@ void Controller::issue(const recording::CpuSampleWork& csw) {
     auto max_stack_depth = csw.max_frames();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
     
-    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq));
+    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
     JNIEnv *env = getJNIEnv(jvm);
     GlobalCtx::recording.cpu_profiler->start(env);
 }

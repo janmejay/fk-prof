@@ -7,6 +7,7 @@ import fk.prof.recorder.utils.TestBackendServer;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
@@ -51,17 +52,17 @@ public class AssociationTest {
         runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
                 "ip=10.20.30.40," +
                 "host=foo-host," +
-                "appid=bar-app," +
-                "igrp=baz-grp," +
+                "app_id=bar-app," +
+                "inst_grp=baz-grp," +
                 "cluster=quux-cluster," +
-                "instid=corge-iid," +
+                "inst_id=corge-iid," +
                 "proc=grault-proc," +
-                "vmid=garply-vmid," +
+                "vm_id=garply-vmid," +
                 "zone=waldo-zone," +
-                "ityp=c0.small," +
-                "backoffStart=2," +
-                "backoffMax=5" +
-                "logLvl=trace"
+                "inst_typ=c0.small," +
+                "backoff_start=2," +
+                "backoff_max=5" +
+                "log_lvl=trace"
         );
     }
 
@@ -95,12 +96,12 @@ public class AssociationTest {
         assocAction[0].get(4, TimeUnit.SECONDS);
 
         assertThat(assocAction[0].isDone(), is(true));
-        assertRecorderInfoAllGood(recInfo.getValue());
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
 
         pollAction[0].get(4, TimeUnit.SECONDS);
 
         Recorder.PollReq pollRequest = pollReq.getValue();
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        assertRecorderInfoAllGood_AndGetTick(pollRequest.getRecorderInfo(), is(0l));
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
@@ -137,13 +138,13 @@ public class AssociationTest {
         assocAction[0].get(4, TimeUnit.SECONDS);
 
         assertThat(assocAction[0].isDone(), is(true));
-        assertRecorderInfoAllGood(recInfo.getValue());
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
 
         pollAction[2].get(8, TimeUnit.SECONDS);
 
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertThat(pollRequest, is(notNullValue()));
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        assertRecorderInfoAllGood_AndGetTick(pollRequest.getRecorderInfo(), is(0l));
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
@@ -155,8 +156,9 @@ public class AssociationTest {
     @Test
     public void should_RequestNewAssociate_WhenAssignedOneRefusesToWork() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        MutableObject<Recorder.RecorderInfo> recInfo1 = new MutableObject<>();
         association[0] = pointToAssociate(recInfo, 8090);
-        association[1] = pointToAssociate(recInfo, 8091);
+        association[1] = pointToAssociate(recInfo1, 8091);
         MutableBoolean assocCalledMoreThanTwice = new MutableBoolean(false);
         association[2] = (req) -> {
             assocCalledMoreThanTwice.setValue(true);
@@ -187,13 +189,14 @@ public class AssociationTest {
         assocAction[0].get(4, TimeUnit.SECONDS);
 
         assertThat(assocAction[0].isDone(), is(true));
-        assertRecorderInfoAllGood(recInfo.getValue());
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
 
         pollAction2[0].get(120, TimeUnit.SECONDS);
 
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertThat(pollRequest, is(notNullValue()));
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        assertRecorderInfoAllGood_AndGetTick(pollRequest.getRecorderInfo(), is(0l));
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
@@ -227,13 +230,13 @@ public class AssociationTest {
         assocAction[0].get(4, TimeUnit.SECONDS);
 
         assertThat(assocAction[0].isDone(), is(true));
-        assertRecorderInfoAllGood(recInfo.getValue());
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
 
         pollAction2[0].get(120, TimeUnit.SECONDS);
 
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertThat(pollRequest, is(notNullValue()));
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        assertRecorderInfoAllGood_AndGetTick(pollRequest.getRecorderInfo(), is(0l));
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
@@ -294,13 +297,13 @@ public class AssociationTest {
         
         assocAction[2].get(6, TimeUnit.SECONDS);
         
-        assertRecorderInfoAllGood(recInfo.getValue());
+        assertRecorderInfoAllGood_AndGetTick(recInfo.getValue(), is(0l));
         
         pollAction[0].get(2, TimeUnit.SECONDS);
         
         Recorder.PollReq pollRequest = pollReq.getValue();
         assertThat(pollRequest, is(notNullValue()));
-        assertRecorderInfoAllGood(pollRequest.getRecorderInfo());
+        assertRecorderInfoAllGood_AndGetTick(pollRequest.getRecorderInfo(), is(0l));
         Recorder.WorkResponse workLastIssued = pollReq.getValue().getWorkLastIssued();
         assertReportedBootstrapWorkCompletion(workLastIssued);
 
@@ -362,7 +365,7 @@ public class AssociationTest {
         };
     }
 
-    public static void assertRecorderInfoAllGood(Recorder.RecorderInfo recorderInfo) {
+    public static long assertRecorderInfoAllGood_AndGetTick(Recorder.RecorderInfo recorderInfo, final Matcher<Long> recorderTickMatcher) {
         assertThat(recorderInfo.getIp(), is("10.20.30.40"));
         assertThat(recorderInfo.getHostname(), is("foo-host"));
         assertThat(recorderInfo.getAppId(), is("bar-app"));
@@ -378,5 +381,8 @@ public class AssociationTest {
         assertThat(dateTime, allOf(greaterThan(now.minusMinutes(1)), lessThan(now.plusMinutes(1))));
         assertThat(recorderInfo.getRecorderVersion(), is(1));
         assertThat(recorderInfo.getRecorderUptime(), allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(60)));
+        long recorderTick = recorderInfo.getRecorderTick();
+        assertThat(recorderTick, recorderTickMatcher);
+        return recorderTick;
     }
 }

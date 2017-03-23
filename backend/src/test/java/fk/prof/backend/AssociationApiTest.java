@@ -101,7 +101,7 @@ public class AssociationApiTest {
       throws IOException {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-    makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
+    makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
       if(ar.succeeded()) {
         context.assertEquals(503, ar.result().getStatusCode());
         async.complete();
@@ -134,7 +134,7 @@ public class AssociationApiTest {
 
           //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
           Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-          makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
+          makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
             if (ar.succeeded()) {
               context.assertEquals(400, ar.result().getStatusCode());
               async.complete();
@@ -180,7 +180,7 @@ public class AssociationApiTest {
 
           //Leader has been elected, it will be same as backend, since backend verticles were not undeployed
           Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("a").setCluster("c").setProcName("p1").build();
-          makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
+          makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
             if(ar.succeeded()) {
               context.assertEquals(400, ar.result().getStatusCode());
               try {
@@ -188,7 +188,7 @@ public class AssociationApiTest {
                     .setHandler(ar1 -> {
                       context.assertTrue(ar1.succeeded());
                       try {
-                        makeRequestGetAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
+                        makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
                           context.assertTrue(ar2.succeeded());
                           context.assertEquals(200, ar2.result().getStatusCode());
                           try {
@@ -219,11 +219,11 @@ public class AssociationApiTest {
     });
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.RecorderInfo payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestPostAssociation(Recorder.RecorderInfo payload)
     throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-          .put(port, "localhost", "/association")
+          .post(port, "localhost", "/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
@@ -242,7 +242,7 @@ public class AssociationApiTest {
         .setAppId(processGroup.getAppId())
         .setCluster(processGroup.getCluster())
         .setProcName(processGroup.getProcName())
-//        .setRecorderTick(1) //TODO: hack for missing recorder tick, remove comment
+        .setRecorderTick(1)
         .setHostname("1")
         .setInstanceGrp("1")
         .setInstanceId("1")

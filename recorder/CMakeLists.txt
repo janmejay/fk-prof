@@ -43,7 +43,7 @@ include_directories(${JAVA_INCLUDE_PATH2})
 
 pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
-pkg_check_modules(MEDIDA REQUIRED libmedida)
+pkg_check_modules(MEDIDA REQUIRED libmedida>=0.3.0)
 include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
@@ -109,7 +109,9 @@ set(SOURCE_FILES
     ${SRC}/perf_ctx.hh
     ${SRC}/perf_ctx.cc
     ${SRC}/prob_pct.hh
-    ${SRC}/prob_pct.cc)
+    ${SRC}/prob_pct.cc
+    ${SRC}/metric_formatter.hh
+    ${SRC}/metric_formatter.cc)
 
 set(TI_SRC_FILES
     ${SRC}/agent.cc)
@@ -131,6 +133,7 @@ set(TEST_FILES
     ${SRC_TEST}/test_perf_ctx_registry.cc
     ${SRC_TEST}/test_prob_pct.cc
     ${SRC_TEST}/test_blocking_ring_buffer.cc
+    ${SRC_TEST}/test_syslog_tsdb_metric_formatter.cc
     ${SRC_TEST}/test.cc)
 
 set(TEST_UTIL_FILES

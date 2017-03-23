@@ -53,8 +53,7 @@ public class ProcessGroupDetailTest {
         .thenReturn(null);
 
     Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
-//        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
-        .setRecorderInfo(mockRIBuilders.get(0).build()) //TODO: hack for missing recorder tick, remove
+        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(0)
@@ -68,8 +67,7 @@ public class ProcessGroupDetailTest {
     processGroupDetail.updateWorkAssignmentSchedule(was);
 
     Recorder.PollReq pollReq2 = Recorder.PollReq.newBuilder()
-//        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(2).build())
-        .setRecorderInfo(mockRIBuilders.get(0).build()) //TODO: hack for missing recorder tick, remove
+        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(2).build())
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(100)
@@ -80,8 +78,7 @@ public class ProcessGroupDetailTest {
     context.assertEquals(wa, response);
 
     Recorder.PollReq pollReq3 = Recorder.PollReq.newBuilder()
-//        .setRecorderInfo(mockRIBuilders.get(1).setRecorderTick(1).build())
-        .setRecorderInfo(mockRIBuilders.get(1).build()) //TODO: hack for missing recorder tick, remove
+        .setRecorderInfo(mockRIBuilders.get(1).setRecorderTick(1).build())
         .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
             .setElapsedTime(100)
             .setWorkId(100)
@@ -92,67 +89,62 @@ public class ProcessGroupDetailTest {
     context.assertNull(response);
   }
 
-  //TODO: Uncomment test and fix tick related todos, once recorder tick is implemented
-//  @Test
-//  public void testTargetRecordersCalculationGivenCoverage(TestContext context) throws InterruptedException {
-//    ProcessGroupDetail processGroupDetail = new ProcessGroupDetail(mockPG, 1);
-//    Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
-////        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
-//        .setRecorderInfo(mockRIBuilders.get(0).build()) //TODO: hack for missing recorder tick, remove
-//        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
-//            .setElapsedTime(100)
-//            .setWorkId(0)
-//            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
-//            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
-//        .build();
-//    processGroupDetail.getWorkAssignment(pollReq1);
-//
-//    //Ensure first recorder goes defunct
-//    Thread.sleep(1000);
-//
-//    Recorder.PollReq pollReq2 = Recorder.PollReq.newBuilder()
-////        .setRecorderInfo(mockRIBuilders.get(1).setRecorderTick(1).build())
-//        .setRecorderInfo(mockRIBuilders.get(1).build()) //TODO: hack for missing recorder tick, remove
-//        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
-//            .setElapsedTime(100)
-//            .setWorkId(100)
-//            .setWorkResult(Recorder.WorkResponse.WorkResult.unknown)
-//            .setWorkState(Recorder.WorkResponse.WorkState.running).build())
-//        .build();
-//    processGroupDetail.getWorkAssignment(pollReq2);
-//
-//    Recorder.PollReq pollReq3 = Recorder.PollReq.newBuilder()
-////        .setRecorderInfo(mockRIBuilders.get(2).setRecorderTick(1).build())
-//        .setRecorderInfo(mockRIBuilders.get(2).build()) //TODO: hack for missing recorder tick, remove
-//        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
-//            .setElapsedTime(100)
-//            .setWorkId(0)
-//            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
-//            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
-//        .build();
-//    processGroupDetail.getWorkAssignment(pollReq3);
-//
-//    context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
-//    context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
-//    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(34));
-//    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(0));
-//
-//    //first recorder comes back up
-//    Recorder.PollReq pollReq4 = Recorder.PollReq.newBuilder()
-////        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
-//        .setRecorderInfo(mockRIBuilders.get(0)) //TODO: hack for missing recorder tick, remove
-//        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
-//            .setElapsedTime(100)
-//            .setWorkId(0)
-//            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
-//            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
-//        .build();
-//    processGroupDetail.getWorkAssignment(pollReq4);
-//    context.assertEquals(3, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
-//    context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
-//    context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(34));
-//    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(0));
-//  }
+  @Test
+  public void testTargetRecordersCalculationGivenCoverage(TestContext context) throws InterruptedException {
+    ProcessGroupDetail processGroupDetail = new ProcessGroupDetail(mockPG, 1);
+    Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
+        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
+        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
+            .setElapsedTime(100)
+            .setWorkId(0)
+            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
+            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
+        .build();
+    processGroupDetail.getWorkAssignment(pollReq1);
+
+    //Ensure first recorder goes defunct
+    Thread.sleep(1000);
+
+    Recorder.PollReq pollReq2 = Recorder.PollReq.newBuilder()
+        .setRecorderInfo(mockRIBuilders.get(1).setRecorderTick(1).build())
+        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
+            .setElapsedTime(100)
+            .setWorkId(100)
+            .setWorkResult(Recorder.WorkResponse.WorkResult.unknown)
+            .setWorkState(Recorder.WorkResponse.WorkState.running).build())
+        .build();
+    processGroupDetail.getWorkAssignment(pollReq2);
+
+    Recorder.PollReq pollReq3 = Recorder.PollReq.newBuilder()
+        .setRecorderInfo(mockRIBuilders.get(2).setRecorderTick(1).build())
+        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
+            .setElapsedTime(100)
+            .setWorkId(0)
+            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
+            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
+        .build();
+    processGroupDetail.getWorkAssignment(pollReq3);
+
+    context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
+    context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
+    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(34));
+    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(0));
+
+    //first recorder comes back up
+    Recorder.PollReq pollReq4 = Recorder.PollReq.newBuilder()
+        .setRecorderInfo(mockRIBuilders.get(0).setRecorderTick(1).build())
+        .setWorkLastIssued(Recorder.WorkResponse.newBuilder()
+            .setElapsedTime(100)
+            .setWorkId(0)
+            .setWorkResult(Recorder.WorkResponse.WorkResult.success)
+            .setWorkState(Recorder.WorkResponse.WorkState.complete).build())
+        .build();
+    processGroupDetail.getWorkAssignment(pollReq4);
+    context.assertEquals(3, processGroupDetail.getRecorderTargetCountToMeetCoverage(100));
+    context.assertEquals(2, processGroupDetail.getRecorderTargetCountToMeetCoverage(99));
+    context.assertEquals(1, processGroupDetail.getRecorderTargetCountToMeetCoverage(34));
+    context.assertEquals(0, processGroupDetail.getRecorderTargetCountToMeetCoverage(0));
+  }
 
   @Test
   public void testEquality(TestContext context) {
@@ -171,7 +163,7 @@ public class ProcessGroupDetailTest {
         .setInstanceType("1")
         .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
         .setProcName("1")
-//        .setRecorderTick(0)  //TODO: hack for missing recorder tick, remove comment
+        .setRecorderTick(0)
         .setRecorderUptime(100)
         .setRecorderVersion(1)
         .setVmId("1")

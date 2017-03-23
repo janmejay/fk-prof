@@ -84,13 +84,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
     Router router = Router.router(vertx);
     router.route().handler(LoggerHandler.create());
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.AGGREGATOR_POST_PROFILE,
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.AGGREGATOR_POST_PROFILE,
         this::handlePostProfile);
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_PUT_ASSOCIATION,
-        BodyHandler.create().setBodyLimit(1024 * 10), this::handlePutAssociation);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_ASSOCIATION,
+        BodyHandler.create().setBodyLimit(1024 * 10), this::handlePostAssociation);
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.PUT, ApiPathConstants.BACKEND_POST_POLL,
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_POLL,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
 
     return router;
@@ -177,7 +177,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
   }
 
   // /association API is requested over ELB, routed to some backend which in turns proxies it to a leader
-  private void handlePutAssociation(RoutingContext context) {
+  private void handlePostAssociation(RoutingContext context) {
     BackendDTO.LeaderDetail leaderDetail = verifyLeaderAvailabilityOrFail(context.response());
     if (leaderDetail != null) {
       try {
@@ -191,7 +191,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
         }
 
         //Proxy request to leader if self(backend) is not associated with the recorder
-        makeRequestGetAssociation(leaderDetail, recorderInfo).setHandler(ar -> {
+        makeRequestPostAssociation(leaderDetail, recorderInfo).setHandler(ar -> {
           if(ar.succeeded()) {
             context.response().setStatusCode(ar.result().getStatusCode());
             context.response().end(ar.result().getResponse());
@@ -222,12 +222,12 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(BackendDTO.LeaderDetail leaderDetail, Recorder.RecorderInfo payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestPostAssociation(BackendDTO.LeaderDetail leaderDetail, Recorder.RecorderInfo payload)
       throws IOException {
     Buffer payloadAsBuffer = ProtoUtil.buildBufferFromProto(payload);
     return httpClient.requestAsyncWithRetry(
-        HttpMethod.PUT,
-        leaderDetail.getHost(), leaderDetail.getPort(), ApiPathConstants.LEADER_PUT_ASSOCIATION,
+        HttpMethod.POST,
+        leaderDetail.getHost(), leaderDetail.getPort(), ApiPathConstants.LEADER_POST_ASSOCIATION,
         payloadAsBuffer);
   }
 }

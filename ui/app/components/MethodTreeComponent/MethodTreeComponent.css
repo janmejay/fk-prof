@@ -49,14 +49,14 @@
 
 .onCPU {
   position: absolute;
-  right: 120px;
-  width: 110px;
+  right: 110px;
+  width: 100px;
 }
 
 .onStack {
   position: absolute;
   right: 0px;
-  width: 110px;
+  width: 100px;
 }
 
 .relative {
@@ -69,7 +69,7 @@
   overflow: hidden;
   left: 14px;
   white-space: nowrap;
-  right: 230px;
+  right: 220px;
 }
 
 .heading {

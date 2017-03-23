@@ -116,7 +116,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
 
     return new FinalizedProfileWorkInfo(
         recorderVersion,
-        recorderInfo != null ? ProtoUtil.mapToAggregatorRecorderInfo(recorderInfo) : null,
+        recorderInfo == null ? null : ProtoUtil.mapToAggregatorRecorderInfo(recorderInfo),
         state,
         startedAt,
         endedAt,

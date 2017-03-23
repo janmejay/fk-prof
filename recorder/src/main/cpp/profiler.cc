@@ -3,19 +3,6 @@
 ASGCTType Asgct::asgct_;
 IsGCActiveType Asgct::is_gc_active_;
 
-TRACE_DEFINE_BEGIN(Profiler, kTraceProfilerTotal)
-    TRACE_DEFINE("start failed")
-    TRACE_DEFINE("start succeeded")
-    TRACE_DEFINE("set sampling interval failed")
-    TRACE_DEFINE("set sampling interval succeeded")
-    TRACE_DEFINE("set stack frames to capture failed")
-    TRACE_DEFINE("set stack frames to capture succeeded")
-    TRACE_DEFINE("set new file failed")
-    TRACE_DEFINE("set new file succeeded")
-    TRACE_DEFINE("stop failed")
-    TRACE_DEFINE("stop succeeded")
-TRACE_DEFINE_END(Profiler, kTraceProfilerTotal);
-
 static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
     std::shared_ptr<Profiler> cpu_profiler = GlobalCtx::recording.cpu_profiler;
     if (cpu_profiler.get() == nullptr) {
@@ -32,14 +19,17 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     JNIEnv *jniEnv = getJNIEnv(jvm);
     ThreadBucket *thread_info = nullptr;
     PerfCtx::ThreadTracker* ctx_tracker = nullptr;
+    auto current_sampling_attempt = sampling_attempts.fetch_add(1, std::memory_order_relaxed);
     if (jniEnv != nullptr) {
         thread_info = thread_map.get(jniEnv);
+        bool do_record = true;
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
-            if (! ctx_tracker->should_record()) {
-                SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
-                return;
-            }
+            do_record = ctx_tracker->in_ctx() ? ctx_tracker->should_record() : prob_pct.on(current_sampling_attempt, noctx_cov_pct);
+        }
+        if (! do_record) {
+            SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
+            return;
         }
     }
     SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer
@@ -76,12 +66,10 @@ bool Profiler::start(JNIEnv *jniEnv) {
     /* within critical section */
 
     if (__is_running()) {
-        TRACE(Profiler, kTraceProfilerStartFailed);
         logError("WARN: Start called but sampling is already running\n");
         return true;
     }
 
-    TRACE(Profiler, kTraceProfilerStartOk);
 
     // reference back to Profiler::handle on the singleton
     // instance of Profiler
@@ -96,7 +84,6 @@ void Profiler::stop() {
     SimpleSpinLockGuard<true> guard(ongoing_conf);
 
     if (!__is_running()) {
-        TRACE(Profiler, kTraceProfilerStopFailed);
         return;
     }
 
@@ -124,7 +111,7 @@ std::uint32_t Profiler::calculate_max_stack_depth(std::uint32_t _max_stack_depth
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts);
+    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts, noctx_cov_pct);
     
     buffer = new CircularQueue(*serializer, capture_stack_depth());
 
@@ -136,8 +123,9 @@ void Profiler::configure() {
 
 #define METRIC_TYPE "cpu_samples"
 
-Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq)
-    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer), tts(max_stack_depth), ongoing_conf(false),
+Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
+    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer),
+      tts(max_stack_depth), ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct),
 
       s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
 
