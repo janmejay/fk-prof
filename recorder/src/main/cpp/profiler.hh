@@ -52,7 +52,9 @@ public:
 
 class Profiler : public Process {
 public:
-    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct);
+    static std::uint32_t calculate_max_stack_depth(std::uint32_t hinted_max_stack_depth);
+
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileSerializingWriter& _serializer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct);
 
     bool start(JNIEnv *jniEnv);
 
@@ -81,9 +83,7 @@ private:
 
     SignalHandler* handler;
 
-    SerializationFlushThresholds sft;
-    TruncationThresholds tts;
-    ProfileSerializingWriter* serializer;
+    ProfileSerializingWriter& serializer;
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
@@ -106,8 +106,6 @@ private:
     void set_sampling_freq(std::uint32_t sampling_freq);
 
     void set_max_stack_depth(std::uint32_t max_stack_depth);
-
-    static std::uint32_t calculate_max_stack_depth(std::uint32_t hinted_max_stack_depth);
 
     void configure();
 

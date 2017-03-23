@@ -104,9 +104,7 @@ std::uint32_t Profiler::calculate_max_stack_depth(std::uint32_t _max_stack_depth
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts, noctx_cov_pct);
-    
-    buffer = new CircularQueue(*serializer, capture_stack_depth());
+    buffer = new CircularQueue(serializer, capture_stack_depth());
 
     handler = new SignalHandler(itvl_min, itvl_max);
     int processor_interval = Size * itvl_min / 1000 / 2;
@@ -115,9 +113,9 @@ void Profiler::configure() {
 
 #define METRIC_TYPE "cpu_samples"
 
-Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
-    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer),
-      tts(max_stack_depth), ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
+Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileSerializingWriter& _serializer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
+    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(_max_stack_depth), serializer(_serializer),
+      ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
 
       s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
 
@@ -137,7 +135,6 @@ Profiler::~Profiler() {
     if (running) stop();
     delete handler;
     delete buffer;
-    delete serializer;
 }
 
 void Profiler::run() {

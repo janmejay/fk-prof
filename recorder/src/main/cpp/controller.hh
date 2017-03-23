@@ -49,6 +49,7 @@ private:
     ThdProcP thd_proc;
     Buff buff;
     std::shared_ptr<ProfileWriter> writer;
+    std::shared_ptr<ProfileSerializingWriter> serializer;
     std::shared_ptr<Processor> processor;
     BlockingRingBuffer raw_writer_ring;
 
@@ -62,6 +63,9 @@ private:
     WSt current_work_state;
     WRes current_work_result;
     Time::Pt work_start, work_end;
+
+    SerializationFlushThresholds sft;
+    TruncationThresholds tts;
 
     //[metrics......
     metrics::Timer& s_t_poll_rpc;
@@ -88,9 +92,11 @@ private:
     void issue_work(const std::string& host, const std::uint32_t port, std::uint32_t controller_id, std::uint32_t controller_version);
     void retire_work(const std::uint64_t work_id);
 
+    void prep(const recording::Work& w);
     void issue(const recording::Work& w, Processes& processes, JNIEnv* env);
     void retire(const recording::Work& w);
 
+    void prep(const recording::CpuSampleWork& csw);
     void issue(const recording::CpuSampleWork& csw, Processes& processes, JNIEnv* env);
     void retire(const recording::CpuSampleWork& csw);
 };

@@ -450,6 +450,12 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                         populate_recording_header(rh, w, controller_id, controller_version);
                         writer->write_header(rh);
                     }
+                    for (auto i = 0; i < w.work_size(); i++) {
+                        auto work = w.work(i);
+                        prep(work);
+                    }
+
+                    serializer.reset(new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts, cfg.noctx_cov_pct));
 
                     JNIEnv *env = getJNIEnv(jvm);
                     Processes processes;
@@ -491,7 +497,8 @@ void Controller::retire_work(const std::uint64_t work_id) {
                 auto work = w.work(i);
                 retire(work);
             }
-            
+
+            serializer.reset();
             writer.reset();
 
             logger->info("Retiring work-id {}, status before retire {}", w.work_id(), wres);
@@ -515,6 +522,19 @@ bool has_cpu_sample_work_p(const recording::Work& work) {
     if (work.has_cpu_sample()) return true;
     logger->error("Work of CPU-sampling-type {} doesn't have a definition", work.w_type());
     return false;
+}
+
+void Controller::prep(const recording::Work& work) {
+    auto w_type = work.w_type();
+    switch(w_type) {
+    case recording::WorkType::cpu_sample_work:
+        if (has_cpu_sample_work_p(work)) {
+            prep(work.cpu_sample());
+        }
+        return;
+    default:
+        logger->error("Encountered unknown work type {}", w_type);
+    }
 }
 
 void Controller::issue(const recording::Work& work, Processes& processes, JNIEnv* env) {
@@ -545,12 +565,16 @@ void Controller::retire(const recording::Work& work) {
     }
 }
 
+void Controller::prep(const recording::CpuSampleWork& csw) {
+    sft.cpu_samples = csw.serialization_flush_threshold();
+    tts.cpu_samples_max_stack_sz = Profiler::calculate_max_stack_depth(csw.max_frames());
+}
+
 void Controller::issue(const recording::CpuSampleWork& csw, Processes& processes, JNIEnv* env) {
     auto freq = csw.frequency();
-    auto max_stack_depth = csw.max_frames();
-    logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, max_stack_depth);
+    logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, tts.cpu_samples_max_stack_sz);
     
-    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, writer, max_stack_depth, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
+    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, *serializer.get(), tts.cpu_samples_max_stack_sz, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
     GlobalCtx::recording.cpu_profiler->start(env);
     processes.push_back(GlobalCtx::recording.cpu_profiler.get());
 }
