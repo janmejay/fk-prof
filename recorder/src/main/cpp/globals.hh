@@ -18,6 +18,12 @@
 #define RECORDER_VERION 1
 #define DATA_ENCODING_VERSION 1
 
+extern const char* fkprec_commit;
+extern const char* fkprec_branch;
+extern const char* fkprec_version;
+extern const char* fkprec_version_verbose;
+extern const char* fkprec_build_env;
+
 typedef std::shared_ptr<spdlog::logger> LoggerP;
 
 namespace Time {

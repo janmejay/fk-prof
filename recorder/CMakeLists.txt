@@ -14,6 +14,39 @@ include(CheckSymbolExists)
 include(CheckFunctionExists)
 
 ##########################################################
+# Version
+
+execute_process(
+  COMMAND git rev-parse --abbrev-ref HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_BRANCH
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(
+  COMMAND git log -1 --format=%H
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_COMMIT
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+set(CAPTURE_BUILD_ENV "No" CACHE STRING "Optionally capture the build-env info (basically it will base64 encode /etc/os-release file) and capture as a global variable 'const char* fkprec_build_env'. Defaults to no.")
+if (${CAPTURE_BUILD_ENV} MATCHES "y")
+  execute_process(
+    COMMAND bash "-c" "cat /etc/os-release | base64 -w0"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE BUILD_ENV
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+
+set(fkp_version_major 0)
+set(fkp_version_minor 9)
+set(fkp_version_patch 0)
+
+add_definitions("-DGIT_COMMIT=${GIT_COMMIT}")
+add_definitions("-DGIT_BRANCH=${GIT_BRANCH}")
+add_definitions("-DFKP_VERSION=${fkp_version_major}.${fkp_version_minor}.${fkp_version_patch}")
+add_definitions("-DFKP_VERSION=${fkp_version_major}.${fkp_version_minor}.${fkp_version_patch}")
+add_definitions("-DBUILD_ENV='${BUILD_ENV}'")
+
+##########################################################
 # Paths
 set(SRC "src/main/cpp")
 set(INCLUDE_VENDOR_CONCQUEUE "vendor/concurrentqueue")
