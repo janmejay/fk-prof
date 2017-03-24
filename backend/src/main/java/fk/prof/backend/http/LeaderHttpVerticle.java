@@ -1,5 +1,8 @@
 package fk.prof.backend.http;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
@@ -25,6 +28,10 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   private final ConfigManager configManager;
   private final BackendAssociationStore backendAssociationStore;
   private final PolicyStore policyStore;
+
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Meter mtrWorkPGAssocMiss = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "work", "pg", "assoc", "miss"));
+  private Meter mtrWorkPGPolicyMiss = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "work", "pg", "policy", "miss"));
 
   public LeaderHttpVerticle(ConfigManager configManager,
                             BackendAssociationStore backendAssociationStore,
@@ -127,11 +134,13 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       Recorder.AssignedBackend callingBackend = Recorder.AssignedBackend.newBuilder().setHost(backendIP).setPort(backendPort).build();
 
       if(!callingBackend.equals(backendAssociationStore.getAssociatedBackend(processGroup))) {
+        mtrWorkPGAssocMiss.mark();
         context.response().setStatusCode(400);
         context.response().end("Calling backend=" + RecorderProtoUtil.assignedBackendCompactRepr(callingBackend) + " not assigned to process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
       } else {
         BackendDTO.RecordingPolicy recordingPolicy = this.policyStore.get(processGroup);
         if (recordingPolicy == null) {
+          mtrWorkPGPolicyMiss.mark();
           context.response().setStatusCode(400);
           context.response().end("Policy not found for process_group" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
         } else {

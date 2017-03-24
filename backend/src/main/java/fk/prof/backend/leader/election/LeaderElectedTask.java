@@ -1,6 +1,10 @@
 package fk.prof.backend.leader.election;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.deployer.VerticleDeployer;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -13,10 +17,15 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * TODO: This class should be supplier[future<void]] instead of runnable and if future fails, leader should relinquish leadership
+ * TODO: This class should be supplier[future<void]] instead of runnable
+ * If run fails because of backend undeployment failure or leader deployment failure, failed future should be returned
+ * Post that, leader should relinquish leadership
  */
 public class LeaderElectedTask implements Runnable {
   private static Logger logger = LoggerFactory.getLogger(LeaderElectedTask.class);
+
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Counter ctrFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectedTask.class, "fail"));
 
   private Supplier<CompositeFuture> backendVerticlesUndeployer = null;
   private VerticleDeployer leaderHttpVerticlesDeployer;
@@ -52,17 +61,42 @@ public class LeaderElectedTask implements Runnable {
 
   @Override
   public void run() {
+    runTask().setHandler(ar -> {
+      if(ar.failed()) {
+        ctrFailure.inc();
+      } else {
+        logger.info("Successfully completed leader elected task");
+      }
+    });
+  }
+
+  private Future<Void> runTask() {
     if (this.backendVerticlesUndeployer != null) {
+      Future<Void> result = Future.future();
       this.backendVerticlesUndeployer.get().setHandler(ar -> {
         if(ar.succeeded()) {
-          this.leaderHttpVerticlesDeployer.deploy();
+          deployLeaderHttpVerticles().setHandler(result.completer());
         } else {
-          logger.error("Aborting deployment of leader http verticles because error while un-deploying backend verticles");
+          logger.error("Aborting deployment of leader http verticles because error while un-deploying backend verticles", ar.cause());
+          result.fail(ar.cause());
         }
       });
+      return result;
     } else {
-      this.leaderHttpVerticlesDeployer.deploy();
+      return deployLeaderHttpVerticles();
     }
+  }
+
+  private Future<Void> deployLeaderHttpVerticles() {
+    Future<Void> future = Future.future();
+    this.leaderHttpVerticlesDeployer.deploy().setHandler(ar -> {
+      if(ar.failed()) {
+        future.fail(ar.cause());
+      } else {
+        future.complete();
+      }
+    });
+    return future;
   }
 
   public static Builder newBuilder() {

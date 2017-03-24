@@ -1,5 +1,9 @@
 package fk.prof.backend.leader.election;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.proto.BackendDTO;
 import io.vertx.core.AbstractVerticle;
@@ -27,6 +31,9 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     }
   };
 
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Counter ctrZKWatchFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectionWatcher.class, "zk.watch", "fail"));
+
   public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderWriteContext leaderWriteContext) {
     this.curatorClient = curatorClient;
     this.leaderWriteContext = leaderWriteContext;
@@ -37,16 +44,14 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     leaderWatchingPath = config().getString("leader.watching.path", "/backends");
 
     try {
-      curatorClient.create().forPath(leaderWatchingPath);
-    } catch (KeeperException.NodeExistsException ex) {
-      //Ignore exception if node already exists
-    } catch (Exception ex) {
-      logger.error(ex);
-    }
-
-    try {
+      try {
+        curatorClient.create().forPath(leaderWatchingPath);
+      } catch (KeeperException.NodeExistsException ex) {
+        //Ignore exception if node already exists
+      }
       leaderUpdated(getChildrenAndSetWatch());
     } catch (Exception ex) {
+      ctrZKWatchFailure.inc();
       logger.error(ex);
     }
   }
@@ -54,14 +59,21 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   @Override
   public void stop() {
     //This ensures that if this worker verticle is undeployed for whatever reason, leader is set as null and all other components dependent on leader will fail
-    curatorClient.clearWatcherReferences(childWatcher);
-    leaderWriteContext.setLeader(null);
+    try {
+      curatorClient.clearWatcherReferences(childWatcher);
+    } catch (Exception ex) {
+      logger.error(ex);
+    } finally {
+      ctrZKWatchFailure.inc();
+      leaderWriteContext.setLeader(null);
+    }
   }
 
   private List<String> getChildrenAndSetWatch() {
     try {
       return curatorClient.getChildren().usingWatcher(childWatcher).forPath(leaderWatchingPath);
     } catch (Exception ex) {
+      ctrZKWatchFailure.inc();
       logger.error(ex);
       // If there is an error getting leader info from zookeeper, unset leader for this backend node.
       // Sending an empty list will take care of that
@@ -76,11 +88,13 @@ public class LeaderElectionWatcher extends AbstractVerticle {
         leaderWriteContext.setLeader(BackendDTO.LeaderDetail.parseFrom(leaderDetailBytes));
         return;
       } catch (Exception ex) {
+        ctrZKWatchFailure.inc();
         logger.error("Error encountered while fetching leader information", ex);
       }
     }
 
     if (childNodesList.size() > 1) {
+      ctrZKWatchFailure.inc();
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
     leaderWriteContext.setLeader(null);

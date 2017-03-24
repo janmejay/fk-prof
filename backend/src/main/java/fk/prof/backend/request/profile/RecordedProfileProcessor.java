@@ -1,5 +1,10 @@
 package fk.prof.backend.request.profile;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileHeader;
@@ -30,8 +35,11 @@ public class RecordedProfileProcessor {
   private RecordedProfileHeaderParser headerParser;
   private WseParser wseParser;
   private RecordedProfileIndexes indexes = new RecordedProfileIndexes();
-
   private boolean intermediateWseEntry = false;
+
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Counter ctrAggrWinMiss = metricRegistry.counter(MetricRegistry.name(RecordedProfileProcessor.class, "window", "miss"));
+  private Meter mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "invalid"));
 
   public RecordedProfileProcessor(AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
                                   int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
@@ -73,6 +81,7 @@ public class RecordedProfileProcessor {
           singleProcessingOfProfileGate.accept(workId);
           aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(workId);
           if (aggregationWindow == null) {
+            ctrAggrWinMiss.inc();
             throw new AggregationFailure(String.format("workId=%d not found, cannot continue receiving associated profile",
                 workId));
           }
@@ -115,6 +124,7 @@ public class RecordedProfileProcessor {
       if (isProcessed()) {
         aggregationWindow.completeProfile(workId);
       } else {
+        mtrPayloadInvalid.mark();
         if (aggregationWindow != null) {
           aggregationWindow.abandonProfile(workId);
         }

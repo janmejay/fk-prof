@@ -1,10 +1,13 @@
 package fk.prof.backend.aggregator;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
-import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
@@ -24,6 +27,11 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
 
   private final Map<Long, ProfileWorkInfo> workInfoLookup;
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
+
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Meter mtrStartFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "start", "fail"));
+  private Meter mtrCompleteFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "complete", "fail"));
+  private Meter mtrAbandonFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "abandon", "fail"));
 
   public AggregationWindow(String appId, String clusterId, String procId,
                            LocalDateTime start, int durationInSecs, long[] workIds, int workDurationInSec) {
@@ -47,6 +55,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.startProfile(recorderVersion, startedAt);
     } catch (IllegalStateException ex) {
+      mtrStartFailures.mark();
       throw new AggregationFailure(String.format("Error starting profile for work_id=%d, recorder_version=%d, startedAt=%s",
           workId, recorderVersion, startedAt.toString()), ex);
     }
@@ -59,6 +68,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.completeProfile();
     } catch (IllegalStateException ex) {
+      mtrCompleteFailures.mark();
       throw new AggregationFailure(String.format("Error completing profile for work_id=%d", workId), ex);
     }
   }
@@ -70,6 +80,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.abandonProfile();
     } catch (IllegalStateException ex) {
+      mtrAbandonFailures.mark();
       throw new AggregationFailure(String.format("Error abandoning profile for work_id=%d", workId), ex);
     }
   }

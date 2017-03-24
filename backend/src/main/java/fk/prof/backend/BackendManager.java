@@ -8,6 +8,7 @@ import com.google.common.base.Preconditions;
 import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.backend.deployer.VerticleDeployer;
 import fk.prof.backend.deployer.impl.*;
+import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.leader.election.LeaderElectedTask;
 import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.assignment.AssociatedProcessGroups;
@@ -19,6 +20,7 @@ import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationSt
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import fk.prof.backend.model.policy.PolicyStore;
+import fk.prof.backend.proto.BackendDTO;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
@@ -27,6 +29,7 @@ import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions;
 import io.vertx.ext.dropwizard.Match;
 import io.vertx.ext.dropwizard.MatchType;
@@ -35,6 +38,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import recording.Recorder;
 import org.apache.zookeeper.KeeperException;
 
 import java.nio.ByteBuffer;
@@ -42,9 +46,6 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-/**
- * TODO: Deployment process is liable to changes later
- */
 public class BackendManager {
   private static Logger logger = LoggerFactory.getLogger(BackendManager.class);
 
@@ -63,11 +64,7 @@ public class BackendManager {
     this.configManager = Preconditions.checkNotNull(configManager);
 
     VertxOptions vertxOptions = new VertxOptions(configManager.getVertxConfig());
-    vertxOptions.setMetricsOptions(new DropwizardMetricsOptions()
-        .setEnabled(true)
-        .setJmxEnabled(true)
-        .setRegistryName(ConfigManager.METRIC_REGISTRY)
-        .addMonitoredHttpServerUri(new Match().setValue("/.*").setType(MatchType.REGEX)));
+    vertxOptions.setMetricsOptions(buildMetricsOptions());
     this.vertx = Vertx.vertx(vertxOptions);
 
     this.curatorClient = createCuratorClient();
@@ -115,6 +112,12 @@ public class BackendManager {
 
           BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
           PolicyStore policyStore = new PolicyStore();
+
+          //TODO: Remove. Temporary for e2e testing
+          Recorder.ProcessGroup testProcessGroup = Recorder.ProcessGroup.newBuilder().setAppId("bar-app").setCluster("quux-cluster").setProcName("grault-proc").build();
+          BackendDTO.RecordingPolicy recordingPolicy = buildRecordingPolicy(15);
+          policyStore.put(testProcessGroup, recordingPolicy);
+
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
           Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
 
@@ -201,6 +204,33 @@ public class BackendManager {
     LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
     builder.disableBackend(backendDeployments);
     return builder.build(vertx, leaderHttpVerticleDeployer);
+  }
+
+  private MetricsOptions buildMetricsOptions() {
+    MetricsOptions metricsOptions = new DropwizardMetricsOptions()
+        .setEnabled(true)
+        .setJmxEnabled(true)
+        .setRegistryName(ConfigManager.METRIC_REGISTRY)
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.AGGREGATOR_POST_PROFILE).setType(MatchType.EQUALS))
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.BACKEND_POST_POLL).setType(MatchType.EQUALS))
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.BACKEND_POST_ASSOCIATION).setType(MatchType.EQUALS))
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.LEADER_POST_ASSOCIATION).setType(MatchType.EQUALS))
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.LEADER_POST_LOAD).setType(MatchType.EQUALS))
+        .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.LEADER_GET_WORK + ".*").setAlias(ApiPathConstants.LEADER_GET_WORK).setType(MatchType.REGEX));
+    return metricsOptions;
+  }
+
+  //TODO: Ugly hack for e2e testing, remove!
+  private BackendDTO.RecordingPolicy buildRecordingPolicy(int profileDuration) {
+    return BackendDTO.RecordingPolicy.newBuilder()
+        .setDuration(profileDuration)
+        .setCoveragePct(100)
+        .setDescription("Test work profile")
+        .addWork(BackendDTO.Work.newBuilder()
+            .setWType(BackendDTO.WorkType.cpu_sample_work)
+            .setCpuSample(BackendDTO.CpuSampleWork.newBuilder().setFrequency(50).setMaxFrames(64))
+            .build())
+        .build();
   }
 
   public static class AbortPolicy implements RejectedExecutionHandler {

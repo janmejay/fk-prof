@@ -20,7 +20,6 @@ import fk.prof.userapi.Deserializer;
 import io.netty.util.concurrent.FailedFuture;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
-import io.vertx.groovy.ext.unit.Async;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.Assert;

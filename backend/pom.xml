@@ -15,7 +15,7 @@
   <name>Backend for fk-prof</name>
 
   <properties>
-    <vertx.version>3.3.3</vertx.version>
+    <vertx.version>3.4.1</vertx.version>
   </properties>
 
   <dependencies>

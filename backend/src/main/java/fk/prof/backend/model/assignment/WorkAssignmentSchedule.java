@@ -1,6 +1,11 @@
 package fk.prof.backend.model.assignment;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.backend.ConfigManager;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
@@ -30,6 +35,13 @@ public class WorkAssignmentSchedule {
   private Map<RecorderIdentifier, ScheduleEntry> assignedSchedule = new HashMap<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Counter ctrImpossible = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "impossible"));
+  private Counter ctrEntriesLockTimeout = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "timeout"));
+  private Counter ctrEntriesLockInterrupt = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "interrupt"));
+  private Counter ctrAssignmentFetchFail = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "assignment.fetch", "fail"));
+  private Meter mtrSchedulingMiss = metricRegistry.meter(MetricRegistry.name(WorkAssignmentSchedule.class, "scheduling", "miss"));
+
   public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
                                 int dProfileLen) {
@@ -43,6 +55,7 @@ public class WorkAssignmentSchedule {
     int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
     int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
     if(cMaxSerial == 0) {
+      ctrImpossible.inc();
       throw new IllegalArgumentException("Not possible to schedule any work assignment because effective length of single profile=" + dEffectiveProfileLen +
           " is greater than effective aggregation window length=" + dEffectiveWinLen);
     }
@@ -104,6 +117,7 @@ public class WorkAssignmentSchedule {
             } else {
               this.entries.poll(); //dequeue the entry. no point in keeping the entry around whether fetch was done on right time or it was a scheduling miss
               if (value.tooLate) {
+                mtrSchedulingMiss.mark();
                 logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", value.workAssignment.getWorkId(), value.workAssignment.getDelay()));
               }
               else {
@@ -113,17 +127,17 @@ public class WorkAssignmentSchedule {
             }
           }
         } catch (Exception ex) {
-          //TODO: increment some metric somewhere
+          ctrAssignmentFetchFail.inc();
           logger.error("Unexpected error when getting fetching work assignment from schedule", ex);
         } finally {
           entriesLock.unlock();
         }
       } else {
-        //TODO: increment some metric somewhere
+        ctrEntriesLockTimeout.inc();
         logger.warn("Timeout while acquiring lock for fetching work assignment from schedule");
       }
     } catch (InterruptedException ex) {
-      //TODO: increment some metric somewhere
+      ctrEntriesLockInterrupt.inc();
       logger.warn("Interrupted while acquiring lock for fetching work assignment from schedule");
     }
     return null;

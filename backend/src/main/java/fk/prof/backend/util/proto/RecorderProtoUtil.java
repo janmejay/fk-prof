@@ -26,12 +26,9 @@ public class RecorderProtoUtil {
       return null;
     }
     return "ip=" + recorderInfo.getIp() +
-        ", zone=" + recorderInfo.getZone() +
         ", host=" + recorderInfo.getHostname() +
         ", cluster=" + recorderInfo.getCluster() +
         ", proc=" + recorderInfo.getProcName() +
-        ", vm=" + recorderInfo.getVmId() +
-        ", instance_type=" + recorderInfo.getInstanceType() +
         ", rec_version=" + recorderInfo.getRecorderVersion();
   }
 

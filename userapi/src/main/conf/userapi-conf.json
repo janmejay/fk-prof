@@ -6,8 +6,8 @@
   "aggregation_window.duration.secs": 1800,
   "storage": "S3",
   "S3": {
-    "endpoint": "<endpoint>",
-    "access.key": "<access_key>",
-    "secret.key": "<secret_key>"
+    "endpoint": "http://127.0.0.1:13031",
+    "access.key": "",
+    "secret.key": ""
   }
 }

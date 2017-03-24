@@ -115,10 +115,4 @@
         </dependency>
     </dependencies>
 
-    <repositories>
-        <repository>
-            <id>findify</id>
-            <url>https://dl.bintray.com/findify/maven/</url>
-        </repository>
-    </repositories>
 </project>

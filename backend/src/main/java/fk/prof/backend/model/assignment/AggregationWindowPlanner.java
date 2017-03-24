@@ -1,7 +1,11 @@
 package fk.prof.backend.model.assignment;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.slot.WorkSlotPool;
@@ -48,6 +52,15 @@ public class AggregationWindowPlanner {
   private int currentAggregationWindowIndex = 0;
   private int relevantAggregationWindowIndexForRecordingPolicy = 0;
   private List<WorkSlotPool.WorkSlot> occupiedSlots = null;
+
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Meter mtrWindowInitSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "success"));
+  private Meter mtrWindowInitFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "fail"));
+  private Meter mtrWindowExpireSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "success"));
+  private Meter mtrWindowExpireFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "fail"));
+  private Meter mtrWorkFetchMiss = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "miss"));
+  private Meter mtrWorkFetchFail = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "fail"));
+  private Meter mtrWorkFetchStale = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "stale"));
 
   public AggregationWindowPlanner(Vertx vertx,
                                   int backendId,
@@ -113,7 +126,7 @@ public class AggregationWindowPlanner {
         relevantAggregationWindowIndexForRecordingPolicy = aggregationWindowIndex;
         if (ar.failed()) {
           //Cannot fetch work from leader, so chill out and let this aggregation window go by
-          //TODO: Metric to indicate failure to fetch work for this process group from leader
+          mtrWorkFetchFail.mark();
           logger.error("Error fetching work from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) + ", error=" + ar.cause().getMessage());
           result.fail(ar.cause());
         } else {
@@ -124,6 +137,7 @@ public class AggregationWindowPlanner {
           result.complete();
         }
       } else {
+        mtrWorkFetchStale.mark();
         result.fail("Stale check for work");
       }
     });
@@ -166,7 +180,9 @@ public class AggregationWindowPlanner {
               workAssignmentBuilders[i] = workAssignmentBuilder;
               workIds[i] = workAssignmentBuilder.getWorkId();
             }
+
             setupAggregationWindow(workAssignmentBuilders, workIds);
+            mtrWindowInitSuccess.mark();
             logger.info("Initialized aggregation window with index=" + currentAggregationWindowIndex +
                 ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
                 ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestRecordingPolicy) +
@@ -175,11 +191,11 @@ public class AggregationWindowPlanner {
         }
       } catch (Exception ex) {
         reset();
-        //TODO: log this as metric somewhere, fatal failure wrt to aggregation window
+        mtrWindowInitFailure.mark();
         logger.error("Skipping work assignments and setup of aggregation window because of error while processing for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup), ex);
       }
     } else {
-      //TODO: log this as metric somewhere, fatal failure wrt to aggregation window
+      mtrWorkFetchMiss.mark();
       logger.error("Skipping work assignments and setup of aggregation window because work profile was not fetched in time for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
     }
 
@@ -220,8 +236,13 @@ public class AggregationWindowPlanner {
     if(currentAggregationWindow != null) {
       try {
         FinalizedAggregationWindow finalizedAggregationWindow = currentAggregationWindow.expireWindow(activeAggregationWindows);
+        mtrWindowExpireSuccess.mark();
+
         logger.info("Initiating serialization and write of aggregated profile");
         aggregationWindowWriter.accept(finalizedAggregationWindow);
+      } catch (Exception ex) {
+        mtrWindowExpireFailure.mark();
+        logger.error("Error while expiring aggregation window for process group={}", ex, processGroup);
       } finally {
         reset();
       }

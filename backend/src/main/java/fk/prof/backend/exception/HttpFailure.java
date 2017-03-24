@@ -48,6 +48,11 @@ public class HttpFailure extends RuntimeException {
     return statusCode;
   }
 
+  @Override
+  public String toString() {
+    return "status=" + statusCode + ", " + super.toString();
+  }
+
   public static HttpFailure failure(Throwable throwable) {
     if (throwable instanceof HttpFailure) {
       return (HttpFailure) throwable;

@@ -1,5 +1,9 @@
 package fk.prof.backend.http;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -45,7 +49,6 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private final LeaderReadContext leaderReadContext;
   private final AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
   private final ProcessGroupDiscoveryContext processGroupDiscoveryContext;
-  private final int leaderHttpPort;
   private final int backendHttpPort;
   private final String ipAddress;
   private final int backendVersion;
@@ -53,12 +56,18 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ProfHttpClient httpClient;
 
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Meter mtrPollPGAssocMiss = metricRegistry.meter(MetricRegistry.name(BackendHttpVerticle.class, "poll", "pg.assoc", "miss"));
+  private Counter ctrPollAggrWinMiss = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "poll", "window", "miss"));
+  private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "self"));
+  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "unknown"));
+
+
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
                              AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
                              ProcessGroupDiscoveryContext processGroupDiscoveryContext) {
     this.configManager = configManager;
-    this.leaderHttpPort = configManager.getLeaderHttpPort();
     this.backendHttpPort = configManager.getBackendHttpPort();
     this.ipAddress = configManager.getIPAddress();
     this.backendVersion = configManager.getBackendVersion();
@@ -142,6 +151,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
+        mtrPollPGAssocMiss.mark();
         throw new BadRequestException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
 
@@ -149,6 +159,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       if(nextWorkAssignment != null) {
         AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
         if (aggregationWindow == null) {
+          ctrPollAggrWinMiss.inc();
           throw new BadRequestException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
               nextWorkAssignment.getWorkId()));
         }
@@ -209,11 +220,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private BackendDTO.LeaderDetail verifyLeaderAvailabilityOrFail(HttpServerResponse response) {
     if (leaderReadContext.isLeader()) {
+      ctrLeaderSelfReq.inc();
       response.setStatusCode(400).end("Leader refuses to respond to this request");
       return null;
     } else {
       BackendDTO.LeaderDetail leaderDetail = leaderReadContext.getLeader();
       if (leaderDetail == null) {
+        ctrLeaderUnknownReq.inc();
         response.setStatusCode(503).putHeader("Retry-After", "10").end("Leader not elected yet");
         return null;
       } else {
