@@ -624,10 +624,7 @@ void Controller::issue(const recording::CpuSampleWork& csw, Processes& processes
 }
 
 void Controller::retire(const recording::CpuSampleWork& csw) {
-    auto freq = csw.frequency();
-    auto max_stack_depth = csw.max_frames();
-    logger->info("Stopping cpu-sampling", freq, max_stack_depth);
-
+    logger->info("Stopping cpu-sampling");
     GlobalCtx::recording.cpu_profiler->stop();
     GlobalCtx::recording.cpu_profiler.reset();
 }

@@ -144,7 +144,8 @@ set(SOURCE_FILES
     ${SRC}/prob_pct.hh
     ${SRC}/prob_pct.cc
     ${SRC}/metric_formatter.hh
-    ${SRC}/metric_formatter.cc)
+    ${SRC}/metric_formatter.cc
+    ${SRC}/unique_readsafe_ptr.hh)
 
 set(TI_SRC_FILES
     ${SRC}/agent.cc)
@@ -166,6 +167,7 @@ set(TEST_FILES
     ${SRC_TEST}/test_prob_pct.cc
     ${SRC_TEST}/test_blocking_ring_buffer.cc
     ${SRC_TEST}/test_syslog_tsdb_metric_formatter.cc
+    ${SRC_TEST}/test_unique_readsafe_ptr.cc
     ${SRC_TEST}/test.cc)
 
 set(TEST_UTIL_FILES

@@ -6,7 +6,7 @@ IsGCActiveType Asgct::is_gc_active_;
 static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
     std::shared_ptr<Profiler> cpu_profiler = GlobalCtx::recording.cpu_profiler;
     if (cpu_profiler.get() == nullptr) {
-        logger->warn("Received profiling signal while recording is off! Something wrong?");
+        //ignore, can't log, because of re-entrance issues
     } else {
         cpu_profiler->handle(signum, info, context);
     }
