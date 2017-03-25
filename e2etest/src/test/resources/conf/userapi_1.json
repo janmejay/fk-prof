@@ -2,7 +2,7 @@
   "http.port": 8082,
   "http.instances": 1,
   "req.timeout": 10000,
-  "profile.retention.duration.min": 30,
+  "profile.retention.duration.min": 5,
   "aggregation_window.duration.secs": 60,
   "storage": "S3",
   "S3": {

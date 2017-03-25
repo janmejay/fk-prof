@@ -9,6 +9,8 @@ import com.mashape.unirest.http.Unirest;
 import fk.prof.recorder.main.Burn20And80PctCpu;
 import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.FileResolver;
+import fk.prof.recorder.utils.ListProfilesMatcher;
+import fk.prof.recorder.utils.Util;
 import io.findify.s3mock.S3Mock;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -35,12 +37,13 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.core.Is.*;
 import static org.junit.Assert.*;
+import static fk.prof.recorder.utils.Util.*;
 
 /**
  * Created by gaurav.ashok on 06/03/17.
  */
-public class E2ETest {
-    private final static Logger logger = LoggerFactory.getLogger(E2ETest.class);
+public class E2EIntegrationTest {
+    private final static Logger logger = LoggerFactory.getLogger(E2EIntegrationTest.class);
     public final static int s3Port = 13031;
     public final static int zkPort = 2191;
     public final static String baseS3Bucket = "profiles";
@@ -54,6 +57,22 @@ public class E2ETest {
     private UserapiProcess userapi;
     private BackendProcess[] backends;
     private AgentRunner[] recorders;
+
+    private String recorderParams = "service_endpoint=http://127.0.0.1:2492," +
+            "ip=10.20.30.40," +
+            "host=foo-host," +
+            "app_id=bar-app," +
+            "inst_grp=baz-grp," +
+            "cluster=quux-cluster," +
+            "inst_id=corge-iid," +
+            "proc=grault-proc," +
+            "vm_id=garply-vmid," +
+            "zone=waldo-zone," +
+            "inst_typ=c0.small," +
+            "backoff_start=2," +
+            "backoff_max=5," +
+            "log_lvl=trace," +
+            "poll_itvl=10";
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -153,28 +172,13 @@ public class E2ETest {
         }
     }
 
-    @Test(timeout = 10 * 60 * 1_000)
-    public void testE2EFlowWithFixPolicy_15SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
+    @Test(timeout = 5 * 60 * 1_000)
+    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
         // start all components
         userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
         BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
         BackendProcess backend = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
-        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:2492," +
-                "ip=10.20.30.40," +
-                "host=foo-host," +
-                "appid=bar-app," +
-                "igrp=baz-grp," +
-                "cluster=quux-cluster," +
-                "instid=corge-iid," +
-                "proc=grault-proc," +
-                "vmid=garply-vmid," +
-                "zone=waldo-zone," +
-                "ityp=c0.small," +
-                "backoffStart=2," +
-                "backoffMax=5," +
-                "logLvl=trace," +
-                "pollItvl=10"
-        );
+        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), recorderParams);
 
         backends = new BackendProcess[] {leader, backend};
         recorders = new AgentRunner[] {recorder};
@@ -193,8 +197,8 @@ public class E2ETest {
         System.out.println("All components started, now waiting");
 
         // expecting a backend and leader handshake, pg association to backend and backend responding to recorder's poll. This should take around 30 - 40 sec.
-        // Wait for another 2.5 min to let first 2 window finish.
-        Thread.sleep(minToMillis(3, 0)); // 3 min
+        // Wait for another 2 min to let first 2 window finish.
+        Thread.sleep(minToMillis(3, 30)); // 3.5 min
 
         ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
 
@@ -208,28 +212,16 @@ public class E2ETest {
 
         Map<String, Object> res = new ObjectMapper().readValue(httpResponse.getBody(), Map.class);
 
-        assertThat(res.keySet(), Matchers.hasItems("failed", "succeeded"));
+        ListProfilesMatcher responseMatcher = new ListProfilesMatcher()
+                .hasProfiles(2)
+                .latestProfileHasTraces("inferno", "~ OTHERS ~");
 
-        List<Map<String, Object>> failed = (List<Map<String, Object>>) res.get("failed");
-        List<Map<String, Object>> succeeded = (List<Map<String, Object>>) res.get("succeeded");
+        assertThat(res, responseMatcher);
 
-        assertThat(failed, Matchers.anyOf(Matchers.nullValue(), Matchers.empty()));
-
-        // there should be 2 aggregation window
-        assertThat(succeeded, Matchers.hasSize(2));
-
-        // every succeeded aggregation has following fields
-        assertThat(succeeded.stream().map(s -> s.keySet()).collect(Collectors.toList()), Matchers.everyItem(Matchers.hasItems("profiles", "ws_summary", "traces", "start", "duration")));
+        // TODO move common pattern of checks to matcher Util
 
         // check details of the later aggregation. First 1 is empty for now
-        Map<String, Object> aggregation = succeeded.get(
-            maxIdx(
-                asZDate(get(succeeded.get(0), "start")),
-                asZDate(get(succeeded.get(1), "start"))
-            )
-        );
-        assertThat((List<String>)aggregation.get("traces"), Matchers.hasSize(1));
-        assertThat((List<String>)aggregation.get("traces"), Matchers.hasItems("inferno"));
+        Map<String, Object> aggregation = Util.getLatestWindow(res);
         assertThat(aggregation.get("duration"), is(60));
 
         // we are expecting only 1 work being scheduled. This might change so fix the test accordingly
@@ -244,7 +236,7 @@ public class E2ETest {
 
         assertThat(profile.keySet(), Matchers.hasItems("start_offset", "duration", "recorder_version", "recorder_info", "sample_count", "status", "trace_coverage_map"));
         assertThat((Integer)profile.get("start_offset"), Matchers.lessThan(60));
-        assertThat((Integer)profile.get("duration"), Matchers.comparesEqualTo(15));
+        assertThat((Integer)profile.get("duration"), Matchers.comparesEqualTo(30));
 
         // check details of recorder info
         Map<String, String> recorderInfo = cast(profile.get("recorder_info"));
@@ -269,28 +261,13 @@ public class E2ETest {
 //        assertThat(totalSampleCountsFromProfiles, is(totalSampleCountFromSampleAggregation));
     }
 
-    @Test(timeout = 10 * 60 * 1_000)
-    public void testE2EFlowIncompleteProfileRecorderDies_15SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
+    @Test(timeout = 5 * 60 * 1_000)
+    public void testE2EFlowIncompleteProfileRecorderDies_30SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
         // start all components
         userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
         BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
         BackendProcess backend = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
-        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:2492," +
-                "ip=10.20.30.40," +
-                "host=foo-host," +
-                "appid=bar-app," +
-                "igrp=baz-grp," +
-                "cluster=quux-cluster," +
-                "instid=corge-iid," +
-                "proc=grault-proc," +
-                "vmid=garply-vmid," +
-                "zone=waldo-zone," +
-                "ityp=c0.small," +
-                "backoffStart=2," +
-                "backoffMax=5," +
-                "logLvl=trace," +
-                "pollItvl=10"
-        );
+        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), recorderParams);
 
         backends = new BackendProcess[] {leader, backend};
 
@@ -306,13 +283,13 @@ public class E2ETest {
         recorder.start();
 
         // wait for 1st work to start
-        Thread.sleep(minToMillis(1, 10));
+        Thread.sleep(minToMillis(2, 50));
 
         // kill the recorder. Because we are killing the recorder while a work was in flight a profile will be incomplete.
         recorder.stop();
 
         // wait for the aggregation window to conclude
-        Thread.sleep(minToMillis(1, 50)); // 3 min in total
+        Thread.sleep(minToMillis(1, 00)); // 3 min in total
 
         ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
 
@@ -326,31 +303,21 @@ public class E2ETest {
 
         Map<String, Object> res = new ObjectMapper().readValue(httpResponse.getBody(), Map.class);
 
-        assertThat(res.keySet(), Matchers.hasItems("failed", "succeeded"));
-
-        List<Map<String, Object>> failed = (List<Map<String, Object>>) res.get("failed");
         List<Map<String, Object>> succeeded = (List<Map<String, Object>>) res.get("succeeded");
-
-        assertThat(failed, Matchers.anyOf(Matchers.nullValue(), Matchers.empty()));
 
         // we are still expecting 2 aggregation windows
         assertThat(succeeded, Matchers.hasSize(2));
 
         // check details of the later aggregation. First 1 is empty for now
-        Map<String, Object> aggregation = succeeded.get(
-                maxIdx(
-                        asZDate(get(succeeded.get(0), "start")),
-                        asZDate(get(succeeded.get(1), "start"))
-                )
-        );
+        Map<String, Object> aggregation = getLatestWindow(res);
 
         // only 1 not 'Completed' profile
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) aggregation.get("profiles");
+        List<Map<String, Object>> profiles = cast(aggregation.get("profiles"));
         assertThat(profiles, Matchers.hasSize(1));
 
         // check the status
         Map<String, Object> profile = profiles.get(0);
-        assertThat(profile.get("status"), Matchers.not("Partial"));
+        assertThat(profile.get("status"), Matchers.is("Partial"));
     }
 
     private static void ensureS3BaseBucket() throws Exception {
@@ -395,69 +362,15 @@ public class E2ETest {
         System.out.println(ip + ":" + port + " connected");
     }
 
-    private <T> T get(Object m, String... fields) {
-        assert fields.length > 0;
-        Map<String, Object> temp = (Map<String, Object>) m;
-        int i = 0;
-        for(; i < fields.length - 1; ++i) {
-            temp = (Map<String, Object>)temp.get(fields[i]);
-        }
 
-        return (T)temp.get(fields[i]);
-    }
-
-    private <T> List<T> asList(Object obj) {
-        return (List<T>) obj;
-    }
-
-    private <T> T cast(Object obj) {
-        return (T)obj;
-    }
-
-    private ZonedDateTime asZDate(String str) {
-        return ZonedDateTime.parse(str, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-    }
-
-    private <T extends Comparable> int maxIdx(T... items) {
-        assert items != null && items.length > 0 : "cannot find index for max item in empty list";
-
-        int maxIdx = 0;
-
-        for(int i = 1; i < items.length; ++i) {
-            if(items[maxIdx].compareTo(items[i]) < 0) {
-                maxIdx = i;
-            }
-        }
-
-        return maxIdx;
-    }
 
 //    public void test_runForeverS3MockAndZookeeper() throws Exception {
 //        Thread.sleep(Integer.MAX_VALUE);
 //    }
-
+//
 //    public void testBackendByStartingUserapi() throws Exception {
 //        // start all components
 //        userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
-//        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:2491," +
-//                "ip=10.20.30.40," +
-//                "host=foo-host," +
-//                "appid=bar-app," +
-//                "igrp=baz-grp," +
-//                "cluster=quux-cluster," +
-//                "instid=corge-iid," +
-//                "proc=grault-proc," +
-//                "vmid=garply-vmid," +
-//                "zone=waldo-zone," +
-//                "ityp=c0.small," +
-//                "backoffStart=2," +
-//                "backoffMax=5," +
-//                "logLvl=trace," +
-//                "pollItvl=10"
-//        );
-//
-//        recorders = new AgentRunner[] {recorder};
-//
 //        userapi.start();
 //
 //        waitForSocket("127.0.0.1", 8082);
