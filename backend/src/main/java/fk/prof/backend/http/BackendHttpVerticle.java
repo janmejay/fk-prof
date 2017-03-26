@@ -52,6 +52,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ProfHttpClient httpClient;
+  private HttpServer server;
 
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
@@ -75,9 +76,15 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
+    server = vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
         .requestHandler(router::accept)
         .listen(configManager.getBackendHttpPort(), http -> completeStartup(http, fut));
+  }
+
+  @Override
+  public void stop(Future<Void> stopFuture) throws Exception {
+    logger.info("BackendHttpVerticle stopping. Stopping backend server");
+    server.close(stopFuture.completer());
   }
 
   private Router setupRouting() {

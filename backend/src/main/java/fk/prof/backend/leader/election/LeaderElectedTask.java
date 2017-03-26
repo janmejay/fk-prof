@@ -28,6 +28,7 @@ public class LeaderElectedTask implements Runnable {
     if (backendDeployments != null) {
       // NOTE: If backend deployments supplied, leader will not serve as backend and only do leader related operations
       this.backendVerticlesUndeployer = () -> {
+        logger.info("Unloading backend verticles");
         List<Future> undeployFutures =  new ArrayList<>();
         for(String deploymentId: backendDeployments) {
           Future<Void> future = Future.future();
@@ -52,9 +53,12 @@ public class LeaderElectedTask implements Runnable {
 
   @Override
   public void run() {
+    logger.info("Beginning leader elected task");
     if (this.backendVerticlesUndeployer != null) {
       this.backendVerticlesUndeployer.get().setHandler(ar -> {
+        logger.info("Unloading of backend verticle finished");
         if(ar.succeeded()) {
+          logger.info("leader verticle is being deployed");
           this.leaderHttpVerticlesDeployer.deploy();
         } else {
           logger.error("Aborting deployment of leader http verticles because error while un-deploying backend verticles");

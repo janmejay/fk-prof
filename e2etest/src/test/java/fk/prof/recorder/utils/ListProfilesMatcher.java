@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.function.Function;
 import static fk.prof.recorder.utils.Util.*;
 
-
 /**
  * Created by gaurav.ashok on 25/03/17.
  */
@@ -55,8 +54,11 @@ public class ListProfilesMatcher extends BaseMatcher<Map<String, Object>> {
     }
 
     public ListProfilesMatcher latestAggrWindowHasTraces(String... traces) {
+        Matcher sizeMatcher = Matchers.hasItems(traces);
+        Matcher itemsMatcher = Matchers.hasSize(traces.length);
+
         matchers.add(new GenericMatcher("latest aggrWindow trace list", res -> asList(get(getLatestWindow(res), "traces")),
-                org.hamcrest.Matchers.allOf(Matchers.hasSize(traces.length), Matchers.hasItems(traces))));
+                Matchers.allOf(sizeMatcher, itemsMatcher)));
         return this;
     }
 
@@ -120,12 +122,12 @@ public class ListProfilesMatcher extends BaseMatcher<Map<String, Object>> {
         }
     }
 
-    private static class GenericMatcher extends BaseMatcher<Object> {
+    private static class GenericMatcher<T> extends BaseMatcher<T> {
         String objectTag;
-        Function<Object, Object> transformer;
+        Function<Object, T> transformer;
         Matcher matcher;
 
-        public GenericMatcher(String tag, Function<Object, Object> transformer, Matcher matcher) {
+        public GenericMatcher(String tag, Function<Object, T> transformer, Matcher<T> matcher) {
             this.objectTag = tag;
             this.matcher = matcher;
             this.transformer = transformer;

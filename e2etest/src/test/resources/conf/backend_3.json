@@ -1,9 +1,9 @@
 {
   "ip.address": "127.0.0.1",
   "backend.version": 1,
-  "backend.id": 1,
-  "backend.http.port": 2491,
-  "leader.http.port": 2496,
+  "backend.id": 2,
+  "backend.http.port": 2493,
+  "leader.http.port": 2498,
   "load.report.interval.secs": 10,
   "recorder.defunct.threshold.secs": 120,
   "slot.pool.capacity": 100,

@@ -19,20 +19,19 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.hamcrest.Matchers;
 import org.junit.*;
 
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.InetSocketAddress;
-import java.nio.channels.SocketChannel;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -138,7 +137,7 @@ public class E2EIntegrationTest {
         userapi.start();
 
         try {
-            waitForSocket("127.0.0.1", 8082);
+            waitForOpenPort("127.0.0.1", 8082);
 
             HttpResponse<String> response = Unirest.get("http://127.0.0.1:8082/").asString();
             Assert.assertThat(response.getStatus(), is(200));
@@ -154,7 +153,7 @@ public class E2EIntegrationTest {
         backend.start();
 
         try {
-            waitForSocket("127.0.0.1", 2496);
+            waitForOpenPort("127.0.0.1", 2496);
         }
         finally {
             backend.stop();
@@ -175,11 +174,11 @@ public class E2EIntegrationTest {
         userapi.start();
         leader.start();
 
-        waitForSocket("127.0.0.1", 8082);
-        waitForSocket("127.0.0.1", 2496);
+        waitForOpenPort("127.0.0.1", 8082);
+        waitForOpenPort("127.0.0.1", 2496);
 
         backend.start();
-        waitForSocket("127.0.0.1", 2492);
+        waitForOpenPort("127.0.0.1", 2492);
 
         recorder.start();
 
@@ -260,11 +259,11 @@ public class E2EIntegrationTest {
         userapi.start();
         leader.start();
 
-        waitForSocket("127.0.0.1", 8082);
-        waitForSocket("127.0.0.1", 2496);
+        waitForOpenPort("127.0.0.1", 8082);
+        waitForOpenPort("127.0.0.1", 2496);
 
         backend.start();
-        waitForSocket("127.0.0.1", 2492);
+        waitForOpenPort("127.0.0.1", 2492);
 
         recorder.start();
 
@@ -317,11 +316,11 @@ public class E2EIntegrationTest {
         userapi.start();
         leader.start();
 
-        waitForSocket("127.0.0.1", 8082);
-        waitForSocket("127.0.0.1", 2496);
+        waitForOpenPort("127.0.0.1", 8082);
+        waitForOpenPort("127.0.0.1", 2496);
 
         backend.start();
-        waitForSocket("127.0.0.1", 2492);
+        waitForOpenPort("127.0.0.1", 2492);
 
         recorder11.start();
         recorder12.start();
@@ -354,6 +353,53 @@ public class E2EIntegrationTest {
                 .latestAggrWindowHasTraces("100_pct_single_inferno", "50_pct_duplicate_inferno", "50_pct_duplicate_inferno_child", "~ OTHERS ~"));
     }
 
+    @Test(timeout = 2 * 60 * 1_000)
+    public void testLeaderDeath_oneOfTheBackendShouldBecomeLeader() throws Exception {
+        BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
+        BackendProcess backend1 = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
+        BackendProcess backend2 = new BackendProcess(FileResolver.resourceFile("/conf/backend_3.json"));
+
+        backends = new BackendProcess[]{backend1, backend2};
+
+        leader.start();
+        waitForOpenPort("127.0.0.1", 2496);
+
+        backend1.start();
+        backend2.start();
+        waitForOpenPort("127.0.0.1", 2492);
+        waitForOpenPort("127.0.0.1", 2493);
+
+        // wait for some time
+        logger.info("Waiting for leader backend handshake");
+        Thread.sleep(minToMillis(0, 20));
+
+        // kill the leader
+        logger.info("killing leader");
+        leader.stop();
+
+        // wait for some time
+
+        // session timeout is 15 sec
+        logger.info("Waiting 30 sec for leader come back up");
+        Thread.sleep(minToMillis(0, 30));
+
+        // check the ports
+        // first backend i.e. leader is dead
+        assertFalse(isOpenPort("127.0.0.1", 2496, true));
+        assertFalse(isOpenPort("127.0.0.1", 2491, true));
+
+        boolean backend1Leader = isOpenPort("127.0.0.1", 2497, true);
+        if(!backend1Leader) {
+            // backend2 just became leader
+            assertTrue(isOpenPort("127.0.0.1", 2498, true));
+            assertFalse(isOpenPort("127.0.0.1", 2493, true));
+        }
+        else {
+            // backend1 just became leader
+            assertFalse(isOpenPort("127.0.0.1", 2492, true));
+        }
+    }
+
     private static void ensureS3BaseBucket() throws Exception {
         // init a bucket, if not present
         if(!client.listBuckets().stream().anyMatch(b -> b.getName().equals(baseS3Bucket))) {
@@ -368,35 +414,6 @@ public class E2EIntegrationTest {
             // ignore
         }
     }
-
-    public static void waitForSocket(String ip, int port) throws IOException {
-        boolean scanning=true;
-        while(scanning)
-        {
-            try
-            {
-                SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(ip, port));
-                if(socketChannel.isConnected()) {
-                    socketChannel.close();
-                }
-                scanning=false;
-            }
-            catch(ConnectException e)
-            {
-                System.out.println("Connect to : " + ip + ":" + port + " failed, waiting and trying again");
-                try
-                {
-                    Thread.sleep(2000);//2 seconds
-                }
-                catch(InterruptedException ie){
-                    ie.printStackTrace();
-                }
-            }
-        }
-        System.out.println(ip + ":" + port + " connected");
-    }
-
-
 
 //    public void test_runForeverS3MockAndZookeeper() throws Exception {
 //        Thread.sleep(Integer.MAX_VALUE);

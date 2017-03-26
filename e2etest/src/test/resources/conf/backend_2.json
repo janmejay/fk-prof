@@ -37,7 +37,7 @@
     "connection.url": "127.0.0.1:2191",
     "namespace": "fkprof",
     "connection.timeout.ms": 5000,
-    "session.timeout.ms": 60000,
+    "session.timeout.ms": 15000,
     "max.retries": 3
   },
   "leaderElectionOptions": {

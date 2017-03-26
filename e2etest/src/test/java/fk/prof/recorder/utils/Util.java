@@ -8,6 +8,10 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.InetSocketAddress;
+import java.nio.channels.SocketChannel;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -108,5 +112,46 @@ public class Util {
 
     private static void assertStatusCode(HttpResponse<?> resp, int expectedStatusCode) {
         Assert.assertThat(resp.getStatus(), org.hamcrest.Matchers.is(expectedStatusCode));
+    }
+
+    public static void waitForOpenPort(String ip, int port) throws IOException {
+        boolean scanning=true;
+        while(scanning)
+        {
+            try
+            {
+                isOpenPort(ip, port, false);
+                scanning=false;
+            }
+            catch(ConnectException e)
+            {
+                System.out.println("Connect to : " + ip + ":" + port + " failed, waiting and trying again");
+                try
+                {
+                    Thread.sleep(2000);//2 seconds
+                }
+                catch(InterruptedException ie){
+                    ie.printStackTrace();
+                }
+            }
+        }
+        System.out.println(ip + ":" + port + " connected");
+    }
+
+    public static boolean isOpenPort(String ip, int port, boolean ignoreException) throws IOException {
+        try {
+            SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(ip, port));
+            if (socketChannel.isConnected()) {
+                socketChannel.close();
+                return true;
+            }
+        }
+        catch (ConnectException e) {
+            if(!ignoreException) {
+                throw e;
+            }
+        }
+
+        return false;
     }
 }
