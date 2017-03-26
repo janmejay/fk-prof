@@ -3,10 +3,10 @@ package fk.prof.recorder.e2e;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectListing;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import fk.prof.recorder.main.Burn20And80PctCpu;
+import fk.prof.recorder.main.Burn50And50PctCpu;
 import fk.prof.recorder.utils.AgentRunner;
 import fk.prof.recorder.utils.FileResolver;
 import fk.prof.recorder.utils.ListProfilesMatcher;
@@ -30,6 +30,7 @@ import java.nio.channels.SocketChannel;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -58,21 +59,7 @@ public class E2EIntegrationTest {
     private BackendProcess[] backends;
     private AgentRunner[] recorders;
 
-    private String recorderParams = "service_endpoint=http://127.0.0.1:2492," +
-            "ip=10.20.30.40," +
-            "host=foo-host," +
-            "app_id=bar-app," +
-            "inst_grp=baz-grp," +
-            "cluster=quux-cluster," +
-            "inst_id=corge-iid," +
-            "proc=grault-proc," +
-            "vm_id=garply-vmid," +
-            "zone=waldo-zone," +
-            "inst_typ=c0.small," +
-            "backoff_start=2," +
-            "backoff_max=5," +
-            "log_lvl=trace," +
-            "poll_itvl=10";
+    private static Map<String, String> recorderParams;
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -98,6 +85,8 @@ public class E2EIntegrationTest {
         curator.blockUntilConnected(10000, TimeUnit.MILLISECONDS);
         assert curator.getState() == CuratorFrameworkState.STARTED;
         ensureZkRootnode();
+
+        buildDefaultRecorderParams();
     }
 
     @Before
@@ -173,12 +162,12 @@ public class E2EIntegrationTest {
     }
 
     @Test(timeout = 5 * 60 * 1_000)
-    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
+    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_2Recorder_2Backends() throws Exception {
         // start all components
         userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
         BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
         BackendProcess backend = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
-        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), recorderParams);
+        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), argsMaptoStr(getRecorderArgs(1, 1)));
 
         backends = new BackendProcess[] {leader, backend};
         recorders = new AgentRunner[] {recorder};
@@ -202,19 +191,14 @@ public class E2EIntegrationTest {
 
         ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
 
-        String getProfileUrl = "http://127.0.0.1:8082/profiles/bar-app/quux-cluster/grault-proc?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
+        String getProfileUrl = "http://127.0.0.1:8082/profiles/bar-app_1/quux-cluster_1/grault-proc_1?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
 
-        logger.info("Getting profiles from: " + getProfileUrl);
-        HttpResponse<String> httpResponse = Unirest.get(getProfileUrl).asString();
-
-        logger.info(httpResponse.getBody());
-        assertThat(httpResponse.getStatus(), is(200));
-
-        Map<String, Object> res = new ObjectMapper().readValue(httpResponse.getBody(), Map.class);
+        HttpResponse<String> httpResponse = cast(doRequest(getProfileUrl, "get", null, 200, false));
+        Map<String, Object> res = toMap(httpResponse.getBody());
 
         ListProfilesMatcher responseMatcher = new ListProfilesMatcher()
-                .hasProfiles(2)
-                .latestProfileHasTraces("inferno", "~ OTHERS ~");
+                .hasAggrWindows(2)
+                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~");
 
         assertThat(res, responseMatcher);
 
@@ -240,18 +224,20 @@ public class E2EIntegrationTest {
 
         // check details of recorder info
         Map<String, String> recorderInfo = cast(profile.get("recorder_info"));
-        assertThat(recorderInfo.get("ip"), is("10.20.30.40"));
-        assertThat(recorderInfo.get("hostname"), is("foo-host"));
-        assertThat(recorderInfo.get("app_id"), is("bar-app"));
-        assertThat(recorderInfo.get("instance_group"), is("baz-grp"));
-        assertThat(recorderInfo.get("cluster"), is("quux-cluster"));
-        assertThat(recorderInfo.get("instace_id"), is("corge-iid"));
-        assertThat(recorderInfo.get("process_name"), is("grault-proc"));
+        assertThat(recorderInfo.get("ip"), is("10.20.301.401"));
+        assertThat(recorderInfo.get("hostname"), is("foo-host_1_1"));
+        assertThat(recorderInfo.get("app_id"), is("bar-app_1"));
+        assertThat(recorderInfo.get("instance_group"), is("baz-grp_1"));
+        assertThat(recorderInfo.get("cluster"), is("quux-cluster_1"));
+        assertThat(recorderInfo.get("instace_id"), is("corge-iid_1_1"));
+        assertThat(recorderInfo.get("process_name"), is("grault-proc_1"));
         assertThat(recorderInfo.get("vm_id"), is("garply-vmid"));
         assertThat(recorderInfo.get("zone"), is("waldo-zone"));
         assertThat(recorderInfo.get("instance_type"), is("c0.small"));
 
         // TODO: test for sample count consistency after adding errored stacktraces count in aggregation.
+        // TODO: add more assertions to cpu_sample data
+
 //        // sum up all the profiles sample counts
 //        int totalSampleCountsFromProfiles = ((List<Map<String,Object>>) aggregation.get("profiles")).stream().mapToInt(p -> get(p, "sample_count", "cpu_sample_work")).sum();
 //        // sum up all the sample counts for cpu_sample traces
@@ -267,7 +253,7 @@ public class E2EIntegrationTest {
         userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
         BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
         BackendProcess backend = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
-        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), recorderParams);
+        AgentRunner recorder = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), argsMaptoStr(getRecorderArgs(1, 1)));
 
         backends = new BackendProcess[] {leader, backend};
 
@@ -293,17 +279,12 @@ public class E2EIntegrationTest {
 
         ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
 
-        String getProfileUrl = "http://127.0.0.1:8082/profiles/bar-app/quux-cluster/grault-proc?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
+        String getProfileUrl = "http://127.0.0.1:8082/profiles/bar-app_1/quux-cluster_1/grault-proc_1?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
 
-        logger.info("Getting profiles from: " + getProfileUrl);
-        HttpResponse<String> httpResponse = Unirest.get(getProfileUrl).asString();
+        HttpResponse<String> httpResponse = cast(doRequest(getProfileUrl, "get", null, 200, false));
+        Map<String, Object> res = toMap(httpResponse.getBody());
 
-        logger.info(httpResponse.getBody());
-        assertThat(httpResponse.getStatus(), is(200));
-
-        Map<String, Object> res = new ObjectMapper().readValue(httpResponse.getBody(), Map.class);
-
-        List<Map<String, Object>> succeeded = (List<Map<String, Object>>) res.get("succeeded");
+        List<Map<String, Object>> succeeded = get(res, "succeeded");
 
         // we are still expecting 2 aggregation windows
         assertThat(succeeded, Matchers.hasSize(2));
@@ -312,12 +293,65 @@ public class E2EIntegrationTest {
         Map<String, Object> aggregation = getLatestWindow(res);
 
         // only 1 not 'Completed' profile
-        List<Map<String, Object>> profiles = cast(aggregation.get("profiles"));
+        List<Map<String, Object>> profiles = get(aggregation, "profiles");
         assertThat(profiles, Matchers.hasSize(1));
 
         // check the status
         Map<String, Object> profile = profiles.get(0);
-        assertThat(profile.get("status"), Matchers.is("Partial"));
+        assertThat(profile.get("status"), is("Partial"));
+    }
+
+    @Test(timeout = 5 * 60 * 1_000)
+    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_3Recorder_2Backends_2ProcessGroups() throws Exception {
+        // start all components
+        userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
+        BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
+        BackendProcess backend = new BackendProcess(FileResolver.resourceFile("/conf/backend_2.json"));
+        AgentRunner recorder11 = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), argsMaptoStr(getRecorderArgs(1, 1)));
+        AgentRunner recorder12 = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), argsMaptoStr(getRecorderArgs(1, 2)));
+        AgentRunner recorder23 = new AgentRunner(Burn50And50PctCpu.class.getCanonicalName(), argsMaptoStr(getRecorderArgs(2, 3)));
+
+        backends = new BackendProcess[]{leader, backend};
+        recorders = new AgentRunner[]{recorder11, recorder12, recorder23};
+
+        userapi.start();
+        leader.start();
+
+        waitForSocket("127.0.0.1", 8082);
+        waitForSocket("127.0.0.1", 2496);
+
+        backend.start();
+        waitForSocket("127.0.0.1", 2492);
+
+        recorder11.start();
+        recorder12.start();
+        recorder23.start();
+
+        System.out.println("All components started, now waiting");
+
+        // expecting a backend and leader handshake, pg association to backend and backend responding to recorder's poll. This should take around 30 - 40 sec.
+        // Wait for another 2 min to let first 2 window finish.
+        Thread.sleep(minToMillis(3, 40)); // 3.5 min
+
+        ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
+
+        String getProfileUrl1 = "http://127.0.0.1:8082/profiles/bar-app_1/quux-cluster_1/grault-proc_1?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
+        String getProfileUrl2 = "http://127.0.0.1:8082/profiles/bar-app_2/quux-cluster_2/grault-proc_2?start=" + someTimeFromNearPast.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "&duration=3600";
+
+        HttpResponse<String> httpResponse1 = cast(doRequest(getProfileUrl1, "get", null, 200, false));
+        HttpResponse<String> httpResponse2 = cast(doRequest(getProfileUrl2, "get", null, 200, false));
+        Map<String, Object> res1 = toMap(httpResponse1.getBody());
+        Map<String, Object> res2 = toMap(httpResponse2.getBody());
+
+        assertThat(res1, new ListProfilesMatcher()
+                .hasAggrWindows(2)
+                .latestAggrWindowHasWorkCount(2)                        // 1 for each recorder
+                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~"));
+
+        assertThat(res2, new ListProfilesMatcher()
+                .hasAggrWindows(2)
+                .latestAggrWindowHasWorkCount(1)                        // only 1 recorder for 2nd process group
+                .latestAggrWindowHasTraces("100_pct_single_inferno", "50_pct_duplicate_inferno", "50_pct_duplicate_inferno_child", "~ OTHERS ~"));
     }
 
     private static void ensureS3BaseBucket() throws Exception {
@@ -377,6 +411,45 @@ public class E2EIntegrationTest {
 //
 //        Thread.sleep(Integer.MAX_VALUE);
 //    }
+
+    private static void buildDefaultRecorderParams() {
+        recorderParams = new LinkedHashMap<>();
+        recorderParams.put("service_endpoint", "http://127.0.0.1:2492");
+        recorderParams.put("ip", "10.20.30.40");
+        recorderParams.put("host", "foo-host");
+        recorderParams.put("app_id", "bar-app");
+        recorderParams.put("inst_grp", "baz-grp");
+        recorderParams.put("cluster", "quux-cluster");
+        recorderParams.put("inst_id", "corge-iid");
+        recorderParams.put("proc", "grault-proc");
+        recorderParams.put("vm_id", "garply-vmid");
+        recorderParams.put("zone", "waldo-zone");
+        recorderParams.put("inst_typ", "c0.small");
+        recorderParams.put("backoff_start", "2");
+        recorderParams.put("backoff_max", "5");
+        recorderParams.put("log_lvl", "trace");
+        recorderParams.put("poll_itvl", "10");
+    }
+
+    private static Map<String, String> getRecorderArgs(int processGroupVariant, int recorderVariant) {
+        Map<String, String> args = new LinkedHashMap<>();
+        args.putAll(recorderParams);
+
+        args.put("app_id", args.get("app_id") + "_" + processGroupVariant);
+        args.put("cluster", args.get("cluster") + "_" + processGroupVariant);
+        args.put("inst_grp", args.get("inst_grp") + "_" + processGroupVariant);
+        args.put("proc", args.get("proc") + "_" + processGroupVariant);
+
+        args.put("ip", "10.20.30" + processGroupVariant + ".40" + recorderVariant);
+        args.put("host", args.get("host") + "_" + processGroupVariant + "_" + recorderVariant);
+        args.put("inst_id", args.get("inst_id") + "_" + processGroupVariant + "_" + recorderVariant);
+
+        return args;
+    }
+
+    private static String argsMaptoStr(Map<String, String> map) {
+        return String.join(",", map.entrySet().stream().map(kv -> kv.getKey() + "=" + kv.getValue()).collect(Collectors.toList()));
+    }
 
     private int minToMillis(int min, int sec) {
         return min * 60 * 1000 + sec * 1000;

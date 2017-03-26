@@ -1,11 +1,9 @@
 package fk.prof.recorder.utils;
 
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
+import org.hamcrest.*;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -48,7 +46,7 @@ public class ListProfilesMatcher extends BaseMatcher<Map<String, Object>> {
         }
     }
 
-    public ListProfilesMatcher hasProfiles(int count) {
+    public ListProfilesMatcher hasAggrWindows(int count) {
         matchers.add(new ProfileCountMatcher(count, false));
         if(count > 0) {
             matchers.add(new MapFieldsMatcher("aggregation_window", (i) -> asList(get(i, "succeeded")).get(0), "profiles", "ws_summary", "traces", "start", "duration"));
@@ -56,8 +54,15 @@ public class ListProfilesMatcher extends BaseMatcher<Map<String, Object>> {
         return this;
     }
 
-    public ListProfilesMatcher latestProfileHasTraces(String... traces) {
-        matchers.add(new TracesMatcher("latest aggregation window", res -> getLatestWindow(res), traces));
+    public ListProfilesMatcher latestAggrWindowHasTraces(String... traces) {
+        matchers.add(new GenericMatcher("latest aggrWindow trace list", res -> asList(get(getLatestWindow(res), "traces")),
+                org.hamcrest.Matchers.allOf(Matchers.hasSize(traces.length), Matchers.hasItems(traces))));
+        return this;
+    }
+
+    public ListProfilesMatcher latestAggrWindowHasWorkCount(int count) {
+        matchers.add(new GenericMatcher("latest aggrWindow work count", res -> get(getLatestWindow(res), "profiles"),
+                Matchers.hasSize(count)));
         return this;
     }
 
@@ -115,26 +120,26 @@ public class ListProfilesMatcher extends BaseMatcher<Map<String, Object>> {
         }
     }
 
-    private static class TracesMatcher extends BaseMatcher<Object> {
-        String[] traces;
+    private static class GenericMatcher extends BaseMatcher<Object> {
         String objectTag;
-        Function<Object, Map<String, Object>> transformer;
+        Function<Object, Object> transformer;
+        Matcher matcher;
 
-        public TracesMatcher(String tag, Function<Object, Map<String, Object>> transformer, String... traces) {
+        public GenericMatcher(String tag, Function<Object, Object> transformer, Matcher matcher) {
             this.objectTag = tag;
-            this.traces = traces;
+            this.matcher = matcher;
             this.transformer = transformer;
         }
 
         @Override
         public boolean matches(Object item) {
-            List<String> inResponse = asList(get(transformer.apply(item), "traces"));
-            return inResponse != null && inResponse.size() == traces.length && inResponse.containsAll(Arrays.asList(traces));
+            return matcher.matches(transformer.apply(item));
         }
 
         @Override
         public void describeTo(Description description) {
-            description.appendValueList("trace list in " + objectTag + " should contain \"", ",", "\"", traces);
+            description.appendText("matching \"" + objectTag + "\" with matcher describing: ");
+            matcher.describeTo(description);
         }
     }
 }

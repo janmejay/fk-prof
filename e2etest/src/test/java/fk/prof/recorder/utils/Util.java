@@ -1,5 +1,13 @@
 package fk.prof.recorder.utils;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.request.HttpRequest;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
+import org.junit.Assert;
+
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -9,6 +17,10 @@ import java.util.Map;
  * Created by gaurav.ashok on 25/03/17.
  */
 public class Util {
+
+    public static ObjectMapper OM = new ObjectMapper();
+    private final static Logger logger = LoggerFactory.getLogger(Util.class);
+
     public static Map<String, Object> getLatestWindow(Object response) {
         List<Map<String, Object>> aggregationWindows = asList(get(response, "succeeded"));
         if(aggregationWindows == null || aggregationWindows.size() == 0) {
@@ -38,6 +50,14 @@ public class Util {
         return (List<T>) obj;
     }
 
+    public static Map<String, Object> toMap(String str) throws Exception {
+        return OM.readValue(str, Map.class);
+    }
+
+    public static List<Object> toList(String str) throws Exception {
+        return OM.readValue(str, List.class);
+    }
+
     public static <T> T cast(Object obj) {
         return (T)obj;
     }
@@ -58,5 +78,35 @@ public class Util {
         }
 
         return maxIdx;
+    }
+
+    public static HttpResponse<?> doRequest(String url, String method, byte[] payload, int expectedStatusCode, boolean isReponseInBytes) throws Exception {
+        HttpRequest request;
+
+        if(method.equals("get")) {
+            request = Unirest.get(url);
+        }
+        else if(method.equals("post")) {
+            request = Unirest.post(url).body(payload).getHttpRequest();
+        }
+        else {
+            throw new UnsupportedOperationException("other request methods not implemented");
+        }
+
+        HttpResponse<?> resp;
+        if(isReponseInBytes) {
+            resp = request.asBinary();
+        }
+        else {
+            resp = request.asString();
+            logger.info(resp.getBody());
+        }
+        assertStatusCode(resp, expectedStatusCode);
+
+        return resp;
+    }
+
+    private static void assertStatusCode(HttpResponse<?> resp, int expectedStatusCode) {
+        Assert.assertThat(resp.getStatus(), org.hamcrest.Matchers.is(expectedStatusCode));
     }
 }
