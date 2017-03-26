@@ -44,6 +44,7 @@ public class CpuSamplingAggregationBucket extends FinalizableBuilder<FinalizedCp
           if (frames.size() > 0) {
             boolean framesSnipped = stackSample.getSnipped();
             CpuSamplingFrameNode currentNode = framesSnipped ? traceDetail.getUnclassifiableRoot() : traceDetail.getGlobalRoot();
+            currentNode.incrementOnStackSamples();
             traceDetail.incrementSamples();
 
             //callee -> caller ordering in frames, so iterating bottom up in the list to merge in existing tree in root->leaf fashion
