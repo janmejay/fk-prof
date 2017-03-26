@@ -22,7 +22,7 @@ public class AggregationWindowPlannerStore {
   private final int backendId;
   private final ActiveAggregationWindows activeAggregationWindows;
   private final WorkSlotPool workSlotPool;
-  private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
+  private final PolicyRequestor policyForBackendRequestor;
   private final Consumer<FinalizedAggregationWindow> aggregationWindowWriter;
   private final WorkAssignmentScheduleBootstrapConfig workAssignmentScheduleBootstrapConfig;
   private final int aggregationWindowDurationInSecs;
@@ -37,7 +37,7 @@ public class AggregationWindowPlannerStore {
                                        int maxAcceptableDelayForWorkAssignmentInSecs,
                                        WorkSlotPool workSlotPool,
                                        ActiveAggregationWindows activeAggregationWindows,
-                                       Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor,
+                                       PolicyRequestor policyForBackendRequestor,
                                        Consumer<FinalizedAggregationWindow> aggregationWindowWriter) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.backendId = backendId;

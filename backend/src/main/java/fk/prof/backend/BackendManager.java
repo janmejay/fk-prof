@@ -54,6 +54,7 @@ public class BackendManager {
   private final CuratorFramework curatorClient;
   private AsyncStorage storage;
   private GenericObjectPool<ByteBuffer> bufferPool;
+  private MetricRegistry metricRegistry;
 
   public BackendManager(String configFilePath) throws Exception {
     this(new ConfigManager(configFilePath));
@@ -66,6 +67,7 @@ public class BackendManager {
     VertxOptions vertxOptions = new VertxOptions(configManager.getVertxConfig());
     vertxOptions.setMetricsOptions(buildMetricsOptions());
     this.vertx = Vertx.vertx(vertxOptions);
+    this.metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
 
     this.curatorClient = createCuratorClient();
     curatorClient.start();
@@ -97,7 +99,7 @@ public class BackendManager {
     ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
     AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     WorkSlotPool workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
-    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(configManager.getStorageConfig().getString("base.dir", "profiles"), storage, bufferPool);
+    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(configManager.getStorageConfig().getString("base.dir", "profiles"), storage, bufferPool, metricRegistry);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore, activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
@@ -148,7 +150,6 @@ public class BackendManager {
   private void initStorage() {
     JsonObject s3Config = configManager.getS3Config();
     JsonObject threadPoolConfig = configManager.getStorageThreadPoolConfig();
-    MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
     Counter threadPoolRejectionsCounter = metricRegistry.counter(MetricRegistry.name(S3AsyncStorage.class, "threadpool.rejections"));
 
     // thread pool with bounded queue for s3 io.

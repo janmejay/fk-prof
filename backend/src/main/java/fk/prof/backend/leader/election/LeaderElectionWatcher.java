@@ -21,22 +21,16 @@ public class LeaderElectionWatcher extends AbstractVerticle {
 
   private final CuratorFramework curatorClient;
   private final LeaderWriteContext leaderWriteContext;
+  private final Watcher childWatcher;
   private String leaderWatchingPath;
 
-  private Watcher childWatcher = event -> {
-    if (event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
-      leaderUpdated(getChildrenAndSetWatch());
-    } else {
-      getChildrenAndSetWatch();
-    }
-  };
-
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrZKWatchFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectionWatcher.class, "zk.watch", "fail"));
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final Counter ctrZKWatchFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectionWatcher.class, "zk.watch", "fail"));
 
   public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderWriteContext leaderWriteContext) {
     this.curatorClient = curatorClient;
     this.leaderWriteContext = leaderWriteContext;
+    this.childWatcher = createChildWatcher();
   }
 
   @Override
@@ -62,13 +56,14 @@ public class LeaderElectionWatcher extends AbstractVerticle {
     try {
       curatorClient.clearWatcherReferences(childWatcher);
     } catch (Exception ex) {
+      ctrZKWatchFailure.inc();
       logger.error(ex);
     } finally {
-      ctrZKWatchFailure.inc();
       leaderWriteContext.setLeader(null);
     }
   }
 
+  //TODO: Figure out when zk conn failure occurs, does this throw exception. In that case, we might want to re-add the watch after some delay
   private List<String> getChildrenAndSetWatch() {
     try {
       return curatorClient.getChildren().usingWatcher(childWatcher).forPath(leaderWatchingPath);
@@ -98,5 +93,21 @@ public class LeaderElectionWatcher extends AbstractVerticle {
       logger.error("More than one leader observed, this is an unexpected scenario");
     }
     leaderWriteContext.setLeader(null);
+  }
+
+  private Watcher createChildWatcher() {
+    return event -> {
+      if(event.getState().equals(Watcher.Event.KeeperState.ConnectedReadOnly) || event.getState().equals(Watcher.Event.KeeperState.SyncConnected)) {
+        if (event.getType().equals(Watcher.Event.EventType.NodeChildrenChanged)) {
+          leaderUpdated(getChildrenAndSetWatch());
+        } else {
+          getChildrenAndSetWatch();
+        }
+      } else {
+        ctrZKWatchFailure.inc();
+        logger.error("Not connected to ZK, current state: {}", event.getState().name());
+        getChildrenAndSetWatch();
+      }
+    };
   }
 }

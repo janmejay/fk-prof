@@ -7,6 +7,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.*;
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.CodedOutputStream;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
@@ -35,6 +36,8 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
 import java.util.zip.*;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * @author gaurav.ashok
  */
@@ -61,7 +64,7 @@ public class MockAggregatedProfile {
 
         GenericObjectPool bufferPool = new GenericObjectPool<>(new ByteBufferPoolFactory(10_000_000, false), poolConfig);
 
-        AggregationWindowStorage storage = new AggregationWindowStorage("profiles", asyncStorage, bufferPool);
+        AggregationWindowStorage storage = new AggregationWindowStorage("profiles", asyncStorage, bufferPool, mock(MetricRegistry.class));
 
         String startime = "2017-03-01T07:00:00";
         ZonedDateTime startimeZ = ZonedDateTime.parse(startime + "Z", DateTimeFormatter.ISO_ZONED_DATE_TIME);
@@ -368,7 +371,7 @@ public class MockAggregatedProfile {
         Map<String, byte[]> data = new HashMap<>();
 
         @Override
-        public void storeAsync(String path, InputStream content, long length) {
+        public CompletableFuture<Void> storeAsync(String path, InputStream content, long length) {
             try {
                 byte[] bytes = new byte[(int)length];
                 int readBytes = content.read(bytes, 0, (int)length);
@@ -379,6 +382,7 @@ public class MockAggregatedProfile {
             catch(IOException e) {
                 throw new RuntimeException(e);
             }
+            return CompletableFuture.completedFuture(null);
         }
 
         @Override

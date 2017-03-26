@@ -1,14 +1,11 @@
 package fk.prof.backend.aggregator;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.aggregation.FinalizableBuilder;
 import fk.prof.aggregation.model.MethodIdLookup;
 import fk.prof.aggregation.model.CpuSamplingFrameNode;
 import fk.prof.aggregation.model.CpuSamplingTraceDetail;
 import fk.prof.aggregation.model.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import recording.Recorder;
@@ -20,14 +17,12 @@ public class CpuSamplingAggregationBucket extends FinalizableBuilder<FinalizedCp
   private final MethodIdLookup methodIdLookup = new MethodIdLookup();
   private final ConcurrentHashMap<String, CpuSamplingTraceDetail> traceDetailLookup = new ConcurrentHashMap<>();
 
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrAggrFailures = metricRegistry.meter(MetricRegistry.name(CpuSamplingAggregationBucket.class, "aggr", "fail"));
   /**
    * Aggregates stack samples in the bucket. Throws {@link AggregationFailure} if aggregation fails
    *
    * @param stackSampleWse
    */
-  public void aggregate(Recorder.StackSampleWse stackSampleWse, RecordedProfileIndexes indexes)
+  public void aggregate(Recorder.StackSampleWse stackSampleWse, RecordedProfileIndexes indexes, Meter mtrAggrFailures)
       throws AggregationFailure {
     try {
       for (Recorder.StackSample stackSample : stackSampleWse.getStackSampleList()) {

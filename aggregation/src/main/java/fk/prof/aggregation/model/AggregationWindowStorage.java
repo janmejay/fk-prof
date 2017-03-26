@@ -1,6 +1,10 @@
 package fk.prof.aggregation.model;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.serialize.Serializer;
 import fk.prof.storage.AsyncStorage;
@@ -28,11 +32,13 @@ public class AggregationWindowStorage {
     private final String baseDir;
     private final AsyncStorage storage;
     private final GenericObjectPool<ByteBuffer> bufferPool;
+    private final MetricRegistry metricRegistry;
 
-    public AggregationWindowStorage(String baseDir, AsyncStorage storage, GenericObjectPool<ByteBuffer> bufferPool) {
+    public AggregationWindowStorage(String baseDir, AsyncStorage storage, GenericObjectPool<ByteBuffer> bufferPool, MetricRegistry metricRegistry) {
         this.baseDir = baseDir;
         this.storage = storage;
         this.bufferPool = bufferPool;
+        this.metricRegistry = metricRegistry;
     }
 
     public void store(FinalizedAggregationWindow aggregationWindow) throws IOException {
@@ -49,27 +55,31 @@ public class AggregationWindowStorage {
     private void store(FinalizedAggregationWindow aggregationWindow, AggregatedProfileModel.WorkType workType) throws IOException {
         AggregatedProfileNamingStrategy filename = getFilename(aggregationWindow, workType);
         AggregationWindowSerializer serializer = new AggregationWindowSerializer(aggregationWindow, workType);
-        writeToStream(serializer, filename);
+        writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
     }
 
     private void storeSummary(FinalizedAggregationWindow aggregationWindow) throws IOException {
         AggregatedProfileNamingStrategy filename = getSummaryFilename(aggregationWindow);
         AggregationWindowSummarySerializer serializer = new AggregationWindowSummarySerializer(aggregationWindow);
-        writeToStream(serializer, filename);
+        writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
     }
 
-    private void writeToStream(Serializer serializer, AggregatedProfileNamingStrategy filename) throws IOException {
+    private void writeToStream(Serializer serializer, AggregatedProfileNamingStrategy filename, ProcessGroupTag processGroupTag) throws IOException {
         if(logger.isDebugEnabled()) {
             logger.debug("Attempting serialization and write of file: " + filename);
         }
 
-        OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename);
+        Histogram histBytesWritten = metricRegistry.histogram(MetricRegistry.name(AggregationWindowStorage.class, "bytes", "written", processGroupTag.toString()));
+        Meter mtrWriteFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowStorage.class, "write", "fail", processGroupTag.toString()));
+
+        OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename, histBytesWritten, mtrWriteFailure);
         GZIPOutputStream gout;
 
         try {
             gout = StreamTransformer.zip(out);
         }
         catch (IOException e) {
+            mtrWriteFailure.mark();
             logger.error("Could not zip outstream for file: " + filename, e);
             try {
                 out.close();
@@ -87,6 +97,7 @@ public class AggregationWindowStorage {
             }
         }
         catch (IOException e) {
+            mtrWriteFailure.mark();
             logger.error("Serialization to outstream failed for file: " + filename, e);
             throw e;
         }

@@ -5,6 +5,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -35,16 +36,16 @@ public class WorkAssignmentSchedule {
   private Map<RecorderIdentifier, ScheduleEntry> assignedSchedule = new HashMap<>();
   private final ReentrantLock entriesLock = new ReentrantLock();
 
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrImpossible = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "impossible"));
-  private Counter ctrEntriesLockTimeout = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "timeout"));
-  private Counter ctrEntriesLockInterrupt = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "interrupt"));
-  private Counter ctrAssignmentFetchFail = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "assignment.fetch", "fail"));
-  private Meter mtrSchedulingMiss = metricRegistry.meter(MetricRegistry.name(WorkAssignmentSchedule.class, "scheduling", "miss"));
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final Counter ctrEntriesLockTimeout = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "timeout"));
+  private final Counter ctrEntriesLockInterrupt = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "interrupt"));
+  private final Counter ctrImpossible, ctrAssignmentFetchFail;
+  private final Meter mtrSchedulingMiss;
 
   public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
                                 Recorder.WorkAssignment.Builder[] workAssignmentBuilders,
-                                int dProfileLen) {
+                                int dProfileLen,
+                                ProcessGroupTag processGroupTag) {
     this.nRef = System.nanoTime();
     int cRequired = workAssignmentBuilders.length;
 
@@ -54,8 +55,10 @@ public class WorkAssignmentSchedule {
     int dEffectiveWinLen = bootstrapConfig.getWindowDurationInSecs() - bootstrapConfig.getWindowEndToleranceInSecs() - dWinStartPad;
     int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
     int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
+
+    this.ctrImpossible = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "impossible", processGroupTag.toString()));
     if(cMaxSerial == 0) {
-      ctrImpossible.inc();
+      this.ctrImpossible.inc();
       throw new IllegalArgumentException("Not possible to schedule any work assignment because effective length of single profile=" + dEffectiveProfileLen +
           " is greater than effective aggregation window length=" + dEffectiveWinLen);
     }
@@ -68,6 +71,9 @@ public class WorkAssignmentSchedule {
       long nEntryStartPad = (dWinStartPad + ((i % cMaxSerial) * dEffectiveProfileLen)) * NANOS_IN_SEC;
       this.entries.add(new ScheduleEntry(workAssignmentBuilders[i], nEntryStartPad));
     }
+
+    this.ctrAssignmentFetchFail = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "assignment.fetch", "fail", processGroupTag.toString()));
+    this.mtrSchedulingMiss = metricRegistry.meter(MetricRegistry.name(WorkAssignmentSchedule.class, "scheduling", "miss", processGroupTag.toString()));
   }
 
   /**

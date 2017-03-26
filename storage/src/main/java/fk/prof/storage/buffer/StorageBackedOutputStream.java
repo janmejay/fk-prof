@@ -1,5 +1,7 @@
 package fk.prof.storage.buffer;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.FileNamingStrategy;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -28,8 +30,10 @@ public class StorageBackedOutputStream extends OutputStream {
     private GenericObjectPool<ByteBuffer> bufferPool;
 
     private int part;
-
     private ByteBuffer buf;
+
+    private final Histogram histBytesWritten;
+    private final Meter mtrWriteFailure;
 
     /**
      * @param bufferPool pool from which the buffer will be borrowed for buffering.
@@ -37,13 +41,15 @@ public class StorageBackedOutputStream extends OutputStream {
      * @param fileNameStrategy decides the fileName from the part no.
      */
     public StorageBackedOutputStream(GenericObjectPool<ByteBuffer> bufferPool, AsyncStorage storage,
-                                     FileNamingStrategy fileNameStrategy) {
+                                     FileNamingStrategy fileNameStrategy, Histogram histBytesWritten, Meter mtrWriteFailure) {
         this.storage = storage;
         this.fileNameStrategy = fileNameStrategy;
         this.part = 0;
         this.bufferPool = bufferPool;
-
         this.buf = null;
+
+        this.histBytesWritten = histBytesWritten;
+        this.mtrWriteFailure = mtrWriteFailure;
     }
 
     @Override
@@ -119,6 +125,14 @@ public class StorageBackedOutputStream extends OutputStream {
         // prepare for reading
         buf.flip();
         storage.storeAsync(fileNameStrategy.getFileName(part),
-                new ByteBufferInputStream(buf, () -> bufferPool.returnObject(buf)), contentLength);
+                new ByteBufferInputStream(buf, () -> bufferPool.returnObject(buf)), contentLength)
+            .whenCompleteAsync((v, th) -> {
+                if(th != null) {
+                    this.mtrWriteFailure.mark();
+                    LOGGER.error("S3 putobject failed for file_strategy={}", th, fileNameStrategy);
+                } else {
+                    this.histBytesWritten.update(contentLength);
+                }
+            });
     }
 }

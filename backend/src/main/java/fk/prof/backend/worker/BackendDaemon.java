@@ -49,13 +49,9 @@ public class BackendDaemon extends AbstractVerticle {
   private int loadTickCounter = 0;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrLoadReportSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load", "report", "success"));
-  private Meter mtrLoadReportFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load", "report", "fail"));
-  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendDaemon.class, "ldr", "unknown", "req"));
-  private Meter mtrWorkFetchSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "work", "fetch", "success"));
-  private Meter mtrWorkFetchFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "work", "fetch", "fail"));
-  private Meter mtrWindowWriteInitiateSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "window", "write.initiate", "success"));
-  private Meter mtrWindowWriteInitiateFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "window", "write.initiate", "fail"));
+  private Meter mtrLoadReportSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "success"));
+  private Meter mtrLoadReportFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "fail"));
+  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendDaemon.class, "ldr.unknown", "req"));
 
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,
@@ -176,7 +172,7 @@ public class BackendDaemon extends AbstractVerticle {
     vertx.setTimer(configManager.getLoadReportIntervalInSeconds() * 1000, timerId -> postLoadToLeader());
   }
 
-  private Future<BackendDTO.RecordingPolicy> getWorkFromLeader(Recorder.ProcessGroup processGroup) {
+  private Future<BackendDTO.RecordingPolicy> getWorkFromLeader(Recorder.ProcessGroup processGroup, Meter mtrSuccess, Meter mtrFailure) {
     Future<BackendDTO.RecordingPolicy> result = Future.future();
     BackendDTO.LeaderDetail leaderDetail;
     if((leaderDetail = leaderReadContext.getLeader()) != null) {
@@ -196,14 +192,14 @@ public class BackendDaemon extends AbstractVerticle {
             requestPath,
             null).setHandler(ar -> {
               if (ar.failed()) {
-                mtrWorkFetchFailure.mark();
+                mtrFailure.mark();
                 result.fail("Error when requesting work from leader for process group="
                     + RecorderProtoUtil.processGroupCompactRepr(processGroup)
                     + ", message=" + ar.cause());
                 return;
               }
               if (ar.result().getStatusCode() != 200) {
-                mtrWorkFetchFailure.mark();
+                mtrFailure.mark();
                 result.fail("Non-OK status code when requesting work from leader for process group="
                     + RecorderProtoUtil.processGroupCompactRepr(processGroup)
                     + ", status=" + ar.result().getStatusCode());
@@ -212,18 +208,18 @@ public class BackendDaemon extends AbstractVerticle {
               try {
                 BackendDTO.RecordingPolicy recordingPolicy = ProtoUtil.buildProtoFromBuffer(BackendDTO.RecordingPolicy.parser(), ar.result().getResponse());
                 result.complete(recordingPolicy);
-                mtrWorkFetchSuccess.mark();
+                mtrSuccess.mark();
               } catch (Exception ex) {
-                mtrWorkFetchFailure.mark();
+                mtrFailure.mark();
                 result.fail("Error parsing work response returned by leader for process group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
               }
             });
       } catch (UnsupportedEncodingException ex) {
-        mtrWorkFetchFailure.mark();
+        mtrFailure.mark();
         result.fail("Error building url for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup));
       }
     } else {
-      mtrWorkFetchFailure.mark();
+      mtrFailure.mark();
       ctrLeaderUnknownReq.inc();
       result.fail("Not reporting load because leader is unknown");
     }
@@ -241,10 +237,8 @@ public class BackendDaemon extends AbstractVerticle {
       }
     }, result -> {
       if(result.succeeded()) {
-        mtrWindowWriteInitiateSuccess.mark();
         logger.info("Successfully initiated save of profile for aggregation_window: " + finalizedAggregationWindow);
       } else {
-        mtrWindowWriteInitiateFailure.mark();
         logger.error("Error while saving profile for aggregation_window: " + finalizedAggregationWindow, result.cause());
       }
     });

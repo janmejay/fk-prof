@@ -1,5 +1,6 @@
 package fk.prof.aggregation.model;
 
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
 
 import java.time.LocalDateTime;
@@ -17,6 +18,8 @@ public class FinalizedAggregationWindow {
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
+  private final ProcessGroupTag processGroupTag;
+
   public FinalizedAggregationWindow(String appId,
                                     String clusterId,
                                     String procId,
@@ -33,6 +36,12 @@ public class FinalizedAggregationWindow {
     this.durationInSecs = durationInSecs;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
+
+    this.processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
+  }
+
+  public ProcessGroupTag getProcessGroupTag() {
+    return processGroupTag;
   }
 
   public FinalizedProfileWorkInfo getDetailsForWorkId(long workId) {

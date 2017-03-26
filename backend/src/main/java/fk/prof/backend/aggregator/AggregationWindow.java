@@ -4,6 +4,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.aggregation.FinalizableBuilder;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
@@ -29,9 +30,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrStartFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "start", "fail"));
-  private Meter mtrCompleteFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "complete", "fail"));
-  private Meter mtrAbandonFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "abandon", "fail"));
+  private final Meter mtrStartFailures, mtrCompleteFailures, mtrAbandonFailures, mtrCSAggrFailures;
 
   public AggregationWindow(String appId, String clusterId, String procId,
                            LocalDateTime start, int durationInSecs, long[] workIds, int workDurationInSec) {
@@ -46,6 +45,12 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       workInfoModifiableLookup.put(workIds[i], new ProfileWorkInfo(workDurationInSec));
     }
     this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
+
+    ProcessGroupTag processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
+    this.mtrStartFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "start", "fail", processGroupTag.toString()));
+    this.mtrCompleteFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "complete", "fail", processGroupTag.toString()));
+    this.mtrAbandonFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "abandon", "fail", processGroupTag.toString()));
+    this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "cpusampling.aggr", "fail", processGroupTag.toString()));
   }
 
   public AggregationState startProfile(long workId, int recorderVersion, LocalDateTime startedAt) throws AggregationFailure {
@@ -128,7 +133,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
         if (stackSampleWse == null) {
           throw new AggregationFailure(String.format("work type=%s did not have associated samples", wse.getWType()));
         }
-        cpuSamplingAggregationBucket.aggregate(stackSampleWse, indexes);
+        cpuSamplingAggregationBucket.aggregate(stackSampleWse, indexes, mtrCSAggrFailures);
         break;
       default:
         throw new AggregationFailure(String.format("Aggregation not supported for work type=%s", wse.getWType()));

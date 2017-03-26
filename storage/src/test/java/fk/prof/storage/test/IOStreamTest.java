@@ -1,5 +1,7 @@
 package fk.prof.storage.test;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.FileNamingStrategy;
 import fk.prof.storage.ObjectNotFoundException;
@@ -59,7 +61,7 @@ public class IOStreamTest {
             pool = new GenericObjectPool<>(new ByteBufferPoolFactory(partSize , false), poolConfig);
         }
 
-        os = new StorageBackedOutputStream(pool, storage, fileName);
+        os = new StorageBackedOutputStream(pool, storage, fileName, mock(Histogram.class), mock(Meter.class));
         is = new StorageBackedInputStream(storage, fileName);
     }
 

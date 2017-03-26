@@ -1,6 +1,13 @@
 package fk.prof.backend.model.association.impl;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import fk.prof.aggregation.ProcessGroupTag;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.BackendAssociationException;
+import fk.prof.backend.model.assignment.BackendTag;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.association.BackendDetail;
 import fk.prof.backend.proto.BackendDTO;
@@ -35,9 +42,13 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
   private final Map<Recorder.ProcessGroup, Recorder.AssignedBackend> processGroupToBackendLookup = new ConcurrentHashMap<>();
   private final Map<Recorder.ProcessGroup, String> processGroupToZNodePathLookup = new ConcurrentHashMap<>();
-
   private final ReentrantLock backendAssignmentLock = new ReentrantLock();
 
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final Counter ctrLoadFailure = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "load", "fail"));
+  private final Counter ctrLockTimeout = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "lock", "timeout"));
+  private final Counter ctrLockInterrupt = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "lock", "interrupt"));
+  private final Counter ctrBackendUnavailable = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "backend", "unavailable"));
 
   public ZookeeperBasedBackendAssociationStore(Vertx vertx, CuratorFramework curatorClient, String backendAssociationPath,
                                                 int loadReportIntervalInSeconds, int loadMissTolerance,
@@ -63,10 +74,17 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     this.loadMissTolerance = loadMissTolerance;
     this.availableBackendsByPriority = new ConcurrentSkipListSet<>(backendPriorityComparator);
 
-    loadDataFromZookeeperInBackendLookup();
+    try {
+      loadDataFromZookeeperInBackendLookup();
+    } catch (Exception ex) {
+      ctrLoadFailure.inc();
+      throw ex;
+    }
+
     for(BackendDetail backendDetail: this.backendDetailLookup.values()) {
       for(Recorder.ProcessGroup processGroup: backendDetail.getAssociatedProcessGroups()) {
         if (this.processGroupToBackendLookup.putIfAbsent(processGroup, backendDetail.getBackend()) != null) {
+          ctrLoadFailure.inc();
           throw new IllegalStateException(String.format("Backend mapping already exists for process group=%s", RecorderProtoUtil.processGroupCompactRepr(processGroup)));
         }
       }
@@ -77,10 +95,13 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   public Future<Recorder.ProcessGroups> reportBackendLoad(BackendDTO.LoadReportRequest payload) {
     Recorder.AssignedBackend reportingBackend = Recorder.AssignedBackend.newBuilder().setHost(payload.getIp()).setPort(payload.getPort()).build();
     Future<Recorder.ProcessGroups> result = Future.future();
+    BackendTag backendTag = new BackendTag(payload.getIp(), payload.getPort());
+    Meter mtrExisting = metricRegistry.meter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "load.report", "existing", backendTag.toString()));
 
     BackendDetail existingBackendDetail;
     if((existingBackendDetail = backendDetailLookup.get(reportingBackend)) != null) {
       updateLoadOfBackend(existingBackendDetail, payload, result);
+      mtrExisting.mark();
     } else {
       vertx.executeBlocking(future -> {
         try {
@@ -135,6 +156,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   public Future<Recorder.AssignedBackend> associateAndGetBackend(Recorder.ProcessGroup processGroup) {
     Future<Recorder.AssignedBackend> result = Future.future();
     Recorder.AssignedBackend backendAssociation = processGroupToBackendLookup.get(processGroup);
+    ProcessGroupTag processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+    Counter ctrExistingInvalid = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "assoc", "existing.invalid", processGroupTag.toString()));
 
     if(backendAssociation != null
         && !backendDetailLookup.get(backendAssociation).isDefunct()) {
@@ -145,6 +168,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
             RecorderProtoUtil.assignedBackendCompactRepr(backendAssociation)));
       }
       result.complete(backendAssociation);
+      BackendTag backendTag = new BackendTag(backendAssociation.getHost(), backendAssociation.getPort());
+      Meter mtrExistingHealthy = metricRegistry.meter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "assoc", "existing.healthy", processGroupTag.toString(), backendTag.toString()));
+      mtrExistingHealthy.mark();
     } else {
       vertx.executeBlocking(future -> {
         /**
@@ -167,19 +193,23 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
               Recorder.AssignedBackend existingBackendAssociation = processGroupToBackendLookup.get(processGroup);
               if (existingBackendAssociation == null) {
                 //This is a new process group and no backend has been assigned to this yet
+                ctrExistingInvalid.inc();
                 BackendDetail availableBackend = getAvailableBackendFromPrioritySet();
                 if (availableBackend == null) {
-                  //TODO: some metric to indicate assignment failure in this scenario
+                  ctrBackendUnavailable.inc();
                   future.fail(new BackendAssociationException("No available backends are known to leader, cannot assign one to process_group=" +
                       RecorderProtoUtil.processGroupCompactRepr(processGroup)));
                 } else {
                   try {
+                    BackendTag newBackendTag = new BackendTag(availableBackend.getBackend().getHost(), availableBackend.getBackend().getPort());
+                    Counter ctrAdd = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "assoc", "add", processGroupTag.toString(), newBackendTag.toString()));
                     associateBackendWithProcessGroup(availableBackend, processGroup);
                     if (logger.isDebugEnabled()) {
                       logger.debug(String.format("process_group=%s, new backend=%s",
                           RecorderProtoUtil.processGroupCompactRepr(processGroup),
                           RecorderProtoUtil.assignedBackendCompactRepr(availableBackend.getBackend())));
                     }
+                    ctrAdd.inc();
                     future.complete(availableBackend.getBackend());
                   } catch (Exception ex) {
                     future.fail(new BackendAssociationException(
@@ -193,6 +223,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                 }
               } else {
                 BackendDetail existingBackend = backendDetailLookup.get(existingBackendAssociation);
+                BackendTag existingBackendTag = new BackendTag(existingBackend.getBackend().getHost(), existingBackend.getBackend().getPort());
                 if (!existingBackend.isDefunct()) {
                   /**
                    * Backend is not defunct, proceed with returning this assignment
@@ -212,12 +243,16 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                   availableBackendsByPriority.remove(existingBackend);
                   BackendDetail newBackend = getAvailableBackendFromPrioritySet();
                   if (newBackend == null) {
+                    ctrBackendUnavailable.inc();
                     logger.warn(String.format("Presently assigned backend=%s for process_group=%s is defunct but cannot find any available backend so keeping assignment unchanged",
                         RecorderProtoUtil.assignedBackendCompactRepr(existingBackendAssociation),
                         RecorderProtoUtil.processGroupCompactRepr(processGroup)));
                     future.complete(existingBackendAssociation);
                   } else {
                     try {
+                      BackendTag newBackendTag = new BackendTag(newBackend.getBackend().getHost(), newBackend.getBackend().getPort());
+                      Counter ctrRemove = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "assoc", "remove", processGroupTag.toString(), existingBackendTag.toString()));
+                      Counter ctrAdd = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "assoc", "add", processGroupTag.toString(), newBackendTag.toString()));
                       /**
                        * Race condition exists here which can result in new backend to be same as existing backend
                        * Basically, existingBackend can be defunct, but before a new backend is determined by this method, the existing backend reports load and gets added back to the available backend set
@@ -227,6 +262,8 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
                       if(!newBackend.equals(existingBackend)) {
                         deAssociateBackendWithProcessGroup(existingBackend, processGroup);
                         associateBackendWithProcessGroup(newBackend, processGroup);
+                        ctrRemove.inc();
+                        ctrAdd.inc();
                         if (logger.isDebugEnabled()) {
                           logger.debug(String.format("process_group=%s, de-associating existing backend=%s, associating new backend=%s",
                               RecorderProtoUtil.processGroupCompactRepr(processGroup),
@@ -249,9 +286,11 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
               backendAssignmentLock.unlock();
             }
           } else {
+            ctrLockTimeout.inc();
             future.fail(new BackendAssociationException("Timeout while acquiring lock for backend assignment for process_group=" + processGroup, true));
           }
         } catch (InterruptedException ex) {
+          ctrLockInterrupt.inc();
           future.fail(new BackendAssociationException("Interrupted while acquiring lock for backend assignment for process_group=" + processGroup, ex, true));
         } catch (Exception ex) {
           future.fail(new BackendAssociationException("Unexpected error while retrieving backend assignment for process_group=" + processGroup, ex, true));
@@ -271,7 +310,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
     try {
       availableBackendsByPriority.add(availableBackend);
     } catch (Exception ex) {
-      //TODO: Some metric to indicate add failure here
+      BackendTag backendTag = new BackendTag(availableBackend.getBackend().getHost(), availableBackend.getBackend().getPort());
+      Counter ctrEnqueueFail = metricRegistry.counter(MetricRegistry.name(ZookeeperBasedBackendAssociationStore.class, "queue.enqueue", "fail", backendTag.toString()));
+      ctrEnqueueFail.inc();
       logger.error("Error adding backend=" + RecorderProtoUtil.assignedBackendCompactRepr(availableBackend.getBackend()) + " back in the set");
     }
   }

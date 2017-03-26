@@ -4,6 +4,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -24,7 +25,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class AggregationWindowPlanner {
@@ -38,7 +38,7 @@ public class AggregationWindowPlanner {
   private final WorkSlotPool workSlotPool;
   private final ProcessGroupContextForScheduling processGroupContextForScheduling;
   private final ActiveAggregationWindows activeAggregationWindows;
-  private final Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor;
+  private final PolicyRequestor policyForBackendRequestor;
   private final Consumer<FinalizedAggregationWindow> aggregationWindowWriter;
 
   private final Recorder.ProcessGroup processGroup;
@@ -53,14 +53,10 @@ public class AggregationWindowPlanner {
   private int relevantAggregationWindowIndexForRecordingPolicy = 0;
   private List<WorkSlotPool.WorkSlot> occupiedSlots = null;
 
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrWindowInitSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "success"));
-  private Meter mtrWindowInitFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "fail"));
-  private Meter mtrWindowExpireSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "success"));
-  private Meter mtrWindowExpireFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "fail"));
-  private Meter mtrWorkFetchMiss = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "miss"));
-  private Meter mtrWorkFetchFail = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "fail"));
-  private Meter mtrWorkFetchStale = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "stale"));
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final ProcessGroupTag processGroupTag;
+  private final Meter mtrWindowInitSuccess, mtrWindowInitFailure, mtrWindowExpireSuccess, mtrWindowExpireFailure;
+  private final Meter mtrWorkFetchSuccess, mtrWorkFetchFailure, mtrWorkFetchStale, mtrWorkFetchMiss;
 
   public AggregationWindowPlanner(Vertx vertx,
                                   int backendId,
@@ -70,7 +66,7 @@ public class AggregationWindowPlanner {
                                   WorkSlotPool workSlotPool,
                                   ProcessGroupContextForScheduling processGroupContextForScheduling,
                                   ActiveAggregationWindows activeAggregationWindows,
-                                  Function<Recorder.ProcessGroup, Future<BackendDTO.RecordingPolicy>> policyForBackendRequestor,
+                                  PolicyRequestor policyForBackendRequestor,
                                   Consumer<FinalizedAggregationWindow> aggregationWindowWriter) {
     this.vertx = Preconditions.checkNotNull(vertx);
     this.backendId = backendId;
@@ -83,6 +79,17 @@ public class AggregationWindowPlanner {
     this.workSlotPool = Preconditions.checkNotNull(workSlotPool);
     this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
     this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
+
+    processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+    this.mtrWorkFetchSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "success", processGroupTag.toString()));
+    this.mtrWorkFetchFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "fail", processGroupTag.toString()));
+    this.mtrWorkFetchMiss = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "miss", processGroupTag.toString()));
+    this.mtrWorkFetchStale = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "stale", processGroupTag.toString()));
+
+    this.mtrWindowInitSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "success", processGroupTag.toString()));
+    this.mtrWindowInitFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "fail", processGroupTag.toString()));
+    this.mtrWindowExpireSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "success", processGroupTag.toString()));
+    this.mtrWindowExpireFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "fail", processGroupTag.toString()));
 
     this.aggregationWindowScheduleTimer = Future.future();
     getWorkForNextAggregationWindow(currentAggregationWindowIndex + 1).setHandler(ar -> {
@@ -120,13 +127,12 @@ public class AggregationWindowPlanner {
   private Future<Void> getWorkForNextAggregationWindow(int aggregationWindowIndex) {
     Future<Void> result = Future.future();
     latestRecordingPolicy = null;
-    this.policyForBackendRequestor.apply(processGroup).setHandler(ar -> {
+    this.policyForBackendRequestor.get(processGroup, mtrWorkFetchSuccess, mtrWorkFetchFailure).setHandler(ar -> {
       //Ensure that the policy is still being fetched for the next aggregation window. If not, then retire this method because some other timer will take care of fetching the relevant work
       if(aggregationWindowIndex == currentAggregationWindowIndex + 1) {
         relevantAggregationWindowIndexForRecordingPolicy = aggregationWindowIndex;
         if (ar.failed()) {
           //Cannot fetch work from leader, so chill out and let this aggregation window go by
-          mtrWorkFetchFail.mark();
           logger.error("Error fetching work from leader for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) + ", error=" + ar.cause().getMessage());
           result.fail(ar.cause());
         } else {
@@ -216,7 +222,7 @@ public class AggregationWindowPlanner {
   private void setupAggregationWindow(Recorder.WorkAssignment.Builder[] workAssignmentBuilders, long[] workIds)
       throws Exception {
     LocalDateTime windowStart = LocalDateTime.now(Clock.systemUTC());
-    WorkAssignmentSchedule workAssignmentSchedule = new WorkAssignmentSchedule(workAssignmentScheduleBootstrapConfig, workAssignmentBuilders, latestRecordingPolicy.getDuration());
+    WorkAssignmentSchedule workAssignmentSchedule = new WorkAssignmentSchedule(workAssignmentScheduleBootstrapConfig, workAssignmentBuilders, latestRecordingPolicy.getDuration(), processGroupTag);
     int requiredSlots = workAssignmentSchedule.getMaxOverlap() * WorkSlotWeightCalculator.weight(latestRecordingPolicy);
 
     occupiedSlots = workSlotPool.acquire(requiredSlots);

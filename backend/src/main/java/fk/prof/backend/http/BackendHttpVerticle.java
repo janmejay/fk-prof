@@ -5,6 +5,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.primitives.Ints;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.BadRequestException;
@@ -58,11 +59,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private HttpServer server;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrPollPGAssocMiss = metricRegistry.meter(MetricRegistry.name(BackendHttpVerticle.class, "poll", "pg.assoc", "miss"));
-  private Counter ctrPollAggrWinMiss = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "poll", "window", "miss"));
   private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "self"));
   private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "unknown"));
-
 
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
@@ -156,9 +154,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
       }
 
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
+      ProcessGroupTag processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+      Meter mtrAssocMiss = metricRegistry.meter(MetricRegistry.name(BackendHttpVerticle.class, "poll.assoc", "miss", processGroupTag.toString()));
+      Counter ctrWinMiss = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "poll.window", "miss", processGroupTag.toString()));
+
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {
-        mtrPollPGAssocMiss.mark();
+        mtrAssocMiss.mark();
         throw new BadRequestException("Process group " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + " not associated with the backend");
       }
 
@@ -166,7 +168,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
       if(nextWorkAssignment != null) {
         AggregationWindow aggregationWindow = aggregationWindowDiscoveryContext.getAssociatedAggregationWindow(nextWorkAssignment.getWorkId());
         if (aggregationWindow == null) {
-          ctrPollAggrWinMiss.inc();
+          ctrWinMiss.inc();
           throw new BadRequestException(String.format("workId=%d not found, cannot associate recorder info with aggregated profile. aborting send of work assignment",
               nextWorkAssignment.getWorkId()));
         }

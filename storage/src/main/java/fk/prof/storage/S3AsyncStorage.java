@@ -18,7 +18,6 @@ import com.amazonaws.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
@@ -48,6 +47,7 @@ public class S3AsyncStorage implements AsyncStorage {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.executorService = executorService;
+
         initialize();
     }
 
@@ -70,26 +70,17 @@ public class S3AsyncStorage implements AsyncStorage {
     }
 
     @Override
-    public void storeAsync(String path, InputStream content, long length) {
+    public CompletableFuture<Void> storeAsync(String path, InputStream content, long length) {
         S3ObjectPath objectPath = new S3ObjectPath(path);
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
                 ObjectMetadata meta = new ObjectMetadata();
                 meta.setContentLength(length);
                 client.putObject(objectPath.bucket, objectPath.fileName, content, meta);
-                // TODO expose metric for size written
-            } catch (AmazonClientException e) {
-                // content InputStream is by default closed by the S3Client, so need to close it.
-                //TODO expose metric
-                LOGGER.error("S3 PutObject failed: {}", path, e);
+            } catch (AmazonClientException e) { // content InputStream is by default closed by the S3Client, so need to close it.
+                throw mapClientException(e);
             } catch (Exception ex) {
-                //TODO expose metric
-                LOGGER.error("S3 PutObject failed with unexpected error: {}", path, ex);
-                try {
-                    content.close();
-                } catch (IOException ioEx) {
-                    LOGGER.error("Error closing inputstream for s3 file path: {}", path, ioEx);
-                }
+                throw new StorageException("Unexpected error during S3 PUT for path=" + path, ex);
             }
         }, executorService);
     }

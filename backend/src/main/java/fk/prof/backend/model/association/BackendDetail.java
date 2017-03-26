@@ -1,5 +1,10 @@
 package fk.prof.backend.model.association;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import fk.prof.backend.ConfigManager;
+import fk.prof.backend.model.assignment.BackendTag;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -18,6 +23,10 @@ public class BackendDetail {
   private volatile Long lastReportedTime;
   private float lastReportedLoad;
 
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final BackendTag backendTag;
+  private final Meter mtrLoadReset, mtrLoadStale;
+
   public BackendDetail(Recorder.AssignedBackend backend, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
     this(backend, loadReportIntervalInSeconds, loadMissTolerance, new HashSet<>());
@@ -31,6 +40,10 @@ public class BackendDetail {
     this.backend = backend;
     this.thresholdForDefunctInNanoSeconds = (long)(loadReportIntervalInSeconds * (loadMissTolerance + 1) * NANOSECONDS_IN_SECOND);
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
+
+    this.backendTag = new BackendTag(backend.getHost(), backend.getPort());
+    this.mtrLoadReset = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "reset", backendTag.toString()));
+    this.mtrLoadStale = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "stale", backendTag.toString()));
   }
 
   /**
@@ -47,8 +60,12 @@ public class BackendDetail {
       if(currTick > 0) {
         this.lastReportedTime = System.nanoTime();
         timeUpdated = true;
+      } else {
+        mtrLoadReset.mark();
       }
       this.lastReportedLoad = load;
+    } else {
+      mtrLoadStale.mark();
     }
     return timeUpdated;
   }
