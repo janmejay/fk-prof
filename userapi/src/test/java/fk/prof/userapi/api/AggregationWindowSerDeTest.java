@@ -1,6 +1,7 @@
 package fk.prof.userapi.api;
 
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
@@ -24,7 +25,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Created by gaurav.ashok on 27/03/17.
@@ -50,7 +53,12 @@ public class AggregationWindowSerDeTest {
 
         GenericObjectPool bufferPool = new GenericObjectPool<>(new ByteBufferPoolFactory(10_000_000, false), poolConfig);
 
-        AggregationWindowStorage storage = new AggregationWindowStorage("profiles", asyncStorage, bufferPool, mock(MetricRegistry.class));
+        MetricRegistry mockMetricRegistry = mock(MetricRegistry.class);
+        Timer mockTimer = mock(Timer.class);
+        when(mockMetricRegistry.timer(any())).thenReturn(mockTimer);
+
+        AggregationWindowStorage storage = new AggregationWindowStorage("profiles", asyncStorage, bufferPool, mockMetricRegistry);
+
 
         String startime = "2017-03-01T07:00:00";
         ZonedDateTime startimeZ = ZonedDateTime.parse(startime + "Z", DateTimeFormatter.ISO_ZONED_DATE_TIME);
