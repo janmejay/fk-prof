@@ -39,6 +39,14 @@ public class Util {
         return aggregationWindows.get(maxIdx(dateTimes));
     }
 
+    /**
+     * Utility method to get a field at depth 'n' from a map.
+     * For example: to get a field map[a][b][c], do get(map, a, b, c).
+     * @param m
+     * @param fields
+     * @param <T>
+     * @return
+     */
     public static <T> T get(Object m, String... fields) {
         assert fields.length > 0;
         Map<String, Object> temp = cast(m);
@@ -103,7 +111,7 @@ public class Util {
         }
         else {
             resp = request.asString();
-            logger.info(resp.getBody());
+            logger.debug(resp.getBody());
         }
         assertStatusCode(resp, expectedStatusCode);
 

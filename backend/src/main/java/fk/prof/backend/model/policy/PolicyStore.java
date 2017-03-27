@@ -17,10 +17,6 @@ public class PolicyStore {
     Recorder.ProcessGroup pg = Recorder.ProcessGroup.newBuilder().setAppId("bar-app").setCluster("quux-cluster").setProcName("grault-proc").build();
     BackendDTO.RecordingPolicy rp = buildRecordingPolicy(30);
     this.put(pg, rp);
-
-    pg = Recorder.ProcessGroup.newBuilder().setAppId("a1").setCluster("c1").setProcName("p1").build();
-    rp = buildRecordingPolicy(15);
-    this.put(pg, rp);
   }
 
   public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) {
@@ -43,5 +39,4 @@ public class PolicyStore {
             .build())
         .build();
   }
-
 }

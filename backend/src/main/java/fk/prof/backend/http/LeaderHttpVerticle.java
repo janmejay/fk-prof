@@ -33,8 +33,6 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
 
-  private HttpServer server;
-
   public LeaderHttpVerticle(ConfigManager configManager,
                             BackendAssociationStore backendAssociationStore,
                             PolicyStore policyStore) {
@@ -46,15 +44,10 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    server = vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
         .requestHandler(router::accept)
         .listen(configManager.getLeaderHttpPort(),
             http -> completeStartup(http, fut));
-  }
-
-  @Override
-  public void stop(Future<Void> stopFuture) throws Exception {
-    server.close(stopFuture.completer());
   }
 
   private Router setupRouting() {

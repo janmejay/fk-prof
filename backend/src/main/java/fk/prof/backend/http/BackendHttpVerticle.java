@@ -56,7 +56,6 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private LocalMap<Long, Boolean> workIdsInPipeline;
   private ProfHttpClient httpClient;
-  private HttpServer server;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
   private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "self"));
@@ -83,15 +82,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    server = vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
+    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
         .requestHandler(router::accept)
         .listen(configManager.getBackendHttpPort(), http -> completeStartup(http, fut));
-  }
-
-  @Override
-  public void stop(Future<Void> stopFuture) throws Exception {
-    logger.info("BackendHttpVerticle stopping. Stopping backend server");
-    server.close(stopFuture.completer());
   }
 
   private Router setupRouting() {
