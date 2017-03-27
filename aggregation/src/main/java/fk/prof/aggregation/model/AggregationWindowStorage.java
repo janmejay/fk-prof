@@ -3,6 +3,7 @@ package fk.prof.aggregation.model;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
@@ -53,15 +54,21 @@ public class AggregationWindowStorage {
     }
 
     private void store(FinalizedAggregationWindow aggregationWindow, AggregatedProfileModel.WorkType workType) throws IOException {
-        AggregatedProfileNamingStrategy filename = getFilename(aggregationWindow, workType);
-        AggregationWindowSerializer serializer = new AggregationWindowSerializer(aggregationWindow, workType);
-        writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
+        Timer tmr = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "store.complete", aggregationWindow.getProcessGroupTag().toString()));
+        try (Timer.Context context = tmr.time()) {
+            AggregatedProfileNamingStrategy filename = getFilename(aggregationWindow, workType);
+            AggregationWindowSerializer serializer = new AggregationWindowSerializer(aggregationWindow, workType);
+            writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
+        }
     }
 
     private void storeSummary(FinalizedAggregationWindow aggregationWindow) throws IOException {
-        AggregatedProfileNamingStrategy filename = getSummaryFilename(aggregationWindow);
-        AggregationWindowSummarySerializer serializer = new AggregationWindowSummarySerializer(aggregationWindow);
-        writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
+        Timer tmr = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "store.summary", aggregationWindow.getProcessGroupTag().toString()));
+        try (Timer.Context context = tmr.time()) {
+            AggregatedProfileNamingStrategy filename = getSummaryFilename(aggregationWindow);
+            AggregationWindowSummarySerializer serializer = new AggregationWindowSummarySerializer(aggregationWindow);
+            writeToStream(serializer, filename, aggregationWindow.getProcessGroupTag());
+        }
     }
 
     private void writeToStream(Serializer serializer, AggregatedProfileNamingStrategy filename, ProcessGroupTag processGroupTag) throws IOException {

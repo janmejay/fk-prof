@@ -112,11 +112,6 @@ public class BackendManager {
           BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
           PolicyStore policyStore = new PolicyStore();
 
-          //TODO: Remove. Temporary for e2e testing
-          Recorder.ProcessGroup testProcessGroup = Recorder.ProcessGroup.newBuilder().setAppId("bar-app").setCluster("quux-cluster").setProcName("grault-proc").build();
-          BackendDTO.RecordingPolicy recordingPolicy = buildRecordingPolicy(15);
-          policyStore.put(testProcessGroup, recordingPolicy);
-
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
           Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
 
@@ -216,19 +211,6 @@ public class BackendManager {
         .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.LEADER_POST_LOAD).setType(MatchType.EQUALS))
         .addMonitoredHttpServerUri(new Match().setValue(ApiPathConstants.LEADER_GET_WORK + ".*").setAlias(ApiPathConstants.LEADER_GET_WORK).setType(MatchType.REGEX));
     return metricsOptions;
-  }
-
-  //TODO: Ugly hack for e2e testing, remove!
-  private BackendDTO.RecordingPolicy buildRecordingPolicy(int profileDuration) {
-    return BackendDTO.RecordingPolicy.newBuilder()
-        .setDuration(profileDuration)
-        .setCoveragePct(100)
-        .setDescription("Test work profile")
-        .addWork(BackendDTO.Work.newBuilder()
-            .setWType(BackendDTO.WorkType.cpu_sample_work)
-            .setCpuSample(BackendDTO.CpuSampleWork.newBuilder().setFrequency(50).setMaxFrames(64))
-            .build())
-        .build();
   }
 
   public static class AbortPolicy implements RejectedExecutionHandler {

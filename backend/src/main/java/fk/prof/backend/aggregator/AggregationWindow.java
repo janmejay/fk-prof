@@ -30,7 +30,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final Meter mtrStartFailures, mtrCompleteFailures, mtrAbandonFailures, mtrCSAggrFailures;
+  private final Meter mtrStateTransitionFailures, mtrCSAggrFailures;
 
   public AggregationWindow(String appId, String clusterId, String procId,
                            LocalDateTime start, int durationInSecs, long[] workIds, int workDurationInSec) {
@@ -46,11 +46,9 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     }
     this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
 
-    ProcessGroupTag processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
-    this.mtrStartFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "start", "fail", processGroupTag.toString()));
-    this.mtrCompleteFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "complete", "fail", processGroupTag.toString()));
-    this.mtrAbandonFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "abandon", "fail", processGroupTag.toString()));
-    this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "cpusampling.aggr", "fail", processGroupTag.toString()));
+    String processGroupTagStr = new ProcessGroupTag(appId, clusterId, procId).toString();
+    this.mtrStateTransitionFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "state.transition", "fail", processGroupTagStr));
+    this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "cpusampling.aggr", "fail", processGroupTagStr));
   }
 
   public AggregationState startProfile(long workId, int recorderVersion, LocalDateTime startedAt) throws AggregationFailure {
@@ -60,7 +58,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.startProfile(recorderVersion, startedAt);
     } catch (IllegalStateException ex) {
-      mtrStartFailures.mark();
+      mtrStateTransitionFailures.mark();
       throw new AggregationFailure(String.format("Error starting profile for work_id=%d, recorder_version=%d, startedAt=%s",
           workId, recorderVersion, startedAt.toString()), ex);
     }
@@ -73,7 +71,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.completeProfile();
     } catch (IllegalStateException ex) {
-      mtrCompleteFailures.mark();
+      mtrStateTransitionFailures.mark();
       throw new AggregationFailure(String.format("Error completing profile for work_id=%d", workId), ex);
     }
   }
@@ -85,7 +83,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
       return workInfo.abandonProfile();
     } catch (IllegalStateException ex) {
-      mtrAbandonFailures.mark();
+      mtrStateTransitionFailures.mark();
       throw new AggregationFailure(String.format("Error abandoning profile for work_id=%d", workId), ex);
     }
   }
