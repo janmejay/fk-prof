@@ -1,9 +1,6 @@
 package fk.prof.backend;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.InstrumentedExecutorService;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
+import com.codahale.metrics.*;
 import com.google.common.base.Preconditions;
 import fk.prof.aggregation.model.AggregationWindowStorage;
 import fk.prof.backend.deployer.VerticleDeployer;
@@ -150,13 +147,13 @@ public class BackendManager {
   private void initStorage() {
     JsonObject s3Config = configManager.getS3Config();
     JsonObject threadPoolConfig = configManager.getStorageThreadPoolConfig();
-    Counter threadPoolRejectionsCounter = metricRegistry.counter(MetricRegistry.name(S3AsyncStorage.class, "threadpool.rejections"));
+    Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(S3AsyncStorage.class, "threadpool.rejections"));
 
     // thread pool with bounded queue for s3 io.
     BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getInteger("queue.maxsize"));
     ExecutorService storageExecSvc = new InstrumentedExecutorService(
         new ThreadPoolExecutor(threadPoolConfig.getInteger("coresize"), threadPoolConfig.getInteger("maxsize"), threadPoolConfig.getInteger("idletime.secs"), TimeUnit.SECONDS, ioTaskQueue,
-                new AbortPolicy("s3ExectorSvc", threadPoolRejectionsCounter)),
+                new AbortPolicy("s3ExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
     this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
@@ -237,15 +234,15 @@ public class BackendManager {
   public static class AbortPolicy implements RejectedExecutionHandler {
 
     private String forExecutorSvc;
-    private Counter counter;
+    private Meter meter;
 
-    public AbortPolicy(String forExecutorSvc, Counter counter) {
+    public AbortPolicy(String forExecutorSvc, Meter meter) {
       this.forExecutorSvc = forExecutorSvc;
-      this.counter = counter;
+      this.meter = meter;
     }
 
     public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-      counter.inc();
+      meter.mark();
       throw new RejectedExecutionException("Task rejected from " + forExecutorSvc);
     }
   }
