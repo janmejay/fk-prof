@@ -32,11 +32,14 @@ public abstract class MessageParser {
     public static <T extends AbstractMessage> T readDelimited(Parser<T> parser, CompositeByteBufInputStream in, int maxMessageSize, String tag) throws IOException {
         try {
             int msgSize = readRawVariantInt(in, tag + ":size");
+            if(msgSize == 0) {
+                return null;
+            }
             if(msgSize > maxMessageSize) {
                 throw new AggregationFailure("invalid length for " + tag);
             }
 
-            if(in.available() > msgSize) {
+            if(in.available() >= msgSize) {
                 return parser.parseFrom(ByteStreams.limit(in, msgSize));
             }
             else {

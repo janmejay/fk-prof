@@ -17,7 +17,6 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
@@ -65,7 +64,7 @@ public class RecordedProfileProcessor {
    *
    * @param inputStream
    */
-  public void process(CompositeByteBufInputStream inputStream) throws AggregationFailure {
+  public void process(CompositeByteBufInputStream inputStream) throws Exception {
     if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
@@ -94,18 +93,21 @@ public class RecordedProfileProcessor {
 
       if (aggregationWindow != null) {
         while (inputStream.available() > 0) {
+          intermediateWseEntry = true;
           wseParser.parse(inputStream);
-          if (wseParser.isParsed()) {
+          if(wseParser.isEndMarkerReceived()) {
+            intermediateWseEntry = false;
+            return;
+          } else if (wseParser.isParsed()) {
             Recorder.Wse wse = wseParser.get();
             processWse(wse);
             wseParser.reset();
+            intermediateWseEntry = false;
           } else {
-            throw new IOException("Incomplete bytes received for wse entry log");
+            break;
           }
         }
       }
-    } catch (IOException ex) {
-      //NOTE: Ignore this exception. Can happen because incomplete request has been received. Chunks can be received later
     } catch (Exception ex) {
       if(workId != 0) {
         singleProcessingOfProfileGate.finish(workId);
