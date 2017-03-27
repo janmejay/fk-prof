@@ -5,7 +5,7 @@ import com.google.protobuf.CodedOutputStream;
 import fk.prof.aggregation.model.*;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
-import sun.java2d.xr.MutableInteger;
+import org.apache.commons.lang3.mutable.MutableInt;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
@@ -30,7 +30,7 @@ public class MockAggregationWindow {
 
         LocalDateTime lt = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-        MutableInteger sampleCount = new MutableInteger(0);
+        MutableInt sampleCount = new MutableInt(0);
         FinalizedCpuSamplingAggregationBucket cpuSampleBucket = buildTree(stackTraces, sampleCount);
 
         int sampleCount1 = sampleCount.getValue() / 2;
@@ -41,7 +41,7 @@ public class MockAggregationWindow {
         return window;
     }
 
-    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInteger sampleCount) throws IOException {
+    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInt sampleCount) throws IOException {
         CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
 
         MethodIdLookup lookup = new MethodIdLookup();
