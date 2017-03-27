@@ -45,9 +45,6 @@ public class AggregationWindowSerializer implements Serializer {
         Serializer.writeCheckedDelimited(traceNames, cout);
         Serializer.writeCheckedDelimited(traceDetails, cout);
 
-        // all recorders
-        Serializer.writeCheckedDelimited(aggregation.buildRecorderListProto(), cout);
-
         // profiles summary
         checksum.reset();
         for(AggregatedProfileModel.ProfileWorkInfo workInfo: aggregation.buildProfileWorkInfoProto(workType, traceNames)) {

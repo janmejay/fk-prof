@@ -110,9 +110,6 @@ public class AggregatedProfileLoader {
             AggregatedProfileModel.TraceCtxNames traceNames = Deserializer.readCheckedDelimited(AggregatedProfileModel.TraceCtxNames.parser(), cin, "traceNames");
             AggregatedProfileModel.TraceCtxDetailList traceDetails = Deserializer.readCheckedDelimited(AggregatedProfileModel.TraceCtxDetailList.parser(), cin, "traceDetails");
 
-            // read recorders list
-            AggregatedProfileModel.RecorderList recorders = Deserializer.readCheckedDelimited(AggregatedProfileModel.RecorderList.parser(), cin, "recorderLisr");
-
             // read profiles summary
             checksumReset(checksum);
             List<AggregatedProfileModel.ProfileWorkInfo> profiles = new ArrayList<>();
@@ -142,7 +139,7 @@ public class AggregatedProfileLoader {
 
             checksumVerify((int) checksum.getValue(), Deserializer.readVariantInt32(in), "checksum error " + filename.workType.name() + " aggregated samples");
 
-            AggregatedProfileInfo profileInfo = new AggregatedProfileInfo(parsedHeader, traceNames, traceDetails, recorders, profiles, samplesPerTrace);
+            AggregatedProfileInfo profileInfo = new AggregatedProfileInfo(parsedHeader, traceNames, traceDetails, profiles, samplesPerTrace);
 
             future.complete(profileInfo);
         }
@@ -170,9 +167,6 @@ public class AggregatedProfileLoader {
             // read traceCtx list
             AggregatedProfileModel.TraceCtxNames traceNames = Deserializer.readCheckedDelimited(AggregatedProfileModel.TraceCtxNames.parser(), cin, "traceNames");
 
-            // read recorders list
-            AggregatedProfileModel.RecorderList recorders = Deserializer.readCheckedDelimited(AggregatedProfileModel.RecorderList.parser(), cin, "recorderLisr");
-
             // read profiles summary
             checksumReset(checksum);
             List<AggregatedProfileModel.ProfileWorkInfo> profiles = new ArrayList<>();
@@ -189,7 +183,7 @@ public class AggregatedProfileLoader {
             AggregatedProfileModel.TraceCtxDetailList traceDetails = Deserializer.readCheckedDelimited(AggregatedProfileModel.TraceCtxDetailList.parser(), cin, "cpu_sample traceDetails");
             summaryPerTrace.put(AggregatedProfileModel.WorkType.cpu_sample_work, new AggregationWindowSummary.CpuSampleSummary(traceDetails));
 
-            AggregationWindowSummary summary = new AggregationWindowSummary(parsedHeader, traceNames, recorders, profiles, summaryPerTrace);
+            AggregationWindowSummary summary = new AggregationWindowSummary(parsedHeader, traceNames, profiles, summaryPerTrace);
 
             future.complete(summary);
         }

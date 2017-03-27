@@ -73,8 +73,8 @@ public class IOStreamTest {
         assertEquals(contentSize/partSize + 1, storage.writtenContent.size());
 
         // verify that we got the correct chunks
-        for(int i = 0; i < contentSize/partSize + 1; ++i) {
-            String contentPart = storage.writtenContent.get(fileName.getFileName(i + 1));
+        for(int i = 0; i < contentSize/partSize; ++i) {
+            String contentPart = storage.writtenContent.get(fileName.getFileName(i));
             assertNotNull(contentPart);
             assertEquals(content.substring(i * partSize, Math.min((i + 1) * partSize, contentSize)), contentPart);
         }

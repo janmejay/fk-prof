@@ -1,12 +1,7 @@
 package fk.prof.backend;
 
 import com.google.protobuf.CodedOutputStream;
-import fk.prof.aggregation.model.MethodIdLookup;
-import fk.prof.aggregation.model.CpuSamplingFrameNode;
-import fk.prof.aggregation.model.CpuSamplingTraceDetail;
-import fk.prof.aggregation.model.FinalizedAggregationWindow;
-import fk.prof.aggregation.model.FinalizedCpuSamplingAggregationBucket;
-import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
+import fk.prof.aggregation.model.*;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.state.AggregationState;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -20,6 +15,10 @@ import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import io.vertx.core.*;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.ext.unit.Async;
@@ -35,10 +34,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.zip.Adler32;
@@ -104,7 +100,7 @@ public class ProfileApiTest {
         Map<Long, FinalizedProfileWorkInfo> expectedWorkLookup = new HashMap<>();
         expectedWorkLookup.put(workId, expectedWorkInfo);
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, null, 30 * 60, null,
+            awStart, null, 30 * 60,
             expectedWorkLookup, expectedAggregationBucket);
         context.assertTrue(expected.equals(actual));
         async.complete();
@@ -155,7 +151,7 @@ public class ProfileApiTest {
         expectedWorkLookup.put(workId3, expectedWorkInfo3);
 
         FinalizedAggregationWindow expected = new FinalizedAggregationWindow("a", "c", "p",
-            awStart, null, 30 * 60, null,
+            awStart, null, 30 * 60,
             expectedWorkLookup, expectedAggregationBucket);
 
         context.assertTrue(expected.equals(actual));
@@ -465,7 +461,7 @@ public class ProfileApiTest {
   private FinalizedProfileWorkInfo getExpectedWorkInfo(LocalDateTime startedAt, LocalDateTime endedAt, Map<AggregatedProfileModel.WorkType, Integer> samplesMap) {
     Map<String, Integer> expectedTraceCoverages = new HashMap<>();
     expectedTraceCoverages.put("1", 5);
-    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, 0, AggregationState.COMPLETED,
+    FinalizedProfileWorkInfo expectedProfileWorkInfo = new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED,
         startedAt, endedAt, expectedTraceCoverages, samplesMap);
     return expectedProfileWorkInfo;
   }

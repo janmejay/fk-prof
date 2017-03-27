@@ -1,5 +1,7 @@
 package fk.prof.backend.worker;
 
+import fk.prof.aggregation.model.AggregationWindowStorage;
+import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.http.ApiPathConstants;
 import fk.prof.backend.http.ProfHttpClient;
@@ -14,6 +16,7 @@ import fk.prof.backend.util.URLUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.WorkerExecutor;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -33,10 +36,12 @@ public class BackendDaemon extends AbstractVerticle {
   private final AssociatedProcessGroups associatedProcessGroups;
   private final WorkSlotPool workSlotPool;
   private final ActiveAggregationWindows activeAggregationWindows;
+  private final AggregationWindowStorage aggregationWindowStorage;
   private final String ipAddress;
   private final int leaderHttpPort;
   private final int backendHttpPort;
 
+  private WorkerExecutor serializationWorkerExecutor;
   private AggregationWindowPlannerStore aggregationWindowPlannerStore;
   private ProfHttpClient httpClient;
   private int loadTickCounter = 0;
@@ -45,7 +50,8 @@ public class BackendDaemon extends AbstractVerticle {
                        LeaderReadContext leaderReadContext,
                        AssociatedProcessGroups associatedProcessGroups,
                        ActiveAggregationWindows activeAggregationWindows,
-                       WorkSlotPool workSlotPool) {
+                       WorkSlotPool workSlotPool,
+                       AggregationWindowStorage aggregationWindowStorage) {
     this.configManager = configManager;
     this.ipAddress = configManager.getIPAddress();
     this.leaderHttpPort = configManager.getLeaderHttpPort();
@@ -55,12 +61,17 @@ public class BackendDaemon extends AbstractVerticle {
     this.associatedProcessGroups = associatedProcessGroups;
     this.activeAggregationWindows = activeAggregationWindows;
     this.workSlotPool = workSlotPool;
+    this.aggregationWindowStorage = aggregationWindowStorage;
   }
 
   @Override
   public void start() {
     httpClient = buildHttpClient();
     aggregationWindowPlannerStore = buildAggregationWindowPlannerStore();
+
+    JsonObject poolConfig = configManager.getSerializationWorkerPoolConfig();
+    serializationWorkerExecutor = vertx.createSharedWorkerExecutor("aggregation.window.serialization.threadpool",
+            poolConfig.getInteger("size"), poolConfig.getInteger("timeout.secs") * 1000);
     postLoadToLeader();
   }
 
@@ -73,14 +84,15 @@ public class BackendDaemon extends AbstractVerticle {
     return new AggregationWindowPlannerStore(
         vertx,
         configManager.getBackendId(),
-        config().getInteger("aggregation.window.duration.mins", 30),
+        config().getInteger("aggregation.window.duration.secs", 1800),
         config().getInteger("aggregation.window.end.tolerance.secs", 120),
         config().getInteger("policy.refresh.offset.secs", 300),
         config().getInteger("scheduling.buffer.secs", 30),
         config().getInteger("work.assignment.max.delay.secs", 120),
         workSlotPool,
         activeAggregationWindows,
-        this::getWorkFromLeader);
+        this::getWorkFromLeader,
+        this::serializeAndPersistAggregationWindow);
   }
 
   private void postLoadToLeader() {
@@ -196,4 +208,20 @@ public class BackendDaemon extends AbstractVerticle {
     return result;
   }
 
+  private void serializeAndPersistAggregationWindow(FinalizedAggregationWindow finalizedAggregationWindow) {
+    serializationWorkerExecutor.executeBlocking(future -> {
+      try {
+        aggregationWindowStorage.store(finalizedAggregationWindow);
+        future.complete();
+      } catch (Exception ex) {
+        future.fail(ex);
+      }
+    }, result -> {
+      if(result.succeeded()) {
+        logger.info("Successfully persisted aggregation_window=" + finalizedAggregationWindow);
+      } else {
+        logger.error("Error while persisting aggregation_window=" + finalizedAggregationWindow, result.cause());
+      }
+    });
+  }
 }
