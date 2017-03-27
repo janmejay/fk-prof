@@ -101,7 +101,7 @@ void ConfigurationOptions::load(const char* options) {
                     noctx_cov_pct = 100;
                 }
             } else if (strstr(key, "allow_sigprof") == key) {
-                allow_sigprof = (std::string(value) == "y");
+                allow_sigprof = (std::string(value) == "y") || (std::string(value) == "Y");
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }

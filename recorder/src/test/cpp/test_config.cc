@@ -73,6 +73,32 @@ TEST(Understand_AllowSigprof) {
     CHECK_EQUAL(true, options.valid());
 }
 
+#define UNRELATED_FIELDS "service_endpoint=http://10.20.30.40:9070," \
+    "ip=50.60.70.80,"                                                \
+    "host=foo.host,"                                                 \
+    "app_id=bar_app,"                                                \
+    "inst_grp=baz_grp,"                                              \
+    "cluster=quux_cluster,"                                          \
+    "inst_id=corge_iid,"                                             \
+    "proc=grault_proc,"                                              \
+    "vm_id=garply_vm_id,"                                            \
+    "zone=waldo_zone,"                                               \
+    "inst_type=c0.medium,"
+
+TEST(Understand_Match_allow_sigprof_field_value_case_insensitively) {
+    TestEnv _;
+
+    std::string str(UNRELATED_FIELDS "allow_sigprof=Y");
+    ConfigurationOptions options0(str.c_str());
+    CHECK_EQUAL(true, options0.allow_sigprof);
+    CHECK_EQUAL(true, options0.valid());
+
+    str = (UNRELATED_FIELDS "allow_sigprof=y");
+    ConfigurationOptions options1(str.c_str());
+    CHECK_EQUAL(true, options1.allow_sigprof);
+    CHECK_EQUAL(true, options1.valid());
+}
+
 TEST(DefaultAppropriately) {
     TestEnv _;
     std::string str("service_endpoint=http://10.20.30.40:9070,"
