@@ -45,6 +45,8 @@ struct ConfigurationOptions {
 
     std::uint8_t noctx_cov_pct;
 
+    bool allow_sigprof;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -59,15 +61,16 @@ struct ConfigurationOptions {
         backoff_start(MIN_BACKOFF_START), backoff_multiplier(DEFAULT_BACKOFF_MULTIPLIER), backoff_max(DEFAULT_BACKOFF_MAX), max_retries(DEFAULT_MAX_RETRIES),
         poll_itvl(DEFAULT_POLLING_INTERVAL),
         log_level(spdlog::level::info), metrics_dst_port(DEFAULT_METRICS_DEST_PORT),
-        noctx_cov_pct(0) {
+        noctx_cov_pct(0),
+
+        allow_sigprof(true) {
+
         load(options);
     }
 
     virtual ~ConfigurationOptions();
 
-    bool valid() {//TODO: ensure we check for valid config (implement defaulting before validity-check)
-        return true;
-    }
+    bool valid();
 
 private:
     void load(const char* options);

@@ -510,7 +510,7 @@ TEST(BlockingRingBuffer_should_not_block_reads____or_allow_writes____when_readon
 
     start = std::chrono::steady_clock::now();
     CHECK_EQUAL(0, ring.write(buff, 0, 20));
-    CHECK_CLOSE(7, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 2);
+    CHECK_CLOSE(8, std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(), 3);
 }
 
 TEST(BlockingRingBuffer_should_not_block_writes____when_readonly____but_should_allow_completion_of_read) {
@@ -567,10 +567,10 @@ TEST(BlockingRingBuffer_should_block____if_reset____after_making_readonly) {
     start = std::chrono::steady_clock::now();
     CHECK_EQUAL(110, ring.write(write_buff, 0, 110));
     CHECK_CLOSE(100, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count(), 5);
-    ASSERT_IS_SEQUENCE(read_buff, 0, 10, 0);
-    CHECK_EQUAL(10, bytes_read_after_sleep);
 
     t_read.join();
+    ASSERT_IS_SEQUENCE(read_buff, 0, 10, 0);
+    CHECK_EQUAL(10, bytes_read_after_sleep);
 
     CHECK_EQUAL(100, ring.read(read_buff, 0, 100));
     ASSERT_IS_SEQUENCE(read_buff, 0, 100, 10);

@@ -249,10 +249,8 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     ps.flush();
 
-    buff.readonly();
-
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
     google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
@@ -384,10 +382,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     ps.flush();
 
-    buff.readonly();
-
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
     google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
@@ -484,11 +480,9 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     t25.ctx_tracker.exit(ctx_foo);
     CHECK(q.pop());
 
-    buff.readonly();
-
     const std::size_t one_meg = 1024 * 1024;
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg, false);
     CHECK(bytes_sz > 0);
     CHECK(bytes_sz < one_meg);
 
@@ -599,11 +593,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     t25.ctx_tracker.exit(ctx_foo);
     t10.ctx_tracker.exit(ctx_bar);
 
-    buff.readonly();
-
     const std::size_t one_meg = 1024 * 1024;
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg, false);
     CHECK(bytes_sz > 0);
     CHECK(bytes_sz < one_meg);
 
@@ -744,10 +736,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     ps.flush();
 
-    buff.readonly();
-
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
     google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
@@ -841,10 +831,8 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
 
     ps.flush();
 
-    buff.readonly();
-
     std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
-    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
     google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
@@ -891,3 +879,135 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     auto s1_ctxs = {5};
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, true); //TODO: fix this to actually record time-offset, right now we are using zero
 }
+
+TEST(ProfileSerializer__should_EOF_after_last_flush) {
+    TestEnv _;
+    BlockingRingBuffer buff(1024 * 1024);
+    std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
+    Buff pw_buff;
+
+    method_lookup_stub.clear();
+    line_no_lookup_stub.clear();
+
+    std::int64_t y = 1, c = 2, d = 3;
+    stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
+    stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
+
+    PerfCtx::Registry reg;
+    auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
+    auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+
+    ProbPct prob_pct;
+    GlobalCtx::prob_pct = &prob_pct;
+    GlobalCtx::ctx_reg = &reg;
+
+    jvmtiEnv* ti = nullptr;
+
+    SerializationFlushThresholds sft;
+    sft.cpu_samples = 10;
+    TruncationThresholds tts(7);
+
+    STATIC_ARRAY(frames0, JVMPI_CallFrame, 7, 7);
+    JVMPI_CallTrace ct0;
+
+    frames0[0].method_id = mid(c);
+    frames0[0].lineno = 10;
+    frames0[1].method_id = mid(y);
+    frames0[1].lineno = 20;
+    ct0.frames = frames0;
+    ct0.num_frames = 2;
+
+    ThreadBucket t25(25, "some thread", 8, false);
+    t25.ctx_tracker.enter(ctx_foo);
+    {
+        //destructor is the cue for EoF
+        ProfileWriter pw(raw_w_ptr, pw_buff);
+
+        ProfileSerializingWriter ps(ti, pw, test_mthd_info_resolver, test_line_no_resolver, reg, sft, tts, 0);
+
+        CircularQueue q(ps, 10);
+
+        for (auto i = 0; i < 11; i++) {
+            q.push(ct0, ThreadBucket::acq_bucket(&t25));
+            CHECK(q.pop());
+        }
+    }
+    t25.ctx_tracker.exit(ctx_foo);
+
+    buff.readonly();
+
+    const std::size_t one_meg = 1024 * 1024;
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
+    CHECK(bytes_sz > 0);
+    CHECK(bytes_sz < one_meg);
+
+    google::protobuf::io::CodedInputStream cis(tmp_buff.get(), bytes_sz);
+
+    std::uint32_t len;
+    std::uint32_t csum;
+    Checksum c_calc;
+    recording::Wse wse0, wse1;
+
+    CHECK(cis.ReadVarint32(&len));
+    auto lim = cis.PushLimit(len);
+    CHECK(wse0.ParseFromCodedStream(&cis));
+    cis.PopLimit(lim);
+    auto pos = cis.CurrentPosition();
+    CHECK(cis.ReadVarint32(&csum));
+    auto computed_csum = c_calc.chksum(tmp_buff.get(), pos);
+    CHECK_EQUAL(computed_csum, csum);
+    auto next_record_start = cis.CurrentPosition();
+
+    CHECK(cis.ReadVarint32(&len));
+    lim = cis.PushLimit(len);
+    CHECK(wse1.ParseFromCodedStream(&cis));
+    cis.PopLimit(lim);
+    pos = cis.CurrentPosition();
+    CHECK(cis.ReadVarint32(&csum));
+    c_calc.reset();
+    computed_csum = c_calc.chksum(tmp_buff.get() + next_record_start, pos - next_record_start);
+    CHECK_EQUAL(computed_csum, csum);
+    next_record_start = cis.CurrentPosition();
+
+    CHECK(cis.ReadVarint32(&len));
+    CHECK_EQUAL(cis.CurrentPosition(), bytes_sz);
+    CHECK_EQUAL(0, len);//EOF marker
+
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse0.w_type());
+    CHECK_EQUAL(recording::WorkType::cpu_sample_work, wse1.w_type());
+
+    auto idx_data0 = wse0.indexed_data();
+    CHECK_EQUAL(0, idx_data0.monitor_info_size());
+
+    CHECK_EQUAL(1, idx_data0.thread_info_size());
+    ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
+
+    CHECK_EQUAL(2, idx_data0.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+
+    CHECK_EQUAL(2, idx_data0.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 5, "foo", 20, 0, false);
+
+    auto cse0 = wse0.cpu_sample_entry();
+    CHECK_EQUAL(10, cse0.stack_sample_size());
+
+    auto s0 = {fr(c, 10, 1), fr(y, 20, 2)};
+    auto s0_ctxs = {5};
+    for (auto i = 0; i < 10; i++) {
+        ASSERT_STACK_SAMPLE_IS(cse0.stack_sample(i), 0, 3, s0, s0_ctxs, false);
+    }
+
+    auto idx_data1 = wse1.indexed_data();
+    CHECK_EQUAL(0, idx_data1.monitor_info_size());
+    CHECK_EQUAL(0, idx_data1.thread_info_size());
+    CHECK_EQUAL(0, idx_data1.method_info_size());
+    CHECK_EQUAL(0, idx_data1.trace_ctx_size());
+    auto cse1 = wse1.cpu_sample_entry();
+    CHECK_EQUAL(1, cse1.stack_sample_size());
+    ASSERT_STACK_SAMPLE_IS(cse1.stack_sample(0), 0, 3, s0, s0_ctxs, false);
+}
+

@@ -65,17 +65,16 @@ bool Profiler::start(JNIEnv *jniEnv) {
     SimpleSpinLockGuard<true> guard(ongoing_conf);
     /* within critical section */
 
-    if (__is_running()) {
-        logError("WARN: Start called but sampling is already running\n");
+    if (running) {
+        logger->warn("Start called but sampling is already running");
         return true;
     }
-
 
     // reference back to Profiler::handle on the singleton
     // instance of Profiler
     handler->SetAction(&handle_profiling_signal);
-    processor->start(jniEnv);
     bool res = handler->updateSigprofInterval();
+    running = true;
     return res;
 }
 
@@ -83,17 +82,11 @@ void Profiler::stop() {
     /* Make sure it doesn't overlap with configure */
     SimpleSpinLockGuard<true> guard(ongoing_conf);
 
-    if (!__is_running()) {
+    if (!running) {
         return;
     }
 
     handler->stopSigprof();
-    processor->stop();
-}
-
-// non-blocking version (cen be called once spin-lock with acquire semantics is grabed)
-bool Profiler::__is_running() {
-    return processor && processor->isRunning();
 }
 
 void Profiler::set_sampling_freq(std::uint32_t sampling_freq) {
@@ -111,27 +104,27 @@ std::uint32_t Profiler::calculate_max_stack_depth(std::uint32_t _max_stack_depth
 }
 
 void Profiler::configure() {
-    serializer = new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts, noctx_cov_pct);
-    
-    buffer = new CircularQueue(*serializer, capture_stack_depth());
+    buffer = new CircularQueue(serializer, capture_stack_depth());
 
     handler = new SignalHandler(itvl_min, itvl_max);
     int processor_interval = Size * itvl_min / 1000 / 2;
     logger->debug("CpuSamplingProfiler is using processor-interval value: {}", processor_interval);
-    processor = new Processor(jvmti, *buffer, *handler, processor_interval > 0 ? processor_interval : 1);
 }
 
 #define METRIC_TYPE "cpu_samples"
 
-Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
-    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(calculate_max_stack_depth(_max_stack_depth)), writer(_writer),
-      tts(max_stack_depth), ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct),
+Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileSerializingWriter& _serializer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
+    : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(_max_stack_depth), serializer(_serializer),
+      ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
 
       s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
 
       s_c_cpu_samp_err_no_jni(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
       s_c_cpu_samp_err_unexpected(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),
-      s_c_cpu_samp_gc(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})) {
+      s_c_cpu_samp_gc(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})),
+
+      s_h_pop_spree_len(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "length"})),
+      s_t_pop_spree_tm(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "time"})) {
 
     set_sampling_freq(_sampling_freq);
     configure();
@@ -139,9 +132,25 @@ Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::
 
 Profiler::~Profiler() {
     SimpleSpinLockGuard<false> guard(ongoing_conf); // nonblocking
-    if (__is_running()) stop();
-    delete processor;
+    if (running) stop();
     delete handler;
     delete buffer;
-    delete serializer;
+}
+
+void Profiler::run() {
+    {
+        auto _ = s_t_pop_spree_tm.time_scope();
+
+        int poppped_before = samples_handled;
+        while (buffer->pop()) ++samples_handled;
+
+        s_h_pop_spree_len.update(samples_handled - poppped_before);
+    }
+
+    if (samples_handled > 200) {
+        if (! handler->updateSigprofInterval()) {
+            logger->warn("Couldn't switch sigprof interval to the next random value");
+        }
+        samples_handled = 0;
+    }
 }

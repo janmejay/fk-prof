@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
+import static fk.prof.backend.PollAndLoadApiTest.enableCpuSampling;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -168,6 +169,7 @@ public class ProcessGroupDetailTest {
         .setRecorderVersion(1)
         .setVmId("1")
         .setZone("1")
+        .setCapabilities(enableCpuSampling())
         .setIp(recorderId);
   }
 

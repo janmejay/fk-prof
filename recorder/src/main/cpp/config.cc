@@ -96,7 +96,12 @@ void ConfigurationOptions::load(const char* options) {
                 if (metrics_dst_port == 0) metrics_dst_port = DEFAULT_METRICS_DEST_PORT;
             } else if (strstr(key, "noctx_cov_pct") == key) {
                 noctx_cov_pct = static_cast<std::uint8_t>(atoi(value));
-                if (noctx_cov_pct > 100) noctx_cov_pct = 100;
+                if (noctx_cov_pct > 100) {
+                    logger->warn("NoCtx coverage pct is too high at {}, re-setting it to 100", noctx_cov_pct);
+                    noctx_cov_pct = 100;
+                }
+            } else if (strstr(key, "allow_sigprof") == key) {
+                allow_sigprof = (std::string(value) == "y") || (std::string(value) == "Y");
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
@@ -104,9 +109,34 @@ void ConfigurationOptions::load(const char* options) {
     }
 }
 
+#define ENSURE_NOT_NULL(param)                                          \
+    {                                                                   \
+        if (param == nullptr) {                                         \
+            logger->warn("Configuration is NOT valid, '"#param"' has not been provided"); \
+            is_valid = false;                                           \
+        }                                                               \
+    }
+
+bool ConfigurationOptions::valid() {
+    bool is_valid = true;
+    ENSURE_NOT_NULL(service_endpoint);
+    ENSURE_NOT_NULL(ip);
+    ENSURE_NOT_NULL(host);
+    ENSURE_NOT_NULL(app_id);
+    ENSURE_NOT_NULL(inst_grp);
+    ENSURE_NOT_NULL(cluster);
+    ENSURE_NOT_NULL(inst_id);
+    ENSURE_NOT_NULL(proc);
+    ENSURE_NOT_NULL(vm_id);
+    ENSURE_NOT_NULL(zone);
+    ENSURE_NOT_NULL(inst_typ);
+    return is_valid;
+}
+
 ConfigurationOptions::~ConfigurationOptions()  {
     safe_free_string(service_endpoint);
     safe_free_string(ip);
+    safe_free_string(host);
     safe_free_string(app_id);
     safe_free_string(inst_grp);
     safe_free_string(cluster);

@@ -26,6 +26,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.zip.Adler32;
 
+import static fk.prof.recorder.AssociationTest.rc;
 import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -39,6 +40,21 @@ public class WorkHandlingTest {
     public static final int CPU_SAMPLING_MAX_FRAMES = 50;
     public static final int CONTROLLER_ID = 2;
     public static final int CPU_SAMPLING_WORK_ID = 42;
+    private static final String DEFAULT_ARGS = "service_endpoint=http://127.0.0.1:8080," +
+            "ip=10.20.30.40," +
+            "host=foo-host," +
+            "app_id=bar-app," +
+            "inst_grp=baz-grp," +
+            "cluster=quux-cluster," +
+            "inst_id=corge-iid," +
+            "proc=grault-proc," +
+            "vm_id=garply-vmid," +
+            "zone=waldo-zone," +
+            "inst_typ=c0.small," +
+            "backoff_start=2," +
+            "backoff_max=5," +
+            "poll_itvl=1," +
+            "log_lvl=trace";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];
     private Function<byte[], byte[]>[] poll = new Function[18];
@@ -55,21 +71,11 @@ public class WorkHandlingTest {
         associateServer = new TestBackendServer(8090);
         assocAction = server.register("/association", association);
         pollAction = associateServer.register("/poll", poll);
-        runner = new AgentRunner(SleepForever.class.getCanonicalName(), "service_endpoint=http://127.0.0.1:8080," +
-                "ip=10.20.30.40," +
-                "host=foo-host," +
-                "app_id=bar-app," +
-                "inst_grp=baz-grp," +
-                "cluster=quux-cluster," +
-                "inst_id=corge-iid," +
-                "proc=grault-proc," +
-                "vm_id=garply-vmid," +
-                "zone=waldo-zone," +
-                "inst_typ=c0.small," +
-                "backoff_start=2," +
-                "backoff_max=5," +
-                "poll_itvl=1," +
-                "log_lvl=trace"
+        setRunner(DEFAULT_ARGS);
+    }
+
+    private void setRunner(final String args) {
+        runner = new AgentRunner(SleepForever.class.getCanonicalName(), args
         );
     }
 
@@ -115,7 +121,7 @@ public class WorkHandlingTest {
         Matcher<Long> recorderTickMatcher = is(0l);
         long previousTick;
         for (PollReqWithTime prwt : pollReqs) {
-            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher, rc(true));
             recorderTickMatcher = greaterThan(previousTick);
             assertItHadNoWork(prwt.req.getWorkLastIssued(), idx == 0 ? idx : idx + 99);
             if (idx > 0) {
@@ -155,7 +161,7 @@ public class WorkHandlingTest {
         Matcher<Long> recorderTickMatcher = is(0l);
         long previousTick;
         for (PollReqWithTime prwt : pollReqs) {
-            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher, rc(true));
             recorderTickMatcher = greaterThan(previousTick);
             if (idx > 0) {
                 assertThat(prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
@@ -213,7 +219,7 @@ public class WorkHandlingTest {
         assertThat(assocAction[0].isDone(), is(true));
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
-        assertPollingWasAllGood(pollReqs, prevTime);
+        assertPollingWasAllGood(pollReqs, prevTime, rc(true));
 
         assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
@@ -240,12 +246,12 @@ public class WorkHandlingTest {
         assertThat(profileCalledSecondTime.getValue(), is(false));
     }
 
-    private void assertPollingWasAllGood(PollReqWithTime[] pollReqs, long prevTime) {
+    private void assertPollingWasAllGood(PollReqWithTime[] pollReqs, long prevTime, final Recorder.RecorderCapabilities rc) {
         long idx = 0;
         Matcher<Long> recorderTickMatcher = is(0l);
         long previousTick;
         for (PollReqWithTime prwt : pollReqs) {
-            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            previousTick = AssociationTest.assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher, rc);
             recorderTickMatcher = greaterThan(previousTick);
             if (idx > 0) {
                 assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
@@ -287,7 +293,7 @@ public class WorkHandlingTest {
         assertThat(assocAction[0].isDone(), is(true));
         pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
 
-        assertPollingWasAllGood(pollReqs, prevTime);
+        assertPollingWasAllGood(pollReqs, prevTime, rc(true));
 
         assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
         assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
@@ -300,6 +306,47 @@ public class WorkHandlingTest {
         }
 
         assertThat(profileCalled, is(array(equalTo(true), equalTo(false))));
+    }
+
+    @Test
+    public void should_Fail_CpuProfileWork_When_SigprofNotAllowed() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
+        Boolean[] profileCalled = {false};
+        association[0] = pointToAssociate(recInfo, 8090);
+        PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
+        poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID, CPU_SAMPLING_MAX_FRAMES);
+        for (int i = 2; i < poll.length; i++) {
+            poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
+        }
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+
+        wireUpProfileAction(false);
+        profile[0] = (req) -> {
+            profileCalled[0] = true;
+            throw new RuntimeException("Ouch! something went wrong.");
+        };
+
+        setRunner(DEFAULT_ARGS + ",allow_sigprof=n");
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertPollingWasAllGood(pollReqs, prevTime, rc(false));
+
+        assertWorkStateAndResultIs(pollReqs[0].req.getWorkLastIssued(), 0, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        assertWorkStateAndResultIs(pollReqs[2].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.failure, 0);
+        for (int i = 3; i < pollReqs.length; i++) {
+            assertWorkStateAndResultIs(pollReqs[i].req.getWorkLastIssued(), i + 99, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        }
+
+        assertThat(profileCalled, is(array(equalTo(false))));
     }
     
     public static void assertRecordingHeaderIsGood(Recorder.RecordingHeader rh, final int controllerId, final long workId, String cpuSamplingWorkIssueTime, final int duration, final int delay, final int workCount, final Recorder.Work[] expectedWork) {
@@ -351,8 +398,10 @@ public class WorkHandlingTest {
         csum.update(req, 0, bytesBeforeChksum);
         assertThat((int) csum.getValue(), is(chksum));
 
-        while (bytesAfterChksum < req.length) {
+        while (true) {
             int wseLen = is.readUInt32();
+            if (wseLen == 0) break; //EOF condition
+            if (bytesAfterChksum >= req.length) throw new IllegalStateException("Stream ended before recorder EoF-marker");
             int wseLim = is.pushLimit(wseLen);
             Recorder.Wse.Builder wseBuilder = Recorder.Wse.newBuilder();
             wseBuilder.mergeFrom(is);

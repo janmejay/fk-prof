@@ -13,12 +13,12 @@ bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, Metho
             static int once = 0;
             if (!once) {
                 once = 1;
-                logError("One of your monitoring interfaces "
+                logger->error("One of your monitoring interfaces "
                          "is having trouble resolving its stack traces.  "
                          "GetMethodName on a jmethodID involved in a stacktrace "
                          "resulted in an INVALID_METHODID error which usually "
-                         "indicates its declaring class has been unloaded.\n");
-                logError("Unexpected JVMTI error %d in GetMethodName\n", error);
+                         "indicates its declaring class has been unloaded.");
+                logger->error("Unexpected JVMTI error {} in GetMethodName", error);
             }
         }
         return false;

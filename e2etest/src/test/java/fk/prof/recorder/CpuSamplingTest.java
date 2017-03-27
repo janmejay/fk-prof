@@ -108,7 +108,7 @@ public class CpuSamplingTest {
         Matcher<Long> recorderTickMatcher = is(0l);
         long previousTick;
         for (WorkHandlingTest.PollReqWithTime prwt : pollReqs) {
-            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher, AssociationTest.rc(true));
             recorderTickMatcher = greaterThan(previousTick);
             assertItHadNoWork(prwt.req.getWorkLastIssued(), idx == 0 ? idx : idx + 99);
             if (idx > 0) {
@@ -503,7 +503,7 @@ public class CpuSamplingTest {
         long previousTick;
         Matcher<Long> recorderTickMatcher = is(0l);
         for (PollReqWithTime prwt : pollReqs) {
-            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher);
+            previousTick = assertRecorderInfoAllGood_AndGetTick(prwt.req.getRecorderInfo(), recorderTickMatcher, AssociationTest.rc(true));
             recorderTickMatcher = greaterThan(previousTick);
             if (idx > 0) {
                 assertThat("idx = " + idx, prwt.time - prevTime, approximatelyBetween(1000l, 2000l)); //~1 sec tolerance
