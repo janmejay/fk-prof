@@ -57,8 +57,7 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
         JVMTI_ERROR_CLEANUP(
             jvmti->GetClassSignature(klass, ksig.GetRef(), NULL),
             ksig.AbandonBecauseOfError());
-        logError("Failed to create method IDs for methods in class %s with error %d ",
-                 ksig.Get(), e);
+        logger->error("Failed to create method IDs for methods in class {} with error {} ", ksig.Get(), e);
     }
 }
 
@@ -131,7 +130,7 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
         JVMTI_ERROR_CLEANUP_RET(
             jvmti->AddCapabilities(&caps),
             false,
-            logError("Failed to add capabilities with error %d\n", error))
+            logger->error("Failed to add capabilities with error {}", error))
     }
     return true;
 }
@@ -157,14 +156,14 @@ void JNICALL OnNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread th
 
     int err = jvmti_env->GetMethodName(method, &name_ptr, &signature_ptr, NULL);
     if (err != JNI_OK) {
-        logError("Error %i retrieving method name", err);
+        logger->error("Error {} retrieving method name", err);
         return;
     }
     if (strcmp(name_ptr, "start0") == 0 && strcmp(signature_ptr, "()V") == 0) {
         jclass declaringClass;
         int err = jvmti_env->GetMethodDeclaringClass(method, &declaringClass);
         if (err != JNI_OK) {
-            logError("Error %i retrieving class", err);
+            logger->error("Error {} retrieving class", err);
             jvmti_env->Deallocate((unsigned char *) name_ptr);
             jvmti_env->Deallocate((unsigned char *) signature_ptr);
             return;
@@ -284,7 +283,7 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 
     if ((err = (jvm->GetEnv(reinterpret_cast<void **>(&jvmti), JVMTI_VERSION))) !=
             JNI_OK) {
-        logError("ERROR: JVMTI initialisation error %d\n", err);
+        logger->error("JVMTI initialisation error {}", err);
         return 1;
     }
 
@@ -340,14 +339,6 @@ AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
     delete GlobalCtx::prob_pct;
     delete GlobalCtx::metrics_registry;
     delete CONFIGURATION;
-}
-
-void logError(const char *__restrict format, ...) {
-    va_list arg;
-
-    va_start(arg, format);
-    vfprintf(stderr, format, arg);
-    va_end(arg);
 }
 
 ThreadMap& get_thread_map() {

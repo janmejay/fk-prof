@@ -7,15 +7,15 @@ jthread newThread(JNIEnv *jniEnv, const char *threadName) {
 
     thrClass = jniEnv->FindClass("java/lang/Thread");
     if (thrClass == NULL) {
-        logError("WARN: Cannot find Thread class\n");
+        logger->warn("Cannot find Thread class");
     }
     cid = jniEnv->GetMethodID(thrClass, "<init>", "()V");
     if (cid == NULL) {
-        logError("WARN: Cannot find Thread constructor method\n");
+        logger->warn("Cannot find Thread constructor method");
     }
     res = jniEnv->NewObject(thrClass, cid);
     if (res == NULL) {
-        logError("WARN: Cannot create new Thread object\n");
+        logger->warn("Cannot create new Thread object");
     } else {
         jmethodID mid = jniEnv->GetMethodID(thrClass, "setName", "(Ljava/lang/String;)V");
         jniEnv->CallObjectMethod(res, mid, jniEnv->NewStringUTF(threadName));

@@ -396,7 +396,12 @@ public class PollAndLoadApiTest {
         .setVmId("1")
         .setZone("1")
         .setIp("1")
+        .setCapabilities(enableCpuSampling())
         .build();
+  }
+
+  public static Recorder.RecorderCapabilities enableCpuSampling() {
+    return Recorder.RecorderCapabilities.newBuilder().setCanCpuSample(true).build();
   }
 
   private Recorder.WorkResponse buildWorkResponse(long workId, Recorder.WorkResponse.WorkState workState) {

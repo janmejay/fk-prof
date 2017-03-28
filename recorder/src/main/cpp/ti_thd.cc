@@ -90,7 +90,7 @@ ThdProcP start_new_thd(JNIEnv *env, jvmtiEnv *jvmti, const char* thd_name, jvmti
     jvmtiError result;
 
     if (env == NULL) {
-        logError("ERROR: Failed to obtain JNIEnv\n");
+        logger->error("Failed to obtain JNIEnv");
         return ThdProcP(nullptr);
     }
 

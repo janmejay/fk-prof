@@ -50,13 +50,17 @@ public:
     ~SimpleSpinLockGuard() {}
 };
 
-class Profiler {
+class Profiler : public Process {
 public:
-    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, std::shared_ptr<ProfileWriter> _writer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct);
+    static std::uint32_t calculate_max_stack_depth(std::uint32_t hinted_max_stack_depth);
+
+    explicit Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileSerializingWriter& _serializer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct);
 
     bool start(JNIEnv *jniEnv);
 
     void stop();
+
+    void run();
 
     void handle(int signum, siginfo_t *info, void *context);
 
@@ -77,13 +81,9 @@ private:
 
     CircularQueue *buffer;
 
-    Processor *processor;
-
     SignalHandler* handler;
 
-    SerializationFlushThresholds sft;
-    TruncationThresholds tts;
-    ProfileSerializingWriter* serializer;
+    ProfileSerializingWriter& serializer;
 
     // indicates change of internal state
     std::atomic<bool> ongoing_conf;
@@ -92,24 +92,26 @@ private:
     std::atomic<std::uint32_t> sampling_attempts;
     const std::uint8_t noctx_cov_pct;
 
+    bool running;
+
+    std::uint32_t samples_handled;
+
     metrics::Ctr& s_c_cpu_samp_total;
     metrics::Ctr& s_c_cpu_samp_err_no_jni;
     metrics::Ctr& s_c_cpu_samp_err_unexpected;
     metrics::Ctr& s_c_cpu_samp_gc;
+    metrics::Hist& s_h_pop_spree_len;
+    metrics::Timer& s_t_pop_spree_tm;
 
     void set_sampling_freq(std::uint32_t sampling_freq);
 
     void set_max_stack_depth(std::uint32_t max_stack_depth);
-
-    static std::uint32_t calculate_max_stack_depth(std::uint32_t hinted_max_stack_depth);
 
     void configure();
 
     inline std::uint32_t capture_stack_depth() {
         return max_stack_depth + 1;
     }
-
-    bool __is_running();
 
     DISALLOW_COPY_AND_ASSIGN(Profiler);
 };

@@ -59,6 +59,22 @@ void ProfileWriter::append_wse(const recording::Wse& e) {
     write_unchecked(csum);
 }
 
+#define EOF_VALUE 0
+
+void ProfileWriter::mark_eof() {
+    write_unchecked(EOF_VALUE);
+}
+
+ProfileWriter::ProfileWriter(std::shared_ptr<RawWriter> _w, Buff& _data) : w(_w), data(_data), header_written(false) {
+    data.write_end = data.read_end = 0;
+}
+
+ProfileWriter::~ProfileWriter() {
+    mark_eof();
+    flush();
+}
+
+
 recording::StackSample::Error translate_forte_error(jint num_frames_error) {
     /** copied form forte.cpp, this is error-table we are trying to translate
         enum {
@@ -241,5 +257,8 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
     new_ctx->set_trace_name(NOCTX_NAME);
 }
 
-ProfileSerializingWriter::~ProfileSerializingWriter() {}
+ProfileSerializingWriter::~ProfileSerializingWriter() {
+    if (cpu_samples_flush_ctr != 0) flush();
+    assert(cpu_samples_flush_ctr == 0);
+}
 

@@ -38,13 +38,12 @@ private:
 
     template <class T> void write_unchecked_obj(const T& value);
 
+    void mark_eof();
+
 public:
-    ProfileWriter(std::shared_ptr<RawWriter> _w, Buff& _data) : w(_w), data(_data), header_written(false) {
-        data.write_end = data.read_end = 0;
-    }
-    ~ProfileWriter() {
-        flush();
-    }
+    ProfileWriter(std::shared_ptr<RawWriter> _w, Buff& _data);
+
+    ~ProfileWriter();
 
     void write_header(const recording::RecordingHeader& rh);
 
@@ -68,6 +67,7 @@ struct TruncationThresholds {
     TruncationCap cpu_samples_max_stack_sz;
 
     TruncationThresholds(TruncationCap _cpu_samples_max_stack_sz) : cpu_samples_max_stack_sz(_cpu_samples_max_stack_sz) {}
+    TruncationThresholds() : cpu_samples_max_stack_sz(DEFAULT_MAX_FRAMES_TO_CAPTURE) {}
     ~TruncationThresholds() {}
 };
 

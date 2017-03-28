@@ -9,6 +9,8 @@ import recording.Recorder;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
+import static fk.prof.backend.PollAndLoadApiTest.enableCpuSampling;
+
 public class RecorderDetailTest {
 
   @Test
@@ -102,6 +104,7 @@ public class RecorderDetailTest {
         .setRecorderVersion(1)
         .setVmId("1")
         .setZone("1")
+        .setCapabilities(enableCpuSampling())
         .setIp(ip);
   }
 }
