@@ -17,14 +17,9 @@ import java.util.stream.Stream;
  */
 public class FileResolver {
 
-    public static Path resourceFile(String filename) {
+    public static Path resourceFile(String filename) throws Exception {
         URL resource = FileResolver.class.getResource(filename);
-        try {
-            return Paths.get(resource.toURI()).toAbsolutePath();
-        }
-        catch (URISyntaxException e) {
-            throw new Error(e);
-        }
+        return Paths.get(resource.toURI()).toAbsolutePath();
     }
 
     public static List<Path> findFile(String dirPath, String regex) {
