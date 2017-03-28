@@ -12,18 +12,16 @@ import java.util.Map;
 public class PolicyStore {
   private final Map<Recorder.ProcessGroup, BackendDTO.RecordingPolicy> store = new HashMap<>();
 
-  public PolicyStore() {
-    //TODO: Remove. Temporary for e2e testing
-    Recorder.ProcessGroup pg = Recorder.ProcessGroup.newBuilder().setAppId("bar-app").setCluster("quux-cluster").setProcName("grault-proc").build();
-    BackendDTO.RecordingPolicy rp = buildRecordingPolicy(30);
-    this.put(pg, rp);
-  }
-
   public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) {
     this.store.put(processGroup, recordingPolicy);
   }
 
   public BackendDTO.RecordingPolicy get(Recorder.ProcessGroup processGroup) {
+    //TODO: Remove. Temporary for e2e testing
+    if(processGroup.getAppId().startsWith("bar-app") && processGroup.getCluster().startsWith("quux-cluster") &&
+        processGroup.getProcName().startsWith("grault-proc")) {
+      return buildRecordingPolicy(30);
+    }
     return this.store.get(processGroup);
   }
 

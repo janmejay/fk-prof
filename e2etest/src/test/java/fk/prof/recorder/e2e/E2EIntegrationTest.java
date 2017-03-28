@@ -161,7 +161,7 @@ public class E2EIntegrationTest {
     }
 
     @Test(timeout = 5 * 60 * 1_000)
-    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_2Recorder_2Backends() throws Exception {
+    public void testE2EFlowWithFixPolicy_30SecWorkDuration_1MinAggregationWindow_1Recorder_2Backends() throws Exception {
         // start all components
         userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
         BackendProcess leader = new BackendProcess(FileResolver.resourceFile("/conf/backend_1.json"));
@@ -268,7 +268,7 @@ public class E2EIntegrationTest {
         recorder.start();
 
         // wait for 1st work to start
-        Thread.sleep(minToMillis(2, 50));
+        Thread.sleep(minToMillis(1, 50));
 
         // kill the recorder. Because we are killing the recorder while a work was in flight a profile will be incomplete.
         recorder.stop();
@@ -285,8 +285,8 @@ public class E2EIntegrationTest {
 
         List<Map<String, Object>> succeeded = get(res, "succeeded");
 
-        // we are still expecting 2 aggregation windows
-        assertThat(succeeded, Matchers.hasSize(2));
+        // we are expecting 1 aggregation window
+        assertThat(succeeded, Matchers.hasSize(1));
 
         // check details of the later aggregation. First 1 is empty for now
         Map<String, Object> aggregation = getLatestWindow(res);
@@ -329,8 +329,8 @@ public class E2EIntegrationTest {
         System.out.println("All components started, now waiting");
 
         // expecting a backend and leader handshake, pg association to backend and backend responding to recorder's poll. This should take around 30 - 40 sec.
-        // Wait for another 2 min to let first 2 window finish.
-        Thread.sleep(minToMillis(3, 40)); // 3.5 min
+        // Wait for another 1 min to let first 1 window finish.
+        Thread.sleep(minToMillis(2, 40));
 
         ZonedDateTime someTimeFromNearPast = ZonedDateTime.now(Clock.systemUTC()).minusMinutes(30);
 
