@@ -253,6 +253,7 @@ public class AssociationApiTest {
         .setVmId("1")
         .setZone("1")
         .setIp("1")
+        .setCapabilities(Recorder.RecorderCapabilities.newBuilder().setCanCpuSample(true))
         .build();
   }
 
@@ -275,5 +276,4 @@ public class AssociationApiTest {
     request.end(ProtoUtil.buildBufferFromProto(payload));
     return future;
   }
-
 }

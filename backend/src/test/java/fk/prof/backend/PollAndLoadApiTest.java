@@ -55,7 +55,6 @@ import static org.mockito.Mockito.when;
 
 @RunWith(VertxUnitRunner.class)
 public class PollAndLoadApiTest {
-
   private Vertx vertx;
   private ConfigManager configManager;
   private CuratorFramework curatorClient;
@@ -231,19 +230,16 @@ public class PollAndLoadApiTest {
     });
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 20000)
   public void testAggregationWindowSetupAndPollResponse(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
     policyStore.put(processGroup, buildRecordingPolicy(1));
     CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(new Answer<BackendDTO.RecordingPolicy>() {
-      @Override
-      public BackendDTO.RecordingPolicy answer(InvocationOnMock invocationOnMock) throws Throwable {
-        //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
-        boolean released = latch.await(8, TimeUnit.SECONDS);
-        return (BackendDTO.RecordingPolicy)invocationOnMock.callRealMethod();
-      }
+    when(policyStore.get(processGroup)).then(invocationOnMock -> {
+      //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
+      latch.await(8, TimeUnit.SECONDS);
+      return invocationOnMock.callRealMethod();
     });
 
     Recorder.PollReq pollReq = Recorder.PollReq.newBuilder()
@@ -268,7 +264,7 @@ public class PollAndLoadApiTest {
               context.assertEquals(200, ar2.result().getStatusCode());
               try {
                 //wait for some time so that backend reports load
-                vertx.setTimer(1500, timerId1 -> {
+                vertx.setTimer(2500, timerId1 -> {
                   try {
                     Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
                         .setRecorderInfo(buildRecorderInfo(processGroup, 2))
@@ -288,7 +284,7 @@ public class PollAndLoadApiTest {
                             .setRecorderInfo(buildRecorderInfo(processGroup, 3))
                             .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
                             .build();
-                        vertx.setTimer(1500, timerId2 -> {
+                        vertx.setTimer(2500, timerId2 -> {
                           try {
                             makePollRequest(assignedBackend, pollReq2).setHandler(ar4 -> {
                               if(ar4.failed()) {
@@ -429,7 +425,7 @@ public class PollAndLoadApiTest {
         .setVmId("1")
         .setZone("1")
         .setIp("1")
+        .setCapabilities(enableCpuSampling())
         .build();
   }
-
 }
