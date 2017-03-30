@@ -67,7 +67,7 @@ public class WseParser {
         in.updateChecksumSinceMarked(wseChecksum);
       }
       in.markAndDiscardRead();
-      int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
+      int checksumValue = MessageParser.readRawVariantInt(in, "wseChecksumValue");
       if (checksumValue != ((int) wseChecksum.getValue())) {
         throw new AggregationFailure("Checksum of wse does not match");
       }

@@ -8,6 +8,7 @@ import com.google.common.primitives.Ints;
 import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
+import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.exception.BadRequestException;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
@@ -119,18 +120,30 @@ public class BackendHttpVerticle extends AbstractVerticle {
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
         config().getJsonObject("parser").getInteger("parser.wse.max.bytes", 1024 * 1024));
 
+    context.response().endHandler(v -> {
+      try {
+        inputStream.close();
+        profileProcessor.close();
+      } catch (Exception ex) {
+        logger.error("Unexpected error when closing profile: {}", ex, profileProcessor);
+      }
+    });
+
     RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, inputStream, profileProcessor);
     context.request()
         .handler(requestHandler)
+        .exceptionHandler(th -> {
+          HttpFailure httpFailure = HttpFailure.failure(th);
+          HttpHelper.handleFailure(context, httpFailure);
+        })
         .endHandler(v -> {
           try {
             if (!context.response().ended()) {
-              //Can safely attempt to close the profile processor here because endHandler is called once the entire body has been read
-              //and example in vertx docs also indicates that this handler will execute once all chunk handlers have completed execution
-              //http://vertx.io/docs/vertx-core/java/#_handling_requests
-              inputStream.close();
-              profileProcessor.close();
-              context.response().end();
+              if(profileProcessor.isProcessed()) {
+                context.response().end();
+              } else {
+                throw new AggregationFailure("Incomplete profile received: " + profileProcessor);
+              }
             }
           } catch (Exception ex) {
             HttpFailure httpFailure = HttpFailure.failure(ex);

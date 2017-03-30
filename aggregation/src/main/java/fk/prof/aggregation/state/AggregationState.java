@@ -14,7 +14,18 @@ public enum AggregationState {
       }
     }
   },
-  PARTIAL(false, false) {
+  CORRUPT(false, false) {
+    @Override
+    public AggregationState process(AggregationStateEvent stateEvent) {
+      switch (stateEvent) {
+        case START_PROFILE:
+          return ONGOING_PARTIAL;
+        default:
+          return this;
+      }
+    }
+  },
+  INCOMPLETE(false, false) {
     @Override
     public AggregationState process(AggregationStateEvent stateEvent) {
       switch (stateEvent) {
@@ -31,8 +42,10 @@ public enum AggregationState {
       switch (stateEvent) {
         case COMPLETE_PROFILE:
           return COMPLETED;
-        case ABANDON_PROFILE:
-          return PARTIAL;
+        case ABANDON_PROFILE_AS_CORRUPT:
+          return CORRUPT;
+        case ABANDON_PROFILE_AS_INCOMPLETE:
+          return INCOMPLETE;
         case ABORT_PROFILE:
           return ABORTED;
         default:
@@ -46,8 +59,10 @@ public enum AggregationState {
       switch (stateEvent) {
         case COMPLETE_PROFILE:
           return RETRIED;
-        case ABANDON_PROFILE:
-          return PARTIAL;
+        case ABANDON_PROFILE_AS_CORRUPT:
+          return CORRUPT;
+        case ABANDON_PROFILE_AS_INCOMPLETE:
+          return INCOMPLETE;
         case ABORT_PROFILE:
           return ABORTED;
         default:

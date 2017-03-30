@@ -5,6 +5,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.codahale.metrics.Timer;
 import fk.prof.backend.ConfigManager;
+import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
@@ -22,7 +23,7 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
   private static Logger logger = LoggerFactory.getLogger(RecordedProfileRequestHandler.class);
 
   private final RoutingContext context;
-  private final RecordedProfileProcessor profileParser;
+  private final RecordedProfileProcessor profileProcessor;
   private final CompositeByteBufInputStream inputStream;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
@@ -31,35 +32,30 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
   private Long chunkReceivedTime = null;
 
-  public RecordedProfileRequestHandler(RoutingContext context, CompositeByteBufInputStream inputStream, RecordedProfileProcessor profileParser) {
+  public RecordedProfileRequestHandler(RoutingContext context, CompositeByteBufInputStream inputStream, RecordedProfileProcessor profileProcessor) {
     this.context = context;
-    this.profileParser = profileParser;
+    this.profileProcessor = profileProcessor;
     this.inputStream = inputStream;
   }
 
   @Override
   public void handle(Buffer requestBuffer) {
-    //    try { logger.debug(String.format("buffer=%d, chunk=%d", inputStream.available(), requestBuffer.length())); } catch (Exception ex) {}
-    histChunkSize.update(requestBuffer.length());
-    long currentTime = System.nanoTime();
-    if(chunkReceivedTime != null) {
-      tmrChunkIdle.update(currentTime - chunkReceivedTime, TimeUnit.NANOSECONDS);
-    }
-    chunkReceivedTime = currentTime;
-
-    if (!context.response().ended()) {
-      inputStream.accept(requestBuffer.getByteBuf());
-      try {
-        profileParser.process(inputStream);
-      } catch (Exception ex) {
-        try {
-          inputStream.close();
-        } catch (IOException ex1) {
-          logger.error("Error closing inputstream", ex1);
-        }
-        HttpFailure httpFailure = HttpFailure.failure(ex);
-        HttpHelper.handleFailure(context, httpFailure);
+    try {
+//      try { logger.debug(String.format("buffer=%d, chunk=%d", inputStream.available(), requestBuffer.length())); } catch (Exception ex) {}
+      histChunkSize.update(requestBuffer.length());
+      long currentTime = System.nanoTime();
+      if (chunkReceivedTime != null) {
+        tmrChunkIdle.update(currentTime - chunkReceivedTime, TimeUnit.NANOSECONDS);
       }
+      chunkReceivedTime = currentTime;
+
+      if (!context.response().ended()) {
+        inputStream.accept(requestBuffer.getByteBuf());
+        profileProcessor.process(inputStream);
+      }
+    } catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
     }
   }
 

@@ -30,15 +30,16 @@ public class RecordedProfileProcessor {
   private AggregationWindow aggregationWindow = null;
   private long workId = 0;
   private LocalDateTime startedAt = null;
+  private boolean errored = false;
 
   private RecordedProfileHeaderParser headerParser;
   private WseParser wseParser;
   private RecordedProfileIndexes indexes = new RecordedProfileIndexes();
-  private boolean intermediateWseEntry = false;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
   private Counter ctrAggrWinMiss = metricRegistry.counter(MetricRegistry.name(RecordedProfileProcessor.class, "window", "miss"));
   private Meter mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "invalid"));
+  private Meter mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "corrupt"));
 
   public RecordedProfileProcessor(AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
                                   int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
@@ -54,7 +55,7 @@ public class RecordedProfileProcessor {
    * @return processed a valid recorded profile object or not
    */
   public boolean isProcessed() {
-    return aggregationWindow != null && !intermediateWseEntry;
+    return aggregationWindow != null && wseParser.isEndMarkerReceived();
   }
 
   /**
@@ -64,12 +65,16 @@ public class RecordedProfileProcessor {
    *
    * @param inputStream
    */
-  public void process(CompositeByteBufInputStream inputStream) throws Exception {
+  public void process(CompositeByteBufInputStream inputStream) {
     if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
 
     try {
+      if(isProcessed()) {
+        throw new AggregationFailure("Cannot accept more data after receiving end marker");
+      }
+
       if (aggregationWindow == null) {
         headerParser.parse(inputStream);
 
@@ -93,48 +98,59 @@ public class RecordedProfileProcessor {
 
       if (aggregationWindow != null) {
         while (inputStream.available() > 0) {
-          intermediateWseEntry = true;
           wseParser.parse(inputStream);
           if(wseParser.isEndMarkerReceived()) {
-            intermediateWseEntry = false;
             return;
           } else if (wseParser.isParsed()) {
             Recorder.Wse wse = wseParser.get();
             processWse(wse);
             wseParser.reset();
-            intermediateWseEntry = false;
           } else {
             break;
           }
         }
       }
-    } catch (Exception ex) {
-      if(workId != 0) {
-        singleProcessingOfProfileGate.finish(workId);
-      }
+    } catch (AggregationFailure ex) {
+      errored = true;
       throw ex;
+    } catch (Exception ex) {
+      errored = true;
+      throw new AggregationFailure(ex, true);
     }
   }
 
   /**
-   * If parsing was successful, marks the profile as completed/retried, partial otherwise
+   * If parsing was successful, marks the profile as corrupt if errored, completed/retried if processed, incomplete otherwise
    *
    * @throws AggregationFailure
    */
   public void close() throws AggregationFailure {
     try {
-      if (isProcessed()) {
-        aggregationWindow.completeProfile(workId);
-      } else {
-        mtrPayloadInvalid.mark();
+      // Check for errored before checking for processed.
+      // Profile can be corrupt(errored) even if processed returns true if more data is sent by client after server has received end marker
+      if (errored) {
+        mtrPayloadCorrupt.mark();
         if (aggregationWindow != null) {
-          aggregationWindow.abandonProfile(workId);
+          aggregationWindow.abandonProfileAsCorrupt(workId);
         }
-        throw new AggregationFailure(String.format("Invalid or incomplete payload received, aggregation failed for work_id=%d", workId));
+      } else {
+        if (isProcessed()) {
+          aggregationWindow.completeProfile(workId);
+        } else {
+          mtrPayloadInvalid.mark();
+          if (aggregationWindow != null) {
+            aggregationWindow.abandonProfileAsIncomplete(workId);
+          }
+        }
       }
     } finally {
       singleProcessingOfProfileGate.finish(workId);
     }
+  }
+
+  @Override
+  public String toString() {
+    return "work_id=" + workId + ", window={" + aggregationWindow + "}, errored=" + errored + ", processed=" + isProcessed();
   }
 
   private void processWse(Recorder.Wse wse) throws AggregationFailure {

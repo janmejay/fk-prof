@@ -76,15 +76,27 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     }
   }
 
-  public AggregationState abandonProfile(long workId) throws AggregationFailure {
+  public AggregationState abandonProfileAsCorrupt(long workId) throws AggregationFailure {
     ensureEntityIsWriteable();
 
     try {
       ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
-      return workInfo.abandonProfile();
+      return workInfo.abandonProfileAsCorrupt();
     } catch (IllegalStateException ex) {
       mtrStateTransitionFailures.mark();
-      throw new AggregationFailure(String.format("Error abandoning profile for work_id=%d", workId), ex);
+      throw new AggregationFailure(String.format("Error abandoning corrupt profile for work_id=%d", workId), ex);
+    }
+  }
+
+  public AggregationState abandonProfileAsIncomplete(long workId) throws AggregationFailure {
+    ensureEntityIsWriteable();
+
+    try {
+      ProfileWorkInfo workInfo = this.workInfoLookup.get(workId);
+      return workInfo.abandonProfileAsIncomplete();
+    } catch (IllegalStateException ex) {
+      mtrStateTransitionFailures.mark();
+      throw new AggregationFailure(String.format("Error abandoning incomplete profile for work_id=%d", workId), ex);
     }
   }
 
@@ -156,6 +168,15 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
       throw new AggregationFailure(String.format("Cannot find work id=%d association in the aggregation window", workId), true);
     }
     workInfo.updateRecorderInfo(recorderInfo);
+  }
+
+  @Override
+  public String toString() {
+    return "app=" + appId +
+        ", cluster=" + clusterId +
+        ", proc=" + procId +
+        ", start=" + start +
+        ", end=" + endedAt;
   }
 
   @Override

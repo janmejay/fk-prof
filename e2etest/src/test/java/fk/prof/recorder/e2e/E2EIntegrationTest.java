@@ -297,7 +297,7 @@ public class E2EIntegrationTest {
 
         // check the status
         Map<String, Object> profile = profiles.get(0);
-        assertThat(profile.get("status"), is("Partial"));
+        assertThat(profile.get("status"), is("Incomplete"));
     }
 
     @Test(timeout = 5 * 60 * 1_000)

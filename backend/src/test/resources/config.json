@@ -8,7 +8,7 @@
   "recorder.defunct.threshold.secs": 120,
   "slot.pool.capacity": 100,
   "backend.http.server": {
-    "idle.timeout.secs": 60
+    "idle.timeout.secs": 5
   },
   "leader.http.server": {
     "idle.timeout.secs": 60

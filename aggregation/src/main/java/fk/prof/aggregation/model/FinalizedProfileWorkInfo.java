@@ -6,9 +6,7 @@ import fk.prof.aggregation.state.AggregationState;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class FinalizedProfileWorkInfo {
@@ -128,7 +126,8 @@ public class FinalizedProfileWorkInfo {
       case COMPLETED: return AggregationStatus.Completed;
       case ONGOING: throw new IllegalArgumentException("ONGOING state is not a terminal state");
       case ONGOING_PARTIAL: throw new IllegalArgumentException("ONGOING_PARTIAL state is not a terminal state");
-      case PARTIAL: return AggregationStatus.Partial;
+      case CORRUPT: return AggregationStatus.Corrupt;
+      case INCOMPLETE: return AggregationStatus.Incomplete;
       case RETRIED: return AggregationStatus.Retried;
       case SCHEDULED: return AggregationStatus.Scheduled;
       default: throw new IllegalArgumentException(state.name() + " state is not supported");

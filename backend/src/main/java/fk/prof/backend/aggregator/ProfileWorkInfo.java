@@ -66,10 +66,19 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
     return state;
   }
 
-  public AggregationState abandonProfile() {
-    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE)) {
+  public AggregationState abandonProfileAsCorrupt() {
+    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE_AS_CORRUPT)) {
       throw new IllegalStateException(String.format("Invalid event %s for current state %s",
-          AggregationStateEvent.ABANDON_PROFILE, state));
+          AggregationStateEvent.ABANDON_PROFILE_AS_CORRUPT, state));
+    }
+    this.endedAt = LocalDateTime.now(Clock.systemUTC());
+    return state;
+  }
+
+  public AggregationState abandonProfileAsIncomplete() {
+    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE_AS_INCOMPLETE)) {
+      throw new IllegalStateException(String.format("Invalid event %s for current state %s",
+          AggregationStateEvent.ABANDON_PROFILE_AS_INCOMPLETE, state));
     }
     this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return state;

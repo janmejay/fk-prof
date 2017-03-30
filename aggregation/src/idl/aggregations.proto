@@ -36,7 +36,8 @@ enum AggregationStatus {
 	Retried = 1;		// may have duplicated samples because of retries 
 	Aborted = 2; 		// may not have all samples because recorder sent them too late.
 	Scheduled = 3;   	// no samples
-	Partial = 4;     	// in case of the connection errors
+	Corrupt = 4;     	// in case of corrupt data received
+	Incomplete = 5;		// in case of end marker not received or connection error
 }
 
 message ProfileWorkInfo {	
