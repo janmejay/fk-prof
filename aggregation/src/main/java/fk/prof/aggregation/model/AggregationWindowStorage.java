@@ -1,9 +1,6 @@
 package fk.prof.aggregation.model;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.*;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
@@ -78,8 +75,10 @@ public class AggregationWindowStorage {
 
         Histogram histBytesWritten = metricRegistry.histogram(MetricRegistry.name(AggregationWindowStorage.class, "bytes", "written", processGroupTag.toString()));
         Meter mtrWriteFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowStorage.class, "write", "fail", processGroupTag.toString()));
+        Timer tmrBuffPoolBorrow = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "buffpool", "borrow", processGroupTag.toString()));
+        Counter ctrBuffPoolFailures = metricRegistry.counter(MetricRegistry.name(AggregationWindowStorage.class, "buffpool", "fail", processGroupTag.toString()));
 
-        OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename, histBytesWritten, mtrWriteFailure);
+        OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename, histBytesWritten, mtrWriteFailure, tmrBuffPoolBorrow, ctrBuffPoolFailures);
         GZIPOutputStream gout;
 
         try {

@@ -15,7 +15,6 @@ import fk.prof.backend.model.assignment.ProcessGroupContextForPolling;
 import fk.prof.backend.model.assignment.ProcessGroupDiscoveryContext;
 import fk.prof.backend.model.election.LeaderReadContext;
 import fk.prof.backend.proto.BackendDTO;
-import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
