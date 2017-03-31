@@ -340,12 +340,12 @@ public class E2EIntegrationTest {
         Map<String, Object> res2 = toMap(httpResponse2.getBody());
 
         assertThat(res1, new ListProfilesMatcher()
-                .hasAggrWindows(2)
+                .hasAggrWindows(1)
                 .latestAggrWindowHasWorkCount(2)                        // 1 for each recorder
                 .latestAggrWindowHasTraces("inferno", "~ OTHERS ~"));
 
         assertThat(res2, new ListProfilesMatcher()
-                .hasAggrWindows(2)
+                .hasAggrWindows(1)
                 .latestAggrWindowHasWorkCount(1)                        // only 1 recorder for 2nd process group
                 .latestAggrWindowHasTraces("100_pct_single_inferno", "50_pct_duplicate_inferno", "50_pct_duplicate_inferno_child", "~ OTHERS ~"));
     }
