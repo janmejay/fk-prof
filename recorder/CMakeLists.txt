@@ -248,3 +248,7 @@ endif()
 
 # make test
 add_test(unitTests ${BIN}/unitTests)
+
+# install
+install(TARGETS  ${OUTPUT}
+LIBRARY DESTINATION lib)
