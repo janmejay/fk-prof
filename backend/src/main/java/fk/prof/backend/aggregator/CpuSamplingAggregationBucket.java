@@ -37,10 +37,16 @@ public class CpuSamplingAggregationBucket extends FinalizableBuilder<FinalizedCp
 
           List<Recorder.Frame> frames = stackSample.getFrameList();
           if (frames.size() > 0) {
-            boolean framesSnipped = stackSample.getSnipped();
-            CpuSamplingFrameNode currentNode = framesSnipped ? traceDetail.getUnclassifiableRoot() : traceDetail.getGlobalRoot();
+
+            // global sample count increment
+            CpuSamplingFrameNode currentNode = traceDetail.getGlobalRoot();
             currentNode.incrementOnStackSamples();
             traceDetail.incrementSamples();
+
+            if(stackSample.getSnipped()) {
+              currentNode = traceDetail.getUnclassifiableRoot();
+              currentNode.incrementOnStackSamples();
+            }
 
             //callee -> caller ordering in frames, so iterating bottom up in the list to merge in existing tree in root->leaf fashion
             for (int i = frames.size() - 1; i >= 0; i--) {
