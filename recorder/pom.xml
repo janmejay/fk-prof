@@ -37,9 +37,23 @@
                 <version>3.0.2</version>
                 <executions>
                     <execution>
+                        <id>testjar</id>
                         <goals>
                             <goal>test-jar</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>perfctx-nodeps-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>perfctx</classifier>
+                            <includes>
+                                <include>fk/prof/*</include>
+                            </includes>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
