@@ -29,6 +29,7 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
   private final Map<Long, ProfileWorkInfo> workInfoLookup;
   private final CpuSamplingAggregationBucket cpuSamplingAggregationBucket = new CpuSamplingAggregationBucket();
 
+  private final ProcessGroupTag processGroupTag;
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
   private final Meter mtrStateTransitionFailures, mtrCSAggrFailures;
 
@@ -46,7 +47,8 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     }
     this.workInfoLookup = Collections.unmodifiableMap(workInfoModifiableLookup);
 
-    String processGroupTagStr = new ProcessGroupTag(appId, clusterId, procId).toString();
+    this.processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
+    String processGroupTagStr = this.processGroupTag.toString();
     this.mtrStateTransitionFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "state.transition", "fail", processGroupTagStr));
     this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "cpusampling.aggr", "fail", processGroupTagStr));
   }
@@ -169,6 +171,11 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
     }
     workInfo.updateRecorderInfo(recorderInfo);
   }
+
+  public ProcessGroupTag getProcessGroupTag() {
+    return processGroupTag;
+  }
+
 
   @Override
   public String toString() {

@@ -1,5 +1,6 @@
 package fk.prof.backend.model.assignment;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
@@ -55,7 +56,8 @@ public class AggregationWindowPlanner {
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
   private final ProcessGroupTag processGroupTag;
-  private final Meter mtrWindowInitSuccess, mtrWindowInitFailure, mtrWindowExpireSuccess, mtrWindowExpireFailure;
+  private final Counter ctrActiveWindows;
+  private final Meter mtrWindowInitSuccess, mtrWindowInitFailure, mtrWindowExpireSuccess, mtrWindowExpireFailure, mtrWindowSkipUnhealthy, mtrWindowSkipCoverage;
   private final Meter mtrWorkFetchSuccess, mtrWorkFetchFailure, mtrWorkFetchStale, mtrWorkFetchMiss;
 
   public AggregationWindowPlanner(Vertx vertx,
@@ -81,15 +83,19 @@ public class AggregationWindowPlanner {
     this.policyRefreshBufferInSecs = policyRefreshBufferInSecs;
 
     processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+    this.ctrActiveWindows = metricRegistry.counter(MetricRegistry.name(AggregationWindowPlanner.class, "window.active", "count"));
+
     this.mtrWorkFetchSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "success", processGroupTag.toString()));
     this.mtrWorkFetchFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "fail", processGroupTag.toString()));
     this.mtrWorkFetchMiss = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "miss", processGroupTag.toString()));
     this.mtrWorkFetchStale = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "work.fetch", "stale", processGroupTag.toString()));
 
-    this.mtrWindowInitSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "success", processGroupTag.toString()));
-    this.mtrWindowInitFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "init", "fail", processGroupTag.toString()));
-    this.mtrWindowExpireSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "success", processGroupTag.toString()));
-    this.mtrWindowExpireFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "expire", "fail", processGroupTag.toString()));
+    this.mtrWindowInitSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.init", "success", processGroupTag.toString()));
+    this.mtrWindowInitFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.init", "fail", processGroupTag.toString()));
+    this.mtrWindowSkipUnhealthy = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.skip", "unhealthy", processGroupTag.toString()));
+    this.mtrWindowSkipCoverage = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.skip", "coverage", processGroupTag.toString()));
+    this.mtrWindowExpireSuccess = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.expire", "success", processGroupTag.toString()));
+    this.mtrWindowExpireFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowPlanner.class, "window.expire", "fail", processGroupTag.toString()));
 
     this.aggregationWindowScheduleTimer = Future.future();
     getWorkForNextAggregationWindow(currentAggregationWindowIndex + 1).setHandler(ar -> {
@@ -162,12 +168,14 @@ public class AggregationWindowPlanner {
       }
       try {
         if(latestRecordingPolicy.getCoveragePct() == 0) {
+          mtrWindowSkipCoverage.mark();
           logger.info("Skipping aggregation window with index=" + currentAggregationWindowIndex +
               " for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
               " because coverage is zero");
         } else {
           int targetRecordersCount = processGroupContextForScheduling.getRecorderTargetCountToMeetCoverage(latestRecordingPolicy.getCoveragePct());
           if (targetRecordersCount == 0) {
+            mtrWindowSkipUnhealthy.mark();
             logger.info("Skipping aggregation window with index=" + currentAggregationWindowIndex +
                 " for process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
                 " because no healthy recorders are known");
@@ -189,6 +197,7 @@ public class AggregationWindowPlanner {
 
             setupAggregationWindow(workAssignmentBuilders, workIds);
             mtrWindowInitSuccess.mark();
+            ctrActiveWindows.inc();
             logger.info("Initialized aggregation window with index=" + currentAggregationWindowIndex +
                 ", process_group=" + RecorderProtoUtil.processGroupCompactRepr(processGroup) +
                 ", recording_policy=" + BackendDTOProtoUtil.recordingPolicyCompactRepr(latestRecordingPolicy) +
@@ -250,6 +259,7 @@ public class AggregationWindowPlanner {
         mtrWindowExpireFailure.mark();
         logger.error("Error while expiring aggregation window for process group={}", ex, processGroup);
       } finally {
+        ctrActiveWindows.dec();
         reset();
       }
     }

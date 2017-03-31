@@ -19,7 +19,6 @@ import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.RecordedProfileProcessor;
 import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProfileGate;
 import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
-import fk.prof.backend.http.handler.RecordedProfileRequestHandler;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
 import io.vertx.core.AbstractVerticle;
@@ -113,8 +112,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
   }
 
   private void handlePostProfile(RoutingContext context) {
-    CompositeByteBufInputStream inputStream = new CompositeByteBufInputStream();
     RecordedProfileProcessor profileProcessor = new RecordedProfileProcessor(
+        context,
         aggregationWindowDiscoveryContext,
         new SharedMapBasedSingleProcessingOfProfileGate(workIdsInPipeline),
         config().getJsonObject("parser").getInteger("recordingheader.max.bytes", 1024),
@@ -122,16 +121,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     context.response().endHandler(v -> {
       try {
-        inputStream.close();
         profileProcessor.close();
       } catch (Exception ex) {
         logger.error("Unexpected error when closing profile: {}", ex, profileProcessor);
       }
     });
 
-    RecordedProfileRequestHandler requestHandler = new RecordedProfileRequestHandler(context, inputStream, profileProcessor);
     context.request()
-        .handler(requestHandler)
+        .handler(profileProcessor)
         .exceptionHandler(th -> {
           HttpFailure httpFailure = HttpFailure.failure(th);
           HttpHelper.handleFailure(context, httpFailure);

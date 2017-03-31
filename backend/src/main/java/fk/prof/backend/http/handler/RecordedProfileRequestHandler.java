@@ -1,9 +1,7 @@
 package fk.prof.backend.http.handler;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.*;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.exception.HttpFailure;
@@ -27,8 +25,9 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
   private final CompositeByteBufInputStream inputStream;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final Histogram histChunkSize = metricRegistry.histogram(MetricRegistry.name(RecordedProfileRequestHandler.class, "chunk", "size"));
-  private final Timer tmrChunkIdle = metricRegistry.timer(MetricRegistry.name(RecordedProfileRequestHandler.class, "chunk", "idle"));
+  private Histogram histChunkSize = metricRegistry.histogram(MetricRegistry.name(RecordedProfileRequestHandler.class, "chunk", "size", ProcessGroupTag.EMPTY.toString()));
+  private Timer tmrChunkIdle = metricRegistry.timer(MetricRegistry.name(RecordedProfileRequestHandler.class, "chunk", "idle", ProcessGroupTag.EMPTY.toString()));
+  private Meter mtrChunkBytes = metricRegistry.meter(MetricRegistry.name(RecordedProfileRequestHandler.class, "chunk", "bytes", ProcessGroupTag.EMPTY.toString()));
 
   private Long chunkReceivedTime = null;
 
@@ -51,11 +50,13 @@ public class RecordedProfileRequestHandler implements Handler<Buffer> {
 
       if (!context.response().ended()) {
         inputStream.accept(requestBuffer.getByteBuf());
-        profileProcessor.process(inputStream);
+//        profileProcessor.process(inputStream);
       }
     } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);
+    } finally {
+      mtrChunkBytes.mark(requestBuffer.length());
     }
   }
 

@@ -1,6 +1,10 @@
 package fk.prof.backend.model.assignment;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.backend.ConfigManager;
 import recording.Recorder;
 
 public class RecorderDetail {
@@ -13,9 +17,17 @@ public class RecorderDetail {
   private Long lastReportedTime = null;
   private Recorder.WorkResponse currentWorkResponse;
 
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final Meter mtrPollReset, mtrPollStale, mtrPollComplete;
+
   public RecorderDetail(RecorderIdentifier recorderIdentifier, int thresholdForDefunctRecorderInSecs) {
     this.recorderIdentifier = Preconditions.checkNotNull(recorderIdentifier);
     this.thresholdForDefunctRecorderInNanos = (long)(thresholdForDefunctRecorderInSecs * NANOSECONDS_IN_SECOND);
+
+    String backendTagStr = recorderIdentifier.metricTag();
+    this.mtrPollComplete = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "complete", backendTagStr));
+    this.mtrPollReset = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "reset", backendTagStr));
+    this.mtrPollStale = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "stale", backendTagStr));
   }
 
   public synchronized boolean receivePoll(Recorder.PollReq pollReq) {
@@ -28,8 +40,13 @@ public class RecorderDetail {
       if(currTick > 0) {
         this.lastReportedTime = System.nanoTime();
         timeUpdated = true;
+      } else {
+        mtrPollReset.mark();
       }
       this.currentWorkResponse = pollReq.getWorkLastIssued();
+      mtrPollComplete.mark();
+    } else {
+      mtrPollStale.mark();
     }
     return timeUpdated;
   }

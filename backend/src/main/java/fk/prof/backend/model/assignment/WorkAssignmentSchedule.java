@@ -96,6 +96,7 @@ public class WorkAssignmentSchedule {
    * @return WorkAssignment or null
    */
   public Recorder.WorkAssignment getNextWorkAssignment(RecorderIdentifier recorderIdentifier) {
+    Counter ctrAssignment = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "available", recorderIdentifier.metricTag()));
     try {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {
@@ -104,6 +105,7 @@ public class WorkAssignmentSchedule {
           if(scheduleEntry != null) {
             ScheduleEntry.ScheduleEntryValue value = scheduleEntry.getValue((System.nanoTime() - nRef), dMinDelay, dMaxDelay);
             if(value.isValid()) {
+              ctrAssignment.inc();
               return value.workAssignment;
             } else {
               // Work was already assigned to recorder, so this will not be a scenario when recorder is too early
@@ -127,6 +129,7 @@ public class WorkAssignmentSchedule {
                 logger.error(String.format("Scheduling miss for work_id=%d, remaining delay=%d", value.workAssignment.getWorkId(), value.workAssignment.getDelay()));
               }
               else {
+                ctrAssignment.inc();
                 this.assignedSchedule.put(recorderIdentifier, scheduleEntry);
                 return value.workAssignment;
               }

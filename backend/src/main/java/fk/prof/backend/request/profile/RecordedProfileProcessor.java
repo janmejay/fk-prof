@@ -1,52 +1,89 @@
 package fk.prof.backend.request.profile;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
+import com.codahale.metrics.*;
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
+import fk.prof.backend.exception.HttpFailure;
+import fk.prof.backend.http.HttpHelper;
 import fk.prof.backend.model.profile.RecordedProfileHeader;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
 import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
 import fk.prof.backend.request.profile.parser.WseParser;
 import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
+import io.vertx.core.Handler;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.ext.web.RoutingContext;
 import recording.Recorder;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
-public class RecordedProfileProcessor {
+public class RecordedProfileProcessor implements Handler<Buffer> {
   private static Logger logger = LoggerFactory.getLogger(RecordedProfileProcessor.class);
 
-  private AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
-  private ISingleProcessingOfProfileGate singleProcessingOfProfileGate;
+  private final RoutingContext context;
+  private final AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
+  private final ISingleProcessingOfProfileGate singleProcessingOfProfileGate;
+  private final RecordedProfileHeaderParser headerParser;
+  private final WseParser wseParser;
+  private final CompositeByteBufInputStream inputStream;
+  private final RecordedProfileIndexes indexes = new RecordedProfileIndexes();
 
-  private RecordedProfileHeader header = null;
-  private AggregationWindow aggregationWindow = null;
-  private long workId = 0;
   private LocalDateTime startedAt = null;
+  private RecordedProfileHeader header = null;
+  private long workId = 0;
+  private AggregationWindow aggregationWindow = null;
+
   private boolean errored = false;
+  private Long chunkReceivedTime = null;
 
-  private RecordedProfileHeaderParser headerParser;
-  private WseParser wseParser;
-  private RecordedProfileIndexes indexes = new RecordedProfileIndexes();
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Histogram histChunkSize;
+  private Timer tmrChunkIdle;
+  private Meter mtrChunkBytes, mtrPayloadInvalid, mtrPayloadCorrupt;
+  private final Counter ctrAggrWinMiss = metricRegistry.counter(MetricRegistry.name(RecordedProfileProcessor.class, "window", "miss"));
 
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrAggrWinMiss = metricRegistry.counter(MetricRegistry.name(RecordedProfileProcessor.class, "window", "miss"));
-  private Meter mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "invalid"));
-  private Meter mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "corrupt"));
-
-  public RecordedProfileProcessor(AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext, ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
-                                  int maxAllowedBytesForRecordingHeader, int maxAllowedBytesForWse) {
+  public RecordedProfileProcessor(RoutingContext context,
+                                  AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
+                                  ISingleProcessingOfProfileGate singleProcessingOfProfileGate,
+                                  int maxAllowedBytesForRecordingHeader,
+                                  int maxAllowedBytesForWse) {
+    this.context = context;
     this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
     this.singleProcessingOfProfileGate = singleProcessingOfProfileGate;
     this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader);
     this.wseParser = new WseParser(maxAllowedBytesForWse);
+    this.inputStream = new CompositeByteBufInputStream();
+    setupMetrics(ProcessGroupTag.EMPTY);
+  }
+
+  @Override
+  public void handle(Buffer requestBuffer) {
+    try {
+//      try { logger.debug(String.format("buffer=%d, chunk=%d", inputStream.available(), requestBuffer.length())); } catch (Exception ex) {}
+      long currentTime = System.nanoTime();
+      if (chunkReceivedTime != null) {
+        tmrChunkIdle.update(currentTime - chunkReceivedTime, TimeUnit.NANOSECONDS);
+      }
+      chunkReceivedTime = currentTime;
+
+      if (!context.response().ended()) {
+        process(requestBuffer);
+      }
+    } catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    } finally {
+      histChunkSize.update(requestBuffer.length());
+      mtrChunkBytes.mark(requestBuffer.length());
+    }
   }
 
   /**
@@ -59,13 +96,52 @@ public class RecordedProfileProcessor {
   }
 
   /**
+   * If parsing was successful, marks the profile as corrupt if errored, completed/retried if processed, incomplete otherwise
+   *
+   * @throws AggregationFailure
+   */
+  public void close() throws AggregationFailure {
+    try {
+      inputStream.close();
+      // Check for errored before checking for processed.
+      // Profile can be corrupt(errored) even if processed returns true if more data is sent by client after server has received end marker
+      if (errored) {
+        mtrPayloadCorrupt.mark();
+        if (aggregationWindow != null) {
+          aggregationWindow.abandonProfileAsCorrupt(workId);
+        }
+      } else {
+        if (isProcessed()) {
+          aggregationWindow.completeProfile(workId);
+        } else {
+          mtrPayloadInvalid.mark();
+          if (aggregationWindow != null) {
+            aggregationWindow.abandonProfileAsIncomplete(workId);
+          }
+        }
+      }
+    } catch (IOException ex) {
+      throw new AggregationFailure(ex, true);
+    } finally {
+      singleProcessingOfProfileGate.finish(workId);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "work_id=" + workId + ", window={" + aggregationWindow + "}, errored=" + errored + ", processed=" + isProcessed();
+  }
+
+  /**
    * Reads buffer and updates internal state with parsed fields.
    * Aggregates the parsed entries in appropriate aggregation window
    * Returns the starting unread position in outputstream
    *
-   * @param inputStream
+   * @param requestBuffer
    */
-  public void process(CompositeByteBufInputStream inputStream) {
+  private void process(Buffer requestBuffer) {
+    inputStream.accept(requestBuffer.getByteBuf());
+
     if (startedAt == null) {
       startedAt = LocalDateTime.now(Clock.systemUTC());
     }
@@ -90,6 +166,7 @@ public class RecordedProfileProcessor {
                 workId));
           }
 
+          setupMetrics(aggregationWindow.getProcessGroupTag());
           aggregationWindow.startProfile(workId, header.getRecordingHeader().getRecorderVersion(), startedAt);
           logger.info(String.format("Profile aggregation started for work_id=%d started_at=%s",
               workId, startedAt.toString()));
@@ -119,44 +196,19 @@ public class RecordedProfileProcessor {
     }
   }
 
-  /**
-   * If parsing was successful, marks the profile as corrupt if errored, completed/retried if processed, incomplete otherwise
-   *
-   * @throws AggregationFailure
-   */
-  public void close() throws AggregationFailure {
-    try {
-      // Check for errored before checking for processed.
-      // Profile can be corrupt(errored) even if processed returns true if more data is sent by client after server has received end marker
-      if (errored) {
-        mtrPayloadCorrupt.mark();
-        if (aggregationWindow != null) {
-          aggregationWindow.abandonProfileAsCorrupt(workId);
-        }
-      } else {
-        if (isProcessed()) {
-          aggregationWindow.completeProfile(workId);
-        } else {
-          mtrPayloadInvalid.mark();
-          if (aggregationWindow != null) {
-            aggregationWindow.abandonProfileAsIncomplete(workId);
-          }
-        }
-      }
-    } finally {
-      singleProcessingOfProfileGate.finish(workId);
-    }
-  }
-
-  @Override
-  public String toString() {
-    return "work_id=" + workId + ", window={" + aggregationWindow + "}, errored=" + errored + ", processed=" + isProcessed();
-  }
-
   private void processWse(Recorder.Wse wse) throws AggregationFailure {
     indexes.update(wse.getIndexedData());
     aggregationWindow.updateWorkInfoWithWSE(workId, wse);
     aggregationWindow.aggregate(wse, indexes);
+  }
+
+  private void setupMetrics(ProcessGroupTag processGroupTag) {
+    String processGroupTagStr = processGroupTag.toString();
+    this.histChunkSize = metricRegistry.histogram(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "size", processGroupTagStr));
+    this.tmrChunkIdle = metricRegistry.timer(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "idle", processGroupTagStr));
+    this.mtrChunkBytes = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "bytes", processGroupTagStr));
+    this.mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "invalid", processGroupTagStr));
+    this.mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "corrupt", processGroupTagStr));
   }
 
 }

@@ -1,7 +1,7 @@
 package fk.prof.aggregation;
 
 public class ProcessGroupTag {
-  public static final ProcessGroupTag EMPTY = new ProcessGroupTag("");
+  public static final ProcessGroupTag EMPTY = new ProcessGroupTag("", "", "");
 
   private final String value;
 
@@ -10,7 +10,7 @@ public class ProcessGroupTag {
   }
 
   public ProcessGroupTag(final String appId, final String clusterId, final String procName) {
-    this(String.join(".", appId, clusterId, procName));
+    this(String.join(",", appId, clusterId, procName));
   }
 
   private static String sanitizeTagPart(String tagPart) {

@@ -24,8 +24,7 @@ public class BackendDetail {
   private float lastReportedLoad;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final BackendTag backendTag;
-  private final Meter mtrLoadReset, mtrLoadStale;
+  private final Meter mtrLoadReset, mtrLoadStale, mtrLoadComplete;
 
   public BackendDetail(Recorder.AssignedBackend backend, int loadReportIntervalInSeconds, int loadMissTolerance)
       throws IOException {
@@ -41,9 +40,10 @@ public class BackendDetail {
     this.thresholdForDefunctInNanoSeconds = (long)(loadReportIntervalInSeconds * (loadMissTolerance + 1) * NANOSECONDS_IN_SECOND);
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
 
-    this.backendTag = new BackendTag(backend.getHost(), backend.getPort());
-    this.mtrLoadReset = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "reset", backendTag.toString()));
-    this.mtrLoadStale = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "stale", backendTag.toString()));
+    String backendTagStr = new BackendTag(backend.getHost(), backend.getPort()).toString();
+    this.mtrLoadComplete = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "complete", backendTagStr));
+    this.mtrLoadReset = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "reset", backendTagStr));
+    this.mtrLoadStale = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "stale", backendTagStr));
   }
 
   /**
@@ -64,6 +64,7 @@ public class BackendDetail {
         mtrLoadReset.mark();
       }
       this.lastReportedLoad = load;
+      mtrLoadComplete.mark();
     } else {
       mtrLoadStale.mark();
     }

@@ -48,10 +48,10 @@ public class BackendDaemon extends AbstractVerticle {
   private ProfHttpClient httpClient;
   private int loadTickCounter = 0;
 
-  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Meter mtrLoadReportSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "success"));
-  private Meter mtrLoadReportFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "fail"));
-  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendDaemon.class, "ldr.unknown", "req"));
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private final Meter mtrLoadReportSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "success"));
+  private final Meter mtrLoadReportFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "fail"));
+  private final Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendDaemon.class, "ldr.unknown", "req"));
 
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,
