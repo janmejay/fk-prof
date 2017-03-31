@@ -43,6 +43,13 @@
             <groupId>fk.prof</groupId>
             <artifactId>recorder</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>fk.prof</groupId>
+            <artifactId>recorder</artifactId>
+            <version>1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
         <dependency>
