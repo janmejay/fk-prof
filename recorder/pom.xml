@@ -27,6 +27,11 @@
             <scope>system</scope>
             <systemPath>${java.home}/../lib/tools.jar</systemPath>
         </dependency>
+        <dependency>
+            <groupId>fk.prof</groupId>
+            <artifactId>perfctx</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -41,19 +46,6 @@
                         <goals>
                             <goal>test-jar</goal>
                         </goals>
-                    </execution>
-                    <execution>
-                        <id>perfctx-nodeps-jar</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>perfctx</classifier>
-                            <includes>
-                                <include>fk/prof/*</include>
-                            </includes>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
