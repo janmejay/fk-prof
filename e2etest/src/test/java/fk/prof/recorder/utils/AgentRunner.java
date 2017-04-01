@@ -22,6 +22,10 @@
 package fk.prof.recorder.utils;
 
 import fk.prof.Platforms;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.FalseFileFilter;
+import org.apache.commons.io.filefilter.NotFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,16 +35,16 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class AgentRunner {
     private static final Logger logger = LoggerFactory.getLogger(AgentRunner.class);
     public static final String DEFAULT_AGENT_INTERVAL = "interval=100";
+    private static final String PERFCTX_JAR_BASE_NAME_PATTERN = "^perfctx-.+\\.jar$";
 
     private final String fqdn;
     private final String args;
@@ -81,10 +85,8 @@ public class AgentRunner {
     }
 
     private void startProcess() throws IOException {
-        String java = System.getProperty("java.home") + "/bin/java";
-        String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + (args != null ? "=" + args : "");
-        // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
-
+        String finalArgs = (args == null) ? perfCtxArgFrag() : args + "," + perfCtxArgFrag(); 
+        String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + "=" + finalArgs;
 
         List<String> classpath = discoverClasspath(getClass());
         //System.out.println("classpath = " + classpath);
@@ -95,6 +97,12 @@ public class AgentRunner {
                 .redirectError(new File("/tmp/fkprof_stderr.log"))
                 .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
+    }
+
+    private String perfCtxArgFrag() {
+        Collection<File> files = FileUtils.listFiles(new File("../perfctx/target"), new RegexFileFilter(PERFCTX_JAR_BASE_NAME_PATTERN), FalseFileFilter.FALSE);
+        if (files.size() != 1) throw new IllegalStateException("Confused about the correct perf-ctx labeling jar, found too many files that look like it: " + files);
+        return "pctx_jar_path=" + files.iterator().next().getAbsolutePath();
     }
 
     private void populateEnvVars(ProcessBuilder pb) throws IOException {
@@ -119,7 +127,12 @@ public class AgentRunner {
                 URLClassLoader urlClassLoader = (URLClassLoader) loader;
                 URL[] urLs = urlClassLoader.getURLs();
                 for (URL urL : urLs) {
-                    classPath.add(urL.toString());
+                    String s = urL.toString();
+                    if (s.contains("perfctx")) {
+                        logger.warn("Dropped class-path member for agent-launch " + s);
+                        continue;
+                    }
+                    classPath.add(s);
                 }
             }
             loader = loader.getParent();

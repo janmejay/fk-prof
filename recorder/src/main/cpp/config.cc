@@ -101,7 +101,10 @@ void ConfigurationOptions::load(const char* options) {
                     noctx_cov_pct = 100;
                 }
             } else if (strstr(key, "allow_sigprof") == key) {
-                allow_sigprof = (std::string(value) == "y") || (std::string(value) == "Y");
+                auto ch = value[0];
+                allow_sigprof = (ch == 'y') || (ch == 'Y');
+            } else if (strstr(key, "pctx_jar_path") == key) {
+                pctx_jar_path = safe_copy_string(value, next);
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
@@ -130,6 +133,7 @@ bool ConfigurationOptions::valid() {
     ENSURE_NOT_NULL(vm_id);
     ENSURE_NOT_NULL(zone);
     ENSURE_NOT_NULL(inst_typ);
+    ENSURE_NOT_NULL(pctx_jar_path);
     return is_valid;
 }
 
@@ -144,4 +148,5 @@ ConfigurationOptions::~ConfigurationOptions()  {
     safe_free_string(vm_id);
     safe_free_string(zone);
     safe_free_string(inst_typ);
+    safe_free_string(pctx_jar_path);
 }

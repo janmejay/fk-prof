@@ -10,6 +10,7 @@
     <name>functional-context aware perf-profiler</name>
 
     <modules>
+        <module>testutil</module>
         <module>perfctx</module>
         <module>recorder</module>
         <module>backend</module>

@@ -130,7 +130,13 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
         JVMTI_ERROR_CLEANUP_RET(
             jvmti->AddCapabilities(&caps),
             false,
-            logger->error("Failed to add capabilities with error {}", error))
+            logger->error("Failed to add capabilities with error {}", error));
+    }
+    if (jvmti->AddToSystemClassLoaderSearch(CONFIGURATION->pctx_jar_path) != JVMTI_ERROR_NONE) {
+        logger->error("Failed to add path to perf-ctx jar ({}) to classpath {}", CONFIGURATION->pctx_jar_path, error);
+        return false;
+    } else {
+        logger->debug("Added perf-ctx jar '{}' to classpath", CONFIGURATION->pctx_jar_path);
     }
     return true;
 }

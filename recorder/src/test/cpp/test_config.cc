@@ -27,7 +27,8 @@ TEST(ParsesAllOptions) {
                     "poll_itvl=30,"
                     "metrics_dst_port=10203,"
                     "noctx_cov_pct=25,"
-                    "allow_sigprof=n");
+                    "allow_sigprof=n,"
+                    "pctx_jar_path=/tmp/foo.jar");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -50,7 +51,9 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL(10203, options.metrics_dst_port);
     CHECK_EQUAL(25, options.noctx_cov_pct);
     CHECK_EQUAL(false, options.allow_sigprof);
+    CHECK_EQUAL("/tmp/foo.jar", options.pctx_jar_path);
     CHECK_EQUAL(true, options.valid());
+
 }
 
 TEST(Understand_AllowSigprof) {
@@ -66,7 +69,8 @@ TEST(Understand_AllowSigprof) {
                     "vm_id=garply_vm_id,"
                     "zone=waldo_zone,"
                     "inst_type=c0.medium,"
-                    "allow_sigprof=y");
+                    "allow_sigprof=y,"
+                    "pctx_jar_path=/tmp/foo.jar");
 
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL(true, options.allow_sigprof);
@@ -83,7 +87,8 @@ TEST(Understand_AllowSigprof) {
     "proc=grault_proc,"                                              \
     "vm_id=garply_vm_id,"                                            \
     "zone=waldo_zone,"                                               \
-    "inst_type=c0.medium,"
+    "inst_type=c0.medium,"                                           \
+    "pctx_jar_path=/tmp/foo.jar,"
 
 TEST(Understand_Match_allow_sigprof_field_value_case_insensitively) {
     TestEnv _;
@@ -111,7 +116,8 @@ TEST(DefaultAppropriately) {
                     "proc=grault_proc,"
                     "vm_id=garply_vm_id,"
                     "zone=waldo_zone,"
-                    "inst_type=c0.medium");
+                    "inst_type=c0.medium,"
+                    "pctx_jar_path=/tmp/quux.jar");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -125,6 +131,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL("garply_vm_id", options.vm_id);
     CHECK_EQUAL("waldo_zone", options.zone);
     CHECK_EQUAL("c0.medium", options.inst_typ);
+    CHECK_EQUAL("/tmp/quux.jar", options.pctx_jar_path);
     CHECK_EQUAL(5, options.backoff_start);
     CHECK_EQUAL(2, options.backoff_multiplier);
     CHECK_EQUAL(3, options.max_retries);
@@ -172,7 +179,8 @@ TEST(Validity) {
             "log_lvl=warn",
             "poll_itvl=30",
             "metrics_dst_port=10203",
-            "noctx_cov_pct=25"};
+            "noctx_cov_pct=25",
+            "pctx_jar_path=/tmp/foo.jar"};
 
     ASSERT_INVALID_WITHOUT(opts, "service_endpoint");
     ASSERT_INVALID_WITHOUT(opts, "ip");
@@ -185,6 +193,7 @@ TEST(Validity) {
     ASSERT_INVALID_WITHOUT(opts, "vm_id");
     ASSERT_INVALID_WITHOUT(opts, "zone");
     ASSERT_INVALID_WITHOUT(opts, "inst_typ");
+    ASSERT_INVALID_WITHOUT(opts, "pctx_jar_path");
 }
 
 
