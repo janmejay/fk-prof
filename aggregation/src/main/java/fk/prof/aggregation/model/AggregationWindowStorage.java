@@ -17,7 +17,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.zip.GZIPOutputStream;
 
 /**
