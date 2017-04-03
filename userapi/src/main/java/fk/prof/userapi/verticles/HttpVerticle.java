@@ -5,6 +5,7 @@ import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.StreamTransformer;
 import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPI;
+import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
 import io.vertx.core.AbstractVerticle;
@@ -18,6 +19,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.TimeoutHandler;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.util.*;
  * Created by rohit.patiyal on 18/01/17.
  */
 public class HttpVerticle extends AbstractVerticle {
+
+  private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
     private static String BASE_DIR;
     private static int aggregationWindowDurationInSecs = 1800;
@@ -49,11 +53,11 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/").handler(routingContext -> routingContext.response()
             .putHeader("context-type", "text/html")
             .end("<h1>Welcome to UserAPI for FKProfiler"));
-        router.get("/apps").handler(this::getAppIds);
-        router.get("/cluster/:appId").handler(this::getClusterIds);
-        router.get("/proc/:appId/:clusterId").handler(this::getProcId);
-        router.get("/profiles/:appId/:clusterId/:proc").handler(this::getProfiles);
-        router.get("/profile/:appId/:clusterId/:procId/cpu-sampling/:traceName").handler(this::getCpuSamplingTraces);
+      router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
+      router.get(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).handler(this::getClusterIds);
+      router.get(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).handler(this::getProcId);
+      router.get(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).handler(this::getProfiles);
+      router.get(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).handler(this::getCpuSamplingTraces);
         return router;
     }
 
@@ -214,6 +218,7 @@ public class HttpVerticle extends AbstractVerticle {
             return;
         }
         if(result.failed()) {
+          LOGGER.error("HttpVerticle result failed, error cause={}", result.cause().getMessage());
             if(result.cause() instanceof FileNotFoundException) {
                 routingContext.response().setStatusCode(404).end(result.cause().getMessage());
             }

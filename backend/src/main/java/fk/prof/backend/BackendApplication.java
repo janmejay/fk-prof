@@ -1,12 +1,11 @@
 package fk.prof.backend;
 
-import fk.prof.backend.worker.BackendDaemon;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.cli.*;
 
 public class BackendApplication {
-  private static Logger logger = LoggerFactory.getLogger(BackendDaemon.class);
+  private static Logger logger = LoggerFactory.getLogger(BackendApplication.class);
 
   public static void main(String[] args) throws Exception {
     ConfigManager.setDefaultSystemProperties();
