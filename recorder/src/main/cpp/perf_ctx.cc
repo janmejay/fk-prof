@@ -287,7 +287,7 @@ PerfCtx::TracePt PerfCtx::Registry::merge_bind(const std::vector<ThreadCtx>& ctx
         buff << component_name;
     }
     auto name = buff.str();
-    if (name_to_pt.insert(name, trace_pt)) {
+    if (name_to_pt.insert(std::ref(name), trace_pt)) {
         auto inserted = pt_to_name.insert(trace_pt, name);
         assert(inserted);
         s_c_merge_new.inc();
