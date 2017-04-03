@@ -86,7 +86,7 @@ public class RouterVerticleTest {
         socket.close();
 
       UserapiConfigManager.setDefaultSystemProperties();
-        UserapiConfigManager userapiConfigManager = new UserapiConfigManager("src/main/conf/userapi-conf.json");
+        UserapiConfigManager userapiConfigManager = new UserapiConfigManager(ProfileStoreAPIImpl.class.getClassLoader().getResource("userapi-conf.json").getFile());
       vertx = Vertx.vertx();
       port = userapiConfigManager.getUserapiHttpPort();
         client = vertx.createHttpClient();
