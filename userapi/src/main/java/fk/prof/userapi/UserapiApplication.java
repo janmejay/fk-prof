@@ -1,14 +1,14 @@
-package fk.prof.backend;
+package fk.prof.userapi;
 
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.cli.*;
 
-public class BackendApplication {
-  private static Logger logger = LoggerFactory.getLogger(BackendApplication.class);
+public class UserapiApplication {
+  private static Logger logger = LoggerFactory.getLogger(UserapiApplication.class);
 
   public static void main(String[] args) throws Exception {
-    ConfigManager.setDefaultSystemProperties();
+    UserapiConfigManager.setDefaultSystemProperties();
     CommandLineParser parser = new DefaultParser();
     Options options = new Options();
     options.addOption(Option.builder("c")
@@ -23,12 +23,12 @@ public class BackendApplication {
     CommandLine cmd = parser.parse(options, args);
     String confPath = cmd.getOptionValue("c");
 
-    BackendManager backendManager = new BackendManager(confPath);
-    backendManager.launch().setHandler(ar -> {
-      if(ar.succeeded())  {
-        logger.info("Backend launched");
+    UserapiManager userapiManager = new UserapiManager(confPath);
+    userapiManager.launch().setHandler(ar -> {
+      if (ar.succeeded()) {
+        logger.info("Userapi launched");
       } else {
-        logger.error("Error launching backend: ", ar.cause());
+        logger.error("Error launching Userapi: ", ar.cause());
       }
     });
   }

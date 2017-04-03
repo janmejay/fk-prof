@@ -3,10 +3,15 @@ package fk.prof.userapi.verticles;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.StreamTransformer;
+import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPI;
+import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
-import io.vertx.core.*;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.CompositeFutureImpl;
@@ -14,6 +19,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.TimeoutHandler;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -28,12 +34,16 @@ import java.util.*;
  */
 public class HttpVerticle extends AbstractVerticle {
 
-    public static final String BASE_DIR = "profiles";
-    public int aggregationWindowDurationInSecs = 1800;
+  private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
+
+    private static String baseDir="profiles";
+    private static int aggregationWindowDurationInSecs = 1800;
 
     private ProfileStoreAPI profileStoreAPI;
+    private UserapiConfigManager userapiConfigManager;
 
-    HttpVerticle(ProfileStoreAPI profileStoreAPI) {
+    public HttpVerticle(UserapiConfigManager userapiConfigManager, ProfileStoreAPI profileStoreAPI) {
+        this.userapiConfigManager = userapiConfigManager;
         this.profileStoreAPI = profileStoreAPI;
     }
 
@@ -41,20 +51,20 @@ public class HttpVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
         router.route("/").handler(routingContext -> routingContext.response()
-                .putHeader("context-type", "text/html")
-                .end("<h1>Welcome to UserAPI for FKProfiler"));
-        router.get("/apps").handler(this::getAppIds);
-        router.get("/cluster/:appId").handler(this::getClusterIds);
-        router.get("/proc/:appId/:clusterId").handler(this::getProcs);
-        router.get("/profiles/:appId/:clusterId/:proc").handler(this::getProfiles);
-        router.get("/profile/:appId/:clusterId/:procId/cpu-sampling/:traceName").handler(this::getCpuSamplingTraces);
+            .putHeader("context-type", "text/html")
+            .end("<h1>Welcome to UserAPI for FKProfiler"));
+        router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
+        router.get(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).handler(this::getClusterIds);
+        router.get(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).handler(this::getProcId);
+        router.get(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).handler(this::getProfiles);
+        router.get(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).handler(this::getCpuSamplingTraces);
         return router;
     }
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
-        this.aggregationWindowDurationInSecs = config().getInteger("aggregation_window.duration.secs");
-
+        aggregationWindowDurationInSecs = userapiConfigManager.getAggregationWindowDurationInSecs();
+        baseDir = userapiConfigManager.getBaseDir();
         Router router = configureRouter();
         vertx.createHttpServer()
                 .requestHandler(router::accept)
@@ -67,14 +77,14 @@ public class HttpVerticle extends AbstractVerticle {
                 });
     }
 
-    public void getAppIds(RoutingContext routingContext) {
+    private void getAppIds(RoutingContext routingContext) {
         String prefix = routingContext.request().getParam("prefix");
         if (prefix == null) {
             prefix = "";
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getAppIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, prefix);
+            baseDir, prefix);
     }
 
     private void getClusterIds(RoutingContext routingContext) {
@@ -85,10 +95,10 @@ public class HttpVerticle extends AbstractVerticle {
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getClusterIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, appId, prefix);
+            baseDir, appId, prefix);
     }
 
-    private void getProcs(RoutingContext routingContext) {
+    private void getProcId(RoutingContext routingContext) {
         final String appId = routingContext.request().getParam("appId");
         final String clusterId = routingContext.request().getParam("clusterId");
         String prefix = routingContext.request().getParam("prefix");
@@ -97,13 +107,13 @@ public class HttpVerticle extends AbstractVerticle {
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getProcsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, appId, clusterId, prefix);
+            baseDir, appId, clusterId, prefix);
     }
 
     private void getProfiles(RoutingContext routingContext) {
         final String appId = routingContext.request().getParam("appId");
         final String clusterId = routingContext.request().getParam("clusterId");
-        final String proc = routingContext.request().getParam("proc");
+        final String proc = routingContext.request().getParam("procId");
 
         ZonedDateTime startTime;
         int duration;
@@ -168,10 +178,10 @@ public class HttpVerticle extends AbstractVerticle {
         });
 
         profileStoreAPI.getProfilesInTimeWindow(foundProfiles,
-                BASE_DIR, appId, clusterId, proc, startTime, duration);
+            baseDir, appId, clusterId, proc, startTime, duration);
     }
 
-    public void getCpuSamplingTraces(RoutingContext routingContext) {
+    private void getCpuSamplingTraces(RoutingContext routingContext) {
         String appId = routingContext.request().getParam("appId");
         String clusterId = routingContext.request().getParam("clusterId");
         String procId = routingContext.request().getParam("procId");
@@ -208,6 +218,7 @@ public class HttpVerticle extends AbstractVerticle {
             return;
         }
         if(result.failed()) {
+          LOGGER.error("HttpVerticle result failed, error cause={}", result.cause().getMessage());
             if(result.cause() instanceof FileNotFoundException) {
                 routingContext.response().setStatusCode(404).end(result.cause().getMessage());
             }
@@ -245,7 +256,7 @@ public class HttpVerticle extends AbstractVerticle {
     private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
                                                           AggregatedProfileModel.WorkType workType, String startTime) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
+        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
     }
 
     private boolean safeContains(String str, String subStr) {
@@ -260,7 +271,7 @@ public class HttpVerticle extends AbstractVerticle {
         private final int duration;
         private final String error;
 
-        public ErroredGetSummaryResponse(ZonedDateTime start, int duration, String errorMsg) {
+        ErroredGetSummaryResponse(ZonedDateTime start, int duration, String errorMsg) {
             this.start = start;
             this.duration = duration;
             this.error = errorMsg;
