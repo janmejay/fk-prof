@@ -8,6 +8,7 @@ import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
@@ -16,8 +17,10 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.LoggerHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +53,7 @@ public class HttpVerticle extends AbstractVerticle {
     private Router configureRouter() {
         Router router = Router.router(vertx);
         router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
+        router.route().handler(LoggerHandler.create());
         router.route("/").handler(routingContext -> routingContext.response()
             .putHeader("context-type", "text/html")
             .end("<h1>Welcome to UserAPI for FKProfiler"));
@@ -218,15 +222,16 @@ public class HttpVerticle extends AbstractVerticle {
             return;
         }
         if(result.failed()) {
-          LOGGER.error("HttpVerticle result failed, error cause={}", result.cause().getMessage());
+            LOGGER.error(routingContext.request().uri(), result.cause());
+
             if(result.cause() instanceof FileNotFoundException) {
-                routingContext.response().setStatusCode(404).end(result.cause().getMessage());
+                endResponseWithError(routingContext.response(), result.cause(), 404);
             }
             else if(result.cause() instanceof IllegalArgumentException) {
-                routingContext.response().setStatusCode(400).end(result.cause().getMessage());
+                endResponseWithError(routingContext.response(), result.cause(), 400);
             }
             else {
-                routingContext.response().setStatusCode(500).end(result.cause().getMessage());
+                endResponseWithError(routingContext.response(), result.cause(), 500);
             }
         }
         else {
@@ -264,6 +269,31 @@ public class HttpVerticle extends AbstractVerticle {
             return false;
         }
         return str.toLowerCase().contains(subStr.toLowerCase());
+    }
+
+    private void endResponseWithError(HttpServerResponse response, Throwable error, int statusCode) {
+        response.setStatusCode(statusCode).end(buildHttpErrorObject(error.getMessage(), statusCode).encode());
+    }
+
+    private JsonObject buildHttpErrorObject(String msg, int statusCode) {
+        final JsonObject error = new JsonObject()
+                .put("timestamp", System.currentTimeMillis())
+                .put("status", statusCode);
+
+        switch (statusCode) {
+            case 400: error.put("error", "BAD_REQUEST");
+                break;
+            case 404: error.put("error", "NOT_FOUND");
+                break;
+            case 500: error.put("error", "INTERNAL_SERVER_ERROR");
+                break;
+            default:  error.put("error", "SOMETHING_WENT_WRONG");
+        }
+
+        if (msg != null) {
+            error.put("message", msg);
+        }
+        return error;
     }
 
     public static class ErroredGetSummaryResponse {
