@@ -5,8 +5,6 @@ import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.StreamTransformer;
 import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPI;
-import fk.prof.userapi.http.HttpHelper;
-import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
 import io.vertx.core.AbstractVerticle;
@@ -14,7 +12,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.core.json.Json;
@@ -48,21 +45,15 @@ public class HttpVerticle extends AbstractVerticle {
 
     private Router configureRouter() {
         Router router = Router.router(vertx);
-        router.route().handler(TimeoutHandler.create(userapiConfigManager.getRequestTimeout()));
+        router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
         router.route("/").handler(routingContext -> routingContext.response()
             .putHeader("context-type", "text/html")
             .end("<h1>Welcome to UserAPI for FKProfiler"));
-        HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, UserapiApiPathConstants.APPS,
-            this::getAppIds);
-        HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, UserapiApiPathConstants.CLUSTER_GIVEN_APPID,
-            this::getClusterIds);
-        HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID,
-            this::getProcId);
-        HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID,
-            this::getProfiles);
-        HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME,
-            this::getCpuSamplingTraces);
-
+        router.get("/apps").handler(this::getAppIds);
+        router.get("/cluster/:appId").handler(this::getClusterIds);
+        router.get("/proc/:appId/:clusterId").handler(this::getProcId);
+        router.get("/profiles/:appId/:clusterId/:proc").handler(this::getProfiles);
+        router.get("/profile/:appId/:clusterId/:procId/cpu-sampling/:traceName").handler(this::getCpuSamplingTraces);
         return router;
     }
 
