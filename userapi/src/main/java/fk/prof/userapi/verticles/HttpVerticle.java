@@ -36,7 +36,7 @@ public class HttpVerticle extends AbstractVerticle {
 
   private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
-    private static String BASE_DIR;
+    private static String baseDir="profiles";
     private static int aggregationWindowDurationInSecs = 1800;
 
     private ProfileStoreAPI profileStoreAPI;
@@ -64,7 +64,7 @@ public class HttpVerticle extends AbstractVerticle {
     @Override
     public void start(Future<Void> startFuture) throws Exception {
         aggregationWindowDurationInSecs = userapiConfigManager.getAggregationWindowDurationInSecs();
-        BASE_DIR = userapiConfigManager.getBaseDir();
+        baseDir = userapiConfigManager.getBaseDir();
         Router router = configureRouter();
         vertx.createHttpServer()
                 .requestHandler(router::accept)
@@ -84,7 +84,7 @@ public class HttpVerticle extends AbstractVerticle {
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getAppIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, prefix);
+            baseDir, prefix);
     }
 
     private void getClusterIds(RoutingContext routingContext) {
@@ -95,7 +95,7 @@ public class HttpVerticle extends AbstractVerticle {
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getClusterIdsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, appId, prefix);
+            baseDir, appId, prefix);
     }
 
     private void getProcId(RoutingContext routingContext) {
@@ -107,7 +107,7 @@ public class HttpVerticle extends AbstractVerticle {
         }
         Future<Set<String>> future = Future.future();
         profileStoreAPI.getProcsWithPrefix(future.setHandler(result -> setResponse(result, routingContext)),
-                BASE_DIR, appId, clusterId, prefix);
+            baseDir, appId, clusterId, prefix);
     }
 
     private void getProfiles(RoutingContext routingContext) {
@@ -178,7 +178,7 @@ public class HttpVerticle extends AbstractVerticle {
         });
 
         profileStoreAPI.getProfilesInTimeWindow(foundProfiles,
-                BASE_DIR, appId, clusterId, proc, startTime, duration);
+            baseDir, appId, clusterId, proc, startTime, duration);
     }
 
     private void getCpuSamplingTraces(RoutingContext routingContext) {
@@ -256,7 +256,7 @@ public class HttpVerticle extends AbstractVerticle {
     private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
                                                           AggregatedProfileModel.WorkType workType, String startTime) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(BASE_DIR, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
+        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
     }
 
     private boolean safeContains(String str, String subStr) {
