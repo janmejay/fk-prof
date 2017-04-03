@@ -53,11 +53,11 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/").handler(routingContext -> routingContext.response()
             .putHeader("context-type", "text/html")
             .end("<h1>Welcome to UserAPI for FKProfiler"));
-      router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
-      router.get(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).handler(this::getClusterIds);
-      router.get(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).handler(this::getProcId);
-      router.get(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).handler(this::getProfiles);
-      router.get(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).handler(this::getCpuSamplingTraces);
+        router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
+        router.get(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).handler(this::getClusterIds);
+        router.get(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).handler(this::getProcId);
+        router.get(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).handler(this::getProfiles);
+        router.get(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).handler(this::getCpuSamplingTraces);
         return router;
     }
 
