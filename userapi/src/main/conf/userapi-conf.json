@@ -4,7 +4,7 @@
       "verticle.count": 1,
       "http.port": 8082,
       "http.instances": 1,
-      "req.timeout": 10000
+      "req.timeout": 2000
     }
   },
   "profile.retention.duration.min": 30,

@@ -26,6 +26,9 @@ public class UserapiConfigManager {
 
   static final String METRIC_REGISTRY = "backend-metric-registry";
   private static final String PROFILE_RETENTION_KEY = "profile.retention.duration.min";
+  private static final String USERPAI_HTTP_PORT_KEY = "port";
+  private static final String REQ_TIMEOUT_KEY = "req.timeout";
+  private static final String CONFIG = "config";
 
   private final JsonObject config;
 
@@ -69,7 +72,7 @@ public class UserapiConfigManager {
     return tpConfig;
   }
 
-  public JsonObject getStorageConfig() {
+  JsonObject getStorageConfig() {
     JsonObject storageConfig = config.getJsonObject(STORAGE);
     checkNotEmpty(storageConfig, "storage");
     return storageConfig;
@@ -94,7 +97,7 @@ public class UserapiConfigManager {
     return enrichDeploymentConfig(config.getJsonObject(USERAPI_HTTP_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
   }
 
-  public int getProfileRetentionDuration() {
+  int getProfileRetentionDuration() {
     return config.getInteger(PROFILE_RETENTION_KEY, 30);
   }
 
@@ -112,5 +115,13 @@ public class UserapiConfigManager {
 
   public String getBaseDir() {
     return config.getString("base.dir", "profiles");
+  }
+
+  public int getUserapiHttpPort() {
+    return getUserapiHttpDeploymentConfig().getJsonObject(CONFIG).getInteger(USERPAI_HTTP_PORT_KEY, 8082);
+  }
+
+  public long getRequestTimeout() {
+    return getUserapiHttpDeploymentConfig().getJsonObject(CONFIG).getLong(REQ_TIMEOUT_KEY, 10000L);
   }
 }

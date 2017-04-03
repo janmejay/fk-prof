@@ -80,35 +80,24 @@ public class RouterVerticleTest {
     @Before
     public void setUp(TestContext testContext) throws Exception {
         ProtoSerializers.registerSerializers(Json.mapper);
-        vertx = Vertx.vertx();
+
         ServerSocket socket = new ServerSocket(0);
         port = socket.getLocalPort();
         socket.close();
+
+      UserapiConfigManager.setDefaultSystemProperties();
         UserapiConfigManager userapiConfigManager = new UserapiConfigManager("src/main/conf/userapi-conf.json");
-//        DeploymentOptions deploymentOptions = new DeploymentOptions().setConfig(new JsonObject("{\n" +
-//                "  \"http.port\": " + String.valueOf(port) + ",\n" +
-//                "  \"http.instances\": 1,\n" +
-//                "  \"req.timeout\": 2500,\n" +
-//                "  \"profile.retention.duration.min\": 30,\n" +
-//                "  \"aggregation_window.duration.secs\": 1800,\n" +
-//                "  \"storage\":\"S3\",\n" +
-//                "  \"S3\" : {\n" +
-//                "    \"endpoint\" : \"\",\n" +
-//                "    \"access.key\": \"\",\n" +
-//                "    \"secret.key\": \"\"\n" +
-//                "  }\n" +
-//                "}\n"));
+      vertx = Vertx.vertx();
+      port = userapiConfigManager.getUserapiHttpPort();
         client = vertx.createHttpClient();
 
         VerticleDeployer verticleDeployer = new UserapiHttpVerticleDeployer(vertx, userapiConfigManager, profileDiscoveryAPI);
         verticleDeployer.deploy();
-//        vertx.deployVerticle(routerVerticle, deploymentOptions, testContext.asyncAssertSuccess());
     }
 
     @After
-    public void tearDown() throws Exception {
-        vertx.close();
-        client.close();
+    public void tearDown(TestContext testContext) throws Exception {
+      vertx.close(testContext.asyncAssertSuccess());
     }
 
     @Test

@@ -48,8 +48,7 @@ public class HttpVerticle extends AbstractVerticle {
 
     private Router configureRouter() {
         Router router = Router.router(vertx);
-
-        router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
+        router.route().handler(TimeoutHandler.create(userapiConfigManager.getRequestTimeout()));
         router.route("/").handler(routingContext -> routingContext.response()
             .putHeader("context-type", "text/html")
             .end("<h1>Welcome to UserAPI for FKProfiler"));
@@ -75,7 +74,6 @@ public class HttpVerticle extends AbstractVerticle {
         vertx.createHttpServer()
                 .requestHandler(router::accept)
                 .listen(config().getInteger("http.port", 8080), event -> {
-
                     if (event.succeeded()) {
                         startFuture.complete();
                     } else {
@@ -85,7 +83,6 @@ public class HttpVerticle extends AbstractVerticle {
     }
 
     private void getAppIds(RoutingContext routingContext) {
-        System.out.println("GET APPID");
         String prefix = routingContext.request().getParam("prefix");
         if (prefix == null) {
             prefix = "";
