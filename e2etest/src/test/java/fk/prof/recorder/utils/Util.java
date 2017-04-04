@@ -11,9 +11,12 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.channels.SocketChannel;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +27,22 @@ public class Util {
 
     public static ObjectMapper OM = new ObjectMapper();
     private final static Logger logger = LoggerFactory.getLogger(Util.class);
+
+    public static List<String> discoverClasspath(Class klass) {
+        ClassLoader loader = klass.getClassLoader();
+        List<String> classPath = new ArrayList<>();
+        do {
+            if (loader instanceof URLClassLoader) {
+                URLClassLoader urlClassLoader = (URLClassLoader) loader;
+                URL[] urLs = urlClassLoader.getURLs();
+                for (URL urL : urLs) {
+                    classPath.add(urL.toString());
+                }
+            }
+            loader = loader.getParent();
+        } while (loader != null);
+        return classPath;
+    }
 
     public static Map<String, Object> getLatestWindow(Object response) {
         List<Map<String, Object>> aggregationWindows = asList(get(response, "succeeded"));
@@ -123,16 +142,18 @@ public class Util {
     }
 
     public static void waitForOpenPort(String ip, int port) throws IOException {
-        boolean scanning=true;
-        while(scanning)
+        int maxRetries = 10;
+        int retried = 0;
+        while(retried < maxRetries)
         {
             try
             {
                 isOpenPort(ip, port, false);
-                scanning=false;
+                break;
             }
             catch(ConnectException e)
             {
+                retried++;
                 System.out.println("Connect to : " + ip + ":" + port + " failed, waiting and trying again");
                 try
                 {
@@ -143,6 +164,7 @@ public class Util {
                 }
             }
         }
+        assert retried < maxRetries : "Could not connect to " + ip + ":" + port;
         System.out.println(ip + ":" + port + " connected");
     }
 

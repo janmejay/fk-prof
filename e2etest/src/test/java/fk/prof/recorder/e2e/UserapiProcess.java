@@ -1,6 +1,7 @@
 package fk.prof.recorder.e2e;
 
 import fk.prof.recorder.utils.FileResolver;
+import fk.prof.recorder.utils.Util;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.lang3.mutable.Mutable;
@@ -8,7 +9,10 @@ import org.apache.commons.lang3.mutable.MutableBoolean;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +24,7 @@ public class UserapiProcess {
 
     private static final Logger logger = LoggerFactory.getLogger(UserapiProcess.class);
 
+    static String fqdn = "fk.prof.userapi.UserapiApplication";
     Path confPath;
     Process process;
 
@@ -30,19 +35,8 @@ public class UserapiProcess {
     public void start() throws IOException {
         String java = System.getProperty("java.home") + "/bin/java";
 
-        Mutable<Boolean> isFatJar = new MutableBoolean();
-
-        String dir = "../userapi/target/";
-        Path jarFile = FileResolver.jarFile("userapi", dir, "userapi-.*.jar", isFatJar);
-
-        String[] command;
-        if(isFatJar.getValue()) {
-            command = new String[] {java, "-jar", jarFile.toAbsolutePath().toString(), "--conf", confPath.toString()};
-        }
-        else {
-            List<String> classpath = Arrays.asList(jarFile.toAbsolutePath().toString(), dir + "lib/*");
-            command = new String[] {java, "-cp", String.join(":", classpath), "io.vertx.core.Launcher", "--conf", confPath.toString()};
-        }
+        List<String> classpath = Util.discoverClasspath(getClass());
+        String[] command = new String[] {java, "-cp", String.join(":", classpath), fqdn, "--conf", confPath.toString()};
 
         process = new ProcessBuilder()
                 .command(command)

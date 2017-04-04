@@ -87,7 +87,7 @@ public class AgentRunner {
         // Eg: java -agentpath:build/liblagent.so -cp target/classes/ InfiniteExample
 
         // manually setting classpath
-        List<String> classpath = Arrays.asList("../recorder/target/classes/", "target/test-classes/", "target/lib/*");
+        List<String> classpath = Util.discoverClasspath(getClass());
 
         //System.out.println("classpath = " + classpath);
         ProcessBuilder pb = new ProcessBuilder();
@@ -111,22 +111,6 @@ public class AgentRunner {
         for (Map.Entry<Object, Object> envProp : prop.entrySet()) {
             env.put(envProp.getKey().toString(), envProp.getValue().toString());
         }
-    }
-
-    private List<String> discoverClasspath(Class klass) {
-        ClassLoader loader = klass.getClassLoader();
-        List<String> classPath = new ArrayList<>();
-        do {
-            if (loader instanceof URLClassLoader) {
-                URLClassLoader urlClassLoader = (URLClassLoader) loader;
-                URL[] urLs = urlClassLoader.getURLs();
-                for (URL urL : urLs) {
-                    classPath.add(urL.toString());
-                }
-            }
-            loader = loader.getParent();
-        } while (loader != null);
-        return classPath;
     }
 
     public void stop() {
