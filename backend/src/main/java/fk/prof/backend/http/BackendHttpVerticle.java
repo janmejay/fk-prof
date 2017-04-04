@@ -259,7 +259,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private void handleGetHealthCheck(RoutingContext routingContext) {
     JsonObject response = new JsonObject();
-    response.put("leader", leaderReadContext.getLeader().getHost() + ":" + leaderReadContext.getLeader().getPort());
+    String responseStr = leaderReadContext.getLeader() == null ? null : leaderReadContext.getLeader().getHost() + ":" + leaderReadContext.getLeader().getPort();
+    response.put("leader", responseStr);
     routingContext.response().setStatusCode(200).end(response.encode());
   }
 }
