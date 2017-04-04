@@ -16,8 +16,7 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-s3</artifactId>
-      <!--d42 recommended version-->
-      <version>1.9.4</version>
+      <version>1.9.4</version> <!-- d42 recommends 1.9.4, s3mock works with 1.11.104 -->
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
