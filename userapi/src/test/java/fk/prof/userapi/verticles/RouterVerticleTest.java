@@ -1,25 +1,19 @@
 package fk.prof.userapi.verticles;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategy;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
+import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
+import fk.prof.userapi.deployer.VerticleDeployer;
+import fk.prof.userapi.deployer.impl.UserapiHttpVerticleDeployer;
 import fk.prof.userapi.model.AggregationWindowSummary;
-import fk.prof.userapi.model.FilteredProfiles;
 import fk.prof.userapi.model.json.ProtoSerializers;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -35,7 +29,6 @@ import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import java.io.FileNotFoundException;
 import java.net.ServerSocket;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -45,7 +38,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * Tests for {@link HttpVerticle} using mocked behaviour of ProfileStoreAPIImpl
@@ -87,33 +80,24 @@ public class RouterVerticleTest {
     @Before
     public void setUp(TestContext testContext) throws Exception {
         ProtoSerializers.registerSerializers(Json.mapper);
-        vertx = Vertx.vertx();
+
         ServerSocket socket = new ServerSocket(0);
         port = socket.getLocalPort();
         socket.close();
 
-        DeploymentOptions deploymentOptions = new DeploymentOptions().setConfig(new JsonObject("{\n" +
-                "  \"http.port\": " + String.valueOf(port) + ",\n" +
-                "  \"http.instances\": 1,\n" +
-                "  \"req.timeout\": 2500,\n" +
-                "  \"profile.retention.duration.min\": 30,\n" +
-                "  \"aggregation_window.duration.secs\": 1800,\n" +
-                "  \"storage\":\"S3\",\n" +
-                "  \"S3\" : {\n" +
-                "    \"end.point\" : \"\",\n" +
-                "    \"access.key\": \"\",\n" +
-                "    \"secret.key\": \"\"\n" +
-                "  }\n" +
-                "}\n"));
+      UserapiConfigManager.setDefaultSystemProperties();
+        UserapiConfigManager userapiConfigManager = new UserapiConfigManager(ProfileStoreAPIImpl.class.getClassLoader().getResource("userapi-conf.json").getFile());
+      vertx = Vertx.vertx();
+      port = userapiConfigManager.getUserapiHttpPort();
         client = vertx.createHttpClient();
 
-        vertx.deployVerticle(routerVerticle, deploymentOptions, testContext.asyncAssertSuccess());
+        VerticleDeployer verticleDeployer = new UserapiHttpVerticleDeployer(vertx, userapiConfigManager, profileDiscoveryAPI);
+        verticleDeployer.deploy();
     }
 
     @After
-    public void tearDown() throws Exception {
-        vertx.close();
-        client.close();
+    public void tearDown(TestContext testContext) throws Exception {
+      vertx.close(testContext.asyncAssertSuccess());
     }
 
     @Test
@@ -192,13 +176,12 @@ public class RouterVerticleTest {
     }
 
     @Test
-    public void TestRootRoute(TestContext testContext) throws Exception {
+    public void TestHealthcheckRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
-
-        client.getNow(port, "localhost", "/", httpClientResponse -> httpClientResponse.bodyHandler(buffer -> {
-            testContext.assertTrue(buffer.toString().contains("UserAPI"));
+        client.getNow(port, "localhost", "/health", httpClientResponse -> {
+            testContext.assertEquals(httpClientResponse.statusCode(), 200);
             async.complete();
-        }));
+        });
     }
 
     @Test

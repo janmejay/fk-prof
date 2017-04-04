@@ -12,7 +12,19 @@ import java.io.IOException;
  */
 public abstract class MessageParser {
 
+    private static final int MAX_VARINT32_BYTES = 10;
+
+    /**
+     * Reads protobuf varint32 from input stream and returns the value
+     * Throws UnexpectedEOFException if enough bytes are not available for reading varint32
+     * THrows AggregationFailure if error reading varint32 provided that enough bytes were available
+     * @param in
+     * @param tag
+     * @return
+     * @throws IOException
+     */
     public static int readRawVariantInt(CompositeByteBufInputStream in, String tag) throws IOException {
+        int bytesAvailable = in.available();
         int firstByte = in.read();
         if (firstByte == -1) {
             throw new UnexpectedEOFException();
@@ -22,21 +34,39 @@ public abstract class MessageParser {
             return CodedInputStream.readRawVarint32(firstByte, in);
         }
         catch (InvalidProtocolBufferException e) {
-            if(in.available() > 0) {
-                throw new AggregationFailure("Error while parsing " + tag);
+            if(bytesAvailable > MAX_VARINT32_BYTES) {
+                throw new AggregationFailure("Error while parsing " + tag, e);
             }
             throw new UnexpectedEOFException();
         }
     }
 
+    /**
+     * Reads length followed by protobuf_message from input stream and returns the read protobuf message
+     * Returns null if length is zero
+     * Throws UnexpectedEOFException if enough bytes are not available in stream for reading length
+     * Throws UnexpectedEOFException if bytes in stream for reading message are less than length
+     * Throws AggregationFailure if error reading length or message provided enough bytes were available
+     * Throws AggregationFailure if length of protobuf message is more than max allowed length
+     * @param parser
+     * @param in
+     * @param maxMessageSize
+     * @param tag
+     * @param <T>
+     * @return
+     * @throws IOException
+     */
     public static <T extends AbstractMessage> T readDelimited(Parser<T> parser, CompositeByteBufInputStream in, int maxMessageSize, String tag) throws IOException {
         try {
             int msgSize = readRawVariantInt(in, tag + ":size");
+            if(msgSize == 0) {
+                return null;
+            }
             if(msgSize > maxMessageSize) {
                 throw new AggregationFailure("invalid length for " + tag);
             }
 
-            if(in.available() > msgSize) {
+            if(in.available() >= msgSize) {
                 return parser.parseFrom(ByteStreams.limit(in, msgSize));
             }
             else {
@@ -44,7 +74,7 @@ public abstract class MessageParser {
             }
         }
         catch (InvalidProtocolBufferException e) {
-            throw new AggregationFailure("Error while parsing " + tag);
+            throw new AggregationFailure("Error while parsing " + tag, e);
         }
     }
 }

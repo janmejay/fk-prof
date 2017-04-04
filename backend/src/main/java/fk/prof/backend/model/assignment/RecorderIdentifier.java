@@ -35,6 +35,10 @@ public class RecorderIdentifier {
         recorderInfo.getZone(), recorderInfo.getInstanceType());
   }
 
+  public String metricTag() {
+    return "rt." + this.ip + '_' + this.procName;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (o == this) {
@@ -72,5 +76,16 @@ public class RecorderIdentifier {
     result = result * PRIME + this.zone.hashCode();
     result = result * PRIME + this.instanceType.hashCode();
     return result;
+  }
+
+  @Override
+  public String toString() {
+    return "ip=" + this.ip +
+        ", zone=" + this.zone +
+        ", host=" + this.hostname +
+        ", proc=" + this.procName +
+        ", cluster=" + this.cluster +
+        ", vm=" + this.vmId +
+        ", instance_type=" + instanceType;
   }
 }

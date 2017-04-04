@@ -1,5 +1,6 @@
 package fk.prof.aggregation.model;
 
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
 
 import java.time.LocalDateTime;
@@ -17,6 +18,8 @@ public class FinalizedAggregationWindow {
   protected final Map<Long, FinalizedProfileWorkInfo> workInfoLookup;
   protected final FinalizedCpuSamplingAggregationBucket cpuSamplingAggregationBucket;
 
+  private final ProcessGroupTag processGroupTag;
+
   public FinalizedAggregationWindow(String appId,
                                     String clusterId,
                                     String procId,
@@ -33,6 +36,12 @@ public class FinalizedAggregationWindow {
     this.durationInSecs = durationInSecs;
     this.workInfoLookup = workInfoLookup;
     this.cpuSamplingAggregationBucket = cpuSamplingAggregationBucket;
+
+    this.processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
+  }
+
+  public ProcessGroupTag getProcessGroupTag() {
+    return processGroupTag;
   }
 
   public FinalizedProfileWorkInfo getDetailsForWorkId(long workId) {
@@ -47,10 +56,11 @@ public class FinalizedAggregationWindow {
   @Override
   public String toString() {
     return "app_id=" + appId +
-    ", cluster_id=" + clusterId +
-    ", proc_id=" + procId +
-    ", start=" + start +
-    ", end=" + endedAt;
+        ", cluster_id=" + clusterId +
+        ", proc_id=" + procId +
+        ", start=" + start +
+        ", end=" + endedAt +
+        ", duration=" + durationInSecs;
   }
 
   @Override
@@ -76,7 +86,6 @@ public class FinalizedAggregationWindow {
   protected Header buildHeaderProto(int version, WorkType workType) {
     Header.Builder builder = Header.newBuilder()
         .setFormatVersion(version)
-        .setWorkType(workType)
         .setAggregationEndTime(endedAt == null ? null : endedAt.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setAggregationStartTime(start.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
         .setWindowDuration(durationInSecs)

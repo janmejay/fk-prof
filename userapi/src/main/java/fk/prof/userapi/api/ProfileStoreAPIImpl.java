@@ -76,6 +76,12 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         return splits[splits.length - 1];
     }
 
+    @Override
+    public void getAppIdsWithPrefix(Future<Set<String>> appIds, String baseDir, String appIdPrefix) {
+        /* TODO: move this prefix creation to {@link AggregatedProfileNamingStrategy} */
+        getListingAtLevelWithPrefix(appIds, baseDir + DELIMITER + VERSION + DELIMITER, appIdPrefix, true);
+    }
+
     private void getListingAtLevelWithPrefix(Future<Set<String>> listings, String level, String objPrefix, boolean encoded) {
         CompletableFuture<Set<String>> commonPrefixesFuture = asyncStorage.listAsync(level, false);
         commonPrefixesFuture.thenApply(commonPrefixes -> {
@@ -93,11 +99,6 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     @Override
-    public void getAppIdsWithPrefix(Future<Set<String>> appIds, String baseDir, String appIdPrefix) {
-        getListingAtLevelWithPrefix(appIds, baseDir + DELIMITER + VERSION + DELIMITER, appIdPrefix, true);
-    }
-
-    @Override
     public void getClusterIdsWithPrefix(Future<Set<String>> clusterIds, String baseDir, String appId, String clusterIdPrefix) {
         getListingAtLevelWithPrefix(clusterIds, baseDir + DELIMITER + VERSION + DELIMITER + encode(appId) + DELIMITER,
                 clusterIdPrefix, true);
@@ -106,13 +107,13 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     @Override
     public void getProcsWithPrefix(Future<Set<String>> procIds, String baseDir, String appId, String clusterId, String procPrefix) {
         getListingAtLevelWithPrefix(procIds, baseDir + DELIMITER + VERSION + DELIMITER + encode(appId) + DELIMITER + encode(clusterId) + DELIMITER,
-                procPrefix, false);
+                procPrefix, true);
     }
 
     @Override
     public void getProfilesInTimeWindow(Future<List<AggregatedProfileNamingStrategy>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds) {
         String prefix = baseDir + DELIMITER + VERSION + DELIMITER + encode(appId)
-                + DELIMITER + encode(clusterId) + DELIMITER + proc + DELIMITER;
+                + DELIMITER + encode(clusterId) + DELIMITER + encode(proc) + DELIMITER;
 
         asyncStorage.listAsync(prefix, true).thenApply(allObjects -> {
             ZonedDateTime start = startTime.minusSeconds(1);

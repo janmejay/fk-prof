@@ -27,6 +27,8 @@ import org.junit.runner.RunWith;
 import recording.Recorder;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +69,7 @@ public class LeaderAPILoadAndAssociationTest {
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
         configManager.getLoadReportIntervalInSeconds(),
-        leaderHttpConfig.getInteger("load.miss.tolerance", 1), configManager.getBackendHttpPort(),
+        leaderHttpConfig.getInteger("load.miss.tolerance", 1),
         new ProcessGroupCountBasedBackendComparator());
     PolicyStore policyStore = new PolicyStore();
 
@@ -125,13 +127,12 @@ public class LeaderAPILoadAndAssociationTest {
         .setHandler(ar1 -> {
           if(ar1.succeeded()) {
             try {
-              makeRequestGetAssociation(mockProcessGroups.get(0))
+              makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(0)))
                   .setHandler(ar2 -> {
                     if (ar2.succeeded()) {
                       try {
-//                        Recorder.AssignedBackend ab2 = Recorder.AssignedBackend.parseFrom(ar2.result())
                         context.assertEquals("1", ar2.result().getHost());
-                        makeRequestGetAssociation(mockProcessGroups.get(1))
+                        makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(1)))
                             .setHandler(ar3 -> {
                               if (ar3.succeeded()) {
                                 context.assertEquals("1", ar3.result().getHost());
@@ -140,7 +141,7 @@ public class LeaderAPILoadAndAssociationTest {
                                       .setHandler(ar4 -> {
                                         if (ar4.succeeded()) {
                                           try {
-                                            makeRequestGetAssociation(mockProcessGroups.get(2))
+                                            makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
                                                 .setHandler(ar5 -> {
                                                   if (ar5.succeeded()) {
                                                     context.assertEquals("2", ar5.result().getHost());
@@ -150,7 +151,7 @@ public class LeaderAPILoadAndAssociationTest {
                                                             .setHandler(ar6 -> {
                                                               if (ar6.succeeded()) {
                                                                 try {
-                                                                  makeRequestGetAssociation(mockProcessGroups.get(2))
+                                                                  makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(mockProcessGroups.get(2)))
                                                                       .setHandler(ar7 -> {
                                                                         if (ar7.succeeded()) {
                                                                           context.assertEquals("1", ar7.result().getHost());
@@ -227,11 +228,11 @@ public class LeaderAPILoadAndAssociationTest {
     return future;
   }
 
-  private Future<Recorder.AssignedBackend> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<Recorder.AssignedBackend> makeRequestPostAssociation(Recorder.RecorderInfo payload)
       throws IOException {
     Future<Recorder.AssignedBackend> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .put(port, "localhost", "/leader/association")
+        .post(port, "localhost", "/leader/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
@@ -246,4 +247,23 @@ public class LeaderAPILoadAndAssociationTest {
     return future;
   }
 
+  private static Recorder.RecorderInfo buildRecorderInfoFromProcessGroup(Recorder.ProcessGroup processGroup) {
+    return Recorder.RecorderInfo.newBuilder()
+        .setAppId(processGroup.getAppId())
+        .setCluster(processGroup.getCluster())
+        .setProcName(processGroup.getProcName())
+        .setRecorderTick(1)
+        .setHostname("1")
+        .setInstanceGrp("1")
+        .setInstanceId("1")
+        .setInstanceType("1")
+        .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
+        .setRecorderUptime(100)
+        .setRecorderVersion(1)
+        .setVmId("1")
+        .setZone("1")
+        .setIp("1")
+        .setCapabilities(Recorder.RecorderCapabilities.newBuilder().setCanCpuSample(true))
+        .build();
+  }
 }

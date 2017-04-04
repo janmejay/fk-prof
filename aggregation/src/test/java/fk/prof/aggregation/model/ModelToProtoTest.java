@@ -52,8 +52,8 @@ public class ModelToProtoTest {
         LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
         FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", now, now.plusSeconds(1200), 1200,
                 buildMap(
-                        101l, new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED, now.plusSeconds(10), now.plusSeconds(90), buildMap("trace1", 5, "trace2", 10), buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80)),
-                        102l, new FinalizedProfileWorkInfo(1, null, AggregationState.ABORTED, now.plusSeconds(100), now.plusSeconds(200), buildMap("trace1", 10, "trace2", 10), buildMap(WorkType.cpu_sample_work, 1000, WorkType.thread_sample_work, 800))
+                        101l, new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED, now.plusSeconds(10), now.plusSeconds(90), 80, buildMap("trace1", 5, "trace2", 10), buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80)),
+                        102l, new FinalizedProfileWorkInfo(1, null, AggregationState.ABORTED, now.plusSeconds(100), now.plusSeconds(200), 100, buildMap("trace1", 10, "trace2", 10), buildMap(WorkType.cpu_sample_work, 1000, WorkType.thread_sample_work, 800))
                         ),
                 null
                 );
@@ -99,7 +99,7 @@ public class ModelToProtoTest {
     public void testBuildWorkInfo_profileWorkInfoShouldProperlyBuildWorkInfoProto() {
         LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
-        FinalizedProfileWorkInfo wi1 = new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED, now, now.plusMinutes(1),
+        FinalizedProfileWorkInfo wi1 = new FinalizedProfileWorkInfo(1, null, AggregationState.COMPLETED, now, now.plusMinutes(1), 60,
                 buildMap("trace1", 5, "trace2", 10, "trace3", 15),
                 buildMap(WorkType.cpu_sample_work, 100, WorkType.thread_sample_work, 80));
 

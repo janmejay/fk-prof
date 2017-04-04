@@ -27,9 +27,14 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
   private int recorderVersion;
   private AggregationState state = AggregationState.SCHEDULED;
   private LocalDateTime startedAt = null, endedAt = null;
+  private int durationInSec;
   private Recorder.RecorderInfo recorderInfo;
   private final HashObjIntMap<String> traceCoverages = HashObjIntMaps.newUpdatableMap();
   private final HashObjIntMap<Recorder.WorkType> workTypeSamples = HashObjIntMaps.newUpdatableMap();
+
+  public ProfileWorkInfo(int durationInSec) {
+    this.durationInSec = durationInSec;
+  }
 
   public void updateRecorderInfo(Recorder.RecorderInfo recorderInfo) {
     this.recorderInfo = recorderInfo;
@@ -61,10 +66,19 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
     return state;
   }
 
-  public AggregationState abandonProfile() {
-    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE)) {
+  public AggregationState abandonProfileAsCorrupt() {
+    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE_AS_CORRUPT)) {
       throw new IllegalStateException(String.format("Invalid event %s for current state %s",
-          AggregationStateEvent.ABANDON_PROFILE, state));
+          AggregationStateEvent.ABANDON_PROFILE_AS_CORRUPT, state));
+    }
+    this.endedAt = LocalDateTime.now(Clock.systemUTC());
+    return state;
+  }
+
+  public AggregationState abandonProfileAsIncomplete() {
+    if(!processStateEvent(AggregationStateEvent.ABANDON_PROFILE_AS_INCOMPLETE)) {
+      throw new IllegalStateException(String.format("Invalid event %s for current state %s",
+          AggregationStateEvent.ABANDON_PROFILE_AS_INCOMPLETE, state));
     }
     this.endedAt = LocalDateTime.now(Clock.systemUTC());
     return state;
@@ -115,6 +129,7 @@ public class ProfileWorkInfo extends FinalizableBuilder<FinalizedProfileWorkInfo
         state,
         startedAt,
         endedAt,
+        durationInSec,
         traceCoverages,
         mappedWorkTypeSamples
     );

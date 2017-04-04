@@ -58,3 +58,7 @@ ui/public/*
 
 #Ignore logs directory
 backend/logs/
+
+recorder/.vscode/c_cpp_properties.json
+
+recorder/.vscode/settings.json

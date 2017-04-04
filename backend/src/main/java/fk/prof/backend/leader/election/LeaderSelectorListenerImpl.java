@@ -1,10 +1,17 @@
 package fk.prof.backend.leader.election;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
+import fk.prof.backend.ConfigManager;
+import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.util.proto.BackendProtoUtil;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.CancelLeadershipException;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.curator.framework.state.ConnectionState;
 import org.apache.zookeeper.CreateMode;
@@ -15,10 +22,17 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private final String leaderWatchingPath;
   private KillBehavior killBehavior;
   private final Runnable leaderElectedTask;
-  private final String ipAddress;
+  private final BackendDTO.LeaderDetail selfLeaderDetail;
 
-  public LeaderSelectorListenerImpl(String ipAddress, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
-    this.ipAddress = Preconditions.checkNotNull(ipAddress);
+  private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+  private Counter ctrLeaderElect = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "elect"));
+  private Counter ctrLeaderRelinquish = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "relinquish"));
+  private Counter ctrLeaderInterrupt = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "interrupt"));
+  private Counter ctrLeaderSuicideFailure = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader.suicide", "fail"));
+
+
+  public LeaderSelectorListenerImpl(String ipAddress, int leaderHttpPort, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {
+    this.selfLeaderDetail = BackendDTO.LeaderDetail.newBuilder().setHost(ipAddress).setPort(leaderHttpPort).build();
     this.leaderWatchingPath = Preconditions.checkNotNull(leaderWatchingPath);
     this.killBehavior = Preconditions.checkNotNull(killBehavior);
     this.leaderElectedTask = leaderElectedTask;
@@ -26,12 +40,14 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
 
   @Override
   public void takeLeadership(CuratorFramework curatorClient) throws Exception {
+    ctrLeaderElect.inc();
     logger.info("Elected as leader");
     curatorClient
         .create()
         .creatingParentsIfNeeded()
         .withMode(CreateMode.EPHEMERAL)
-        .forPath(leaderWatchingPath + "/" + ipAddress, ipAddress.getBytes("UTF-8"));
+        .forPath(leaderWatchingPath + "/" + BackendProtoUtil.leaderDetailCompactRepr(selfLeaderDetail),
+            selfLeaderDetail.toByteArray());
 
     // NOTE: There is a race here. Other backend nodes can be communicated about the new leader before leaderElectedTask has run
     // If backend nodes talk to the new leader before leader has been primed and setup, its possible for leader to not respond.
@@ -44,6 +60,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
       try {
         Thread.sleep(Long.MAX_VALUE);
       } catch (InterruptedException ex) {
+        ctrLeaderInterrupt.inc();
         logger.warn("Thread interrupted, sleeping again");
       }
     }
@@ -57,6 +74,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
     try {
       super.stateChanged(curatorClient, newState);
     } catch (CancelLeadershipException ex) {
+      ctrLeaderRelinquish.inc();
       if(logger.isDebugEnabled()) {
         logger.debug("Relinquishing leadership, suicide!");
       }
@@ -71,6 +89,7 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
     try {
       killBehavior.process();
     } catch (Exception ex) {
+      ctrLeaderSuicideFailure.inc();
       logger.error(ex);
     }
   }

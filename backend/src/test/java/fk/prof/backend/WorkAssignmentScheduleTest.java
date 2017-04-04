@@ -1,5 +1,6 @@
 package fk.prof.backend;
 
+import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.model.assignment.RecorderIdentifier;
 import fk.prof.backend.model.assignment.WorkAssignmentSchedule;
 import fk.prof.backend.model.assignment.WorkAssignmentScheduleBootstrapConfig;
@@ -25,7 +26,7 @@ public class WorkAssignmentScheduleTest {
   @Test
   public void testFetchOfWorkAssignmentWithMaxDelay() throws InterruptedException {
     WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 5, 10);
-    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5, ProcessGroupTag.EMPTY);
     Assert.assertEquals(3, was.getMaxOverlap());
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
@@ -48,14 +49,14 @@ public class WorkAssignmentScheduleTest {
   @Test
   public void testBuildingOfScheduleWithTooLessConcurrentEntriesAllowed() throws InterruptedException {
     WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 5, 10);
-    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5, ProcessGroupTag.EMPTY);
     Assert.assertTrue(was.getMaxOverlap() > 1);
   }
 
   @Test
   public void testFetchOfWorkAssignmentWithMinDelay() throws InterruptedException {
     WorkAssignmentScheduleBootstrapConfig bootstrapConfig = new WorkAssignmentScheduleBootstrapConfig(60, 10, 2, 10);
-    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5);
+    WorkAssignmentSchedule was = new WorkAssignmentSchedule(bootstrapConfig, mockWABuilders.toArray(new Recorder.WorkAssignment.Builder[mockWABuilders.size()]), 5, ProcessGroupTag.EMPTY);
 
     Recorder.WorkAssignment r1 = was.getNextWorkAssignment(buildRI("1"));
     Assert.assertNotNull(r1);

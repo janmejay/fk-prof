@@ -6,9 +6,7 @@ import fk.prof.aggregation.state.AggregationState;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class FinalizedProfileWorkInfo {
@@ -17,6 +15,7 @@ public class FinalizedProfileWorkInfo {
   private final AggregationState state;
   private final LocalDateTime startedAt;
   private final LocalDateTime endedAt;
+  private final int durationInSec;
   private final Map<String, Integer> traceCoverages;
   private final Map<WorkType, Integer> samples;
 
@@ -25,6 +24,7 @@ public class FinalizedProfileWorkInfo {
                                   AggregationState state,
                                   LocalDateTime startedAt,
                                   LocalDateTime endedAt,
+                                  int durationInSec,
                                   Map<String, Integer> traceCoverages,
                                   Map<WorkType, Integer> samples) {
     this.recorderVersion = recorderVersion;
@@ -32,21 +32,7 @@ public class FinalizedProfileWorkInfo {
     this.state = state;
     this.startedAt = startedAt;
     this.endedAt = endedAt;
-    this.traceCoverages = traceCoverages;
-    this.samples = samples;
-  }
-
-  public FinalizedProfileWorkInfo(int recorderVersion,
-                                  AggregationState state,
-                                  LocalDateTime startedAt,
-                                  LocalDateTime endedAt,
-                                  Map<String, Integer> traceCoverages,
-                                  Map<WorkType, Integer> samples) {
-    this.recorderVersion = recorderVersion;
-    this.recorderInfo = null;
-    this.state = state;
-    this.startedAt = startedAt;
-    this.endedAt = endedAt;
+    this.durationInSec = durationInSec;
     this.traceCoverages = traceCoverages;
     this.samples = samples;
   }
@@ -77,10 +63,11 @@ public class FinalizedProfileWorkInfo {
     FinalizedProfileWorkInfo other = (FinalizedProfileWorkInfo) o;
     return this.recorderVersion == other.recorderVersion
         && this.state.equals(other.state)
-        && this.startedAt.equals(other.startedAt)
-        && this.endedAt.equals(other.endedAt)
-        && this.traceCoverages.equals(other.traceCoverages)
-        && this.samples.equals(other.samples)
+        && this.durationInSec == other.durationInSec
+        && (this.startedAt == null ? other.startedAt == null : this.startedAt.equals(other.startedAt))
+        && (this.endedAt == null ? other.endedAt == null : this.endedAt.equals(other.endedAt))
+        && (this.traceCoverages == null ? other.traceCoverages == null : this.traceCoverages.equals(other.traceCoverages))
+        && (this.samples == null ? other.samples == null : this.samples.equals(other.samples))
         && (this.recorderInfo == null ? other.recorderInfo == null : this.recorderInfo.equals(other.recorderInfo));
   }
 
@@ -89,12 +76,15 @@ public class FinalizedProfileWorkInfo {
   }
 
   protected ProfileWorkInfo buildProfileWorkInfoProto(WorkType workType, LocalDateTime aggregationStartTime, TraceCtxNames traces) {
-    if(workType == null || samples.containsKey(workType)) {
+    if(workType == null || (samples != null && samples.containsKey(workType))) {
       ProfileWorkInfo.Builder builder = ProfileWorkInfo.newBuilder()
               .setRecorderVersion(recorderVersion)
-              .setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS))
-              .setDuration((int) startedAt.until(endedAt, ChronoUnit.SECONDS))
-              .setStatus(toAggregationStatusProto(state));
+              .setStatus(toAggregationStatusProto(state))
+              .setDuration(durationInSec);
+
+      if(startedAt != null) {
+        builder.setStartOffset((int) aggregationStartTime.until(startedAt, ChronoUnit.SECONDS));
+      }
 
       if(recorderInfo != null) {
         builder.setRecorderInfo(recorderInfo);
@@ -110,13 +100,15 @@ public class FinalizedProfileWorkInfo {
         }
       }
 
-      int index = 0;
-      for(String traceName: traces.getNameList()) {
-        Integer cvrg = traceCoverages.getOrDefault(traceName, null);
-        if(cvrg != null) {
-          builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(cvrg));
+      if(traceCoverages != null) {
+        int index = 0;
+        for (String traceName : traces.getNameList()) {
+          Integer cvrg = traceCoverages.getOrDefault(traceName, null);
+          if (cvrg != null) {
+            builder.addTraceCoverageMap(TraceCtxToCoveragePctMap.newBuilder().setTraceCtxIdx(index).setCoveragePct(cvrg));
+          }
+          ++index;
         }
-        ++index;
       }
 
       return builder.build();
@@ -134,7 +126,8 @@ public class FinalizedProfileWorkInfo {
       case COMPLETED: return AggregationStatus.Completed;
       case ONGOING: throw new IllegalArgumentException("ONGOING state is not a terminal state");
       case ONGOING_PARTIAL: throw new IllegalArgumentException("ONGOING_PARTIAL state is not a terminal state");
-      case PARTIAL: return AggregationStatus.Partial;
+      case CORRUPT: return AggregationStatus.Corrupt;
+      case INCOMPLETE: return AggregationStatus.Incomplete;
       case RETRIED: return AggregationStatus.Retried;
       case SCHEDULED: return AggregationStatus.Scheduled;
       default: throw new IllegalArgumentException(state.name() + " state is not supported");

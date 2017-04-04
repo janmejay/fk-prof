@@ -43,7 +43,7 @@ public class AssociationTest {
             "zone=waldo-zone," +
             "inst_typ=c0.small," +
             "backoff_start=2," +
-            "backoff_max=5" +
+            "backoff_max=5," +
             "log_lvl=trace";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[10];

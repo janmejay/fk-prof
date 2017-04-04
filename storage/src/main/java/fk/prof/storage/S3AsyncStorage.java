@@ -5,6 +5,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -40,14 +41,13 @@ public class S3AsyncStorage implements AsyncStorage {
 
     public S3AsyncStorage(String endpoint, String accessKey, String secretKey, ExecutorService executorService) {
         assert !StringUtils.isNullOrEmpty(endpoint) : "S3 endpoint cannot be null/empty";
-        assert !StringUtils.isNullOrEmpty(accessKey) : "accessKey cannot be null/empty";
-        assert !StringUtils.isNullOrEmpty(secretKey) : "secretKey cannot be null/empty";
         assert executorService != null : "S3AsyncStorage.executorService cannot be null";
 
         this.endpoint = endpoint;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.executorService = executorService;
+
         initialize();
     }
 
@@ -55,26 +55,33 @@ public class S3AsyncStorage implements AsyncStorage {
         ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setProtocol(Protocol.HTTP);
 
-        AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+        AWSCredentials credentials;
+        if(StringUtils.isNullOrEmpty(accessKey) || StringUtils.isNullOrEmpty(secretKey)) {
+            LOGGER.warn("S3 access key | secret key is empty. Trying anonymous credentials");
+            credentials = new AnonymousAWSCredentials();
+        }
+        else {
+            credentials = new BasicAWSCredentials(accessKey, secretKey);
+        }
+
         client = new AmazonS3Client(credentials, clientConfig);
         client.setEndpoint(endpoint);
         client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
     }
 
     @Override
-    public void storeAsync(String path, InputStream content, long length) {
+    public CompletableFuture<Void> storeAsync(String path, InputStream content, long length) {
         S3ObjectPath objectPath = new S3ObjectPath(path);
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
                 ObjectMetadata meta = new ObjectMetadata();
                 meta.setContentLength(length);
                 client.putObject(objectPath.bucket, objectPath.fileName, content, meta);
-                // TODO expose metric for size written
-            } catch (AmazonClientException e) {
-                LOGGER.error("S3 PutObject failed: {}", path, e);
-                //TODO expose metric
+            } catch (AmazonClientException e) { // content InputStream is by default closed by the S3Client, so need to close it.
+                throw mapClientException(e);
+            } catch (Exception ex) {
+                throw new StorageException("Unexpected error during S3 PUT for path=" + path, ex);
             }
-            // content InputStream is by default closed by the S3Client, so need to close it.
         }, executorService);
     }
 

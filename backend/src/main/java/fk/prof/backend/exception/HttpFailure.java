@@ -2,21 +2,18 @@ package fk.prof.backend.exception;
 
 
 public class HttpFailure extends RuntimeException {
-  private int statusCode;
+  private int statusCode = 500;
 
   public HttpFailure() {
     super();
-    statusCode = 500;
   }
 
   public HttpFailure(String message) {
     super(message);
-    statusCode = 500;
   }
 
   public HttpFailure(Throwable throwable) {
     super(throwable);
-    statusCode = 500;
   }
 
   public HttpFailure(int failureCode) {
@@ -26,7 +23,6 @@ public class HttpFailure extends RuntimeException {
 
   public HttpFailure(String message, Throwable throwable) {
     super(message, throwable);
-    statusCode = 500;
   }
 
   public HttpFailure(String message, int failureCode) {
@@ -48,6 +44,11 @@ public class HttpFailure extends RuntimeException {
     return statusCode;
   }
 
+  @Override
+  public String toString() {
+    return "status=" + statusCode + ", " + super.toString();
+  }
+
   public static HttpFailure failure(Throwable throwable) {
     if (throwable instanceof HttpFailure) {
       return (HttpFailure) throwable;
@@ -60,7 +61,7 @@ public class HttpFailure extends RuntimeException {
       return new HttpFailure(throwable.getMessage(), 400);
     }
     if(throwable instanceof IllegalStateException) {
-      return new HttpFailure(throwable.getMessage(), 500);
+      return new HttpFailure(throwable.getMessage());
     }
     if (throwable.getMessage() == null) {
       return new HttpFailure("No message provided", throwable.getCause());

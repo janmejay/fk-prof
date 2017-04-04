@@ -15,8 +15,9 @@ public interface AsyncStorage {
      * needs to be taken care of by the implementation.
      * @param path path where the content is to stored
      * @param content the content as inputstream
+     * @return Future to indicate completion
      */
-    void storeAsync(String path, InputStream content, long length);
+    CompletableFuture<Void> storeAsync(String path, InputStream content, long length);
 
     /**
      * Retrieves the content from the specified path.

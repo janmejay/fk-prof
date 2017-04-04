@@ -17,6 +17,24 @@ public class PolicyStore {
   }
 
   public BackendDTO.RecordingPolicy get(Recorder.ProcessGroup processGroup) {
+    //TODO: Remove. Temporary for e2e testing
+    if(processGroup.getAppId().startsWith("bar-app") && processGroup.getCluster().startsWith("quux-cluster") &&
+        processGroup.getProcName().startsWith("grault-proc")) {
+      return buildRecordingPolicy(30);
+    }
     return this.store.get(processGroup);
+  }
+
+  //TODO: Ugly hack for e2e testing, remove!
+  private BackendDTO.RecordingPolicy buildRecordingPolicy(int profileDuration) {
+    return BackendDTO.RecordingPolicy.newBuilder()
+        .setDuration(profileDuration)
+        .setCoveragePct(100)
+        .setDescription("Test work profile")
+        .addWork(BackendDTO.Work.newBuilder()
+            .setWType(BackendDTO.WorkType.cpu_sample_work)
+            .setCpuSample(BackendDTO.CpuSampleWork.newBuilder().setFrequency(50).setMaxFrames(64))
+            .build())
+        .build();
   }
 }

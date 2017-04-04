@@ -13,6 +13,7 @@ public class WseParser {
   private Adler32 wseChecksum = new Adler32();
   private boolean wseParsed = false;
   private int maxMessageSizeInBytes;
+  private boolean endMarkerReceived = false;
 
   public WseParser(int maxMessageSizeInBytes) {
     this.maxMessageSizeInBytes = maxMessageSizeInBytes;
@@ -25,6 +26,10 @@ public class WseParser {
    */
   public boolean isParsed() {
     return this.wseParsed;
+  }
+
+  public boolean isEndMarkerReceived() {
+    return this.endMarkerReceived;
   }
 
   /**
@@ -55,10 +60,14 @@ public class WseParser {
       if (wse == null) {
         in.markAndDiscardRead();
         wse = MessageParser.readDelimited(Recorder.Wse.parser(), in, maxMessageSizeInBytes, "WSE");
+        if(wse == null) {
+          endMarkerReceived = true;
+          return;
+        }
         in.updateChecksumSinceMarked(wseChecksum);
       }
       in.markAndDiscardRead();
-      int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
+      int checksumValue = MessageParser.readRawVariantInt(in, "wseChecksumValue");
       if (checksumValue != ((int) wseChecksum.getValue())) {
         throw new AggregationFailure("Checksum of wse does not match");
       }
@@ -73,7 +82,7 @@ public class WseParser {
       }
     }
     catch (IOException e) {
-      throw new AggregationFailure(e);
+      throw new AggregationFailure(e, true);
     }
   }
 }

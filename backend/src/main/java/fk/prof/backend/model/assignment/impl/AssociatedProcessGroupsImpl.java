@@ -1,18 +1,37 @@
 package fk.prof.backend.model.assignment.impl;
 
+import com.codahale.metrics.CachedGauge;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import fk.prof.backend.ConfigManager;
 import fk.prof.backend.model.assignment.*;
 import recording.Recorder;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 public class AssociatedProcessGroupsImpl implements AssociatedProcessGroups, ProcessGroupDiscoveryContext {
   private final Map<Recorder.ProcessGroup, ProcessGroupDetail> processGroupLookup = new ConcurrentHashMap<>();
   private final int thresholdForDefunctRecorderInSecs;
 
+  private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
+
   public AssociatedProcessGroupsImpl(int thresholdForDefunctRecorderInSecs) {
     this.thresholdForDefunctRecorderInSecs = thresholdForDefunctRecorderInSecs;
+    try {
+      metricRegistry.register(MetricRegistry.name(AssociatedProcessGroups.class, "count"),
+          new CachedGauge<Integer>(1, TimeUnit.MINUTES) {
+            @Override
+            protected Integer loadValue() {
+              return processGroupLookup.size();
+            }
+          });
+    } catch (IllegalArgumentException ex) {
+      //Metric already registered, ignore
+    }
   }
 
 

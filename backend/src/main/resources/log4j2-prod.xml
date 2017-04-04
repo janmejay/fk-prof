@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Appenders>
+    <RollingRandomAccessFile name="app"
+                             fileName="logs/app.log"
+                             filePattern="logs/app.log.%d{yyyy-MM-dd}.gz">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight{%-5p} [%t] %blue{%c{4}} - %m%n"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" />
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingRandomAccessFile>
+    <RollingRandomAccessFile name="request"
+                             fileName="logs/request.log"
+                             filePattern="logs/request.log.%d{yyyy-MM-dd}.gz">
+      <PatternLayout pattern="%m%n"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" />
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingRandomAccessFile >
+  </Appenders>
+  <Loggers>
+    <AsyncLogger name="fk" level="debug" />
+    <AsyncLogger name="io.vertx.ext.web.handler.impl.LoggerHandlerImpl" level="info" additivity="false">
+      <AppenderRef ref="request"/>
+    </AsyncLogger>
+    <AsyncRoot level="info">
+      <AppenderRef ref="app"/>
+    </AsyncRoot>
+  </Loggers>
+</Configuration>

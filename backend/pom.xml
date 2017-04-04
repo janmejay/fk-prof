@@ -15,13 +15,18 @@
   <name>Backend for fk-prof</name>
 
   <properties>
-    <vertx.version>3.3.3</vertx.version>
+    <vertx.version>3.4.1</vertx.version>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>fk.prof</groupId>
       <artifactId>aggregation</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>fk.prof</groupId>
+      <artifactId>storage</artifactId>
       <version>1.0-SNAPSHOT</version>
     </dependency>
     <dependency>
@@ -106,6 +111,18 @@
         <configuration>
           <mainClass>fk.prof.backend.BackendApplication</mainClass>
         </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <configuration>
+              <archive>
+                  <manifest>
+                      <addClasspath>true</addClasspath>
+                  </manifest>
+              </archive>
+          </configuration>
       </plugin>
 
     </plugins>

@@ -33,7 +33,7 @@ class Util {
 
         // sync impl
         @Override
-        public void storeAsync(String path, InputStream content, long length) {
+        public CompletableFuture<Void> storeAsync(String path, InputStream content, long length) {
             try {
                 writtenContent.put(path, IOUtils.toString(content));
             }
@@ -46,6 +46,7 @@ class Util {
                 } catch (Exception ignored) {
                 }
             }
+            return CompletableFuture.completedFuture(null);
         }
 
         InputStream fetch(String path) throws StorageException {

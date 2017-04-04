@@ -46,7 +46,6 @@
       "aggregation.enabled": false,
       "leader.watching.path": "/backends",
       "leader.mutex.path": "/leader",
-      "leader.sleep.ms": 60000,
       "kill.behavior": "KILL"
     }
   },
@@ -70,7 +69,7 @@
   },
   "storage": {
     "s3": {
-      "end.point": "http://127.0.0.1:13031",
+      "endpoint": "http://127.0.0.1:13031",
       "access.key": "",
       "secret.key": ""
     },
@@ -82,7 +81,7 @@
     },
     "base.dir": "profiles"
   },
-  "fixedSizebufferPool" : {
+  "bufferPoolOptions" : {
     "max.total": 20,
     "max.idle": 20,
     "buffer.size": 10000000

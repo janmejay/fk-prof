@@ -1,0 +1,25 @@
+{
+  "userapiHttpOptions": {
+    "config": {
+      "verticle.count": 1,
+      "http.port": 8082,
+      "req.timeout": 10000
+    }
+  },
+  "profile.retention.duration.min": 5,
+  "aggregation_window.duration.secs": 60,
+  "storage": {
+    "s3": {
+      "endpoint": "http://127.0.0.1:13031",
+      "access.key": "",
+      "secret.key": ""
+    },
+    "thread.pool": {
+      "coresize": 10,
+      "maxsize": 50,
+      "idletime.secs": 60,
+      "queue.maxsize": 50
+    },
+    "base.dir": "profiles"
+  }
+}

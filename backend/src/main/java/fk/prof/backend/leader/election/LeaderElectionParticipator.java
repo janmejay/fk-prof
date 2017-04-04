@@ -43,6 +43,7 @@ public class LeaderElectionParticipator extends AbstractVerticle {
   private LeaderSelectorListener createLeaderSelectorListener() {
     return new LeaderSelectorListenerImpl(
         configManager.getIPAddress(),
+        configManager.getLeaderHttpPort(),
         config().getString("leader.watching.path", "/backends"),
         KillBehavior.valueOf(config().getString("kill.behavior", "DO_NOTHING")),
         leaderElectedTask);

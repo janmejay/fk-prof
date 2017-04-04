@@ -36,16 +36,17 @@ enum AggregationStatus {
 	Retried = 1;		// may have duplicated samples because of retries 
 	Aborted = 2; 		// may not have all samples because recorder sent them too late.
 	Scheduled = 3;   	// no samples
-	Partial = 4;     	// in case of the connection errors
+	Corrupt = 4;     	// in case of corrupt data received
+	Incomplete = 5;		// in case of end marker not received or connection error
 }
 
 message ProfileWorkInfo {	
-	required uint32 startOffset = 1;				// offset in seconds from the current header.aggregationStartTime
-	required uint32 duration = 2;
+	optional uint32 startOffset = 1;				// offset in seconds from the current header.aggregationStartTime
+	optional uint32 duration = 2;
 	optional uint32 recorderVersion = 3;
 	optional RecorderInfo recorderInfo = 7;
 	repeated SampleCount sampleCount = 4;
-	optional AggregationStatus status = 5;
+	required AggregationStatus status = 5;
 	repeated TraceCtxToCoveragePctMap traceCoverageMap = 6;
 
 	message TraceCtxToCoveragePctMap {

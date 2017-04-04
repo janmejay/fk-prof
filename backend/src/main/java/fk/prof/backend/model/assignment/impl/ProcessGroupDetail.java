@@ -48,9 +48,10 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
         key -> new RecorderDetail(key, thresholdForDefunctRecorderInSecs));
 
     boolean pollReceived = recorderDetail.receivePoll(pollReq);
+    boolean canAcceptWork = recorderDetail.canAcceptWork();
     if (pollReceived
         && workAssignmentSchedule != null
-        && recorderDetail.canAcceptWork()) {
+        && canAcceptWork) {
 
       try {
         return workAssignmentSchedule.getNextWorkAssignment(recorderIdentifier);
@@ -63,6 +64,8 @@ public class ProcessGroupDetail implements ProcessGroupContextForScheduling, Pro
         // t3=above "try block" executed resulting in null pointer exception
       }
 
+    } else {
+      logger.info("Recorder " + recorderIdentifier + " not sent assignment, updated=" + pollReceived + ", accept_work=" + canAcceptWork);
     }
     return null;
   }

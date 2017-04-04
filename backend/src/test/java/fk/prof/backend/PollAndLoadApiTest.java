@@ -55,7 +55,6 @@ import static org.mockito.Mockito.when;
 
 @RunWith(VertxUnitRunner.class)
 public class PollAndLoadApiTest {
-
   private Vertx vertx;
   private ConfigManager configManager;
   private CuratorFramework curatorClient;
@@ -93,8 +92,8 @@ public class PollAndLoadApiTest {
     curatorClient.create().forPath(backendAssociationPath);
 
     vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, configManager.getBackendHttpPort(), new ProcessGroupCountBasedBackendComparator());
-    leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress()));
+    backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, new ProcessGroupCountBasedBackendComparator());
+    leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
     when(leaderStore.isLeader()).thenReturn(false);
     associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
     workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
@@ -156,9 +155,10 @@ public class PollAndLoadApiTest {
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
     //this test can be brittle because teardown of zk in previous running test, causes delay in setting up of leader when zk is setup again for this test
     //mocking leader address here so that association does not return 503
-    when(leaderStore.getLeaderIPAddress()).thenReturn("127.0.0.1");
+    when(leaderStore.getLeader())
+        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(configManager.getLeaderHttpPort()).build());
     try {
-      makeRequestGetAssociation(processGroup).setHandler(ar -> {
+      makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
         if (ar.failed()) {
           context.fail(ar.cause());
         }
@@ -166,7 +166,7 @@ public class PollAndLoadApiTest {
         //Wait for sometime for load to get reported at least twice
         vertx.setTimer(2500, timerId1 -> {
           try {
-            makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+            makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
               if (ar2.failed()) {
                 context.fail(ar2.cause());
               }
@@ -205,7 +205,7 @@ public class PollAndLoadApiTest {
     //Wait for sometime for load to get reported twice, so that backend gets marked as available
     vertx.setTimer(2500, timerId -> {
       try {
-        makeRequestGetAssociation(processGroup).setHandler(ar -> {
+        makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
           if (ar.failed()) {
             context.fail(ar.cause());
           }
@@ -230,7 +230,7 @@ public class PollAndLoadApiTest {
     });
   }
 
-  @Test(timeout = 15000)
+  @Test(timeout = 20000)
   public void testAggregationWindowSetupAndPollResponse(TestContext context) throws Exception {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
@@ -238,9 +238,7 @@ public class PollAndLoadApiTest {
     CountDownLatch latch = new CountDownLatch(1);
     when(policyStore.get(processGroup)).then(invocationOnMock -> {
       //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
-      System.out.println("Fetching policy before wait");
       latch.await(8, TimeUnit.SECONDS);
-      System.out.println("Fetching policy after wait");
       return invocationOnMock.callRealMethod();
     });
 
@@ -249,7 +247,6 @@ public class PollAndLoadApiTest {
         .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
         .build();
     Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(configManager.getIPAddress()).setPort(configManager.getBackendHttpPort()).build();
-
     makePollRequest(assignedBackend, pollReq).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -258,18 +255,16 @@ public class PollAndLoadApiTest {
         //400 returned because backend is not associated with the process group of recorder sending poll request
         context.assertEquals(400, ar1.result().getStatusCode());
         //Wait for sometime for load to get reported twice, so that backend gets marked as available
-        System.out.println("first poll done");
         vertx.setTimer(2500, timerId -> {
           try {
-            makeRequestGetAssociation(processGroup).setHandler(ar2 -> {
+            makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar2 -> {
               if (ar2.failed()) {
                 context.fail(ar2.cause());
               }
               context.assertEquals(200, ar2.result().getStatusCode());
-              System.out.println("then association call done");
               try {
                 //wait for some time so that backend reports load
-                vertx.setTimer(1500, timerId1 -> {
+                vertx.setTimer(2500, timerId1 -> {
                   try {
                     Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
                         .setRecorderInfo(buildRecorderInfo(processGroup, 2))
@@ -281,7 +276,6 @@ public class PollAndLoadApiTest {
                       }
                       try {
                         context.assertEquals(200, ar3.result().getStatusCode());
-                        System.out.println("this the the second poll call");
                         Recorder.PollRes pollRes1 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar3.result().getResponse());
                         context.assertEquals(Recorder.WorkAssignment.getDefaultInstance(), pollRes1.getAssignment());
                         //countdown latch, so that work is returned by leader and aggregation window is setup, waiting for 1 sec before making another poll request
@@ -290,7 +284,7 @@ public class PollAndLoadApiTest {
                             .setRecorderInfo(buildRecorderInfo(processGroup, 3))
                             .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
                             .build();
-                        vertx.setTimer(2500, timerId2 -> {
+                        vertx.setTimer(4500, timerId2 -> {
                           try {
                             makePollRequest(assignedBackend, pollReq2).setHandler(ar4 -> {
                               if(ar4.failed()) {
@@ -298,10 +292,8 @@ public class PollAndLoadApiTest {
                               }
                               try {
                                 context.assertEquals(200, ar4.result().getStatusCode());
-                                System.out.println("last poll call");
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
-                                System.out.println("Got work: " + pollRes2.getAssignment().getWorkId());
                                 context.assertEquals(BitOperationUtil.constructLongFromInts(configManager.getBackendId(), 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
@@ -336,11 +328,11 @@ public class PollAndLoadApiTest {
 
   }
 
-  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociation(Recorder.ProcessGroup payload)
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestPostAssociation(Recorder.RecorderInfo payload)
       throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .put(configManager.getBackendHttpPort(), "localhost", "/association")
+        .post(configManager.getBackendHttpPort(), "localhost", "/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
@@ -417,4 +409,23 @@ public class PollAndLoadApiTest {
         .build();
   }
 
+  private static Recorder.RecorderInfo buildRecorderInfoFromProcessGroup(Recorder.ProcessGroup processGroup) {
+    return Recorder.RecorderInfo.newBuilder()
+        .setAppId(processGroup.getAppId())
+        .setCluster(processGroup.getCluster())
+        .setProcName(processGroup.getProcName())
+        .setRecorderTick(1)
+        .setHostname("1")
+        .setInstanceGrp("1")
+        .setInstanceId("1")
+        .setInstanceType("1")
+        .setLocalTime(LocalDateTime.now(Clock.systemUTC()).toString())
+        .setRecorderUptime(100)
+        .setRecorderVersion(1)
+        .setVmId("1")
+        .setZone("1")
+        .setIp("1")
+        .setCapabilities(enableCpuSampling())
+        .build();
+  }
 }

@@ -36,10 +36,10 @@ public class ConfigManager {
   private static final String STORAGE = "storage";
   private static final String S3 = "s3";
   private static final String THREAD_POOL = "thread.pool";
-  private static final String FIXED_SIZE_POOL_KEY = "fixedSizebufferPool";
+  private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
   private static final String SERIALIZATION_WORKER_POOL_KEY = "serializationWorkerPool";
 
-  public static final String METRIC_REGISTRY = "vertx-registry";
+  public static final String METRIC_REGISTRY = "backend-metric-registry";
 
   private final JsonObject config;
 
@@ -152,8 +152,8 @@ public class ConfigManager {
     return storageConfig;
   }
 
-  public JsonObject getFixedSizeBufferPool() {
-    JsonObject poolConfig = config.getJsonObject(FIXED_SIZE_POOL_KEY, new JsonObject());
+  public JsonObject getBufferPoolConfig() {
+    JsonObject poolConfig = config.getJsonObject(BUFFER_POOL_OPTIONS_KEY, new JsonObject());
     if(poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
       throw new RuntimeException("buffer pool config is not proper");
     }
