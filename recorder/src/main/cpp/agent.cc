@@ -136,7 +136,7 @@ static bool PrepareJvmti(jvmtiEnv *jvmti) {
         logger->error("Failed to add path to perf-ctx jar ({}) to classpath {}", CONFIGURATION->pctx_jar_path, error);
         return false;
     } else {
-        logger->debug("Added perf-ctx jar '{}' to classpath", CONFIGURATION->pctx_jar_path);
+        logger->info("Added perf-ctx jar '{}' to classpath", CONFIGURATION->pctx_jar_path);
     }
     return true;
 }

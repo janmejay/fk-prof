@@ -41,6 +41,42 @@ static spdlog::level::level_enum resolv_log_level(ConfArg& level) {
     }
 }
 
+#define PRINT_FIELD_VALUE(field, value, last) {                         \
+        os << " " << #field << " : " << "'" << value << "'";            \
+        if (! last) os << ",";                                          \
+    }
+
+#define PRINT_FIELD(field, last) {                      \
+        PRINT_FIELD_VALUE(field, config->field, last)   \
+    }
+
+std::ostream& operator<<(std::ostream& os, const ConfigurationOptions* config) {
+    os << "{ ";
+    PRINT_FIELD(service_endpoint, false);
+    PRINT_FIELD(ip, false);
+    PRINT_FIELD(host, false);
+    PRINT_FIELD(app_id, false);
+    PRINT_FIELD(inst_grp, false);
+    PRINT_FIELD(cluster, false);
+    PRINT_FIELD(inst_id, false);
+    PRINT_FIELD(proc, false);
+    PRINT_FIELD(vm_id, false);
+    PRINT_FIELD(zone, false);
+    PRINT_FIELD(inst_typ, false);
+    PRINT_FIELD(backoff_start, false);
+    PRINT_FIELD(backoff_multiplier, false);
+    PRINT_FIELD(max_retries, false);
+    PRINT_FIELD(backoff_max, false);
+    PRINT_FIELD(log_level, false);
+    PRINT_FIELD(poll_itvl, false);
+    PRINT_FIELD(metrics_dst_port, false);
+    PRINT_FIELD_VALUE(noctx_cov_pct, static_cast<int>(config->noctx_cov_pct), false);
+    PRINT_FIELD(allow_sigprof, false);
+    PRINT_FIELD(pctx_jar_path, true);
+    os << " }";
+    return os;
+}
+
 void ConfigurationOptions::load(const char* options) {
     const char* next = options;
     for (const char *key = options; next != NULL; key = next + 1) {
@@ -101,8 +137,8 @@ void ConfigurationOptions::load(const char* options) {
                     noctx_cov_pct = 100;
                 }
             } else if (strstr(key, "allow_sigprof") == key) {
-                auto ch = value[0];
-                allow_sigprof = (ch == 'y') || (ch == 'Y');
+                allow_sigprof = ((strlen(value) == 1) || (value[1] == ',')) &&
+                    ((value[0] == 'y') || (value[0] == 'Y'));
             } else if (strstr(key, "pctx_jar_path") == key) {
                 pctx_jar_path = safe_copy_string(value, next);
             } else {
@@ -110,6 +146,10 @@ void ConfigurationOptions::load(const char* options) {
             }
         }
     }
+    std::stringstream ss;
+    ss << this;
+    auto str = ss.str();
+    logger->info("Config load complete, config: {}", str);
 }
 
 #define ENSURE_NOT_NULL(param)                                          \

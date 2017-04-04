@@ -101,7 +101,7 @@ public class AgentRunner {
 
     private String perfCtxArgFrag() {
         Collection<File> files = FileUtils.listFiles(new File("../perfctx/target"), new RegexFileFilter(PERFCTX_JAR_BASE_NAME_PATTERN), FalseFileFilter.FALSE);
-        if (files.size() != 1) throw new IllegalStateException("Confused about the correct perf-ctx labeling jar, found too many files that look like it: " + files);
+        if (files.size() != 1) throw new IllegalStateException(String.format("Confused about the correct perf-ctx labeling jar. Expected 1 but found %s files matching the pattern '%s'", files.size(), PERFCTX_JAR_BASE_NAME_PATTERN));
         return "pctx_jar_path=" + files.iterator().next().getAbsolutePath();
     }
 
