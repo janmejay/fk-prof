@@ -99,7 +99,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
     HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_POLL,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
 
-    HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, ApiPathConstants.BACKEND_HEALTHCHECK, this::handlePostPoll);
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, ApiPathConstants.BACKEND_HEALTHCHECK, this::handleGetHealthCheck);
 
     return router;
   }
@@ -259,7 +259,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   private void handleGetHealthCheck(RoutingContext routingContext) {
     JsonObject response = new JsonObject();
-    response.put("leader", leaderReadContext.getLeader().getHost());
+    response.put("leader", leaderReadContext.getLeader().getHost() + ":" + leaderReadContext.getLeader().getPort());
     routingContext.response().setStatusCode(200).end(response.encode());
   }
 }
