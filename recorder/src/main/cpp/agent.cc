@@ -6,8 +6,8 @@
 
 #include "globals.hh"
 #include "config.hh"
-#include "thread_map.hh"
 #include "profiler.hh"
+#include "thread_map.hh"
 #include "controller.hh"
 #include "perf_ctx.hh"
 #include "prob_pct.hh"

@@ -8,12 +8,13 @@
 #include <string>
 
 #include "globals.hh"
+#include "profile_writer.hh"
 #include "thread_map.hh"
 #include "signal_handler.hh"
 #include "stacktraces.hh"
 #include "processor.hh"
 #include "perf_ctx.hh"
-#include "profile_writer.hh"
+
 
 using namespace std::chrono;
 using std::ofstream;

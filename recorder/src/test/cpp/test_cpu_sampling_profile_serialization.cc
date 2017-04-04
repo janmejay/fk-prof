@@ -2,9 +2,9 @@
 #include <vector>
 #include <iostream>
 #include <cstdint>
-#include "fixtures.hh"
 #include "test.hh"
 #include "../../main/cpp/profiler.hh"
+#include "fixtures.hh"
 #include <unordered_map>
 #include "../../main/cpp/blocking_ring_buffer.hh"
 #include "../../main/cpp/circular_queue.hh"
