@@ -382,7 +382,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     ps.flush();
 
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
@@ -481,7 +481,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     CHECK(q.pop());
 
     const std::size_t one_meg = 1024 * 1024;
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg, false);
     CHECK(bytes_sz > 0);
     CHECK(bytes_sz < one_meg);
@@ -594,7 +594,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     t10.ctx_tracker.exit(ctx_bar);
 
     const std::size_t one_meg = 1024 * 1024;
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg, false);
     CHECK(bytes_sz > 0);
     CHECK(bytes_sz < one_meg);
@@ -736,7 +736,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     ps.flush();
 
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[1024 * 1024], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, 1024 * 1024, false);
     CHECK(bytes_sz > 0);
 
@@ -938,7 +938,7 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     buff.readonly();
 
     const std::size_t one_meg = 1024 * 1024;
-    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg]);
+    std::shared_ptr<std::uint8_t> tmp_buff(new std::uint8_t[one_meg], std::default_delete<std::uint8_t[]>());
     auto bytes_sz = buff.read(tmp_buff.get(), 0, one_meg);
     CHECK(bytes_sz > 0);
     CHECK(bytes_sz < one_meg);

@@ -25,7 +25,7 @@ public class FileResolver {
     public static List<Path> findFile(String dirPath, String regex) {
         File dir = new File(dirPath);
         File[] files = dir.listFiles((d,f) -> f.matches(regex));
-        return Stream.of(files).map(f -> Paths.get(dirPath, f.getName())).collect(Collectors.toList());
+        return Stream.of(files).filter(f -> f.isFile()).map(f -> Paths.get(dirPath, f.getName())).collect(Collectors.toList());
     }
 
     public static Path jarFile(String tag, String dir, String regex, Mutable<Boolean> isFatJar) {

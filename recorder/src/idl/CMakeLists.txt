@@ -1,6 +1,7 @@
 include(FindProtobuf)
 find_package(Protobuf REQUIRED)
-include_directories(${PROTOBUF_INCLUDE_DIR})
+# include_directories(${PROTOBUF_INCLUDE_DIR})
 protobuf_generate_cpp(PROTO_SRC PROTO_HEADER recorder.proto)
 set(CMAKE_CXX_FLAGS "-fPIC")
 add_library(proto STATIC ${PROTO_HEADER} ${PROTO_SRC})
+set(PROTOBUF_LIBRARY "${PROTOBUF_LIBRARY}" PARENT_SCOPE)

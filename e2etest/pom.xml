@@ -86,7 +86,13 @@
         </dependency>
         <dependency>
             <groupId>fk.prof</groupId>
-            <artifactId>recorder</artifactId>
+            <artifactId>testutil</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>fk.prof</groupId>
+            <artifactId>perfctx</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>

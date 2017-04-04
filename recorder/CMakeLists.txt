@@ -209,7 +209,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG  "-g3 -ggdb -O0")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-g3 -ggdb")
+set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O0")
 SET(VERBOSE_LOGS "n" CACHE STRING "'Enable Verbose Logging' flag, turns on compile-time controlled debug and trace logs, defaults to 'n'")
 if (${VERBOSE_LOGS} MATCHES "y")
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
@@ -247,3 +248,7 @@ endif()
 
 # make test
 add_test(unitTests ${BIN}/unitTests)
+
+# install
+install(TARGETS  ${OUTPUT}
+LIBRARY DESTINATION lib)

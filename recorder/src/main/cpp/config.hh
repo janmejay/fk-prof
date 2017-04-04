@@ -47,6 +47,8 @@ struct ConfigurationOptions {
 
     bool allow_sigprof;
 
+    char* pctx_jar_path;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -62,8 +64,8 @@ struct ConfigurationOptions {
         poll_itvl(DEFAULT_POLLING_INTERVAL),
         log_level(spdlog::level::info), metrics_dst_port(DEFAULT_METRICS_DEST_PORT),
         noctx_cov_pct(0),
-
-        allow_sigprof(true) {
+        allow_sigprof(true),
+        pctx_jar_path(nullptr) {
 
         load(options);
     }

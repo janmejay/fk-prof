@@ -1,0 +1,5 @@
+This module doesn't have a with-recorder test here. 
+
+Because this module should not have any dependencies, adding recorder as a dependency here and polluting it seems unnecessary and error prone.
+
+So we test integration with recorder in recorder's test-suite. 
