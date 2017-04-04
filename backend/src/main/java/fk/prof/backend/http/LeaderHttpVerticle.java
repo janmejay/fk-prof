@@ -3,6 +3,7 @@ package fk.prof.backend.http;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
+import com.google.protobuf.util.JsonFormat;
 import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
@@ -63,6 +64,10 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     String apiPathForGetWork = ApiPathConstants.LEADER_GET_WORK + "/:appId/:clusterId/:procName";
     HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, apiPathForGetWork,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handleGetWork);
+
+    String apiPathForUpdatingPolicy = ApiPathConstants.LEADER_POST_POLICY + "/:appId/:clusterId/:procName";
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, apiPathForUpdatingPolicy,
+            BodyHandler.create().setBodyLimit(1024 * 10), this::handlePostPolicy);
 
     return router;
   }
@@ -170,4 +175,26 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     }
   }
 
+  private void handlePostPolicy(RoutingContext context) {
+    try {
+      String appId = context.request().getParam("appId");
+      String clusterId = context.request().getParam("clusterId");
+      String procName = context.request().getParam("procName");
+
+      // for now expecting a json payload
+      String payload = context.getBodyAsString("utf-8");
+
+      BackendDTO.RecordingPolicy.Builder builder = BackendDTO.RecordingPolicy.newBuilder();
+      JsonFormat.parser().merge(payload, builder);
+
+      BackendDTO.RecordingPolicy policy = builder.build();
+      Recorder.ProcessGroup pg = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
+
+      policyStore.put(pg, policy);
+    }
+    catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    }
+  }
 }

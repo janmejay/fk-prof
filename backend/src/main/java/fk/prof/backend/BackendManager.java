@@ -17,7 +17,6 @@ import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationSt
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import fk.prof.backend.model.policy.PolicyStore;
-import fk.prof.backend.proto.BackendDTO;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
@@ -35,7 +34,6 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import recording.Recorder;
 import org.apache.zookeeper.KeeperException;
 
 import java.nio.ByteBuffer;
@@ -110,7 +108,7 @@ public class BackendManager {
               .collect(Collectors.toList());
 
           BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
-          PolicyStore policyStore = new PolicyStore();
+          PolicyStore policyStore = new PolicyStore(curatorClient);
 
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
           Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);

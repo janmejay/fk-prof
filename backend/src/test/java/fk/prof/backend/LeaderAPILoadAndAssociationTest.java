@@ -71,7 +71,7 @@ public class LeaderAPILoadAndAssociationTest {
         configManager.getLoadReportIntervalInSeconds(),
         leaderHttpConfig.getInteger("load.miss.tolerance", 1),
         new ProcessGroupCountBasedBackendComparator());
-    PolicyStore policyStore = new PolicyStore();
+    PolicyStore policyStore = new PolicyStore(curatorClient);
 
     VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
     leaderHttpDeployer.deploy();

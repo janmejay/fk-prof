@@ -74,7 +74,7 @@ public class AssociationApiTest {
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, new ProcessGroupCountBasedBackendComparator());
     inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
     associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
-    policyStore = new PolicyStore();
+    policyStore = new PolicyStore(curatorClient);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), associatedProcessGroups);
     backendHttpVerticleDeployer.deploy();
