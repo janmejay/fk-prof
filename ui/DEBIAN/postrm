@@ -1,0 +1,38 @@
+#!/bin/bash
+
+CMD="$1"
+
+PKG="fk-prof-ui"
+FK_USER="fk-prof-ui"
+FK_GROUP="fk-prof-dev"
+CACHE_DIR="/root/uibCache"
+
+#echo "Command is $CMD"
+if [ "$CMD" == "purge" ]; then
+        rm -rf $CACHE_DIR
+        (id "$FK_USER" >/dev/null 2>&1 && deluser $FK_USER)
+        if [ -d /var/share/$PKG ]; then
+                rm -rf /share/lib/$PKG
+                #echo "Status is $?"
+        fi
+        if [ -d /var/share/$PKG ]; then
+                rm -rf /usr/share/lib/$PKG
+                #echo "Status is $?"
+        fi
+        if [ -d /var/log/$PKG ]; then
+                rm -rf /var/log/$PKG
+                #echo "Status is $?"
+        fi
+        if [ -d /var/cache/$PKG ]; then
+                rm -rf /var/cache/$PKG
+                #echo "Status is $?"
+        fi
+        if [ -d /etc/$PKG ]; then
+                rm -rf /etc/$PKG
+
+                #echo "Status is $?"
+        fi
+
+fi
+
+exit 0
