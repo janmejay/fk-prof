@@ -9,14 +9,12 @@
     </Console>
   </Appenders>
   <Loggers>
-    <Logger name="fk" level="debug" additivity="false">
-      <AppenderRef ref="console" />
-    </Logger>
-    <Logger name="io.vertx.ext.web.handler.impl.LoggerHandlerImpl" level="info" additivity="false">
+    <AsyncLogger name="fk" level="debug" />
+    <AsyncLogger name="io.vertx.ext.web.handler.impl.LoggerHandlerImpl" level="info" additivity="false">
       <AppenderRef ref="request"/>
-    </Logger>
-    <Root level="info">
+    </AsyncLogger>
+    <AsyncRoot level="info">
       <AppenderRef ref="console"/>
-    </Root>
+    </AsyncRoot>
   </Loggers>
 </Configuration>

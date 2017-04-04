@@ -36,7 +36,7 @@ public class RecorderIdentifier {
   }
 
   public String metricTag() {
-    return this.ip.replace('.', '_') + '_' + this.procName.replace('.', '_');
+    return "rt." + this.ip + '_' + this.procName;
   }
 
   @Override

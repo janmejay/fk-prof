@@ -118,7 +118,7 @@ public class StorageBackedOutputStream extends OutputStream {
         }
         catch (Exception e) {
             ctrBuffPoolFailures.inc();
-            LOGGER.error("Unexpected error while borrowing from bufferPool");
+            LOGGER.error("Unexpected error while borrowing from bufferPool", e);
             throw new IOException(e);
         }
     }
@@ -144,7 +144,7 @@ public class StorageBackedOutputStream extends OutputStream {
             .whenCompleteAsync((v, th) -> {
                 if(th != null) {
                     this.mtrWriteFailure.mark();
-                    LOGGER.error("S3 putobject failed for file_strategy={}", th, fileNameStrategy);
+                    LOGGER.error("S3 putobject failed for file_strategy=" + fileNameStrategy, th);
                 } else {
                     this.histBytesWritten.update(contentLength);
                 }

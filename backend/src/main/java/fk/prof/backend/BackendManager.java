@@ -201,6 +201,7 @@ public class BackendManager {
 
   private MetricsOptions buildMetricsOptions() {
     MetricsOptions metricsOptions = new DropwizardMetricsOptions()
+        .setJmxDomain("fk.prof.backend")
         .setEnabled(true)
         .setJmxEnabled(true)
         .setRegistryName(ConfigManager.METRIC_REGISTRY)

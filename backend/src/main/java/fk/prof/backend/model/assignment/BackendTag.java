@@ -6,15 +6,11 @@ public class BackendTag {
   private final String value;
 
   private BackendTag(String value) {
-    this.value = "b." + value;
+    this.value = "bt." + value;
   }
 
   public BackendTag(String host, int port) {
-    this(String.join(".", host, Integer.toString(port)));
-  }
-
-  private static String sanitizeTagPart(String tagPart) {
-    return tagPart.replace('.', '_');
+    this(String.join("_", host, Integer.toString(port)));
   }
 
   @Override
