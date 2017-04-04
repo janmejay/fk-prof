@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "scripts": {
     "start": "node server.js",
-    "forever": "./node_modules/.bin/forever server.js",
     "lint": "./node_modules/.bin/eslint app/** webpack.config.js server.js",
     "prod-build": "NODE_ENV=production node_modules/.bin/webpack"
   },
@@ -55,6 +54,7 @@
     "classnames": "^2.2.5",
     "isomorphic-fetch": "^2.2.1",
     "material-design-lite": "^1.2.1",
+    "moment": "^2.18.1",
     "react": "^15.4.1",
     "react-datetime": "^2.8.3",
     "react-dom": "^15.4.1",
