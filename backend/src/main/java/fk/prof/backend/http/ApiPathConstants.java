@@ -12,5 +12,5 @@ public final class ApiPathConstants {
 
   public static final String BACKEND_POST_ASSOCIATION = "/association";
   public static final String BACKEND_POST_POLL = "/poll";
-
+  public static final String BACKEND_HEALTHCHECK = "/health";
 }

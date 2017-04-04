@@ -39,7 +39,7 @@ public class HttpVerticle extends AbstractVerticle {
 
   private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
-    private static String baseDir="profiles";
+    private static String baseDir = "profiles";
     private static int aggregationWindowDurationInSecs = 1800;
 
     private ProfileStoreAPI profileStoreAPI;
@@ -54,14 +54,14 @@ public class HttpVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
         router.route().handler(LoggerHandler.create());
-        router.route("/").handler(routingContext -> routingContext.response()
-            .putHeader("context-type", "text/html")
-            .end("<h1>Welcome to UserAPI for FKProfiler"));
+
         router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
         router.get(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).handler(this::getClusterIds);
         router.get(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).handler(this::getProcId);
         router.get(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).handler(this::getProfiles);
         router.get(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).handler(this::getCpuSamplingTraces);
+        router.get(UserapiApiPathConstants.HEALTHCHECK).handler(this::handleGetHealth);
+
         return router;
     }
 
@@ -211,6 +211,10 @@ public class HttpVerticle extends AbstractVerticle {
             }
         });
         profileStoreAPI.load(future, filename);
+    }
+
+    private void handleGetHealth(RoutingContext routingContext) {
+        routingContext.response().setStatusCode(200).end();
     }
 
     private <T> void setResponse(AsyncResult<T> result, RoutingContext routingContext) {
