@@ -176,13 +176,12 @@ public class RouterVerticleTest {
     }
 
     @Test
-    public void TestRootRoute(TestContext testContext) throws Exception {
+    public void TestHealthcheckRoute(TestContext testContext) throws Exception {
         final Async async = testContext.async();
-
-        client.getNow(port, "localhost", "/", httpClientResponse -> httpClientResponse.bodyHandler(buffer -> {
-            testContext.assertTrue(buffer.toString().contains("UserAPI"));
+        client.getNow(port, "localhost", "/health", httpClientResponse -> {
+            testContext.assertEquals(httpClientResponse.statusCode(), 200);
             async.complete();
-        }));
+        });
     }
 
     @Test
