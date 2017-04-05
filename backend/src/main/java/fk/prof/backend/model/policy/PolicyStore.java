@@ -1,6 +1,7 @@
 package fk.prof.backend.model.policy;
 
 import fk.prof.backend.proto.BackendDTO;
+import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -12,9 +13,11 @@ import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
- * TODO: Liable for refactoring. Dummy impl for now
+ * TODO: Liable for refactoring. Hackish impl of policy store for now
  */
 public class PolicyStore {
   private static Logger logger = LoggerFactory.getLogger(PolicyStore.class);
@@ -31,13 +34,9 @@ public class PolicyStore {
     loadAllExistingPolicies();
   }
 
-  public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) {
-    try {
-      updateToZk(processGroup, recordingPolicy);
-      this.store.put(processGroup, recordingPolicy);
-    } catch (Exception e) {
-      logger.error("Something went wrong while updating policy to zk", e);
-    }
+  public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) throws Exception {
+    updateToZk(processGroup, recordingPolicy);
+    this.store.put(processGroup, recordingPolicy);
   }
 
   public BackendDTO.RecordingPolicy get(Recorder.ProcessGroup processGroup) {
@@ -63,8 +62,26 @@ public class PolicyStore {
   }
 
   private void loadAllExistingPolicies() throws Exception {
-    byte[] data = curator.getData().forPath(policyStorePath);
+    CountDownLatch syncLatch = new CountDownLatch(1);
+    RuntimeException syncException = new RuntimeException();
 
+    //ZK Sync operation always happens async, since this is essential for us to proceed further, using a latch here
+    ZookeeperUtil.sync(curator, policyStorePath).setHandler(ar -> {
+      if(ar.failed()) {
+        syncException.initCause(ar.cause());
+      }
+      syncLatch.countDown();
+    });
+
+    boolean syncCompleted = syncLatch.await(5, TimeUnit.SECONDS);
+    if(!syncCompleted) {
+      throw new RuntimeException("ZK sync operation taking longer than expected");
+    }
+    if(syncException.getCause() != null) {
+      throw new RuntimeException(syncException);
+    }
+
+    byte[] data = ZookeeperUtil.readZNode(curator, policyStorePath);
     if(data == null || data.length == 0) {
       return;
     }
@@ -75,7 +92,6 @@ public class PolicyStore {
     while(bin.available() > 0) {
       Recorder.ProcessGroup pg = Recorder.ProcessGroup.parser().parseDelimitedFrom(bin);
       BackendDTO.RecordingPolicy policy = BackendDTO.RecordingPolicy.parser().parseDelimitedFrom(bin);
-
       store.put(pg, policy);
     }
 

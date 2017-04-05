@@ -65,9 +65,10 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, apiPathForGetWork,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handleGetWork);
 
+    //TODO: Rework this once policy store hack is removed
     String apiPathForUpdatingPolicy = ApiPathConstants.LEADER_POST_POLICY + "/:appId/:clusterId/:procName";
     HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, apiPathForUpdatingPolicy,
-            BodyHandler.create().setBodyLimit(1024 * 10), this::handlePostPolicy);
+            BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPolicy);
 
     return router;
   }
