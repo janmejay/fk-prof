@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
+import fk.prof.backend.model.policy.PolicyStore;
+import fk.prof.backend.proto.BackendDTO;
 import fk.prof.recorder.main.Burn20And80PctCpu;
 import fk.prof.recorder.main.Burn50And50PctCpu;
 import fk.prof.recorder.utils.AgentRunner;
@@ -22,7 +24,9 @@ import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.hamcrest.Matchers;
 import org.junit.*;
+import recording.Recorder;
 
+import java.io.ByteArrayOutputStream;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,7 +84,7 @@ public class E2EIntegrationTest {
         curator.start();
         curator.blockUntilConnected(10000, TimeUnit.MILLISECONDS);
         assert curator.getState() == CuratorFrameworkState.STARTED;
-        ensureZkRootnode();
+        ensureZkRootnodeAndData();
 
         buildDefaultRecorderParams();
     }
@@ -93,9 +97,9 @@ public class E2EIntegrationTest {
             client.deleteObject(obj.getBucketName(), obj.getKey());
         });
 
-//         clear up zookeeper
+        // clear up zookeeper
         curator.delete().deletingChildrenIfNeeded().forPath("/" + zkNamespace);
-        ensureZkRootnode();
+        ensureZkRootnodeAndData();
     }
 
     @After
@@ -135,9 +139,6 @@ public class E2EIntegrationTest {
 
         try {
             waitForOpenPort("127.0.0.1", 8082);
-
-            HttpResponse<String> response = Unirest.get("http://127.0.0.1:8082/").asString();
-            Assert.assertThat(response.getStatus(), is(200));
         }
         finally {
             userapi.stop();
@@ -404,27 +405,47 @@ public class E2EIntegrationTest {
         }
     }
 
-    private static void ensureZkRootnode() throws Exception {
+    private static void ensureZkRootnodeAndData() throws Exception {
         try {
             curator.create().forPath("/" + zkNamespace);
         } catch (KeeperException.NodeExistsException ex) {
             // ignore
         }
-    }
 
-//    public void test_runForeverS3MockAndZookeeper() throws Exception {
-//        Thread.sleep(Integer.MAX_VALUE);
-//    }
-//
-//    public void testBackendByStartingUserapi() throws Exception {
-//        // start all components
-//        userapi = new UserapiProcess(FileResolver.resourceFile("/conf/userapi_1.json"));
-//        userapi.start();
-//
-//        waitForSocket("127.0.0.1", 8082);
-//
-//        Thread.sleep(Integer.MAX_VALUE);
-//    }
+        try {
+            curator.create().forPath("/" + zkNamespace + PolicyStore.policyStorePath);
+        } catch (KeeperException.NodeExistsException ex) {
+            // ignore
+        }
+
+        // add policy data
+        BackendDTO.RecordingPolicy policy = BackendDTO.RecordingPolicy.newBuilder()
+            .setDuration(30)
+            .setCoveragePct(100)
+            .setDescription("Test work profile")
+            .addWork(BackendDTO.Work.newBuilder()
+                    .setWType(BackendDTO.WorkType.cpu_sample_work)
+                    .setCpuSample(BackendDTO.CpuSampleWork.newBuilder().setFrequency(50).setMaxFrames(64))
+                    .build())
+            .build();
+
+        Recorder.ProcessGroup.Builder pgBuilder = Recorder.ProcessGroup.newBuilder();
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+
+        pgBuilder.setAppId("bar-app_1").setCluster("quux-cluster_1").setProcName("grault-proc_1");
+        pgBuilder.build().writeDelimitedTo(bout);
+        policy.writeDelimitedTo(bout);
+
+        pgBuilder.setAppId("bar-app_2").setCluster("quux-cluster_2").setProcName("grault-proc_2");
+        pgBuilder.build().writeDelimitedTo(bout);
+        policy.writeDelimitedTo(bout);
+
+        pgBuilder.setAppId("bar-app_3").setCluster("quux-cluster_3").setProcName("grault-proc_3");
+        pgBuilder.build().writeDelimitedTo(bout);
+        policy.writeDelimitedTo(bout);
+
+        curator.setData().forPath("/" + zkNamespace + PolicyStore.policyStorePath, bout.toByteArray());
+    }
 
     private static void buildDefaultRecorderParams() {
         recorderParams = new LinkedHashMap<>();
