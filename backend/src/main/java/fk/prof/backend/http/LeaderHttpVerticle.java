@@ -192,6 +192,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       Recorder.ProcessGroup pg = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
 
       policyStore.put(pg, policy);
+      context.response().end();
     }
     catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
