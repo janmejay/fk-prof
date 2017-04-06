@@ -5,7 +5,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.primitives.Ints;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
@@ -20,6 +19,8 @@ import fk.prof.backend.request.profile.impl.SharedMapBasedSingleProcessingOfProf
 import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -57,8 +58,8 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private ProfHttpClient httpClient;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "self"));
-  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "req", "ldr", "unknown"));
+  private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricName.Backend_Self_Leader_Request.get());
+  private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricName.Backend_Unknown_Leader_Request.get());
 
   public BackendHttpVerticle(ConfigManager configManager,
                              LeaderReadContext leaderReadContext,
@@ -158,9 +159,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
       }
 
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(pollReq.getRecorderInfo());
-      ProcessGroupTag processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
-      Meter mtrAssocMiss = metricRegistry.meter(MetricRegistry.name(BackendHttpVerticle.class, "poll.assoc", "miss", processGroupTag.toString()));
-      Counter ctrWinMiss = metricRegistry.counter(MetricRegistry.name(BackendHttpVerticle.class, "poll.window", "miss", processGroupTag.toString()));
+      String processGroupStr = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName()).toString();
+      Meter mtrAssocMiss = metricRegistry.meter(MetricRegistry.name(MetricName.Poll_Assoc_Miss.get(), processGroupStr));
+      Counter ctrWinMiss = metricRegistry.counter(MetricRegistry.name(MetricName.Poll_Window_Miss.get(), processGroupStr));
 
       ProcessGroupContextForPolling processGroupContextForPolling = this.processGroupDiscoveryContext.getProcessGroupContextForPolling(processGroup);
       if(processGroupContextForPolling == null) {

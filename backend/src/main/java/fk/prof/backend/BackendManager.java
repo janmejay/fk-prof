@@ -17,6 +17,7 @@ import fk.prof.backend.model.association.impl.ZookeeperBasedBackendAssociationSt
 import fk.prof.backend.model.election.impl.InMemoryLeaderStore;
 import fk.prof.backend.model.aggregation.impl.ActiveAggregationWindowsImpl;
 import fk.prof.backend.model.policy.PolicyStore;
+import fk.prof.metrics.MetricName;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
@@ -140,7 +141,7 @@ public class BackendManager {
   private void initStorage() {
     JsonObject s3Config = configManager.getS3Config();
     JsonObject threadPoolConfig = configManager.getStorageThreadPoolConfig();
-    Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(S3AsyncStorage.class, "threadpool.rejections"));
+    Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricName.S3_Threadpool_Rejection.get());
 
     // thread pool with bounded queue for s3 io.
     BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getInteger("queue.maxsize"));
@@ -199,7 +200,7 @@ public class BackendManager {
 
   private MetricsOptions buildMetricsOptions() {
     MetricsOptions metricsOptions = new DropwizardMetricsOptions()
-        .setJmxDomain("fk.prof.backend")
+        .setJmxDomain("fk.prof")
         .setEnabled(true)
         .setJmxEnabled(true)
         .setRegistryName(ConfigManager.METRIC_REGISTRY)

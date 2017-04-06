@@ -4,7 +4,8 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.backend.ConfigManager;
-import fk.prof.backend.model.assignment.BackendTag;
+import fk.prof.metrics.BackendTag;
+import fk.prof.metrics.MetricName;
 import recording.Recorder;
 
 import java.io.IOException;
@@ -41,9 +42,9 @@ public class BackendDetail {
     this.associatedProcessGroups = associatedProcessGroups == null ? new HashSet<>() : associatedProcessGroups;
 
     String backendTagStr = new BackendTag(backend.getHost(), backend.getPort()).toString();
-    this.mtrLoadComplete = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "complete", backendTagStr));
-    this.mtrLoadReset = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "reset", backendTagStr));
-    this.mtrLoadStale = metricRegistry.meter(MetricRegistry.name(BackendDetail.class, "load.report", "stale", backendTagStr));
+    this.mtrLoadComplete = metricRegistry.meter(MetricRegistry.name(MetricName.Backend_LoadReport_Complete.get(), backendTagStr));
+    this.mtrLoadReset = metricRegistry.meter(MetricRegistry.name(MetricName.Backend_LoadReport_Reset.get(), backendTagStr));
+    this.mtrLoadStale = metricRegistry.meter(MetricRegistry.name(MetricName.Backend_LoadReport_Stale.get(), backendTagStr));
   }
 
   /**

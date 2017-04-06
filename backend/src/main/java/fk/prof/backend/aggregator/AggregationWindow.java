@@ -4,7 +4,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.aggregation.FinalizableBuilder;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.model.FinalizedAggregationWindow;
 import fk.prof.aggregation.model.FinalizedProfileWorkInfo;
 import fk.prof.aggregation.state.AggregationState;
@@ -12,6 +11,8 @@ import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.aggregation.ActiveAggregationWindows;
 import fk.prof.backend.model.profile.RecordedProfileIndexes;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import recording.Recorder;
 
 import java.time.Clock;
@@ -49,8 +50,8 @@ public class AggregationWindow extends FinalizableBuilder<FinalizedAggregationWi
 
     this.processGroupTag = new ProcessGroupTag(appId, clusterId, procId);
     String processGroupTagStr = this.processGroupTag.toString();
-    this.mtrStateTransitionFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "state.transition", "fail", processGroupTagStr));
-    this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(AggregationWindow.class, "cpusampling.aggr", "fail", processGroupTagStr));
+    this.mtrStateTransitionFailures = metricRegistry.meter(MetricRegistry.name(MetricName.AW_State_Transition_Failure.get(), processGroupTagStr));
+    this.mtrCSAggrFailures = metricRegistry.meter(MetricRegistry.name(MetricName.AW_CpuSampling_Aggregation_Failure.get(), processGroupTagStr));
   }
 
   public AggregationState startProfile(long workId, int recorderVersion, LocalDateTime startedAt) throws AggregationFailure {

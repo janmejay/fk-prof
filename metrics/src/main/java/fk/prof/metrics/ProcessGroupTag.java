@@ -1,16 +1,13 @@
-package fk.prof.aggregation;
+package fk.prof.metrics;
 
 public class ProcessGroupTag {
   public static final ProcessGroupTag EMPTY = new ProcessGroupTag("", "", "");
+  private static final String prefix = "pgt.";
 
   private final String value;
 
-  private ProcessGroupTag(String value) {
-    this.value = "pgt." + value;
-  }
-
   public ProcessGroupTag(final String appId, final String clusterId, final String procName) {
-    this(String.join("_", appId, clusterId, procName));
+    this.value = prefix + Util.encodeTags(appId, clusterId, procName);
   }
 
   @Override
