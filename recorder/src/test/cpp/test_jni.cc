@@ -1,8 +1,8 @@
 #include "test_jni.hh"
 #include "../../main/cpp/perf_ctx.hh"
 #include "../../main/cpp/globals.hh"
-#include "../../main/cpp/thread_map.hh"
 #include "../../main/cpp/profile_writer.hh"
+#include "../../main/cpp/thread_map.hh"
 #include "test_profile.hh"
 #include "test.hh"
 #include <jni.h>

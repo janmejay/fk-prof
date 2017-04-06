@@ -41,7 +41,8 @@ class ProfileComponent extends React.Component {
     const list = isCollapsed
       ? tracesScore.slice(0, 3) :
         tracesScore.filter(t => t.name.indexOf(this.state.filterText) > -1);
-
+    const selectedTraceName = this.props.params.traceName;
+    const selectedProfile = this.props.location.query.profileStart;
     return (
       <div className={styles['main']}>
         <h4 className={styles.heading}>{this.props.heading}</h4>
@@ -63,7 +64,10 @@ class ProfileComponent extends React.Component {
         <ol>
           {list && list.map(l => (
             <li key={l.name}>
-              <Link to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.start } })}>
+              <Link
+                to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.start } })}
+                className={(l.name === selectedTraceName && this.props.start === selectedProfile) ? styles.highlighted : ''}
+              >
                 {l.name}
               </Link>
             </li>

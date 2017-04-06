@@ -65,6 +65,7 @@ class ProfileListComponent extends Component {
 
       const sortedProfiles = profiles.data.succeeded
         .slice()
+        .filter(p => p.traces.length)
         .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
 
       return (
