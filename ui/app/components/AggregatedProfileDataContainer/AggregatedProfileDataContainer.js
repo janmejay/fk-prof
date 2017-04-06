@@ -33,6 +33,7 @@ class AggregatedProfileDataContainer extends React.Component {
   componentWillReceiveProps (nextProps) {
     // if there's already a selected workType,
     // and user clicked a different profile, handle!
+    // also handle if a different trace is clicked
     if (nextProps.location.query.selectedWorkType) {
       // see if availableWorkTypes have it
       const isSelectedWorkTypeValid = nextProps.workTypes

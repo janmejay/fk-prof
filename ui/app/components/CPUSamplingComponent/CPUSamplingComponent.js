@@ -24,6 +24,24 @@ export class CPUSamplingComponent extends Component {
     });
   }
 
+  componentWillReceiveProps (nextProps) {
+    const { app, cluster, proc, workType, profileStart, selectedWorkType } = nextProps.location.query;
+    const didTraceNameChange = this.props.params.traceName !== nextProps.params.traceName;
+    const didProfileChange = profileStart !== this.props.location.query.profileStart;
+    if (didTraceNameChange || didProfileChange) {
+      const { traceName } = nextProps.params;
+      this.props.fetchCPUSampling({
+        app,
+        cluster,
+        proc,
+        workType,
+        selectedWorkType,
+        traceName,
+        query: { start: profileStart },
+      });
+    }
+  }
+
   render () {
     const { app, cluster, proc, fullScreen, profileStart } = this.props.location.query;
     const { traceName } = this.props.params;
