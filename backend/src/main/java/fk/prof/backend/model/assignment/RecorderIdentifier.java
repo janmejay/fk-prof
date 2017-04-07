@@ -1,6 +1,7 @@
 package fk.prof.backend.model.assignment;
 
 import com.google.common.base.Preconditions;
+import fk.prof.metrics.RecorderTag;
 import recording.Recorder;
 
 public class RecorderIdentifier {
@@ -15,6 +16,8 @@ public class RecorderIdentifier {
   private final String zone;
   private final String instanceType;
 
+  private final RecorderTag recorderTag;
+
   public RecorderIdentifier(String ip, String hostname, String appId, String instanceGrp, String cluster,
                             String instanceId, String procName, String vmId, String zone, String instanceType) {
     this.ip = Preconditions.checkNotNull(ip);
@@ -27,6 +30,7 @@ public class RecorderIdentifier {
     this.vmId = Preconditions.checkNotNull(vmId);
     this.zone = Preconditions.checkNotNull(zone);
     this.instanceType = Preconditions.checkNotNull(instanceType);
+    this.recorderTag = new RecorderTag(this.ip, this.procName);
   }
 
   public static RecorderIdentifier from(Recorder.RecorderInfo recorderInfo) {
@@ -35,8 +39,8 @@ public class RecorderIdentifier {
         recorderInfo.getZone(), recorderInfo.getInstanceType());
   }
 
-  public String metricTag() {
-    return "rt." + this.ip + '_' + this.procName;
+  public RecorderTag metricTag() {
+    return this.recorderTag;
   }
 
   @Override

@@ -1,9 +1,9 @@
 package fk.prof.backend;
 
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.model.assignment.RecorderIdentifier;
 import fk.prof.backend.model.assignment.WorkAssignmentSchedule;
 import fk.prof.backend.model.assignment.WorkAssignmentScheduleBootstrapConfig;
+import fk.prof.metrics.ProcessGroupTag;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

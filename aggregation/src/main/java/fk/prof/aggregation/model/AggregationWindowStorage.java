@@ -2,9 +2,10 @@ package fk.prof.aggregation.model;
 
 import com.codahale.metrics.*;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.aggregation.serialize.Serializer;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.StreamTransformer;
 import fk.prof.storage.buffer.StorageBackedOutputStream;
@@ -50,7 +51,7 @@ public class AggregationWindowStorage {
     }
 
     private void store(FinalizedAggregationWindow aggregationWindow, AggregatedProfileModel.WorkType workType) throws IOException {
-        Timer tmr = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "store.complete", aggregationWindow.getProcessGroupTag().toString()));
+        Timer tmr = metricRegistry.timer(MetricRegistry.name(MetricName.AW_Store_Profile_Complete.get(), aggregationWindow.getProcessGroupTag().toString()));
         try (Timer.Context context = tmr.time()) {
             AggregatedProfileNamingStrategy filename = getFilename(aggregationWindow, workType);
             AggregationWindowSerializer serializer = new AggregationWindowSerializer(aggregationWindow, workType);
@@ -59,7 +60,7 @@ public class AggregationWindowStorage {
     }
 
     private void storeSummary(FinalizedAggregationWindow aggregationWindow) throws IOException {
-        Timer tmr = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "store.summary", aggregationWindow.getProcessGroupTag().toString()));
+        Timer tmr = metricRegistry.timer(MetricRegistry.name(MetricName.AW_Store_Summary_Complete.get(), aggregationWindow.getProcessGroupTag().toString()));
         try (Timer.Context context = tmr.time()) {
             AggregatedProfileNamingStrategy filename = getSummaryFilename(aggregationWindow);
             AggregationWindowSummarySerializer serializer = new AggregationWindowSummarySerializer(aggregationWindow);
@@ -72,10 +73,11 @@ public class AggregationWindowStorage {
             logger.debug("Attempting serialization and write of file: " + filename);
         }
 
-        Histogram histBytesWritten = metricRegistry.histogram(MetricRegistry.name(AggregationWindowStorage.class, "bytes", "written", processGroupTag.toString()));
-        Meter mtrWriteFailure = metricRegistry.meter(MetricRegistry.name(AggregationWindowStorage.class, "write", "fail", processGroupTag.toString()));
-        Timer tmrBuffPoolBorrow = metricRegistry.timer(MetricRegistry.name(AggregationWindowStorage.class, "buffpool", "borrow", processGroupTag.toString()));
-        Counter ctrBuffPoolFailures = metricRegistry.counter(MetricRegistry.name(AggregationWindowStorage.class, "buffpool", "fail", processGroupTag.toString()));
+        String processGroupStr = processGroupTag.toString();
+        Histogram histBytesWritten = metricRegistry.histogram(MetricRegistry.name(MetricName.AW_Store_Bytes.get(), processGroupStr));
+        Meter mtrWriteFailure = metricRegistry.meter(MetricRegistry.name(MetricName.AW_Store_Failure.get(), processGroupStr));
+        Timer tmrBuffPoolBorrow = metricRegistry.timer(MetricRegistry.name(MetricName.AW_BuffPool_Borrow.get(), processGroupStr));
+        Counter ctrBuffPoolFailures = metricRegistry.counter(MetricRegistry.name(MetricName.AW_Buffpool_Failure.get(), processGroupStr));
 
         OutputStream out = new StorageBackedOutputStream(bufferPool, storage, filename, histBytesWritten, mtrWriteFailure, tmrBuffPoolBorrow, ctrBuffPoolFailures);
         GZIPOutputStream gout;

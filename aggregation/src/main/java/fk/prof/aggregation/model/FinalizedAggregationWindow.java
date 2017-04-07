@@ -1,7 +1,7 @@
 package fk.prof.aggregation.model;
 
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.aggregation.proto.AggregatedProfileModel.*;
+import fk.prof.metrics.ProcessGroupTag;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;

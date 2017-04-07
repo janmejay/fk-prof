@@ -4,15 +4,16 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.protobuf.util.JsonFormat;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.exception.HttpFailure;
-import fk.prof.backend.model.assignment.BackendTag;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
+import fk.prof.metrics.BackendTag;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -84,9 +85,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   private void handlePostLoad(RoutingContext context) {
     try {
       BackendDTO.LoadReportRequest payload = ProtoUtil.buildProtoFromBuffer(BackendDTO.LoadReportRequest.parser(), context.getBody());
-      BackendTag backendTag = new BackendTag(payload.getIp(), payload.getPort());
-      Meter mtrFailure = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "load.report", "fail", backendTag.toString()));
-      Meter mtrSuccess = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "load.report", "success", backendTag.toString()));
+      String backendStr = new BackendTag(payload.getIp(), payload.getPort()).toString();
+      Meter mtrFailure = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_LoadReport_Failure.get(), backendStr));
+      Meter mtrSuccess = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_LoadReport_Success.get(), backendStr));
 
       backendAssociationStore.reportBackendLoad(payload).setHandler(ar -> {
         mtrSuccess.mark();
@@ -115,9 +116,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       Recorder.RecorderInfo recorderInfo = ProtoUtil.buildProtoFromBuffer(Recorder.RecorderInfo.parser(), context.getBody());
       Recorder.ProcessGroup processGroup = RecorderProtoUtil.mapRecorderInfoToProcessGroup(recorderInfo);
 
-      ProcessGroupTag processGroupTag = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
-      Meter mtrFailure = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "assoc", "fail", processGroupTag.toString()));
-      Meter mtrSuccess = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "assoc", "success", processGroupTag.toString()));
+      String processGroupStr = new ProcessGroupTag(processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName()).toString();
+      Meter mtrFailure = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_Assoc_Failure.get(), processGroupStr));
+      Meter mtrSuccess = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_Assoc_Success.get(), processGroupStr));
 
       backendAssociationStore.associateAndGetBackend(processGroup).setHandler(ar -> {
         //TODO: Evaluate if this lambda can be extracted out as a static variable/function if this is repetitive across the codebase
@@ -148,9 +149,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       String procName = context.request().getParam("procName");
       Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId(appId).setCluster(clusterId).setProcName(procName).build();
 
-      ProcessGroupTag processGroupTag = new ProcessGroupTag(appId, clusterId, procName);
-      Meter mtrAssocMiss = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "work.assoc", "miss", processGroupTag.toString()));
-      Meter mtrPolicyMiss = metricRegistry.meter(MetricRegistry.name(LeaderHttpVerticle.class, "work.policy", "miss", processGroupTag.toString()));
+      String processGroupStr = new ProcessGroupTag(appId, clusterId, procName).toString();
+      Meter mtrAssocMiss = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_Work_Assoc_Miss.get(), processGroupStr));
+      Meter mtrPolicyMiss = metricRegistry.meter(MetricRegistry.name(MetricName.Leader_Work_Policy_Miss.get(), processGroupStr));
 
       String backendIP = context.request().getParam("ip");
       int backendPort = Integer.valueOf(context.request().getParam("port"));

@@ -7,6 +7,7 @@ import com.google.common.base.Preconditions;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.proto.BackendProtoUtil;
+import fk.prof.metrics.MetricName;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -25,10 +26,10 @@ public class LeaderSelectorListenerImpl extends LeaderSelectorListenerAdapter {
   private final BackendDTO.LeaderDetail selfLeaderDetail;
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrLeaderElect = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "elect"));
-  private Counter ctrLeaderRelinquish = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "relinquish"));
-  private Counter ctrLeaderInterrupt = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader", "interrupt"));
-  private Counter ctrLeaderSuicideFailure = metricRegistry.counter(MetricRegistry.name(LeaderSelectorListener.class, "leader.suicide", "fail"));
+  private Counter ctrLeaderElect = metricRegistry.counter(MetricName.Election_Completed.get());
+  private Counter ctrLeaderRelinquish = metricRegistry.counter(MetricName.Election_Relinquished.get());
+  private Counter ctrLeaderInterrupt = metricRegistry.counter(MetricName.Election_Interrupted.get());
+  private Counter ctrLeaderSuicideFailure = metricRegistry.counter(MetricName.Election_Suicide_Failure.get());
 
 
   public LeaderSelectorListenerImpl(String ipAddress, int leaderHttpPort, String leaderWatchingPath, KillBehavior killBehavior, Runnable leaderElectedTask) {

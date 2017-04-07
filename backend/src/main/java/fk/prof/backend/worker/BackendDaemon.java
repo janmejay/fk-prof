@@ -18,6 +18,7 @@ import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ProtoUtil;
 import fk.prof.backend.util.URLUtil;
 import fk.prof.backend.util.proto.RecorderProtoUtil;
+import fk.prof.metrics.MetricName;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
@@ -49,9 +50,9 @@ public class BackendDaemon extends AbstractVerticle {
   private int loadTickCounter = 0;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final Meter mtrLoadReportSuccess = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "success"));
-  private final Meter mtrLoadReportFailure = metricRegistry.meter(MetricRegistry.name(BackendDaemon.class, "load.report", "fail"));
-  private final Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricRegistry.name(BackendDaemon.class, "ldr.unknown", "req"));
+  private final Meter mtrLoadReportSuccess = metricRegistry.meter(MetricName.Daemon_LoadReport_Success.get());
+  private final Meter mtrLoadReportFailure = metricRegistry.meter(MetricName.Daemon_LoadReport_Failure.get());
+  private final Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricName.Daemon_Unknown_Leader_Request.get());
 
   public BackendDaemon(ConfigManager configManager,
                        LeaderReadContext leaderReadContext,

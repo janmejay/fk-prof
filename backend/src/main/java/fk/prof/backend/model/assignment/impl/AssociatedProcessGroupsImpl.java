@@ -6,6 +6,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.model.assignment.*;
+import fk.prof.metrics.MetricName;
 import recording.Recorder;
 
 import java.util.Map;
@@ -22,7 +23,7 @@ public class AssociatedProcessGroupsImpl implements AssociatedProcessGroups, Pro
   public AssociatedProcessGroupsImpl(int thresholdForDefunctRecorderInSecs) {
     this.thresholdForDefunctRecorderInSecs = thresholdForDefunctRecorderInSecs;
     try {
-      metricRegistry.register(MetricRegistry.name(AssociatedProcessGroups.class, "count"),
+      metricRegistry.register(MetricName.Backend_Association_Count.get(),
           new CachedGauge<Integer>(1, TimeUnit.MINUTES) {
             @Override
             protected Integer loadValue() {

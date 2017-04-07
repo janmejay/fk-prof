@@ -6,6 +6,7 @@ import com.codahale.metrics.SharedMetricRegistries;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.model.election.LeaderWriteContext;
 import fk.prof.backend.proto.BackendDTO;
+import fk.prof.metrics.MetricName;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -25,7 +26,7 @@ public class LeaderElectionWatcher extends AbstractVerticle {
   private String leaderWatchingPath;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final Counter ctrZKWatchFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectionWatcher.class, "zk.watch", "fail"));
+  private final Counter ctrZKWatchFailure = metricRegistry.counter(MetricName.Election_Watch_Failure.get());
 
   public LeaderElectionWatcher(CuratorFramework curatorClient, LeaderWriteContext leaderWriteContext) {
     this.curatorClient = curatorClient;
