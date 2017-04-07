@@ -6,6 +6,7 @@ import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.deployer.VerticleDeployer;
+import fk.prof.metrics.MetricName;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -25,7 +26,7 @@ public class LeaderElectedTask implements Runnable {
   private static Logger logger = LoggerFactory.getLogger(LeaderElectedTask.class);
 
   private MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private Counter ctrFailure = metricRegistry.counter(MetricRegistry.name(LeaderElectedTask.class, "fail"));
+  private Counter ctrFailure = metricRegistry.counter(MetricName.Election_Task_Failure.get());
 
   private Supplier<CompositeFuture> backendVerticlesUndeployer = null;
   private VerticleDeployer leaderHttpVerticlesDeployer;

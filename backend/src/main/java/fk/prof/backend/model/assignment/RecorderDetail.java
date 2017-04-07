@@ -5,6 +5,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
 import fk.prof.backend.ConfigManager;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.RecorderTag;
 import recording.Recorder;
 
 public class RecorderDetail {
@@ -24,10 +26,10 @@ public class RecorderDetail {
     this.recorderIdentifier = Preconditions.checkNotNull(recorderIdentifier);
     this.thresholdForDefunctRecorderInNanos = (long)(thresholdForDefunctRecorderInSecs * NANOSECONDS_IN_SECOND);
 
-    String backendTagStr = recorderIdentifier.metricTag();
-    this.mtrPollComplete = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "complete", backendTagStr));
-    this.mtrPollReset = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "reset", backendTagStr));
-    this.mtrPollStale = metricRegistry.meter(MetricRegistry.name(RecorderDetail.class, "poll", "stale", backendTagStr));
+    String recorderStr = recorderIdentifier.metricTag().toString();
+    this.mtrPollComplete = metricRegistry.meter(MetricRegistry.name(MetricName.Recorder_Poll_Complete.get(), recorderStr));
+    this.mtrPollReset = metricRegistry.meter(MetricRegistry.name(MetricName.Recorder_Poll_Reset.get(), recorderStr));
+    this.mtrPollStale = metricRegistry.meter(MetricRegistry.name(MetricName.Recorder_Poll_Stale.get(), recorderStr));
   }
 
   public synchronized boolean receivePoll(Recorder.PollReq pollReq) {

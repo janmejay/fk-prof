@@ -5,8 +5,9 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.base.Preconditions;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import recording.Recorder;
@@ -37,9 +38,7 @@ public class WorkAssignmentSchedule {
   private final ReentrantLock entriesLock = new ReentrantLock();
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
-  private final Counter ctrEntriesLockTimeout = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "timeout"));
-  private final Counter ctrEntriesLockInterrupt = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "entries.lock", "interrupt"));
-  private final Counter ctrImpossible, ctrAssignmentFetchFail;
+  private final Counter ctrEntriesLockTimeout, ctrEntriesLockInterrupt, ctrAssignmentFetchFail;
   private final Meter mtrSchedulingMiss;
 
   public WorkAssignmentSchedule(WorkAssignmentScheduleBootstrapConfig bootstrapConfig,
@@ -56,9 +55,9 @@ public class WorkAssignmentSchedule {
     int dEffectiveProfileLen = dProfileLen + bootstrapConfig.getSchedulingBufferInSecs();
     int cMaxSerial = dEffectiveWinLen / dEffectiveProfileLen;
 
-    this.ctrImpossible = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "impossible", processGroupTag.toString()));
     if(cMaxSerial == 0) {
-      this.ctrImpossible.inc();
+      Counter ctrImpossible = metricRegistry.counter(MetricRegistry.name(MetricName.WA_Scheduling_Impossible.get(), processGroupTag.toString()));
+      ctrImpossible.inc();
       throw new IllegalArgumentException("Not possible to schedule any work assignment because effective length of single profile=" + dEffectiveProfileLen +
           " is greater than effective aggregation window length=" + dEffectiveWinLen);
     }
@@ -72,8 +71,11 @@ public class WorkAssignmentSchedule {
       this.entries.add(new ScheduleEntry(workAssignmentBuilders[i], nEntryStartPad));
     }
 
-    this.ctrAssignmentFetchFail = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "assignment.fetch", "fail", processGroupTag.toString()));
-    this.mtrSchedulingMiss = metricRegistry.meter(MetricRegistry.name(WorkAssignmentSchedule.class, "scheduling", "miss", processGroupTag.toString()));
+    String processGroupStr = processGroupTag.toString();
+    this.ctrEntriesLockTimeout = metricRegistry.counter(MetricRegistry.name(MetricName.WA_Entries_Lock_Timeout.get(), processGroupStr));
+    this.ctrEntriesLockInterrupt = metricRegistry.counter(MetricRegistry.name(MetricName.WA_Entries_Lock_Interrupt.get(), processGroupStr));
+    this.ctrAssignmentFetchFail = metricRegistry.counter(MetricRegistry.name(MetricName.WA_Fetch_Failure.get(), processGroupStr));
+    this.mtrSchedulingMiss = metricRegistry.meter(MetricRegistry.name(MetricName.WA_Scheduling_Miss.get(), processGroupStr));
   }
 
   /**
@@ -96,7 +98,7 @@ public class WorkAssignmentSchedule {
    * @return WorkAssignment or null
    */
   public Recorder.WorkAssignment getNextWorkAssignment(RecorderIdentifier recorderIdentifier) {
-    Counter ctrAssignment = metricRegistry.counter(MetricRegistry.name(WorkAssignmentSchedule.class, "available", recorderIdentifier.metricTag()));
+    Counter ctrAssignment = metricRegistry.counter(MetricRegistry.name(MetricName.Recorder_Assignment_Available.get(), recorderIdentifier.metricTag().toString()));
     try {
       boolean acquired = entriesLock.tryLock(100, TimeUnit.MILLISECONDS);
       if(acquired) {

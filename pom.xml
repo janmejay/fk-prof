@@ -18,6 +18,7 @@
         <module>e2etest</module>
         <module>storage</module>
         <module>aggregation</module>
+        <module>metrics</module>
     </modules>
 
     <properties>

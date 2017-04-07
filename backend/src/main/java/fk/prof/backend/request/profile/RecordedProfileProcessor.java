@@ -1,7 +1,6 @@
 package fk.prof.backend.request.profile;
 
 import com.codahale.metrics.*;
-import fk.prof.aggregation.ProcessGroupTag;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
@@ -13,6 +12,8 @@ import fk.prof.backend.request.CompositeByteBufInputStream;
 import fk.prof.backend.request.profile.parser.RecordedProfileHeaderParser;
 import fk.prof.backend.request.profile.parser.WseParser;
 import fk.prof.backend.model.aggregation.AggregationWindowDiscoveryContext;
+import fk.prof.metrics.MetricName;
+import fk.prof.metrics.ProcessGroupTag;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.logging.Logger;
@@ -48,7 +49,7 @@ public class RecordedProfileProcessor implements Handler<Buffer> {
   private Histogram histChunkSize;
   private Timer tmrChunkIdle;
   private Meter mtrChunkBytes, mtrPayloadInvalid, mtrPayloadCorrupt;
-  private final Counter ctrAggrWinMiss = metricRegistry.counter(MetricRegistry.name(RecordedProfileProcessor.class, "window", "miss"));
+  private final Counter ctrAggrWinMiss = metricRegistry.counter(MetricName.Profile_Window_Miss.get());
 
   public RecordedProfileProcessor(RoutingContext context,
                                   AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
@@ -204,11 +205,11 @@ public class RecordedProfileProcessor implements Handler<Buffer> {
 
   private void setupMetrics(ProcessGroupTag processGroupTag) {
     String processGroupTagStr = processGroupTag.toString();
-    this.histChunkSize = metricRegistry.histogram(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "size", processGroupTagStr));
-    this.tmrChunkIdle = metricRegistry.timer(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "idle", processGroupTagStr));
-    this.mtrChunkBytes = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "chunk", "bytes", processGroupTagStr));
-    this.mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "invalid", processGroupTagStr));
-    this.mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(RecordedProfileProcessor.class, "payload", "corrupt", processGroupTagStr));
+    this.histChunkSize = metricRegistry.histogram(MetricRegistry.name(MetricName.Profile_Chunk_Size.get(), processGroupTagStr));
+    this.tmrChunkIdle = metricRegistry.timer(MetricRegistry.name(MetricName.Profile_Chunk_Idle.get(), processGroupTagStr));
+    this.mtrChunkBytes = metricRegistry.meter(MetricRegistry.name(MetricName.Profile_Chunk_Bytes.get(), processGroupTagStr));
+    this.mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(MetricName.Profile_Payload_Invalid.get(), processGroupTagStr));
+    this.mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(MetricName.Profile_Payload_Corrupt.get(), processGroupTagStr));
   }
 
 }
