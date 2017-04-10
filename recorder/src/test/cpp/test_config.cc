@@ -28,7 +28,9 @@ TEST(ParsesAllOptions) {
                     "metrics_dst_port=10203,"
                     "noctx_cov_pct=25,"
                     "allow_sigprof=n,"
-                    "pctx_jar_path=/tmp/foo.jar");
+                    "pctx_jar_path=/tmp/foo.jar,"
+                    "rpc_timeout=7,"
+                    "slow_tx_tolerance=1.25");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -52,6 +54,8 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL(25, options.noctx_cov_pct);
     CHECK_EQUAL(false, options.allow_sigprof);
     CHECK_EQUAL("/tmp/foo.jar", options.pctx_jar_path);
+    CHECK_EQUAL(7, options.rpc_timeout);
+    CHECK_EQUAL(1.25, options.slow_tx_tolerance);
     CHECK_EQUAL(true, options.valid());
 
 }
@@ -141,6 +145,8 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL(11514, options.metrics_dst_port);
     CHECK_EQUAL(0, options.noctx_cov_pct);
     CHECK_EQUAL(true, options.allow_sigprof);
+    CHECK_EQUAL(10, options.rpc_timeout);
+    CHECK_EQUAL(1.5, options.slow_tx_tolerance);
     CHECK_EQUAL(true, options.valid());
 }
 

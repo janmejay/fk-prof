@@ -72,7 +72,9 @@ std::ostream& operator<<(std::ostream& os, const ConfigurationOptions* config) {
     PRINT_FIELD(metrics_dst_port, false);
     PRINT_FIELD_VALUE(noctx_cov_pct, static_cast<int>(config->noctx_cov_pct), false);
     PRINT_FIELD(allow_sigprof, false);
-    PRINT_FIELD(pctx_jar_path, true);
+    PRINT_FIELD(pctx_jar_path, false);
+    PRINT_FIELD(rpc_timeout, false);
+    PRINT_FIELD(slow_tx_tolerance, true);
     os << " }";
     return os;
 }
@@ -141,6 +143,10 @@ void ConfigurationOptions::load(const char* options) {
                     ((value[0] == 'y') || (value[0] == 'Y'));
             } else if (strstr(key, "pctx_jar_path") == key) {
                 pctx_jar_path = safe_copy_string(value, next);
+            } else if (strstr(key, "rpc_timeout") == key) {
+                rpc_timeout = static_cast<std::uint32_t>(atoi(value));
+            } else if (strstr(key, "slow_tx_tolerance") == key) {
+                slow_tx_tolerance = atof(value);
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
