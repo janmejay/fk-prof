@@ -56,7 +56,8 @@ public class WorkHandlingTest {
             "backoff_start=2," +
             "backoff_max=5," +
             "poll_itvl=1," +
-            "log_lvl=trace";
+            "log_lvl=trace," +
+            "stats_syslog_tag=foobar";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];
     private Function<byte[], byte[]>[] poll = new Function[18];

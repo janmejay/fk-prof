@@ -44,7 +44,8 @@ public class AssociationTest {
             "inst_typ=c0.small," +
             "backoff_start=2," +
             "backoff_max=5," +
-            "log_lvl=trace";
+            "log_lvl=trace," +
+            "stats_syslog_tag=foobar";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[10];
     private Function<byte[], byte[]>[] poll = new Function[10];

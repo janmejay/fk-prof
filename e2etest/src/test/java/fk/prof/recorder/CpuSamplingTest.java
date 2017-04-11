@@ -58,7 +58,8 @@ public class CpuSamplingTest {
             "backoff_start=2," +
             "backoff_max=5," +
             "poll_itvl=1," +
-            "log_lvl=trace";
+            "log_lvl=trace," +
+            "stats_syslog_tag=foobar";
     private static final String NOCTX_NAME = "~ OTHERS ~";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];

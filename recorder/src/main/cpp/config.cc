@@ -75,7 +75,8 @@ std::ostream& operator<<(std::ostream& os, const ConfigurationOptions* config) {
     PRINT_FIELD(pctx_jar_path, false);
     PRINT_FIELD(rpc_timeout, false);
     PRINT_FIELD(slow_tx_tolerance, false);
-    PRINT_FIELD(tx_ring_sz, true);
+    PRINT_FIELD(tx_ring_sz, false);
+    PRINT_FIELD(stats_syslog_tag, true);
     os << " }";
     return os;
 }
@@ -150,6 +151,8 @@ void ConfigurationOptions::load(const char* options) {
                 slow_tx_tolerance = atof(value);
             } else if (strstr(key, "tx_ring_sz") == key) {
                 tx_ring_sz = static_cast<std::uint32_t>(atoi(value));
+            } else if (strstr(key, "stats_syslog_tag") == key) {
+                stats_syslog_tag = safe_copy_string(value, next);
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
@@ -194,6 +197,7 @@ bool ConfigurationOptions::valid() {
     ENSURE_GT(rpc_timeout, 0);
     ENSURE_GT(slow_tx_tolerance, 1.0);
     ENSURE_GT(tx_ring_sz, 0);
+    ENSURE_NOT_NULL(stats_syslog_tag);
     return is_valid;
 }
 
@@ -210,4 +214,5 @@ ConfigurationOptions::~ConfigurationOptions()  {
     safe_free_string(zone);
     safe_free_string(inst_typ);
     safe_free_string(pctx_jar_path);
+    safe_free_string(stats_syslog_tag);
 }

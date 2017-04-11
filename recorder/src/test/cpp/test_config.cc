@@ -31,7 +31,8 @@ TEST(ParsesAllOptions) {
                     "pctx_jar_path=/tmp/foo.jar,"
                     "rpc_timeout=7,"
                     "slow_tx_tolerance=1.25,"
-                    "tx_ring_sz=102400");
+                    "tx_ring_sz=102400,"
+                    "stats_syslog_tag=foo");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -58,6 +59,7 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL(7, options.rpc_timeout);
     CHECK_EQUAL(1.25, options.slow_tx_tolerance);
     CHECK_EQUAL(102400, options.tx_ring_sz);
+    CHECK_EQUAL("foo", options.stats_syslog_tag);
     CHECK_EQUAL(true, options.valid());
 
 }
@@ -76,7 +78,8 @@ TEST(Understand_AllowSigprof) {
                     "zone=waldo_zone,"
                     "inst_type=c0.medium,"
                     "allow_sigprof=y,"
-                    "pctx_jar_path=/tmp/foo.jar");
+                    "pctx_jar_path=/tmp/foo.jar,"
+                    "stats_syslog_tag=foo");
 
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL(true, options.allow_sigprof);
@@ -94,7 +97,8 @@ TEST(Understand_AllowSigprof) {
     "vm_id=garply_vm_id,"                                            \
     "zone=waldo_zone,"                                               \
     "inst_type=c0.medium,"                                           \
-    "pctx_jar_path=/tmp/foo.jar,"
+    "pctx_jar_path=/tmp/foo.jar,"                                    \
+    "stats_syslog_tag=bar,"
 
 TEST(Understand_Match_allow_sigprof_field_value_case_insensitively) {
     TestEnv _;
@@ -123,7 +127,8 @@ TEST(DefaultAppropriately) {
                     "vm_id=garply_vm_id,"
                     "zone=waldo_zone,"
                     "inst_type=c0.medium,"
-                    "pctx_jar_path=/tmp/quux.jar");
+                    "pctx_jar_path=/tmp/quux.jar,"
+                    "stats_syslog_tag=bar");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -150,6 +155,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL(10, options.rpc_timeout);
     CHECK_EQUAL(1.5, options.slow_tx_tolerance);
     CHECK_EQUAL(1024 * 1024, options.tx_ring_sz);
+    CHECK_EQUAL("bar", options.stats_syslog_tag);
     CHECK_EQUAL(true, options.valid());
 }
 
@@ -209,7 +215,8 @@ TEST(Validity) {
             "pctx_jar_path=/tmp/foo.jar",
             "rpc_timeout=10",
             "slow_tx_tolerance=1.2",
-            "tx_ring_sz=102400"};
+            "tx_ring_sz=102400",
+            "stats_syslog_tag=quux"};
 
     ASSERT_INVALID_WITHOUT(opts, "service_endpoint");
     ASSERT_INVALID_WITHOUT(opts, "ip");
@@ -226,6 +233,7 @@ TEST(Validity) {
     ASSERT_INVALID_WITH_VALUE(opts, "rpc_timeout", 0);
     ASSERT_INVALID_WITH_VALUE(opts, "slow_tx_tolerance", 0.99);
     ASSERT_INVALID_WITH_VALUE(opts, "tx_ring_sz", 0);
+    ASSERT_INVALID_WITHOUT(opts, "stats_syslog_tag");
 }
 
 

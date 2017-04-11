@@ -53,6 +53,8 @@ struct ConfigurationOptions {
     double slow_tx_tolerance;
     std::uint32_t tx_ring_sz;
 
+    char* stats_syslog_tag;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -72,7 +74,8 @@ struct ConfigurationOptions {
         pctx_jar_path(nullptr),
         rpc_timeout(10),
         slow_tx_tolerance(1.5),
-        tx_ring_sz(1024 * 1024) {
+        tx_ring_sz(1024 * 1024),
+        stats_syslog_tag(nullptr) {
 
         load(options);
     }
