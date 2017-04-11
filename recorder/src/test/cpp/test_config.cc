@@ -30,7 +30,8 @@ TEST(ParsesAllOptions) {
                     "allow_sigprof=n,"
                     "pctx_jar_path=/tmp/foo.jar,"
                     "rpc_timeout=7,"
-                    "slow_tx_tolerance=1.25");
+                    "slow_tx_tolerance=1.25,"
+                    "tx_ring_sz=102400");
     
     ConfigurationOptions options(str.c_str());
     CHECK_EQUAL("http://10.20.30.40:9070", options.service_endpoint);
@@ -56,6 +57,7 @@ TEST(ParsesAllOptions) {
     CHECK_EQUAL("/tmp/foo.jar", options.pctx_jar_path);
     CHECK_EQUAL(7, options.rpc_timeout);
     CHECK_EQUAL(1.25, options.slow_tx_tolerance);
+    CHECK_EQUAL(102400, options.tx_ring_sz);
     CHECK_EQUAL(true, options.valid());
 
 }
@@ -147,6 +149,7 @@ TEST(DefaultAppropriately) {
     CHECK_EQUAL(true, options.allow_sigprof);
     CHECK_EQUAL(10, options.rpc_timeout);
     CHECK_EQUAL(1.5, options.slow_tx_tolerance);
+    CHECK_EQUAL(1024 * 1024, options.tx_ring_sz);
     CHECK_EQUAL(true, options.valid());
 }
 
@@ -163,6 +166,23 @@ TEST(DefaultAppropriately) {
         auto str = ss.str();                           \
         ConfigurationOptions opts(str.c_str());        \
         CHECK_EQUAL(false, opts.valid());              \
+    }
+
+#define ASSERT_INVALID_WITH_VALUE(str_vec, key, value)  \
+    {                                                   \
+        std::stringstream ss;                           \
+        bool first = true;                              \
+        for (const auto& opt : str_vec) {               \
+            if (! first) ss << ",";                     \
+            first = false;                              \
+            if (opt.find(key) == 0) {                   \
+                ss << key << "=" << value;              \
+            };                                          \
+            ss << opt;                                  \
+        }                                               \
+        auto str = ss.str();                            \
+        ConfigurationOptions opts(str.c_str());         \
+        CHECK_EQUAL(false, opts.valid());               \
     }
 
 TEST(Validity) {
@@ -186,7 +206,10 @@ TEST(Validity) {
             "poll_itvl=30",
             "metrics_dst_port=10203",
             "noctx_cov_pct=25",
-            "pctx_jar_path=/tmp/foo.jar"};
+            "pctx_jar_path=/tmp/foo.jar",
+            "rpc_timeout=10",
+            "slow_tx_tolerance=1.2",
+            "tx_ring_sz=102400"};
 
     ASSERT_INVALID_WITHOUT(opts, "service_endpoint");
     ASSERT_INVALID_WITHOUT(opts, "ip");
@@ -200,6 +223,9 @@ TEST(Validity) {
     ASSERT_INVALID_WITHOUT(opts, "zone");
     ASSERT_INVALID_WITHOUT(opts, "inst_typ");
     ASSERT_INVALID_WITHOUT(opts, "pctx_jar_path");
+    ASSERT_INVALID_WITH_VALUE(opts, "rpc_timeout", 0);
+    ASSERT_INVALID_WITH_VALUE(opts, "slow_tx_tolerance", 0.99);
+    ASSERT_INVALID_WITH_VALUE(opts, "tx_ring_sz", 0);
 }
 
 

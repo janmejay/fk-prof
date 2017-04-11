@@ -51,6 +51,7 @@ struct ConfigurationOptions {
 
     std::uint32_t rpc_timeout;
     double slow_tx_tolerance;
+    std::uint32_t tx_ring_sz;
 
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
@@ -70,7 +71,8 @@ struct ConfigurationOptions {
         allow_sigprof(true),
         pctx_jar_path(nullptr),
         rpc_timeout(10),
-        slow_tx_tolerance(1.5) {
+        slow_tx_tolerance(1.5),
+        tx_ring_sz(1024 * 1024) {
 
         load(options);
     }
