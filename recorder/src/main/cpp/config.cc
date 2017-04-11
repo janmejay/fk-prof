@@ -204,6 +204,7 @@ ConfigurationOptions::~ConfigurationOptions()  {
     safe_free_string(app_id);
     safe_free_string(inst_grp);
     safe_free_string(cluster);
+    safe_free_string(inst_id);
     safe_free_string(proc);
     safe_free_string(vm_id);
     safe_free_string(zone);
