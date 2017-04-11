@@ -28,6 +28,7 @@ import java.util.function.Function;
 import java.util.zip.Adler32;
 
 import static fk.prof.recorder.AssociationTest.rc;
+import static fk.prof.recorder.utils.Matchers.approximately;
 import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -55,9 +56,7 @@ public class WorkHandlingTest {
             "backoff_start=2," +
             "backoff_max=5," +
             "poll_itvl=1," +
-            "log_lvl=trace," +
-            "tx_ring_sz=10," +
-            "slow_tx_tolerance=1.01";
+            "log_lvl=trace";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];
     private Function<byte[], byte[]>[] poll = new Function[18];
@@ -339,6 +338,7 @@ public class WorkHandlingTest {
             return null;
         };
 
+        setRunner(DEFAULT_ARGS + ",tx_ring_sz=10,slow_tx_tolerance=1.01");
         runner.start();
 
         assocAction[0].get(4, TimeUnit.SECONDS);
@@ -484,7 +484,7 @@ public class WorkHandlingTest {
         assertThat(ctx, workLastIssued.getWorkId(), is(expectedId));
         assertThat(ctx, workLastIssued.getWorkResult(), is(result));
         assertThat(ctx, workLastIssued.getWorkState(), is(state));
-        assertThat(ctx, workLastIssued.getElapsedTime(), is(elapsedTime));
+        assertThat(ctx, (long) workLastIssued.getElapsedTime(), approximately(elapsedTime, 1));
     }
 
     public static void assertWorkStateAndResultIs(Recorder.WorkResponse workLastIssued, long expectedId, final Recorder.WorkResponse.WorkState state, final Recorder.WorkResponse.WorkResult result, final int elapsedTime) {
