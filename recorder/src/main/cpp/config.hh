@@ -49,6 +49,10 @@ struct ConfigurationOptions {
 
     char* pctx_jar_path;
 
+    std::uint32_t rpc_timeout;
+    double slow_tx_tolerance;
+    std::uint32_t tx_ring_sz;
+
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
@@ -65,7 +69,10 @@ struct ConfigurationOptions {
         log_level(spdlog::level::info), metrics_dst_port(DEFAULT_METRICS_DEST_PORT),
         noctx_cov_pct(0),
         allow_sigprof(true),
-        pctx_jar_path(nullptr) {
+        pctx_jar_path(nullptr),
+        rpc_timeout(10),
+        slow_tx_tolerance(1.5),
+        tx_ring_sz(1024 * 1024) {
 
         load(options);
     }

@@ -11,6 +11,7 @@ void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
 
 Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
     jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
+    serializer(nullptr), processor(nullptr), raw_writer_ring(_cfg.tx_ring_sz),
 
     s_t_poll_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
     s_c_poll_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll", "failures"})),
@@ -192,6 +193,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
     curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, cfg.rpc_timeout);
     
     std::function<void()> poll_cb;
 
@@ -259,6 +261,7 @@ void Controller::run() {
     curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, write_to_curl_request);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &recv);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, read_from_curl_response);
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, cfg.rpc_timeout);
     
     while (keep_running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
@@ -366,6 +369,8 @@ private:
 
     std::function<void()> cancellation_fn;
 
+    std::uint32_t tx_timeout;
+
     ThdProcP thd_proc;
 
     metrics::Timer& s_t_rpc;
@@ -376,8 +381,8 @@ private:
 
 public:
     HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port,
-                         BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn) :
-        RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn),
+                         BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn, const std::uint32_t _tx_timeout) :
+        RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn), tx_timeout(_tx_timeout),
 
         s_t_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
         s_c_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile", "failures"})),
@@ -418,11 +423,14 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_READDATA, &rd_ctx);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
+        curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, tx_timeout);
 
         if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc, s_c_rpc_failures)) {
             logger->info("Profile posted successfully!");
         } else {
             logger->error("Couldn't post profile, http request failed, cancelling work.");
+            ring.readonly(); //because now there is no point in reading/writing anything anyway, also...
+            // ...this prevents race where processor wants to write more but raw-writer can't read any more
             cancellation_fn();
         }
     }
@@ -454,7 +462,8 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                             });
                     };
                     if (w.work_size() > 0) {
-                        std::shared_ptr<HttpRawProfileWriter> raw_writer(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb)));
+                        std::uint32_t tx_timeout = cfg.slow_tx_tolerance * w.duration();
+                        std::shared_ptr<HttpRawProfileWriter> raw_writer(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb), tx_timeout));
                         writer.reset(new ProfileWriter(raw_writer, buff));
                         recording::RecordingHeader rh;
                         populate_recording_header(rh, w, controller_id, controller_version);

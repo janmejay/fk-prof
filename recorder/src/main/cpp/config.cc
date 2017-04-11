@@ -72,7 +72,10 @@ std::ostream& operator<<(std::ostream& os, const ConfigurationOptions* config) {
     PRINT_FIELD(metrics_dst_port, false);
     PRINT_FIELD_VALUE(noctx_cov_pct, static_cast<int>(config->noctx_cov_pct), false);
     PRINT_FIELD(allow_sigprof, false);
-    PRINT_FIELD(pctx_jar_path, true);
+    PRINT_FIELD(pctx_jar_path, false);
+    PRINT_FIELD(rpc_timeout, false);
+    PRINT_FIELD(slow_tx_tolerance, false);
+    PRINT_FIELD(tx_ring_sz, true);
     os << " }";
     return os;
 }
@@ -141,6 +144,12 @@ void ConfigurationOptions::load(const char* options) {
                     ((value[0] == 'y') || (value[0] == 'Y'));
             } else if (strstr(key, "pctx_jar_path") == key) {
                 pctx_jar_path = safe_copy_string(value, next);
+            } else if (strstr(key, "rpc_timeout") == key) {
+                rpc_timeout = static_cast<std::uint32_t>(atoi(value));
+            } else if (strstr(key, "slow_tx_tolerance") == key) {
+                slow_tx_tolerance = atof(value);
+            } else if (strstr(key, "tx_ring_sz") == key) {
+                tx_ring_sz = static_cast<std::uint32_t>(atoi(value));
             } else {
                 logger->warn("Unknown configuration option: {}", key);
             }
@@ -160,6 +169,14 @@ void ConfigurationOptions::load(const char* options) {
         }                                                               \
     }
 
+#define ENSURE_GT(param, lower_bound)                                   \
+    {                                                                   \
+        if (param <= lower_bound) {                                     \
+            logger->warn("Configuration is NOT valid, '"#param"' value {} is too small (it is expected to be > {})", param, lower_bound); \
+            is_valid = false;                                           \
+        }                                                               \
+    }
+
 bool ConfigurationOptions::valid() {
     bool is_valid = true;
     ENSURE_NOT_NULL(service_endpoint);
@@ -174,6 +191,9 @@ bool ConfigurationOptions::valid() {
     ENSURE_NOT_NULL(zone);
     ENSURE_NOT_NULL(inst_typ);
     ENSURE_NOT_NULL(pctx_jar_path);
+    ENSURE_GT(rpc_timeout, 0);
+    ENSURE_GT(slow_tx_tolerance, 1.0);
+    ENSURE_GT(tx_ring_sz, 0);
     return is_valid;
 }
 
@@ -184,6 +204,7 @@ ConfigurationOptions::~ConfigurationOptions()  {
     safe_free_string(app_id);
     safe_free_string(inst_grp);
     safe_free_string(cluster);
+    safe_free_string(inst_id);
     safe_free_string(proc);
     safe_free_string(vm_id);
     safe_free_string(zone);
