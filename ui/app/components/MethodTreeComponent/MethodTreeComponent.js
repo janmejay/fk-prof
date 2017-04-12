@@ -16,26 +16,26 @@ const dedupeNodes = allNodes => nextNodesAccessorField => (nodes) => {
   let globalOnCPUSum = 0;
   const dedupedNodes = nodes.reduce((prev, curr) => {
     let childOnStack;
+    let newPrev = Object.assign({}, prev);
+    let newCurr = Object.assign({}, curr);
     if (Array.isArray(curr)) {
       childOnStack = curr[1];
-      curr = Object.assign({}, allNodes[curr[0]]);
+      newCurr = Object.assign({}, allNodes[curr[0]]);
     } else if (Number.isInteger(curr)) {
-      curr = Object.assign({}, allNodes[curr]);
+      newCurr = Object.assign({}, allNodes[curr]);
     } else {
       // will be executed only for top level nodes
       // store the global onCPU count
       globalOnCPUSum += curr.onCPU;
-      curr.onStack = curr.onCPU;
+      newCurr.onStack = curr.onCPU;
     }
-    const newPrev = Object.assign({}, prev);
-    const newCurr = Object.assign({}, curr);
     const evaluatedOnStack = childOnStack || newCurr.onStack;
     newCurr.onStack = evaluatedOnStack;
     // only do this if it's bottom-up or nextNodesAccessorField === 'parent'
     // change structure of parent array, store onStack also
     if (nextNodesAccessorField === 'parent') {
       newCurr[nextNodesAccessorField] = newCurr.name
-        ? [[...curr[nextNodesAccessorField], evaluatedOnStack]] : [];
+        ? [[...newCurr[nextNodesAccessorField], evaluatedOnStack]] : [];
     } else {
       // children case, as children [] might not be present
       newCurr[nextNodesAccessorField] = newCurr[nextNodesAccessorField] || [];
@@ -93,7 +93,7 @@ class MethodTreeComponent extends Component {
     const { dedupedNodes, globalOnCPUSum } = this.props.nextNodesAccessorField === 'parent'
       ? this.memoizedDedupeNodes(...nodes)
       : { dedupedNodes: nodes.map(getNode(this.props.allNodes)).slice().sort((a, b) => b.onStack - a.onStack) };
-    
+
     // for call tree, it'll be passed from the parent
     // and for bottom-up we'll use the top level globalOnCPUSum,
     // and pass it around till the leaf level
