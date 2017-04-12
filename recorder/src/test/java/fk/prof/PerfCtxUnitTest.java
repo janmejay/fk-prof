@@ -398,7 +398,7 @@ public class PerfCtxUnitTest {
         List<PerfCtx> defs = new ArrayList<>();
         int i;
         int limit = 224;
-        for (i = 0; i < limit/5; i++) {
+        for (i = 0; i < limit / 5; i++) {
             for (MergeSemantics mSem : MergeSemantics.values()) {
                 defs.add(new PerfCtx(String.format("%s - %s", mSem, i), i, mSem));
             }
@@ -407,7 +407,7 @@ public class PerfCtxUnitTest {
             MergeSemantics mSem = MergeSemantics.DUPLICATE;
             defs.add(new PerfCtx(String.format("%s - %s", mSem, i + j), i + j, mSem));
         }
-        
+
         assertThat(defs.size(), is(224));
 
         try {
@@ -416,5 +416,60 @@ public class PerfCtxUnitTest {
         } catch (PerfCtxInitException e) {
             assertThat(e.getMessage(), is("PerfCtx creation failed: Too many (~ 224) ctxs have been created."));
         }
+    }
+
+    @Test
+    public void shouldFail_IncorrectPairingOf_ContextEnterExitCalls() {
+        PerfCtx foo = new PerfCtx("foo");
+        PerfCtx bar = new PerfCtx("bar", 10, MergeSemantics.STACK_UP);
+        long[] ctxIds = new long[5];
+
+        assertThat(testJni.getCurrentCtx(ctxIds), is(0));
+        try {
+            bar.end();
+        } catch (IncorrectContextException e) {
+            assertThat(e.getMessage(), is("Unexpected exit for 'bar'(747597538143502339)"));
+        }
+        assertThat(testJni.getCurrentCtx(ctxIds), is(0));
+
+        foo.begin();
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("foo"));
+        try {
+            bar.end();
+        } catch (IncorrectContextException e) {
+            assertThat(e.getMessage(), is("Expected exit for 'foo'(720575940379279362) got 'bar'(747597538143502339)"));
+        }
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("foo"));
+
+        bar.begin();
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("bar"));
+        try {
+            foo.end();
+        } catch (IncorrectContextException e) {
+            assertThat(e.getMessage(), is("Expected exit for 'bar'(747597538143502339) got 'foo'(720575940379279362)"));
+        }
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("bar"));
+        bar.end();
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("foo"));
+        try {
+            bar.end();
+        } catch (IncorrectContextException e) {
+            assertThat(e.getMessage(), is("Expected exit for 'foo'(720575940379279362) got 'bar'(747597538143502339)"));
+        }
+        assertThat(testJni.getCurrentCtx(ctxIds), is(1));
+        assertThat(testJni.getCtxName(ctxIds[0]), is("foo"));
+        foo.end();
+        assertThat(testJni.getCurrentCtx(ctxIds), is(0));
+        try {
+            foo.end();
+        } catch (IncorrectContextException e) {
+            assertThat(e.getMessage(), is("Unexpected exit for 'foo'(720575940379279362)"));
+        }
+        assertThat(testJni.getCurrentCtx(ctxIds), is(0));
     }
 }
