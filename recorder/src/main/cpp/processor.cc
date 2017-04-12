@@ -25,6 +25,11 @@ Processor::Processor(jvmtiEnv* _jvmti, Processes&& _processes)
 
       s_t_yield_tm(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, "processor", "sched_yield", "time"})) {}
 
+Processor::~Processor() {
+    for (auto& p : processes) {
+        delete p;
+    }
+}
 
 void Processor::run() {
     while (true) {

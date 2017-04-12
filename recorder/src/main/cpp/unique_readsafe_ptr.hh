@@ -14,7 +14,7 @@ private:
 
 public:
     ReadsafePtr(UniqueReadsafePtr<T>& _ptr) : ptr(_ptr), ref_count_incremented(false) {
-        if (ptr.available.load(std::memory_order_seq_cst)) {
+        if ((_available = ptr.available.load(std::memory_order_seq_cst))) {
             ptr.reader_count.fetch_add(1, std::memory_order_seq_cst);
             ref_count_incremented = true;
             _available = ptr.available.load(std::memory_order_seq_cst);
@@ -50,9 +50,7 @@ public:
     UniqueReadsafePtr() : available(false), reader_count(0) {}
 
     ~UniqueReadsafePtr() {
-        SPDLOG_TRACE(logger, "Destructor called");
         reset();
-        SPDLOG_TRACE(logger, "Destructor COMPLETE");
     }
 
     void reset(T* t = nullptr) {

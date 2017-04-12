@@ -63,6 +63,7 @@ TEST(ReadsafePtr___should_not_destruct___until_all_readers_are_done) {
         scope_ended_at = std::chrono::system_clock::now();
         logger->info("End of scope reached...");
     }
+    CHECK_EQUAL(true, destroyed.load());
     logger->info("Came out of scope...");
     std::uint32_t destruct_time_lag = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - scope_ended_at).count();
     t1->join();
@@ -71,4 +72,53 @@ TEST(ReadsafePtr___should_not_destruct___until_all_readers_are_done) {
     CHECK(destruct_time_lag >= (20 * 1000));//atleast 20 ms
     CHECK(last_read_at_usec.load() <= destroyed_at_usec.load());
     CHECK_EQUAL(0, destroyed_before_read.load(std::memory_order_seq_cst));
+}
+
+struct Foo {
+    int x;
+};
+
+TEST(ReadsafePtr___should_be_available___only_after_writer_sets_it) {
+    TestEnv _;
+    auto f = new Foo();
+    f->x = 10;
+    UniqueReadsafePtr<Foo> p;
+    {
+        ReadsafePtr<Foo> rp(p);
+        CHECK_EQUAL(false, rp.available());
+        p.reset(f);
+        CHECK_EQUAL(false, rp.available());
+        ReadsafePtr<Foo> rp2(p);
+        CHECK_EQUAL(true, rp2.available());
+        CHECK_EQUAL(10, rp2->x);
+    }
+    auto g = new Foo();
+    g->x = 20;
+    p.reset(g);
+    ReadsafePtr<Foo> rp3(p);
+    CHECK_EQUAL(true, rp3.available());
+    CHECK_EQUAL(20, rp3->x);
+}
+
+TEST(ReadsafePtr___should_not_be_available___after_writer_clears_it) {
+    TestEnv _;
+
+    std::atomic<bool> destroyed;
+    std::atomic<std::uint64_t> destroyed_at_usec;
+    std::atomic<std::uint64_t> last_read_at_usec;
+    std::atomic<std::uint32_t> destroyed_before_read {0};
+    std::chrono::time_point<std::chrono::system_clock> object_created_at;
+    {
+        UniqueReadsafePtr<DestructorTracker> p;
+        p.reset(new DestructorTracker(destroyed, destroyed_at_usec, last_read_at_usec, object_created_at, destroyed_before_read));
+        {
+            {
+                ReadsafePtr<DestructorTracker> rp_before(p);
+                CHECK_EQUAL(true, rp_before.available());
+            }
+            p.reset();
+            ReadsafePtr<DestructorTracker> rp_after(p);
+            CHECK_EQUAL(false, rp_after.available());
+        }
+    }
 }

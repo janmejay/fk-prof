@@ -614,18 +614,38 @@ void Controller::prep(const recording::CpuSampleWork& csw) {
     tts.cpu_samples_max_stack_sz = Profiler::calculate_max_stack_depth(csw.max_frames());
 }
 
+class CpuProfileProcess : public Process {
+    ReadsafePtr<Profiler> p;
+    bool available;
+
+public:
+    CpuProfileProcess() : p(GlobalCtx::recording.cpu_profiler) {
+        available = p.available();
+    }
+
+    virtual ~CpuProfileProcess() {}
+
+    void run() {
+        if (available) p->run();
+    }
+
+    void stop() {
+        if (available) p->stop();
+    }
+};
+
 void Controller::issue(const recording::CpuSampleWork& csw, Processes& processes, JNIEnv* env) {
     auto freq = csw.frequency();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, tts.cpu_samples_max_stack_sz);
     
     GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, *serializer.get(), tts.cpu_samples_max_stack_sz, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
-    GlobalCtx::recording.cpu_profiler->start(env);
-    processes.push_back(GlobalCtx::recording.cpu_profiler.get());
+    ReadsafePtr<Profiler> p(GlobalCtx::recording.cpu_profiler);
+    p->start(env);
+    processes.push_back(new CpuProfileProcess());
 }
 
 void Controller::retire(const recording::CpuSampleWork& csw) {
     logger->info("Stopping cpu-sampling");
-    GlobalCtx::recording.cpu_profiler->stop();
     GlobalCtx::recording.cpu_profiler.reset();
 }
 
