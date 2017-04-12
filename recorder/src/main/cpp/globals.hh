@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <chrono>
 #include "metrics.hh"
+#include "unique_readsafe_ptr.hh"
 
 #define SPDLOG_ENABLE_SYSLOG
 #include <spdlog/spdlog.h>
@@ -44,7 +45,7 @@ class Profiler;
 
 namespace GlobalCtx {
     typedef struct {
-        std::shared_ptr<Profiler> cpu_profiler;
+        UniqueReadsafePtr<Profiler> cpu_profiler;
     } Rec;
 
     extern GlobalCtx::Rec recording;

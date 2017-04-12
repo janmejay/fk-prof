@@ -86,9 +86,6 @@ private:
 
     ProfileSerializingWriter& serializer;
 
-    // indicates change of internal state
-    std::atomic<bool> ongoing_conf;
-
     ProbPct& prob_pct;
     std::atomic<std::uint32_t> sampling_attempts;
     const std::uint8_t noctx_cov_pct;

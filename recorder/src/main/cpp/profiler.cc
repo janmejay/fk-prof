@@ -3,13 +3,18 @@
 ASGCTType Asgct::asgct_;
 IsGCActiveType Asgct::is_gc_active_;
 
+static thread_local std::atomic<bool> in_handler{false};
+
 static void handle_profiling_signal(int signum, siginfo_t *info, void *context) {
-    std::shared_ptr<Profiler> cpu_profiler = GlobalCtx::recording.cpu_profiler;
-    if (cpu_profiler.get() == nullptr) {
-        logger->warn("Received profiling signal while recording is off! Something wrong?");
-    } else {
-        cpu_profiler->handle(signum, info, context);
+    if (in_handler.load(std::memory_order_seq_cst)) return;
+    in_handler.store(true, std::memory_order_seq_cst);
+    {
+        ReadsafePtr<Profiler> p(GlobalCtx::recording.cpu_profiler);
+        if (p.available()) {
+            p->handle(signum, info, context);
+        }
     }
+    in_handler.store(false, std::memory_order_seq_cst);
 }
 
 void Profiler::handle(int signum, siginfo_t *info, void *context) {
@@ -28,13 +33,10 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
             do_record = ctx_tracker->in_ctx() ? ctx_tracker->should_record() : prob_pct.on(current_sampling_attempt, noctx_cov_pct);
         }
         if (! do_record) {
-            SPDLOG_DEBUG(logger, "Ignoring the sampling opportunity");
             return;
         }
     }
-    SimpleSpinLockGuard<false> guard(ongoing_conf); // sync buffer
 
-    // sample data structure
     STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
     JVMPI_CallTrace trace;
@@ -62,9 +64,6 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {
-    SimpleSpinLockGuard<true> guard(ongoing_conf);
-    /* within critical section */
-
     if (running) {
         logger->warn("Start called but sampling is already running");
         return true;
@@ -79,9 +78,6 @@ bool Profiler::start(JNIEnv *jniEnv) {
 }
 
 void Profiler::stop() {
-    /* Make sure it doesn't overlap with configure */
-    SimpleSpinLockGuard<true> guard(ongoing_conf);
-
     if (!running) {
         return;
     }
@@ -115,7 +111,7 @@ void Profiler::configure() {
 
 Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, ProfileSerializingWriter& _serializer, std::uint32_t _max_stack_depth, std::uint32_t _sampling_freq, ProbPct& _prob_pct, std::uint8_t _noctx_cov_pct)
     : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(_max_stack_depth), serializer(_serializer),
-      ongoing_conf(false), prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
+      prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
 
       s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
 
@@ -131,7 +127,6 @@ Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, Profi
 }
 
 Profiler::~Profiler() {
-    SimpleSpinLockGuard<false> guard(ongoing_conf); // nonblocking
     if (running) stop();
     delete handler;
     delete buffer;
