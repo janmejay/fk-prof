@@ -12,6 +12,7 @@ function createTree (input, methodLookup, terminalNodes = []) {
     currentNode = {
       childCount: currentNode[1],
       name: currentNode[0],
+      lineNo: currentNode[2],
       onStack: currentNode[3][0],
       onCPU: currentNode[3][1],
       parent: [],
