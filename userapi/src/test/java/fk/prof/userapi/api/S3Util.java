@@ -29,9 +29,13 @@ import java.util.zip.GZIPOutputStream;
  */
 public class S3Util {
     public void uploadFile() throws Exception {
+//        String startime = "2017-03-01T07:00:00";
+        String startime = "2017-03-13T07:00:00";
+//        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, new MockAggregationWindow.FileLoader("/Users/gaurav.ashok/Documents/fk-profiler/methodids_mock"),300, false);
+//        int durationInSeconds = 1800;
+        int durationInSeconds = 300;
 
-        String startime = "2017-03-01T07:00:00";
-        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, new MockAggregationWindow.FileLoader("/Users/gaurav.ashok/Documents/fk-profiler/methodids_mock"));
+        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, new MockAggregationWindow.FileLoader("/Users/rohit.patiyal/git/fk-prof/methodids_with_lno_mock"),durationInSeconds, true);
         ZonedDateTime startimeZ = ZonedDateTime.parse(startime + "Z", DateTimeFormatter.ISO_ZONED_DATE_TIME);
 
         ByteArrayOutputStream boutWS = new ByteArrayOutputStream();
@@ -55,12 +59,12 @@ public class S3Util {
         // check for validity
         AggregatedProfileLoader loader = new AggregatedProfileLoader(null);
         Future f1 =  Future.future();
-        AggregatedProfileNamingStrategy file1 = new AggregatedProfileNamingStrategy("profiles", 1, "app1", "cluster1", "proc1", startimeZ, 1800, AggregatedProfileModel.WorkType.cpu_sample_work);
+        AggregatedProfileNamingStrategy file1 = new AggregatedProfileNamingStrategy("profiles", 1, "app1", "cluster1", "proc1", startimeZ, durationInSeconds, AggregatedProfileModel.WorkType.cpu_sample_work);
         loader.loadFromInputStream(f1, file1, new GZIPInputStream(new ByteArrayInputStream(boutWS.toByteArray())));
         assert f1.succeeded();
 
         Future f2 =  Future.future();
-        AggregatedProfileNamingStrategy file2 = new AggregatedProfileNamingStrategy("profiles", 1, "app1", "cluster1", "proc1", startimeZ, 1800);
+        AggregatedProfileNamingStrategy file2 = new AggregatedProfileNamingStrategy("profiles", 1, "app1", "cluster1", "proc1", startimeZ, durationInSeconds);
         loader.loadSummaryFromInputStream(f2, file2, new GZIPInputStream(new ByteArrayInputStream(boutSummary.toByteArray())));
         assert f2.succeeded();
 
@@ -108,4 +112,10 @@ public class S3Util {
 
         System.out.println("len: " + bytes.length + ", md5: " + putResult.getContentMd5());
     }
+
+    public static void main(String args[]) throws Exception {
+         S3Util s3Util = new S3Util();
+         s3Util.uploadFile();
+    }
+
 }

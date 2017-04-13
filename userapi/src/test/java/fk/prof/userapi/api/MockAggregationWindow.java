@@ -26,22 +26,22 @@ import java.util.function.Supplier;
  */
 public class MockAggregationWindow {
 
-    public static FinalizedAggregationWindow buildAggregationWindow(String time, Supplier<String> stackTraces) throws Exception {
+    public static FinalizedAggregationWindow buildAggregationWindow(String time, Supplier<String> stackTraces, int durationInSeconds, boolean hasLineNo) throws Exception {
 
         LocalDateTime lt = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         MutableInt sampleCount = new MutableInt(0);
-        FinalizedCpuSamplingAggregationBucket cpuSampleBucket = buildTree(stackTraces, sampleCount);
+        FinalizedCpuSamplingAggregationBucket cpuSampleBucket = buildTree(stackTraces, sampleCount, hasLineNo);
 
         int sampleCount1 = sampleCount.getValue() / 2;
         int sampleCount2 = sampleCount.getValue() - sampleCount1;
 
-        FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", lt, lt.plusMinutes(30), 1800, buildProfilesWorkInfo(lt ,sampleCount1, sampleCount2), cpuSampleBucket);
+        FinalizedAggregationWindow window = new FinalizedAggregationWindow("app1", "cluster1", "proc1", lt, lt.plusMinutes(30), durationInSeconds, buildProfilesWorkInfo(lt ,sampleCount1, sampleCount2), cpuSampleBucket);
 
         return window;
     }
 
-    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInt sampleCount) throws IOException {
+    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInt sampleCount, boolean hasLineNo) throws IOException {
         CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
 
         MethodIdLookup lookup = new MethodIdLookup();
@@ -59,10 +59,19 @@ public class MockAggregationWindow {
             traceDetail.incrementSamples();
 
             CpuSamplingFrameNode node = global;
-
+            int lineNo;
+            int methodId;
+            String methodName;
             for(String method : st) {
-                int methodid = lookup.getOrAdd(method);
-                node = node.getOrAddChild(methodid, random.nextInt(5));
+                if(hasLineNo) {
+                    lineNo = Integer.parseInt(method.split(":")[1]);
+                    methodName = method.split(":")[0];
+                }else{
+                    lineNo = random.nextInt(5);
+                    methodName = method;
+                }
+                methodId = lookup.getOrAdd(methodName);
+                node = node.getOrAddChild(methodId, lineNo);
                 node.incrementOnStackSamples();
                 frameCounts++;
             }
