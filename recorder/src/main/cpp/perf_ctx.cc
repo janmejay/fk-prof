@@ -173,7 +173,7 @@ static void assert_equal(const char* name, std::uint8_t cov_pct, std::uint8_t me
 
 PerfCtx::Registry::Registry() :
     unused_prime_nos(MAX_USER_CTX_COUNT),
-    exhausted({false}),
+    exhausted(false),
 
     s_c_ctx(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "count"})),
     s_m_create_rebind(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "rebind")),

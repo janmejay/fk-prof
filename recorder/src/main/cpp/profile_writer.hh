@@ -87,7 +87,6 @@ private:
     recording::Wse cpu_sample_accumulator;
     
     std::unordered_set<MthId> known_methods;
-    MthId next_mthd_id;
     std::unordered_map<ThdId, ThdId> known_threads;
     ThdId next_thd_id;
     std::unordered_map<PerfCtx::TracePt, CtxId> known_ctxs;
