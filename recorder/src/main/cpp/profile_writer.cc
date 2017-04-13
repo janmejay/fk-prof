@@ -224,7 +224,7 @@ void ProfileSerializingWriter::flush() {
 ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
                                                    PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,
                                                    std::uint8_t _noctx_cov_pct) :
-    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(10), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
+    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
     trunc_thresholds(_trunc_thresholds),
 
     s_c_new_thd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "thd_rpt", "new"})),

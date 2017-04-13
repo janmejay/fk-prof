@@ -15,7 +15,7 @@
 #include "../../main/cpp/thread_map.hh"
 
 namespace std {
-    template <> class hash<std::tuple<std::int64_t, jint>> {
+    template <> struct hash<std::tuple<std::int64_t, jint>> {
         std::hash<std::int64_t> i64_h;
         std::hash<jint> jint_h;
 
@@ -969,7 +969,7 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     c_calc.reset();
     computed_csum = c_calc.chksum(tmp_buff.get() + next_record_start, pos - next_record_start);
     CHECK_EQUAL(computed_csum, csum);
-    next_record_start = cis.CurrentPosition();
+    //next_record_start = cis.CurrentPosition();// last one anyway, not required
 
     CHECK(cis.ReadVarint32(&len));
     CHECK_EQUAL(cis.CurrentPosition(), bytes_sz);
