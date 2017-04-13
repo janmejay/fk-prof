@@ -109,7 +109,6 @@ namespace PerfCtx {
         metrics::Ctr& s_c_merge_new;
 
         void load_unused_primes(std::uint32_t count);
-        void name_for(TracePt pt, std::string& name) throw (UnknownCtx);
 
     public:
         Registry();
@@ -117,13 +116,21 @@ namespace PerfCtx {
         
         TracePt find_or_bind(const char* name, std::uint8_t coverage_pct, std::uint8_t merge_type) throw (CtxCreationFailure);
         TracePt merge_bind(const std::vector<ThreadCtx>& parent, bool strict = false);
+        void name_for(TracePt pt, std::string& name) throw (UnknownCtx);
         void resolve(TracePt pt, std::string& name, bool& is_generated, std::uint8_t& coverage_pct, MergeSemantic& m_sem) throw (UnknownCtx);
     };
 
-    class IncorrectEnterExitPairing : public std::runtime_error {
+    class IncorrectEnterExitPairing {
+        std::string msg;
+
     public:
-        IncorrectEnterExitPairing(const TracePt expected, const TracePt got) : runtime_error(Util::to_s("Expected ", expected, " got ", got)) {};
-        virtual ~IncorrectEnterExitPairing() {}
+        IncorrectEnterExitPairing(Registry& reg, const TracePt expected, const TracePt got);
+
+        IncorrectEnterExitPairing(Registry& reg, const TracePt got);
+
+        ~IncorrectEnterExitPairing() {}
+
+        const char* what() const;
     };
 
     MergeSemantic merge_semantic(TracePt pt);

@@ -103,10 +103,15 @@ void PerfCtx::ThreadTracker::exit(PerfCtx::TracePt pt) throw (IncorrectEnterExit
         }
     }
 
+    if (actual_stack.size() == 0) {
+        s_m_bad_pairing->mark();
+        throw IncorrectEnterExitPairing(reg, pt);
+    }
+
     auto top = actual_stack.back();
     if (top.ctx != pt) {
         s_m_bad_pairing->mark();
-        throw IncorrectEnterExitPairing(top.ctx, pt);
+        throw IncorrectEnterExitPairing(reg, top.ctx, pt);
     }
     effective.resize(top.prev.end);
     effective_start = top.prev.start;
@@ -332,6 +337,31 @@ std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms) {
         os << "!!Unknown!!";
     }
     return os;
+}
+
+static void name_for(PerfCtx::Registry& reg, const PerfCtx::TracePt pt, std::string& name) {
+    try {
+        reg.name_for(pt, name);
+    } catch (const PerfCtx::UnknownCtx& e) {
+        name = "~ Un-registered ~";
+    }
+}
+
+PerfCtx::IncorrectEnterExitPairing::IncorrectEnterExitPairing(Registry& reg, const TracePt expected, const TracePt got) {
+    std::string expected_name, got_name;
+    name_for(reg, expected, expected_name);
+    name_for(reg, got, got_name);
+    msg = Util::to_s("Expected exit for '", expected_name, "'(", expected, ") got '", got_name, "'(", got, ")");
+}
+
+PerfCtx::IncorrectEnterExitPairing::IncorrectEnterExitPairing(Registry& reg, const TracePt got) {
+    std::string got_name;
+    name_for(reg, got, got_name);
+    msg = Util::to_s("Unexpected exit for '", got_name , "'(", got, ")");
+}
+
+const char* PerfCtx::IncorrectEnterExitPairing::what() const {
+    return msg.c_str();
 }
 
 JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject self, jstring name, jint coverage_pct, jint merge_type) {

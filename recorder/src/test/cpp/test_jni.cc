@@ -69,7 +69,7 @@ JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCurrentCtx(JNIEnv* jni, jobject s
     }
 
     if (jni->GetArrayLength(arr) < PerfCtx::MAX_NESTING) {
-        jni->ThrowNew(jni->FindClass("java/lang/IllegalArgumentException"), Util::to_s("Got a very small array, need array with length > ", PerfCtx::MAX_NESTING).c_str());
+        jni->ThrowNew(jni->FindClass("java/lang/IllegalArgumentException"), Util::to_s("Got a very small array, need array with length > ", static_cast<std::int32_t>(PerfCtx::MAX_NESTING)).c_str());
         return -1;
     }
 
