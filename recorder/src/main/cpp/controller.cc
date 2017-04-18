@@ -358,6 +358,14 @@ static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ctx) 
     return copied;
 }
 
+static int log_curl_response(char *in_buff, size_t size, size_t nmemb, void *recv_buff) {
+    int sz = size * nmemb;
+    std::string body(in_buff, sz);
+    std::string ctx(static_cast<const char*>(recv_buff));
+    logger->info("Curl {} response body: '{}'", ctx, body);
+    return sz;
+}
+
 class HttpRawProfileWriter : public RawWriter {
 private:
     std::string host;
@@ -431,6 +439,9 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_READDATA, &rd_ctx);
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
         curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, tx_timeout);
+
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, "PROFILE-RPC");
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, log_curl_response);
 
         if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc, s_c_rpc_failures)) {
             logger->info("Profile posted successfully!");

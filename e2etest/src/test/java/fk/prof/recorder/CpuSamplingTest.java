@@ -21,6 +21,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import recording.Recorder;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -519,7 +520,7 @@ public class CpuSamplingTest {
 
         profile[0] = (req) -> {
             recordProfile(req, hdr, profileEntries);
-            return new byte[0];
+            return "Processed profile successfully!".getBytes(Charset.forName("UTF-8"));
         };
         profile[1] = (req) -> {
             profileCalledSecondTime.setTrue();
