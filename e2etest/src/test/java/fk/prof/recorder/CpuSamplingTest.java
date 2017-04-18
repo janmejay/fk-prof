@@ -34,6 +34,7 @@ import static fk.prof.recorder.utils.Matchers.approximately;
 import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
 
 public class CpuSamplingTest {
@@ -82,7 +83,7 @@ public class CpuSamplingTest {
 
     @After
     public void tearDown() {
-        runner.stop();
+        assertThat(runner.stop(), is(true));
         server.stop();
         associateServer.stop();
     }
@@ -155,6 +156,46 @@ public class CpuSamplingTest {
                                             nodeMatcher(Burn80Of100.class, "burn", "()V", 0, 1, childrenMatcher(
                                                     nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 80, 10, Collections.emptySet()))))))))))));
         }}, new TraceIdPivotResolver(), new HashMap<Integer, TraceInfo>(), new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
+    }
+
+    @Test
+    public void should_ShutdownCleanly_On_SIGTERM_WhileProfiling() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        int delay = 1;
+        int workAllocatingPoll = 1;
+        int gracePeriod = 1;
+        int duration = 10;
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, WorkHandlingTest.CPU_SAMPLING_MAX_FRAMES, duration, delay, workAllocatingPoll);
+
+        runner = new AgentRunner(Burn20And80PctCpu.class.getCanonicalName(), USUAL_RECORDER_ARGS);
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+        long prevTime = System.currentTimeMillis();
+
+        assertThat(assocAction[0].isDone(), is(true));
+        int runningWorkPoll = workAllocatingPoll + delay + gracePeriod;
+        pollAction[runningWorkPoll].get(runningWorkPoll + 4, TimeUnit.SECONDS); //some grace time
+        
+        assertThat(runner.stop(), is(true));//this actually waits for the process to be reaped
+        assertThat(runner.exitCode(), is(128 + 15)); //15 == SIGTERM
+
+        assertWorkStateAndResultIs(pollReqs[1].req.getWorkLastIssued(), 100, Recorder.WorkResponse.WorkState.complete, Recorder.WorkResponse.WorkResult.success, 0);
+        assertWorkStateAndResultIs(pollReqs[runningWorkPoll].req.getWorkLastIssued(), CPU_SAMPLING_WORK_ID, Recorder.WorkResponse.WorkState.running, Recorder.WorkResponse.WorkResult.unknown, gracePeriod);
+        
+        //This assertion requires that runner.stop or something else above this assertion in this test waits for target process to return
+        //   else this assertion would be meaningless (because target-process is live implies more polls can happen).
+        int firstMissedPollIdx = runningWorkPoll;
+        while ((firstMissedPollIdx < pollReqs.length) && 
+                (pollAction[firstMissedPollIdx].isDone())) {
+            firstMissedPollIdx++;
+        }
+        assertThat(firstMissedPollIdx, lessThan(duration + delay + workAllocatingPoll + gracePeriod));//make sure that the target-process died while profiling (so test indeed produced the intended condition)
+        assertThat(firstMissedPollIdx, lessThan(poll.length));
     }
 
     @Test
@@ -460,18 +501,21 @@ public class CpuSamplingTest {
     }
 
     private PollReqWithTime[] stubRecorderInteraction(List<Recorder.Wse> profileEntries, MutableObject<Recorder.RecordingHeader> hdr, MutableBoolean profileCalledSecondTime, String cpuSamplingWorkIssueTime, final int maxFrames) {
+        return stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, maxFrames, 10, 2, 1);
+    }
+
+    private PollReqWithTime[] stubRecorderInteraction(List<Recorder.Wse> profileEntries, MutableObject<Recorder.RecordingHeader> hdr, MutableBoolean profileCalledSecondTime, String cpuSamplingWorkIssueTime, int maxFrames, int duration, int delay, final int workAllocatingPoll) {
         PollReqWithTime pollReqs[] = new PollReqWithTime[poll.length];
 
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
 
         association[0] = pointToAssociate(recInfo, 8090);
 
-        poll[0] = tellRecorderWeHaveNoWork(pollReqs, 0);
-
-        poll[1] = issueCpuProfilingWork(pollReqs, 1, 10, 2, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID, maxFrames);
-        for (int i = 2; i < poll.length; i++) {
+        for (int i = 0; i < poll.length; i++) {
+            if (i == workAllocatingPoll) continue;
             poll[i] = tellRecorderWeHaveNoWork(pollReqs, i);
         }
+        poll[workAllocatingPoll] = issueCpuProfilingWork(pollReqs, 1, duration, delay, cpuSamplingWorkIssueTime, CPU_SAMPLING_WORK_ID, maxFrames);
 
         profile[0] = (req) -> {
             recordProfile(req, hdr, profileEntries);

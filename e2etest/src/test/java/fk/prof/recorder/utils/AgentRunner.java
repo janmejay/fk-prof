@@ -80,7 +80,7 @@ public class AgentRunner {
         startProcess();
         //readProcessId();
     }
-
+    
     private void startProcess() throws IOException {
         String finalArgs = (args == null) ? perfCtxArgFrag() : args + "," + perfCtxArgFrag(); 
         String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + "=" + finalArgs;
@@ -117,13 +117,19 @@ public class AgentRunner {
         }
     }
 
-    public void stop() {
+    public boolean stop() {
         process.destroy();
-        try {
-            process.waitFor(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            logger.info(e.getMessage(), e);
+        while (true) {
+            try {
+                return process.waitFor(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                logger.info(e.getMessage(), e);
+            }
         }
+    }
+    
+    public int exitCode() {
+        return process.exitValue();
     }
 
     public int getProcessId() {
