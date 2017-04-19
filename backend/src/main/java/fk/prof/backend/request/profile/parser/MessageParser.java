@@ -82,7 +82,7 @@ public class MessageParser {
             }
             if(msgSize > maxMessageSize) {
                 String errMsg = "invalid length for " + tag + ". limit: " + msgSize + ". maxLimit: " + maxMessageSize;
-                logger.info(errMsg);
+                logger.error(errMsg);
                 throw new AggregationFailure(errMsg);
             }
 
