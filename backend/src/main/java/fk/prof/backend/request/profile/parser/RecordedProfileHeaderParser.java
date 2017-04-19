@@ -15,9 +15,11 @@ public class RecordedProfileHeaderParser {
   private Adler32 checksum = new Adler32();
   private boolean parsed = false;
   private int maxMessageSizeInBytes;
+  private MessageParser msgParser;
 
   public RecordedProfileHeaderParser(int maxMessageSizeInBytes) {
     this.maxMessageSizeInBytes = maxMessageSizeInBytes;
+    this.msgParser = new MessageParser();
   }
 
   /**
@@ -49,12 +51,12 @@ public class RecordedProfileHeaderParser {
     try {
       if(recordingHeader == null) {
         in.markAndDiscardRead();
-        encodingVersion = MessageParser.readRawVariantInt(in, "encodingVersion");
-        recordingHeader = MessageParser.readDelimited(Recorder.RecordingHeader.parser(), in, maxMessageSizeInBytes, "recording header");
+        encodingVersion = msgParser.readRawVariantInt(in, "encodingVersion");
+        recordingHeader = msgParser.readDelimited(Recorder.RecordingHeader.parser(), in, maxMessageSizeInBytes, "recording header");
         in.updateChecksumSinceMarked(checksum);
       }
       in.markAndDiscardRead();
-      int checksumValue = MessageParser.readRawVariantInt(in, "headerChecksumValue");
+      int checksumValue = msgParser.readRawVariantInt(in, "headerChecksumValue");
       if(checksumValue != ((int)checksum.getValue())) {
         throw new AggregationFailure("Checksum of header does not match");
       }

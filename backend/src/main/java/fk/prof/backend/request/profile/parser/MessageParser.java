@@ -1,16 +1,30 @@
 package fk.prof.backend.request.profile.parser;
 
+import com.codahale.metrics.Histogram;
 import com.google.common.io.ByteStreams;
 import com.google.protobuf.*;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.request.CompositeByteBufInputStream;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 
 import java.io.IOException;
 
 /**
  * @author gaurav.ashok
  */
-public abstract class MessageParser {
+public class MessageParser {
+
+    private static Logger logger = LoggerFactory.getLogger(MessageParser.class);
+    private Histogram histWseSize;
+
+    public MessageParser() {
+        // no histogram object to initialize with
+    }
+
+    public MessageParser(Histogram histWseSize) {
+        this.histWseSize = histWseSize;
+    }
 
     private static final int MAX_VARINT32_BYTES = 10;
 
@@ -23,7 +37,7 @@ public abstract class MessageParser {
      * @return
      * @throws IOException
      */
-    public static int readRawVariantInt(CompositeByteBufInputStream in, String tag) throws IOException {
+    public int readRawVariantInt(CompositeByteBufInputStream in, String tag) throws IOException {
         int bytesAvailable = in.available();
         int firstByte = in.read();
         if (firstByte == -1) {
@@ -56,14 +70,20 @@ public abstract class MessageParser {
      * @return
      * @throws IOException
      */
-    public static <T extends AbstractMessage> T readDelimited(Parser<T> parser, CompositeByteBufInputStream in, int maxMessageSize, String tag) throws IOException {
+    public <T extends AbstractMessage> T readDelimited(Parser<T> parser, CompositeByteBufInputStream in, int maxMessageSize, String tag) throws IOException {
         try {
             int msgSize = readRawVariantInt(in, tag + ":size");
+            if(histWseSize != null) {
+                histWseSize.update(msgSize);
+            }
+
             if(msgSize == 0) {
                 return null;
             }
             if(msgSize > maxMessageSize) {
-                throw new AggregationFailure("invalid length for " + tag);
+                String errMsg = "invalid length for " + tag + ". limit: " + msgSize + ". maxLimit: " + maxMessageSize;
+                logger.info(errMsg);
+                throw new AggregationFailure(errMsg);
             }
 
             if(in.available() >= msgSize) {
