@@ -1,5 +1,6 @@
 package fk.prof.backend.request.profile.parser;
 
+import com.codahale.metrics.Histogram;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.model.profile.RecordedProfileHeader;
 import fk.prof.backend.request.CompositeByteBufInputStream;
@@ -17,9 +18,9 @@ public class RecordedProfileHeaderParser {
   private int maxMessageSizeInBytes;
   private MessageParser msgParser;
 
-  public RecordedProfileHeaderParser(int maxMessageSizeInBytes) {
+  public RecordedProfileHeaderParser(int maxMessageSizeInBytes, Histogram histHeaderSize) {
     this.maxMessageSizeInBytes = maxMessageSizeInBytes;
-    this.msgParser = new MessageParser();
+    this.msgParser = new MessageParser(histHeaderSize);
   }
 
   /**

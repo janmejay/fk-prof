@@ -49,7 +49,7 @@ public class RecordedProfileProcessor implements Handler<Buffer> {
   private Histogram histChunkSize;
   private Timer tmrChunkIdle;
   private Meter mtrChunkBytes, mtrPayloadInvalid, mtrPayloadCorrupt;
-  private Histogram histWseSize;
+  private Histogram histWseSize, histHeaderSize;
   private final Counter ctrAggrWinMiss = metricRegistry.counter(MetricName.Profile_Window_Miss.get());
 
   public RecordedProfileProcessor(RoutingContext context,
@@ -60,10 +60,10 @@ public class RecordedProfileProcessor implements Handler<Buffer> {
     this.context = context;
     this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
     this.singleProcessingOfProfileGate = singleProcessingOfProfileGate;
-    this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader);
     this.inputStream = new CompositeByteBufInputStream();
     setupMetrics(ProcessGroupTag.EMPTY);
     this.wseParser = new WseParser(maxAllowedBytesForWse, histWseSize);
+    this.headerParser = new RecordedProfileHeaderParser(maxAllowedBytesForRecordingHeader, histHeaderSize);
   }
 
   @Override
@@ -212,5 +212,6 @@ public class RecordedProfileProcessor implements Handler<Buffer> {
     this.mtrPayloadInvalid = metricRegistry.meter(MetricRegistry.name(MetricName.Profile_Payload_Invalid.get(), processGroupTagStr));
     this.mtrPayloadCorrupt = metricRegistry.meter(MetricRegistry.name(MetricName.Profile_Payload_Corrupt.get(), processGroupTagStr));
     this.histWseSize = metricRegistry.histogram(MetricRegistry.name(MetricName.Profile_Wse_Size.get(), processGroupTagStr));
+    this.histHeaderSize = metricRegistry.histogram(MetricRegistry.name(MetricName.Profile_Header_Size.get(), processGroupTagStr));
   }
 }

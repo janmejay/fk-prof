@@ -16,14 +16,10 @@ import java.io.IOException;
 public class MessageParser {
 
     private static Logger logger = LoggerFactory.getLogger(MessageParser.class);
-    private Histogram histWseSize;
+    private Histogram histMsgSize;
 
-    public MessageParser() {
-        // no histogram object to initialize with
-    }
-
-    public MessageParser(Histogram histWseSize) {
-        this.histWseSize = histWseSize;
+    public MessageParser(Histogram histMsgSize) {
+        this.histMsgSize = histMsgSize;
     }
 
     private static final int MAX_VARINT32_BYTES = 10;
@@ -73,15 +69,13 @@ public class MessageParser {
     public <T extends AbstractMessage> T readDelimited(Parser<T> parser, CompositeByteBufInputStream in, int maxMessageSize, String tag) throws IOException {
         try {
             int msgSize = readRawVariantInt(in, tag + ":size");
-            if(histWseSize != null) {
-                histWseSize.update(msgSize);
-            }
+            histMsgSize.update(msgSize);
 
             if(msgSize == 0) {
                 return null;
             }
             if(msgSize > maxMessageSize) {
-                String errMsg = "invalid length for " + tag + ". limit: " + msgSize + ". maxLimit: " + maxMessageSize;
+                String errMsg = "invalid length for " + tag + ". msgSize: " + msgSize + ". maxLimit: " + maxMessageSize;
                 logger.error(errMsg);
                 throw new AggregationFailure(errMsg);
             }
