@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
-import TreeView from 'react-treeview';
+import StackTreeElement from 'components/StackTreeElementComponent';
 import { withRouter } from 'react-router';
 import memoize from 'utils/memoize';
 import debounce from 'utils/debounce';
 
-import 'react-treeview/react-treeview.css';
 import styles from './MethodTreeComponent.css';
+import treeStyles from 'components/StackTreeElementComponent/StackTreeElementComponent.css';
 
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
@@ -77,7 +77,8 @@ class MethodTreeComponent extends Component {
       opened: {}, // keeps track of all opened/closed nodes
       highlighted: {}, // keeps track of all highlighted nodes
     };
-    this.getTree = this.getTree.bind(this);
+    this.userToggledNode = null;
+    this.renderSubTree = this.renderSubTree.bind(this);
     this.toggle = this.toggle.bind(this);
     this.handleFilterChange = this.handleFilterChange.bind(this);
     this.highlight = this.highlight.bind(this);
@@ -87,13 +88,13 @@ class MethodTreeComponent extends Component {
     );
   }
 
-  getTree = percentageDenominator => (nodes = [], pName = '', filterText) => {
+  renderSubTree = percentageDenominator => (nodes = [], pName = '', indent=0, autoExpand=false, filterText) => {
     // only need to de-dupe for bottom-up not top-down,
     // hence the ternary :/
     const { dedupedNodes, globalOnCPUSum } = this.props.nextNodesAccessorField === 'parent'
       ? this.memoizedDedupeNodes(...nodes)
       : { dedupedNodes: nodes.map(getNode(this.props.allNodes)).slice().sort((a, b) => b.onStack - a.onStack) };
-
+    
     // for call tree, it'll be passed from the parent
     // and for bottom-up we'll use the top level globalOnCPUSum,
     // and pass it around till the leaf level
@@ -103,6 +104,17 @@ class MethodTreeComponent extends Component {
       // can be same, react will throw up, argh!
       const uniqueId = `${this.props.nextNodesAccessorField !== 'parent' ? i : ''}${pName.toString()}->${n.name.toString()}`;
       const newNodes = n[this.props.nextNodesAccessorField];
+      //By default, keep auto expand behavior of children same as parent.
+      //As a special case, if this is the node toggled by user and it was expanded, then enable auto expand in the children of this node
+      let childAutoExpand = autoExpand;
+      if((this.userToggledNode && this.userToggledNode == uniqueId) && this.state.opened[uniqueId]) {
+        childAutoExpand = true;
+      }
+      //Following condition should always be evaluated after the childAutoExpand is set, since this mutates this.state.opened[uniqueId]
+      //If auto expand behavior is enabled and only single node is being rendered, expand the node
+      if(autoExpand && dedupedNodes.length == 1) {
+        this.state.opened[uniqueId] = true;
+      }
       const displayName = this.props.methodLookup[n.name];
       const onStackPercentage = Number((n.onStack * 100) / percentageDenominator).toFixed(2);
       const onCPUPercentage = Number((n.onCPU * 100) / percentageDenominator).toFixed(2);
@@ -110,54 +122,36 @@ class MethodTreeComponent extends Component {
         this.state.opened[uniqueId];
       const isHighlighted = Object.keys(this.state.highlighted)
         .filter(filterPaths.bind(null, uniqueId));
-      return (
-        <TreeView
-          data-nodename={displayName}
-          itemClassName={`${styles.relative} ${styles.hover} ${showDottedLine ? 'dotted-line' : ''}`}
-          key={uniqueId}
-          defaultCollapsed={!(this.state.opened[uniqueId] && newNodes)}
-          nodeLabel={
-            <div className={styles.listItem}>
-              <div
-                className={`${styles.code} ${isHighlighted.length && styles.yellow}`}
-                title={displayName}
-                onClick={this.highlight.bind(this, uniqueId)}
-              >
-                {displayName}
-              </div>
-              {!!n.onCPU && (
-                <div className={`${styles.pill} ${styles.onCPU}`}>
-                  <div className={styles.number}>{n.onCPU}</div>
-                  <div className={styles.percentage}>
-                    <div className={styles.shade} style={{ width: `${onCPUPercentage}%` }} />
-                    {onCPUPercentage}%
-                  </div>
-                </div>
-              )}
-              {(this.props.nextNodesAccessorField !== 'parent' || pName) && (
-                <div className={`${styles.pill} ${styles.onStack}`}>
-                  <div className={styles.number}>{n.onStack}</div>
-                  <div className={styles.percentage}>
-                    <div className={styles.shade} style={{ width: `${onStackPercentage}%` }} />
-                    {onStackPercentage}%
-                  </div>
-                </div>
-              )}
-            </div>
-          }
-          onClick={newNodes ? this.toggle.bind(this, uniqueId) : noop}
-        >
-          {
-            this.state.opened[uniqueId] && newNodes && this.getTree(percentageDenominator)(newNodes, uniqueId)
-          }
-        </TreeView>
-      );
+      const nodeRender =
+      <StackTreeElement
+        data-nodename={displayName}
+        key={uniqueId}
+        stackline={displayName}
+        oncpu={n.onCPU}
+        oncpuPct={onCPUPercentage}
+        onstack={(this.props.nextNodesAccessorField !== 'parent' || pName) ? n.onStack : null}
+        onstackPct={(this.props.nextNodesAccessorField !== 'parent' || pName) ? onStackPercentage : null}
+        indent={indent}
+        nodestate={this.state.opened[uniqueId]}
+        highlight={isHighlighted.length}
+        onHighlight={this.highlight.bind(this, uniqueId)}
+        onClick={newNodes ? this.toggle.bind(this, uniqueId) : noop}>
+      </StackTreeElement>;
+      const childRender = this.state.opened[uniqueId] && newNodes && this.renderSubTree(percentageDenominator)(newNodes, uniqueId, indent+1, childAutoExpand);
+      if(childRender) {
+        return ([nodeRender, childRender]);
+      } else {
+        return ([nodeRender]);
+      }
     });
+
+    //dedupedTreeNodes is an array of node element and sub-array of its child elements
+    //Filter text is only applied on first-level nodes, so just check the first array element below
     return filterText
-      ? dedupedTreeNodes.filter(node => node.props['data-nodename'].match(new RegExp(filterText, 'i')))
+      ? dedupedTreeNodes.filter(nodeElements => nodeElements.length && nodeElements[0].props['data-nodename'].match(new RegExp(filterText, 'i')))
       : dedupedTreeNodes;
   }
-
+  
   highlight (path) {
     if (path in this.state.highlighted) {
       const state = Object.assign({}, this.state);
@@ -190,6 +184,7 @@ class MethodTreeComponent extends Component {
   }
 
   toggle (open) {
+    this.userToggledNode = open;
     this.setState({
       opened: {
         ...this.state.opened,
@@ -200,38 +195,42 @@ class MethodTreeComponent extends Component {
 
   handleFilterChange (e) {
     const { pathname, query } = this.props.location;
-    this.props.router.push({ pathname, query: { ...query, filterText: e.target.value } });
+    this.props.router.push({ pathname, query: { ...query, [this.props.filterKey]: e.target.value } });
   }
 
   render () {
-    const { filterText } = this.props.location.query;
+    const filterText = this.props.location.query[this.props.filterKey];
     const { nextNodesAccessorField } = this.props;
-    const treeNodes = this.getTree(this.props.percentageDenominator)(this.props.nodes, '', filterText);
+    const treeNodes = this.renderSubTree(this.props.percentageDenominator)(this.props.nodes, '', 0, false, filterText);
     return (
-      <div style={{ padding: '0 10px', margin: '20px 0px' }}>
-        <div>
-          <div>
-            <div style={{ width: '100%', position: 'relative', height: 30 }}>
-              <div className={`${styles.code} ${styles.heading}`}>
-                Method name
-                <input
-                  className={styles.filter}
-                  type="text"
-                  placeholder="Type to filter"
-                  autoFocus
-                  defaultValue={filterText}
-                  onChange={this.debouncedHandleFilterChange}
-                />
-              </div>
-              <div className={`${styles.onCPU} ${styles.heading}`}>On CPU</div>
-              <div className={`${styles.onStack} ${styles.heading}`}>On Stack</div>
-            </div>
-            {treeNodes}
-          </div>
-          {filterText && !treeNodes.length && (
-            <p className={styles.alert}>Sorry, no results found for your search query!</p>
-          )}
+      <div>
+        <div className={treeStyles.container}>
+          <table>
+            <thead><tr>
+              <th className={treeStyles.fixedRightCol1}>On Stack</th>
+              <th className={treeStyles.fixedRightCol2}>On CPU</th>
+              <th>
+                <div className={`mdl-textfield mdl-js-textfield mdl-textfield--floating-label is-dirty is-upgraded ${styles.filterBox}`}>
+                  <input
+                    className={`mdl-textfield__input`}
+                    type="text"
+                    defaultValue={filterText}
+                    autoFocus
+                    onChange={this.debouncedHandleFilterChange}
+                    id="method_filter"
+                  />
+                  <label htmlFor="method_filter" className="mdl-textfield__label">Stack Line</label>
+                </div>
+              </th>
+            </tr></thead>
+            <tbody>
+              {treeNodes}
+            </tbody>
+          </table>
         </div>
+      {filterText && !treeNodes.length && (
+        <p className={styles.alert}>Sorry, no results found for your search query!</p>
+      )}
       </div>
     );
   }
@@ -242,6 +241,7 @@ MethodTreeComponent.propTypes = {
   nodes: React.PropTypes.array,
   nextNodesAccessorField: React.PropTypes.string.isRequired,
   methodLookup: React.PropTypes.array,
+  filterKey: React.PropTypes.string
 };
 
 export default withRouter(MethodTreeComponent);

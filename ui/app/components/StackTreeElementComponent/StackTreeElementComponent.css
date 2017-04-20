@@ -1,0 +1,107 @@
+.container { 
+  width: auto; 
+  overflow-x: scroll;  
+  margin-right: 220px;
+  overflow-y: visible;
+  margin-left: 10px;
+}
+
+.container table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 100%;  
+}
+
+.container tbody>tr:hover .fixedRightCol1, .container tbody>tr:hover .fixedRightCol2, .container tbody>tr:hover .stackline {
+    background-color: #f0f0f0;  
+}
+
+.container tr {
+  background: white;
+}
+
+.container th {
+  padding: 5px;
+  vertical-align: top;
+  text-align: left;
+  color: rgb(255,64,129);
+}
+
+.container td {
+  margin: 0;
+  white-space: nowrap;
+  padding: 2px;
+  vertical-align: top;
+}
+
+.nodeIcon {
+  font-size: 14px;
+  vertical-align: text-top;
+  cursor: pointer;
+  cursor: hand;
+}
+
+.stackline {
+  border-bottom: 1px solid rgba(158, 158, 158, 0.28);  
+}
+
+.stacklineText {
+  cursor: pointer;
+  cursor: hand;
+  &:HOVER {
+    color: rgb(255,64,129);
+  }
+}
+
+.fixedRightCol1 {
+  position: absolute; 
+  width: 100px; 
+  right: 16px;
+  top: auto;
+}
+
+.fixedRightCol2 {
+  position: absolute; 
+  width: 100px; 
+  right: 120px;
+  top: auto;
+}
+
+td.fixedRightCol1>div, td.fixedRightCol2>div  {
+  border-bottom: 1px solid rgba(158, 158, 158, 0.28);
+}
+
+.pill {
+  background: white;
+  display: inline-block;
+  width: 100px;
+  font-weight: bold;
+}
+
+.percentage {
+  text-align: center;
+  display: inline-block;
+  position: relative;
+  width: 70%;
+  .shade {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgb(255,64,129);
+    opacity: 0.2;
+    height: inherit;
+  }
+}
+
+.number {
+  text-align: left;
+  display: inline-block;
+  width: 30%;
+}
+
+.inverted {
+  filter: saturate(8);
+}
