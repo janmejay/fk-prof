@@ -42,7 +42,7 @@ public:
         out << "cid\tsig\n";
         do_report.store(true, std::memory_order_release);
     }
-    ~LoadedClasses() {}
+    virtual ~LoadedClasses() noexcept {}
 
     void stop_reporting();
 
