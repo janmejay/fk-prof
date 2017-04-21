@@ -98,3 +98,7 @@ th.fixedRightCol1 {
 .highlight {
   filter: saturate(8);
 }
+
+.subdued {
+  color: rgba(0,0,0,0.6);
+}

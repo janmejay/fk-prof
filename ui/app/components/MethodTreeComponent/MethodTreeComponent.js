@@ -67,7 +67,7 @@ class MethodTreeComponent extends Component {
     );
   }
 
-  renderSubTree = (nodeIndexes = [], parentPath = '', indent=0, autoExpand=false, filterText) => {
+  renderSubTree = (nodeIndexes = [], parentPath = '', parentIndent=0, parentHasSiblings=false, autoExpand=false, filterText) => {
     // only need to de-dupe for bottom-up not top-down,
     // hence the ternary :/
     //TODO: Check if this memoization can be skipped with just using the isOpen state variable
@@ -76,6 +76,11 @@ class MethodTreeComponent extends Component {
       : nodeIndexes.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
 
     const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
+    //Indent should always be zero if no parent
+    //Otherwise, if parent has siblings or if this node has siblings, do a major indent of the nodes, minor indent otherwise
+    const indent = !parentPath ? 0 : ((parentHasSiblings || dedupedNodes.length > 1 )? parentIndent + 10 : parentIndent + 1);
+    const hasSiblings = dedupedNodes.length > 1;
+    
     const dedupedTreeNodes = dedupedNodes.map((n, i) => {
       let uniqueId, newNodeIndexes, countToDisplay;
       let displayName = this.props.methodLookup[n.name];
@@ -124,10 +129,11 @@ class MethodTreeComponent extends Component {
           indent={indent}
           nodestate={this.state.opened[uniqueId]}
           highlight={isHighlighted.length}
+          subdued={dedupedNodes.length == 1 ? true : false}
           onHighlight={this.highlight.bind(this, uniqueId)}
           onClick={newNodeIndexes ? this.toggle.bind(this, uniqueId) : noop}>
         </StackTreeElement>;
-      const childRender = this.state.opened[uniqueId] && newNodeIndexes && this.renderSubTree(newNodeIndexes, uniqueId, indent+1, childAutoExpand);
+      const childRender = this.state.opened[uniqueId] && newNodeIndexes && this.renderSubTree(newNodeIndexes, uniqueId, indent, hasSiblings, childAutoExpand);
       if(childRender) {
         return ([nodeRender, childRender]);
       } else {
@@ -197,7 +203,7 @@ class MethodTreeComponent extends Component {
     } else {
       nodeIndexes = this.props.nodeIndexes;
     }
-    const treeNodes = this.renderSubTree(nodeIndexes, '', 0, false, filterText);
+    const treeNodes = this.renderSubTree(nodeIndexes, '', 0, false, false, filterText);
 
     return (
       <div>

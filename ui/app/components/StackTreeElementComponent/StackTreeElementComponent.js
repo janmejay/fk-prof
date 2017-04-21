@@ -8,13 +8,11 @@ class StackTreeElementComponent extends Component {
     };
   }
 
-  getIconForNode() {
-    switch(this.props.nodestate) {
-      case true:
-        return "expand_less";
-      case false:
-      default:
-        return "expand_more";
+  getStyleAndIconForNode() {
+    if (this.props.nodestate) {
+      return [0, "remove"];
+    } else {
+      return ["mdl-color-text--accent", "add"];
     }
   }
 
@@ -23,9 +21,9 @@ class StackTreeElementComponent extends Component {
   }
 
   render () {
-    let leftPadding = ((this.props.indent || 0) * 7) + "px";
+    let leftPadding = (this.props.indent || 0) + "px";
     return (
-      <tr className={this.props.highlight && styles.highlight}>
+      <tr className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued}>
         <td className={styles.fixedRightCol1}>
           {this.props.samples ? (
             <div className={`${styles.pill} mdl-color-text--primary`}>
@@ -43,8 +41,8 @@ class StackTreeElementComponent extends Component {
               {this.getIconForHighlight()}
             </span>
             <span className={styles.stacklineText} onClick={this.props.onClick}>
-              <span className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`}>
-                {this.getIconForNode()}
+              <span className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
+                {this.getStyleAndIconForNode()[1]}
               </span>
               <span className={`${this.props.highlight && 'mdl-color-text--primary'}`}>{this.props.stackline}</span>
             </span>
