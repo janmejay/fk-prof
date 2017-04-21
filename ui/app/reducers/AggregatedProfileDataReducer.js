@@ -4,18 +4,15 @@ import {
   AGGREGATED_PROFILE_DATA_FAILURE,
 } from 'actions/AggregatedProfileDataActions';
 
-function createTree (input, methodLookup, terminalNodes = []) {
+import FrameNode from '../pojos/FrameNode';
+
+
+function createTree (input, methodLookup, terminalNodeIndexes = []) {
   const allNodes = [];
   function formTree (index) {
     let currentNode = input[index];
     if (!currentNode) return {};
-    currentNode = {
-      childCount: currentNode[1],
-      name: currentNode[0],
-      onStack: currentNode[3][0],
-      onCPU: currentNode[3][1],
-      parent: [],
-    };
+    currentNode = new FrameNode(currentNode[0], currentNode[1], currentNode[2], currentNode[3][0], currentNode[3][1]);
     const currentNodeIndex = allNodes.push(currentNode) - 1;
     let nextChildIndex = currentNodeIndex;
     if (currentNode.childCount !== 0) {
@@ -24,19 +21,19 @@ function createTree (input, methodLookup, terminalNodes = []) {
         const returnValue = formTree(allNodes.length);
         if (returnValue && returnValue.index !== undefined) {
           nextChildIndex = returnValue.index;
-          allNodes[returnValue.index].parent.push(currentNodeIndex);
+          allNodes[returnValue.index].parent = currentNodeIndex;
           currentNode.children.push(nextChildIndex);
         }
       }
     }
-    if (currentNode.onCPU > 0) terminalNodes.push(currentNode);
+    if (currentNode.onCPU > 0) terminalNodeIndexes.push(currentNodeIndex);
     return { index: currentNodeIndex };
   }
   return {
     treeRoot: allNodes[formTree(0).index],
     allNodes,
     methodLookup,
-    terminalNodes: terminalNodes.sort((a, b) => b.onCPU - a.onCPU),
+    terminalNodeIndexes: terminalNodeIndexes,
   };
 }
 

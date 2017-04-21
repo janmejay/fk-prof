@@ -1,7 +1,7 @@
 .container { 
   width: auto; 
   overflow-x: scroll;  
-  margin-right: 220px;
+  margin-right: 170px;
   overflow-y: visible;
   margin-left: 10px;
 }
@@ -14,19 +14,15 @@
   max-width: 100%;  
 }
 
-.container tbody>tr:hover .fixedRightCol1, .container tbody>tr:hover .fixedRightCol2, .container tbody>tr:hover .stackline {
+.container tbody>tr:hover .fixedRightCol1>div, .container tbody>tr:hover .stackline {
     background-color: #f0f0f0;  
-}
-
-.container tr {
-  background: white;
 }
 
 .container th {
   padding: 5px;
-  vertical-align: top;
+  vertical-align: middle;
   text-align: left;
-  color: rgb(255,64,129);
+  color: rgb(63,81,181);
 }
 
 .container td {
@@ -57,26 +53,23 @@
 
 .fixedRightCol1 {
   position: absolute; 
-  width: 100px; 
+  width: 150px; 
   right: 16px;
   top: auto;
 }
 
-.fixedRightCol2 {
-  position: absolute; 
-  width: 100px; 
-  right: 120px;
-  top: auto;
-}
-
-td.fixedRightCol1>div, td.fixedRightCol2>div  {
+td.fixedRightCol1>div {
   border-bottom: 1px solid rgba(158, 158, 158, 0.28);
 }
 
+th.fixedRightCol1 {
+  padding-top: 30px;
+  font-weight: bold;
+}
+
 .pill {
-  background: white;
   display: inline-block;
-  width: 100px;
+  width: 150px;
   font-weight: bold;
 }
 
@@ -102,6 +95,6 @@ td.fixedRightCol1>div, td.fixedRightCol2>div  {
   width: 30%;
 }
 
-.inverted {
+.highlight {
   filter: saturate(8);
 }

@@ -25,36 +25,25 @@ class StackTreeElementComponent extends Component {
   render () {
     let leftPadding = ((this.props.indent || 0) * 7) + "px";
     return (
-      <tr className={this.props.highlight && styles.inverted}>
+      <tr className={this.props.highlight && styles.highlight}>
         <td className={styles.fixedRightCol1}>
-          {this.props.onstack ? (
+          {this.props.samples ? (
             <div className={`${styles.pill} mdl-color-text--primary`}>
-              <div className={styles.number}>{this.props.onstack}</div>
+              <div className={styles.number}>{this.props.samples}</div>
               <div className={styles.percentage}>
-                <div className={styles.shade} style={{ width: `${this.props.onstackPct}%` }} />
-                {this.props.onstackPct}%
-              </div>
-            </div>
-          ) : <div>&nbsp;</div>}
-        </td>
-        <td className={styles.fixedRightCol2}>
-          {!!this.props.oncpu ? (
-            <div className={`${styles.pill} mdl-color-text--primary`}>
-              <div className={styles.number}>{this.props.oncpu}</div>
-              <div className={styles.percentage}>
-                <div className={styles.shade} style={{ width: `${this.props.oncpuPct}%` }} />
-                {this.props.oncpuPct}%
+                <div className={styles.shade} style={{ width: `${this.props.samplesPct}%` }} />
+                {this.props.samplesPct}%
               </div>
             </div>
           ) : <div>&nbsp;</div>}
         </td>
         <td>
           <div className={styles.stackline} style={{marginLeft: leftPadding}} title={this.props.stackline}>
-            <span className={`material-icons mdl-color-text--primary-dark ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
+            <span className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
               {this.getIconForHighlight()}
             </span>
             <span className={styles.stacklineText} onClick={this.props.onClick}>
-              <span className={`material-icons mdl-color-text--primary-dark ${styles.nodeIcon}`}>
+              <span className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`}>
                 {this.getIconForNode()}
               </span>
               <span className={`${this.props.highlight && 'mdl-color-text--primary'}`}>{this.props.stackline}</span>
