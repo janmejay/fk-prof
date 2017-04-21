@@ -18,10 +18,6 @@ export default class HotMethodRenderNode{
       return this.name;
     }
   }
-
-  hasParent(){
-    return (this.parent.length !== 0 && this.parent[0][0] !== undefined);
-  }
 }
 
 

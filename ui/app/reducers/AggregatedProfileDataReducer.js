@@ -12,7 +12,7 @@ function createTree (input, methodLookup, terminalNodes = []) {
   function formTree (index) {
     let currentNode = input[index];
     if (!currentNode) return {};
-    currentNode = new FrameNode(allNodes.length, currentNode[0], currentNode[1], currentNode[2], currentNode[3][0], currentNode[3][1]);
+    currentNode = new FrameNode(currentNode[0], currentNode[1], currentNode[2], currentNode[3][0], currentNode[3][1]);
     const currentNodeIndex = allNodes.push(currentNode) - 1;
     let nextChildIndex = currentNodeIndex;
     if (currentNode.childCount !== 0) {
@@ -26,14 +26,14 @@ function createTree (input, methodLookup, terminalNodes = []) {
         }
       }
     }
-    if (currentNode.onCPU > 0) terminalNodes.push(currentNode);
+    if (currentNode.onCPU > 0) terminalNodes.push(currentNodeIndex);
     return { index: currentNodeIndex };
   }
   return {
     treeRoot: allNodes[formTree(0).index],
     allNodes,
     methodLookup,
-    terminalNodes: terminalNodes.sort((a, b) => b.onCPU - a.onCPU),
+    terminalNodes: terminalNodes,
   };
 }
 

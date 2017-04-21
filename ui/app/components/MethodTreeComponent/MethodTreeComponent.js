@@ -13,22 +13,24 @@ const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
 
 const getNode = allNodes => node => Number.isInteger(node) ? allNodes[node] : node;
 
-//Input is expected to be [Array of (uberId, callCount), pathInHotMethodView]   and
+//Input is expected to be [Array of (nodeIndex, callCount), pathInHotMethodView]   and
 //output returned is an array of objects of type HotMethodRenderNode
 const dedupeNodes = (allNodes) => nextNodesAccessorField => (nodesWithPath) => {
   const nodesWithCallCount = nodesWithPath[0];
   const path = nodesWithPath[1];
   const depth = path.split("->").length-1;
   const dedupedNodes = nodesWithCallCount.reduce((accum, nodeWithCallCount) => {
-    const node = getNode(allNodes)(nodeWithCallCount[0]);
+    const nodeIndex = nodeWithCallCount[0];
+    const node = getNode(allNodes)(nodeIndex);
     const callCount = nodeWithCallCount[1];
+    if(! node.hasParent()) return accum;
+
     let renderNode;
     if(depth === 0)
-      renderNode = new HotMethodRenderNode(true, node.lineNo, node.name, callCount, [[node.uberId, callCount]]);
+      renderNode = new HotMethodRenderNode(true, node.lineNo, node.name, node.onCPU, [[nodeIndex, node.onCPU]]);
     else
       renderNode = new HotMethodRenderNode(false, node.lineNo, node.name, callCount, [[node.parent, callCount]]);
     const key = renderNode.identifier();
-    if(! renderNode.hasParent()) return accum;
     if (!accum[key]) {
       accum[key] = renderNode;
     } else {
@@ -179,7 +181,7 @@ class MethodTreeComponent extends Component {
     const { nextNodesAccessorField } = this.props;
     let nodes;
     if(nextNodesAccessorField === 'parent') {
-      nodes = this.props.nodes.map((node) => [node.uberId, node.onCPU]);
+      nodes = this.props.nodes.map((nodeIndex) => [nodeIndex, undefined]);
     }else{
       nodes = this.props.nodes;
    }
