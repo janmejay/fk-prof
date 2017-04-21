@@ -28,14 +28,15 @@ import java.util.zip.GZIPOutputStream;
  * Created by gaurav.ashok on 27/03/17.
  */
 public class S3Util {
+    private final String sampleStackTraces = "[\n [\n\"B():10\",\n\"A():10\"\n ],\n [\n\"B():10\",\n\"A():10\"\n ],\n [\n\"C():10\",\n\"B():11\",\n\"A():10\"\n ],\n [\n\"C():10\",\n\"B():11\",\n\"A():10\"\n ],\n [\n\"B():10\",\n\"A():11\"\n ],\n [\n\"C():10\",\n\"B():11\",\n\"A():11\"\n ],\n [\n\"C():10\",\n\"B():11\",\n\"A():11\"\n ],\n [\n\"C():10\",\n\"B():11\",\n\"A():10\",\n\"C():10\"\n ],\n [\n\"B():10\",\n\"B():11\",\n\"A():10\",\n\"C():10\"\n ],\n [\n\"B():10\",\n\"C():10\"\n ]\n]";
+
+
     public void uploadFile() throws Exception {
-//        String startime = "2017-03-01T07:00:00";
-        String startime = "2017-03-13T07:00:00";
-//        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, new MockAggregationWindow.FileLoader("/Users/gaurav.ashok/Documents/fk-profiler/methodids_mock"),300, false);
-//        int durationInSeconds = 1800;
+
+        String startime = "2017-03-14T07:00:00";
         int durationInSeconds = 300;
 
-        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, new MockAggregationWindow.FileLoader("/Users/rohit.patiyal/git/fk-prof/methodids_with_lno_mock"),durationInSeconds, true);
+        FinalizedAggregationWindow window =  MockAggregationWindow.buildAggregationWindow(startime, () -> sampleStackTraces, durationInSeconds);
         ZonedDateTime startimeZ = ZonedDateTime.parse(startime + "Z", DateTimeFormatter.ISO_ZONED_DATE_TIME);
 
         ByteArrayOutputStream boutWS = new ByteArrayOutputStream();
@@ -112,10 +113,4 @@ public class S3Util {
 
         System.out.println("len: " + bytes.length + ", md5: " + putResult.getContentMd5());
     }
-
-    public static void main(String args[]) throws Exception {
-         S3Util s3Util = new S3Util();
-         s3Util.uploadFile();
-    }
-
 }

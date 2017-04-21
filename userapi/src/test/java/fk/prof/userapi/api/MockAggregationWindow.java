@@ -26,12 +26,12 @@ import java.util.function.Supplier;
  */
 public class MockAggregationWindow {
 
-    public static FinalizedAggregationWindow buildAggregationWindow(String time, Supplier<String> stackTraces, int durationInSeconds, boolean hasLineNo) throws Exception {
+    public static FinalizedAggregationWindow buildAggregationWindow(String time, Supplier<String> stackTraces, int durationInSeconds) throws Exception {
 
         LocalDateTime lt = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         MutableInt sampleCount = new MutableInt(0);
-        FinalizedCpuSamplingAggregationBucket cpuSampleBucket = buildTree(stackTraces, sampleCount, hasLineNo);
+        FinalizedCpuSamplingAggregationBucket cpuSampleBucket = buildTree(stackTraces, sampleCount);
 
         int sampleCount1 = sampleCount.getValue() / 2;
         int sampleCount2 = sampleCount.getValue() - sampleCount1;
@@ -41,7 +41,7 @@ public class MockAggregationWindow {
         return window;
     }
 
-    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInt sampleCount, boolean hasLineNo) throws IOException {
+    private static FinalizedCpuSamplingAggregationBucket buildTree(Supplier<String> stacktraces, MutableInt sampleCount) throws IOException {
         CpuSamplingTraceDetail traceDetail = new CpuSamplingTraceDetail();
 
         MethodIdLookup lookup = new MethodIdLookup();
@@ -63,12 +63,12 @@ public class MockAggregationWindow {
             int methodId;
             String methodName;
             for(String method : st) {
-                if(hasLineNo) {
-                    lineNo = Integer.parseInt(method.split(":")[1]);
-                    methodName = method.split(":")[0];
-                }else{
+                if(method.split(":").length == 1){
                     lineNo = random.nextInt(5);
                     methodName = method;
+                }else{
+                    lineNo = Integer.parseInt(method.split(":")[1]);
+                    methodName = method.split(":")[0];
                 }
                 methodId = lookup.getOrAdd(methodName);
                 node = node.getOrAddChild(methodId, lineNo);
