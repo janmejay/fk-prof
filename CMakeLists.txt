@@ -152,9 +152,9 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_W
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
+    target_link_libraries(${OUTPUT} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
 endif()
 
 add_executable(unitTests ${TEST_FILES} ${SRC_TEST}/test.cpp)
