@@ -10,9 +10,9 @@ class StackTreeElementComponent extends Component {
 
   getStyleAndIconForNode() {
     if (this.props.nodestate) {
-      return [0, "remove"];
+      return [styles.collapsedIcon, "play_arrow"];
     } else {
-      return ["mdl-color-text--accent", "add"];
+      return ["mdl-color-text--accent", "play_arrow"];
     }
   }
 
