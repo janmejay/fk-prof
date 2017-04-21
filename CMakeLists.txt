@@ -21,9 +21,9 @@ set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(OUTPUT "lagent")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN})
-#protobuf idl setup
-add_subdirectory(src/idl)
-include_directories(src/idl)
+# #protobuf idl setup
+# add_subdirectory(src/idl)
+# include_directories(src/idl)
 
 ##########################################################
 # Libraries & Code
@@ -65,8 +65,6 @@ include_directories("/usr/include/i386-linux-gnu/c++/4.8/")
 
 set(SOURCE_FILES
     ${SRC}/agent.cpp
-    ${SRC}/checksum.cpp
-    ${SRC}/checksum.h
     ${SRC}/circular_queue.cpp
     ${SRC}/circular_queue.h
     ${SRC}/common.cpp
@@ -96,8 +94,6 @@ set(SOURCE_FILES
     ${SRC}/hprof_tracker.h
     ${SRC}/hprof_tracker_jni.h
     ${SRC}/hprof_tracker.cpp
-    ${SRC}/profile_writer.cpp
-    ${SRC}/profile_writer.h
     ${SRC}/data_writer.h)
 
 set(TEST_FILES
@@ -107,13 +103,7 @@ set(TEST_FILES
     ${SRC_TEST}/test_agent.cpp
     ${SRC_TEST}/test.h
     ${SRC_TEST}/test_profiler_config.cpp
-    ${SRC_TEST}/test_recording_serde.cpp
-    ${SRC_TEST}/test_checksum.cpp
     ${SRC_TEST}/test_maps.cpp)
-
-set(TEST_UTIL_FILES
-    ${SRC_TEST}/test_profile.h
-    ${SRC_TEST}/test_profile.cpp)
 
 set(TEST_JNI_FILES
     ${SRC_TEST}/test_jni.h
@@ -162,22 +152,21 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_CONCQUEUE} ${CMAKE_CXX_FLAGS} ${GLOBAL_W
 add_library(${OUTPUT} SHARED ${SOURCE_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY})
 else()
-    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} proto ${PROTOBUF_LIBRARY} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
+    target_link_libraries(${OUTPUT} ${JNI_LIBRARIES} ${LIBCUCKOO_CITY_HASH_LIB} ${ZLIB_LIBRARY} dl)
 endif()
 
-add_library(testutil SHARED ${TEST_UTIL_FILES})
 add_executable(unitTests ${TEST_FILES} ${SRC_TEST}/test.cpp)
 add_library(testjni SHARED ${TEST_JNI_FILES})
 
 if (DEFINED ENV{UNITTEST_LIBRARIES})
   message("User has configured " $ENV{UNITTEST_LIBRARIES} " as the unit test libraries")
-  target_link_libraries(unitTests testutil ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
-  target_link_libraries(testjni testutil ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
+  target_link_libraries(unitTests ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
+  target_link_libraries(testjni ${OUTPUT} $ENV{UNITTEST_LIBRARIES})
 else()
-  target_link_libraries(unitTests testutil ${OUTPUT} ${unittest++_LIBRARIES})
-  target_link_libraries(testjni testutil ${OUTPUT} ${unittest++_LIBRARIES})
+  target_link_libraries(unitTests ${OUTPUT} ${unittest++_LIBRARIES})
+  target_link_libraries(testjni ${OUTPUT} ${unittest++_LIBRARIES})
 endif()
 
 # make test
