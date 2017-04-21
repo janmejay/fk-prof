@@ -7,7 +7,7 @@ import {
 import FrameNode from '../pojos/FrameNode';
 
 
-function createTree (input, methodLookup, terminalNodes = []) {
+function createTree (input, methodLookup, terminalNodeIndexes = []) {
   const allNodes = [];
   function formTree (index) {
     let currentNode = input[index];
@@ -26,14 +26,14 @@ function createTree (input, methodLookup, terminalNodes = []) {
         }
       }
     }
-    if (currentNode.onCPU > 0) terminalNodes.push(currentNodeIndex);
+    if (currentNode.onCPU > 0) terminalNodeIndexes.push(currentNodeIndex);
     return { index: currentNodeIndex };
   }
   return {
     treeRoot: allNodes[formTree(0).index],
     allNodes,
     methodLookup,
-    terminalNodes: terminalNodes,
+    terminalNodeIndexes: terminalNodeIndexes,
   };
 }
 

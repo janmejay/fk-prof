@@ -110,7 +110,7 @@ export class CPUSamplingComponent extends Component {
             <div>
               <MethodTree
                 allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
-                nodes={safeTraverse(this.props, ['tree', 'data', 'terminalNodes'])}
+                nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'terminalNodeIndexes'])}
                 nextNodesAccessorField="parent"
                 methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
               />
@@ -123,7 +123,7 @@ export class CPUSamplingComponent extends Component {
             <div>
               <MethodTree
                 allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
-                nodes={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'children'])}
+                nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'children'])}
                 nextNodesAccessorField="children"
                 methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
                 percentageDenominator={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'onStack'])}
@@ -146,7 +146,7 @@ CPUSamplingComponent.propTypes = {
     data: PropTypes.shape({
       allNodes: PropTypes.array,
       methodLookup: PropTypes.array,
-      terminalNodes: PropTypes.array,
+      terminalNodeIndexes: PropTypes.array,
     }),
   }),
   location: PropTypes.shape({

@@ -6,36 +6,37 @@ import debounce from 'utils/debounce';
 
 import 'react-treeview/react-treeview.css';
 import styles from './MethodTreeComponent.css';
-import HotMethodRenderNode from '../../pojos/HotMethodRenderNode';
+import HotMethodNode from '../../pojos/HotMethodNode';
 
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
 
-const getNode = allNodes => node => Number.isInteger(node) ? allNodes[node] : node;
-
 //Input is expected to be [Array of (nodeIndex, callCount), pathInHotMethodView]   and
-//output returned is an array of objects of type HotMethodRenderNode
-const dedupeNodes = (allNodes) => nextNodesAccessorField => (nodesWithPath) => {
+//output returned is an array of objects of type HotMethodNode
+//This function aggregates nodes with same name+lineNo to be rendered and same name for first layer
+//in hotmethodView. As part of aggregation their sampledCallCounts are added and respective parents added in a list
+//with sampledCallCounts caused by them
+const dedupeNodes = (allNodes) => (nodesWithPath) => {
   const nodesWithCallCount = nodesWithPath[0];
   const path = nodesWithPath[1];
   const depth = path.split("->").length-1;
   const dedupedNodes = nodesWithCallCount.reduce((accum, nodeWithCallCount) => {
     const nodeIndex = nodeWithCallCount[0];
-    const node = getNode(allNodes)(nodeIndex);
-    const callCount = nodeWithCallCount[1];
+    const node = allNodes[nodeIndex];
+    const sampledCallCount = nodeWithCallCount[1];
     if(! node.hasParent()) return accum;
 
     let renderNode;
     if(depth === 0)
-      renderNode = new HotMethodRenderNode(true, node.lineNo, node.name, node.onCPU, [[nodeIndex, node.onCPU]]);
+      renderNode = new HotMethodNode(true, node.lineNo, node.name, node.onCPU, [[nodeIndex, node.onCPU]]);
     else
-      renderNode = new HotMethodRenderNode(false, node.lineNo, node.name, callCount, [[node.parent, callCount]]);
+      renderNode = new HotMethodNode(false, node.lineNo, node.name, sampledCallCount, [[node.parent, sampledCallCount]]);
     const key = renderNode.identifier();
     if (!accum[key]) {
       accum[key] = renderNode;
     } else {
       accum[key].sampledCallCount += renderNode.sampledCallCount;
-      accum[key].parent = [...accum[key].parent, ...renderNode.parent];
+      accum[key].parentsWithSampledCallCount = [...accum[key].parentsWithSampledCallCount, ...renderNode.parentsWithSampledCallCount];
     }
     return accum;
   }, {});
@@ -61,34 +62,43 @@ class MethodTreeComponent extends Component {
     this.highlight = this.highlight.bind(this);
     this.debouncedHandleFilterChange = debounce(this.handleFilterChange, 250);
     this.memoizedDedupeNodes = memoize(
-      dedupeNodes(props.allNodes)(props.nextNodesAccessorField), stringifierFunction, true,
+      dedupeNodes(props.allNodes), stringifierFunction, true,
     );
   }
 
 
-  getTree = (nodes = [], pName = '', filterText) => {
+  getTree = (nodeIndexes = [], parentPath = '', filterText) => {
     // only need to de-dupe for bottom-up not top-down,
     // hence the ternary :/
+    //TODO: Check if this memoization can be skipped with just using the isOpen state variable
     const dedupedNodes = this.props.nextNodesAccessorField === 'parent'
-      ? this.memoizedDedupeNodes(nodes, pName)
-      : nodes.map(getNode(this.props.allNodes)).slice().sort((a, b) => b.onStack - a.onStack);
-
-    // for call tree, it'll be passed from the parent
-    // and for bottom-up we'll use the top level globalOnCPUSum,
-    // and pass it around till the leaf level
-    // percentageDenominator = percentageDenominator || globalOnCPUSum;
+      ? this.memoizedDedupeNodes(nodeIndexes, parentPath)
+      : nodeIndexes.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
 
     const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
     const dedupedTreeNodes = dedupedNodes.map((n, i) => {
-      // using the index because in call tree the name of sibling nodes
-      // can be same, react will throw up, argh!
-      const uniqueId = `${this.props.nextNodesAccessorField !== 'parent' ? i : ''}${pName.toString()}->${(n instanceof HotMethodRenderNode) ? n.identifier().toString(): n.name.toString()}+${n.lineNo.toString()} `;
-      const newNodes = n[this.props.nextNodesAccessorField];
-      const displayName = this.props.methodLookup[n.name] + `${(n instanceof HotMethodRenderNode && n.belongsToTopLayer) ? '' : ' ' + n.lineNo.toString()}`;
-      const countToDisplay = (n instanceof HotMethodRenderNode) ? n.sampledCallCount: n.onStack;
-      const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
+      let uniqueId, newNodeIndexes, countToDisplay;
+      let displayName = this.props.methodLookup[n.name];
 
-      const showDottedLine = pName && dedupedNodes.length >= 2 && dedupedNodes.length !== i + 1 &&
+      //This condition is equivalent to (n instanceOf HotMethodNode)
+      //since nextNodesAccessorField is = parent in hot method view and
+      //Node type for dedupedNodes is HotMothodNode from above
+      if(this.props.nextNodesAccessorField === 'parent'){
+        uniqueId = `${parentPath}->${n.identifier()}`;
+        newNodeIndexes = n.parentsWithSampledCallCount;
+        const lineNoOrNot = (n.belongsToTopLayer)? '' : ':' + n.lineNo;
+        displayName = displayName + lineNoOrNot ;
+        countToDisplay = n.sampledCallCount;
+      }else{
+        // using the index i because in call tree the name of sibling nodes
+        // can be same, react will throw up, argh!
+        uniqueId = `${i+parentPath}->${n.name}:${n.lineNo}`;
+        newNodeIndexes = n.children;
+        displayName = displayName + ':' + n.lineNo;
+        countToDisplay = n.onStack;
+      }
+      const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
+      const showDottedLine = parentPath && dedupedNodes.length >= 2 && dedupedNodes.length !== i + 1 &&
         this.state.opened[uniqueId];
       const isHighlighted = Object.keys(this.state.highlighted)
         .filter(filterPaths.bind(null, uniqueId));
@@ -97,7 +107,7 @@ class MethodTreeComponent extends Component {
           data-nodename={displayName}
           itemClassName={`${styles.relative} ${styles.hover} ${showDottedLine ? 'dotted-line' : ''}`}
           key={uniqueId}
-          defaultCollapsed={!(this.state.opened[uniqueId] && newNodes)}
+          defaultCollapsed={!(this.state.opened[uniqueId] && newNodeIndexes)}
           nodeLabel={
             <div className={styles.listItem}>
               <div
@@ -118,10 +128,10 @@ class MethodTreeComponent extends Component {
               )}
             </div>
           }
-          onClick={newNodes ? this.toggle.bind(this, uniqueId) : noop}
+          onClick={newNodeIndexes ? this.toggle.bind(this, uniqueId) : noop}
         >
           {
-            this.state.opened[uniqueId] && newNodes && this.getTree(newNodes, uniqueId)
+            this.state.opened[uniqueId] && newNodeIndexes && this.getTree(newNodeIndexes, uniqueId)
           }
         </TreeView>
       );
@@ -179,14 +189,14 @@ class MethodTreeComponent extends Component {
   render () {
     const { filterText } = this.props.location.query;
     const { nextNodesAccessorField } = this.props;
-    let nodes;
+    let nodeIndexes;
     if(nextNodesAccessorField === 'parent') {
-      nodes = this.props.nodes.map((nodeIndex) => [nodeIndex, undefined]);
+      nodeIndexes = this.props.nodeIndexes.map((nodeIndex) => [nodeIndex, undefined]);
     }else{
-      nodes = this.props.nodes;
+      nodeIndexes = this.props.nodeIndexes;
    }
 
-    const treeNodes = this.getTree(nodes, '', filterText);
+    const treeNodes = this.getTree(nodeIndexes, '', filterText);
 
     return (
       <div style={{ padding: '0 10px', margin: '20px 0px' }}>
@@ -219,7 +229,7 @@ class MethodTreeComponent extends Component {
 
 MethodTreeComponent.propTypes = {
   allNodes: React.PropTypes.array,
-  nodes: React.PropTypes.array,
+  nodeIndexes: React.PropTypes.array,
   nextNodesAccessorField: React.PropTypes.string.isRequired,
   methodLookup: React.PropTypes.array,
 };
