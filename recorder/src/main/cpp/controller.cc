@@ -28,6 +28,7 @@ Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, C
     current_work.set_work_id(0);
     current_work_state = recording::WorkResponse::complete;
     current_work_result = recording::WorkResponse::success;
+    cancel_work = []{};
 }
 
 void Controller::start() {
@@ -36,7 +37,13 @@ void Controller::start() {
 }
 
 void Controller::stop() {
-    keep_running.store(false, std::memory_order_relaxed);
+    cancel_work();
+    scheduler.schedule(Time::now(), [&]() {
+            //This is necessary because it wakes up the scheduler.poll and keep_running == false
+            //  We can call this directly, but then we'd need additional stop-control in scheduler.
+            //  This hack (in a positive way) simplifies scheduler.
+            keep_running.store(false, std::memory_order_relaxed);
+        });
     await_thd_death(thd_proc);
     thd_proc.reset();
 }
@@ -351,6 +358,14 @@ static int ring_to_curl(char *out_buff, size_t size, size_t nitems, void *_ctx) 
     return copied;
 }
 
+static int log_curl_response(char *in_buff, size_t size, size_t nmemb, void *recv_buff) {
+    int sz = size * nmemb;
+    std::string body(in_buff, sz);
+    std::string ctx(static_cast<const char*>(recv_buff));
+    logger->info("Curl {} response body: '{}'", ctx, body);
+    return sz;
+}
+
 class HttpRawProfileWriter : public RawWriter {
 private:
     std::string host;
@@ -367,7 +382,7 @@ private:
     //  can be used for other desirable things like compression.
     BlockingRingBuffer& ring;
 
-    std::function<void()> cancellation_fn;
+    std::function<void()>& cancellation_fn;
 
     std::uint32_t tx_timeout;
 
@@ -381,7 +396,7 @@ private:
 
 public:
     HttpRawProfileWriter(JavaVM *jvm, jvmtiEnv *jvmti, const std::string& _host, const std::uint32_t _port,
-                         BlockingRingBuffer& _ring, std::function<void()>&& _cancellation_fn, const std::uint32_t _tx_timeout) :
+                         BlockingRingBuffer& _ring, std::function<void()>& _cancellation_fn, const std::uint32_t _tx_timeout) :
         RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn), tx_timeout(_tx_timeout),
 
         s_t_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
@@ -425,12 +440,13 @@ public:
         curl_easy_setopt(curl.get(), CURLOPT_READFUNCTION, ring_to_curl);
         curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, tx_timeout);
 
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, "PROFILE-RPC");
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, log_curl_response);
+
         if (do_call(curl, url.c_str(), "send-profile", 0, s_t_rpc, s_c_rpc_failures)) {
             logger->info("Profile posted successfully!");
         } else {
             logger->error("Couldn't post profile, http request failed, cancelling work.");
-            ring.readonly(); //because now there is no point in reading/writing anything anyway, also...
-            // ...this prevents race where processor wants to write more but raw-writer can't read any more
             cancellation_fn();
         }
     }
@@ -455,7 +471,10 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
     scheduler.schedule(at, [&, port, controller_id, controller_version]() {
             with_current_work([&](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                     auto work_id = w.work_id();
-                    std::function<void()> cancellation_cb = [&, work_id]() {
+                    cancel_work = [&, work_id]() {
+                        raw_writer_ring.readonly(); //because now there is no point in reading/writing anything anyway, this prevents some races:
+                        // 1. Where processor wants to write more but raw-writer can't read any more
+                        // 2. When user shuts down the JVM while profile is being recorded
                         scheduler.schedule(Time::now(), [&] {
                                 wres = recording::WorkResponse::failure;
                                 retire_work(work_id);
@@ -463,7 +482,7 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                     };
                     if (w.work_size() > 0) {
                         std::uint32_t tx_timeout = cfg.slow_tx_tolerance * w.duration();
-                        std::shared_ptr<HttpRawProfileWriter> raw_writer(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, std::move(cancellation_cb), tx_timeout));
+                        std::shared_ptr<HttpRawProfileWriter> raw_writer(new HttpRawProfileWriter(jvm, jvmti, host, port, raw_writer_ring, cancel_work, tx_timeout));
                         writer.reset(new ProfileWriter(raw_writer, buff));
                         recording::RecordingHeader rh;
                         populate_recording_header(rh, w, controller_id, controller_version);

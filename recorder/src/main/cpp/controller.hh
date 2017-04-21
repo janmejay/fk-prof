@@ -51,6 +51,7 @@ private:
     std::shared_ptr<ProfileWriter> writer;
     std::shared_ptr<ProfileSerializingWriter> serializer;
     std::shared_ptr<Processor> processor;
+    std::function<void()> cancel_work;
     BlockingRingBuffer raw_writer_ring;
 
     Scheduler scheduler;
