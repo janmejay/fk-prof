@@ -83,7 +83,7 @@ const AppComponent = (props) => {
       {
         selectedProc && start && end && (
           <div className="mdl-grid">
-            <div className="mdl-cell mdl-cell--4-col">
+            <div className="mdl-cell mdl-cell--3-col">
               <ProfileList
                 app={selectedApp}
                 cluster={selectedCluster}
@@ -92,7 +92,7 @@ const AppComponent = (props) => {
                 end={end}
               />
             </div>
-            <div className="mdl-cell mdl-cell--8-col">
+            <div className="mdl-cell mdl-cell--9-col">
               {props.children || <h2 className={styles.ingrained}>Select a Trace</h2>}
             </div>
           </div>
