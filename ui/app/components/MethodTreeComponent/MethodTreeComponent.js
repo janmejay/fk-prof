@@ -221,7 +221,7 @@ class MethodTreeComponent extends Component {
                     onChange={this.debouncedHandleFilterChange}
                     id="method_filter"
                   />
-                  <label htmlFor="method_filter" className="mdl-textfield__label">Stack Line</label>
+                  <label htmlFor="method_filter" className="mdl-textfield__label">Stack Line Filter</label>
                 </div>
               </th>
             </tr></thead>

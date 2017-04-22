@@ -45,34 +45,37 @@ class ProfileComponent extends React.Component {
     const selectedProfile = this.props.location.query.profileStart;
     return (
       <div className={styles['main']}>
-        <h4 className={styles.heading}>{this.props.heading}</h4>
+        <h5 className={styles.heading}>{this.props.heading}</h5>
 
         {isCollapsable && !isCollapsed && (
-          <div style={{ textAlign: 'center' }}>
-            <div className="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-              <input
-                className="mdl-textfield__input"
-                type="text"
-                value={this.state.filterText}
-                placeholder="Type to filter traces"
-                onChange={this.setFilterText}
-              />
-            </div>
+          <div className="mdl-textfield mdl-js-textfield" style={{padding: "8px 20px 4px 20px"}}>
+            <input
+              className="mdl-textfield__input"
+              type="text"
+              value={this.state.filterText}
+              onChange={this.setFilterText}
+              placeholder="Filter traces"
+              style={{fontSize: "14px", padding: "4px"}}
+            />
+          </div>
+        )}
+        
+        {list && list.length > 0 && (
+          <div style={{padding: "4px 16px"}}>
+            {list.map(l => (
+              <div className={`${styles.itemContainer} ${(l.name === selectedTraceName && this.props.start === selectedProfile) && styles.highlighted}`}
+              key={l.name}>
+                <Link
+                  to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.start }})}>
+                  <span>(</span><span className="mdl-color-text--primary">{l.score}</span><span>)</span>
+                  <span>&nbsp;</span>
+                  <span>{l.name}</span>
+                </Link>
+              </div>
+            ))}
           </div>
         )}
 
-        <ol>
-          {list && list.map(l => (
-            <li key={l.name}>
-              <Link
-                to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.start } })}
-                className={(l.name === selectedTraceName && this.props.start === selectedProfile) ? styles.highlighted : ''}
-              >
-                {l.name}
-              </Link>
-            </li>
-          ))}
-        </ol>
         {isCollapsable && (
           <div className={styles.center}>
             <button

@@ -1,11 +1,13 @@
 .main {
   margin-bottom: 4px;
-  border: 1px solid #F5B800;
+  padding-bottom: 4px;
+  border: 1px solid rgb(48,63,159);
+  
   .heading {
-    background: #ffe7a1;
-    padding: 8px;
+    background: rgb(63,81,181);
+    padding: 8px 16px;
     margin: 0;
-    text-align: center;
+    color: white;
   }
 
   .center {
@@ -13,7 +15,24 @@
   }
 
   .highlighted {
-    font-weight: bold;
-    color: rgb(63,81,181);
+    background-color: rgb(63,81,181);
+  }
+
+  .highlighted a, .highlighted span {
+    color: white !important;
+  }
+
+  .itemContainer {
+    margin: 4px 0px;
+    padding: 4px;
+    border-radius: 8px;
+  }
+
+  a {
+    text-decoration: none;
+    width: 100%;
+    text-align: left;
+    padding: 4px 0;
+    color: rgba(0,0,0,0.87);
   }
 }
