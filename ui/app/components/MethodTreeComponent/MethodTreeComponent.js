@@ -86,7 +86,7 @@ class MethodTreeComponent extends Component {
         // hence the ternary :/
         //TODO: Check if this memoization can be skipped with just using the isOpen state variable
         const dedupedNodes = this.props.nextNodesAccessorField === 'parent'
-          ? this.memoizedDedupeNodes(se.gen.nis, se.p_pth)
+          ? this.memoizedDedupeNodes(...se.gen.nis)
           : se.gen.nis.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
 
         //Indent should always be zero if no parent
