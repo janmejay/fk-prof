@@ -11,40 +11,37 @@ import HotMethodNode from '../../pojos/HotMethodNode';
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
 
-//Input is expected to be [Array of (nodeIndex, callCount), pathInHotMethodView]   and
+//Input is expected to be Array of (nodeIndex, callCount)   and
 //output returned is an array of objects of type HotMethodNode
 //This function aggregates nodes with same name+lineNo to be rendered and same name for first layer
 //in hotmethodView. As part of aggregation their sampledCallCounts are added and respective parents added in a list
 //with sampledCallCounts caused by them
-const dedupeNodes = (allNodes) => (nodesWithPath) => {
-  const nodesWithCallCount = nodesWithPath[0];
-  const path = nodesWithPath[1];
-  const depth = path.split("->").length-1;
-  const dedupedNodes = nodesWithCallCount.reduce((accum, nodeWithCallCount) => {
+const dedupeNodes = (allNodes) => (nodesWithCallCount) => {
+   let dedupedNodes = {};
+  for(let i=0; i<nodesWithCallCount.length; i++){
+    let nodeWithCallCount = nodesWithCallCount[i];
     const nodeIndex = nodeWithCallCount[0];
     const node = allNodes[nodeIndex];
     const sampledCallCount = nodeWithCallCount[1];
-    if(! node.hasParent()) return accum;
-
+    if(! node.hasParent()) break;
     let renderNode;
-    if(depth === 0)
+    if(sampledCallCount === undefined)
       renderNode = new HotMethodNode(true, node.lineNo, node.name, node.onCPU, [[nodeIndex, node.onCPU]]);
     else
       renderNode = new HotMethodNode(false, node.lineNo, node.name, sampledCallCount, [[node.parent, sampledCallCount]]);
     const key = renderNode.identifier();
-    if (!accum[key]) {
-      accum[key] = renderNode;
+    if (!dedupedNodes[key]) {
+      dedupedNodes[key] = renderNode;
     } else {
-      accum[key].sampledCallCount += renderNode.sampledCallCount;
-      accum[key].parentsWithSampledCallCount = [...accum[key].parentsWithSampledCallCount, ...renderNode.parentsWithSampledCallCount];
+      dedupedNodes[key].sampledCallCount += renderNode.sampledCallCount;
+      dedupedNodes[key].parentsWithSampledCallCount = [...dedupedNodes[key].parentsWithSampledCallCount, ...renderNode.parentsWithSampledCallCount];
     }
-    return accum;
-  }, {});
-   return Object.keys(dedupedNodes).map(k => dedupedNodes[k]).sort((a, b) => b.sampledCallCount - a.sampledCallCount);
+  }
+  return Object.keys(dedupedNodes).map(k => dedupedNodes[k]).sort((a, b) => b.sampledCallCount - a.sampledCallCount);
 };
 
 const stringifierFunction = function (a) {
-  if (Array.isArray(a)) return a[0];
+  if (Array.isArray(a)) return a[0]+":"+a[1];
   if (Number.isInteger(a)) return a;
   return a.name;
 };
@@ -72,7 +69,7 @@ class MethodTreeComponent extends Component {
     // hence the ternary :/
     //TODO: Check if this memoization can be skipped with just using the isOpen state variable
     const dedupedNodes = this.props.nextNodesAccessorField === 'parent'
-      ? this.memoizedDedupeNodes(nodeIndexes, parentPath)
+      ? this.memoizedDedupeNodes(...nodeIndexes)
       : nodeIndexes.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
 
     const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
@@ -80,8 +77,9 @@ class MethodTreeComponent extends Component {
     //Otherwise, if parent has siblings or if this node has siblings, do a major indent of the nodes, minor indent otherwise
     const indent = !parentPath ? 0 : ((parentHasSiblings || dedupedNodes.length > 1 )? parentIndent + 10 : parentIndent + 1);
     const hasSiblings = dedupedNodes.length > 1;
-    
-    const dedupedTreeNodes = dedupedNodes.map((n, i) => {
+    const dedupedTreeNodes = [];
+    for(let i=0;i < dedupedNodes.length; i++) {
+      let n = dedupedNodes[i];
       let uniqueId, newNodeIndexes, countToDisplay;
       let displayName = this.props.methodLookup[n.name];
 
@@ -135,11 +133,11 @@ class MethodTreeComponent extends Component {
         </StackTreeElement>;
       const childRender = this.state.opened[uniqueId] && newNodeIndexes && this.renderSubTree(newNodeIndexes, uniqueId, indent, hasSiblings, childAutoExpand);
       if(childRender) {
-        return ([nodeRender, childRender]);
+        dedupedTreeNodes.push([nodeRender, childRender]);
       } else {
-        return ([nodeRender]);
+        dedupedTreeNodes.push([nodeRender]);
       }
-    });
+    }
 
     //dedupedTreeNodes is an array of node element and sub-array of its child elements
     //Filter text is only applied on first-level nodes, so just check the first array element below
