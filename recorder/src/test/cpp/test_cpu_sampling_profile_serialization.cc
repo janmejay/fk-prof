@@ -118,10 +118,16 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
     return std::make_tuple(mid, bci, line);
 }
 
+#define NO_THD -1
+
 #define ASSERT_STACK_SAMPLE_IS(ss, time_offset, thd_id, frames, ctx_ids, is_snipped) \
     {                                                                   \
         CHECK_EQUAL(time_offset, ss.start_offset_micros());             \
-        CHECK_EQUAL(thd_id, ss.thread_id());                            \
+        if (thd_id == NO_THD) {                                         \
+            CHECK_EQUAL(false, ss.has_thread_id());                     \
+        } else {                                                        \
+            CHECK_EQUAL(thd_id, ss.thread_id());                        \
+        }                                                               \
         CHECK_EQUAL(frames.size(), ss.frame_size());                    \
         auto i = 0;                                                     \
         for (auto it = frames.begin(); it != frames.end(); it++, i++) { \
@@ -239,7 +245,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
-    q.push(ct, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, nullptr);
 
     CHECK(q.pop());
     CHECK(q.pop());
@@ -310,7 +316,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs, false);
     auto s4 = {fr(c, 40, 4), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s4_ctxs = {0};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(3), 0, 4, s4, s4_ctxs, false);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(3), 0, NO_THD, s4, s4_ctxs, false);
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
