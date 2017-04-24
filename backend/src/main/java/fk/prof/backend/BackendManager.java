@@ -112,7 +112,7 @@ public class BackendManager {
           PolicyStore policyStore = new PolicyStore(curatorClient);
 
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
-          Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
+          Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments, backendAssociationStore, policyStore);
 
           VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(
               vertx, configManager, curatorClient, leaderElectedTask);
@@ -192,10 +192,11 @@ public class BackendManager {
         loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }
 
-  public static Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments) {
+  public static Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments,
+                                                 BackendAssociationStore associationStore, PolicyStore policyStore) {
     LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
     builder.disableBackend(backendDeployments);
-    return builder.build(vertx, leaderHttpVerticleDeployer);
+    return builder.build(vertx, leaderHttpVerticleDeployer, associationStore, policyStore);
   }
 
   private MetricsOptions buildMetricsOptions() {

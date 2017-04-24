@@ -16,7 +16,6 @@ import fk.prof.metrics.MetricName;
 import fk.prof.metrics.ProcessGroupTag;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
@@ -46,21 +45,11 @@ public class LeaderHttpVerticle extends AbstractVerticle {
 
   @Override
   public void start(Future<Void> fut) {
-
-    Future serverInitFuture = Future.future();
-    Future associationInitFuture = Future.future();
-    Future policyInitFuture = Future.future();
-
     Router router = setupRouting();
     vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
         .requestHandler(router::accept)
-        .listen(configManager.getLeaderHttpPort(), serverInitFuture.completer());
-
-    runOnContext(associationInitFuture, backendAssociationStore::init);
-    runOnContext(policyInitFuture, policyStore::init);
-
-    CompositeFuture compositeFuture = CompositeFuture.all(serverInitFuture, associationInitFuture, policyInitFuture);
-    compositeFuture.setHandler(c -> completeStartup(c, fut));
+        .listen(configManager.getLeaderHttpPort(),
+                http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {
@@ -85,7 +74,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     return router;
   }
 
-  private void completeStartup(AsyncResult<CompositeFuture> http, Future<Void> fut) {
+  private void completeStartup(AsyncResult<HttpServer> http, Future<Void> fut) {
     if (http.succeeded()) {
       fut.complete();
     } else {
@@ -209,20 +198,6 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);
-    }
-  }
-
-  interface CheckedRunnable {
-    void run() throws Exception;
-  }
-
-  private void runOnContext(Future future, CheckedRunnable r) {
-    try {
-      r.run();
-      future.complete();
-    }
-    catch (Exception e) {
-      future.fail(e);
     }
   }
 }

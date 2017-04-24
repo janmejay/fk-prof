@@ -62,11 +62,6 @@ public class LeaderElectionTest {
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));
     curatorClient.start();
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
-    try {
-      curatorClient.create().forPath(configManager.getLeaderHttpDeploymentConfig().getString("backend.association.path", "/association"));
-    } catch (KeeperException.NodeExistsException ex) {
-      // ignore
-    }
   }
 
   @After
@@ -154,7 +149,7 @@ public class LeaderElectionTest {
 
       VerticleDeployer leaderHttpDeployer = mock(LeaderHttpVerticleDeployer.class);
       when(leaderHttpDeployer.deploy()).thenReturn(CompositeFutureImpl.all(Future.succeededFuture()));
-      Runnable leaderElectedTask = LeaderElectedTask.newBuilder().disableBackend(backendDeployments).build(vertx, leaderHttpDeployer);
+      Runnable leaderElectedTask = LeaderElectedTask.newBuilder().disableBackend(backendDeployments).build(vertx, leaderHttpDeployer, mock(BackendAssociationStore.class), mock(PolicyStore.class));
       Runnable wrappedLeaderElectedTask = () -> {
         leaderElectedTask.run();
         leaderElectionLatch.countDown();
@@ -228,7 +223,7 @@ public class LeaderElectionTest {
           CountDownLatch latch = new CountDownLatch(1);
           LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
           builder.disableBackend(Collections.emptyList());
-          Runnable leaderElectedTask = builder.build(vertx, leaderHttpVerticleDeployer);
+          Runnable leaderElectedTask = builder.build(vertx, leaderHttpVerticleDeployer, backendAssociationStore, policyStore);
           Runnable leaderElectedTaskWithLatch = () -> {
             System.out.println("running leader elected task");
             leaderElectedTask.run();
@@ -269,6 +264,13 @@ public class LeaderElectionTest {
   }
 
   private CompositeFuture populateAssociationAndPolicies(Recorder.ProcessGroup pg1, Recorder.ProcessGroup pg2, BackendDTO.RecordingPolicy policy) throws Exception {
+    // make sure association node is present
+    try {
+      curatorClient.create().forPath(configManager.getLeaderHttpDeploymentConfig().getString("backend.association.path", "/association"));
+    } catch (KeeperException.NodeExistsException ex) {
+      // ignore
+    }
+
     BackendAssociationStore backendAssociationStore = createBackendAssociationStore(vertx, curatorClient);
     backendAssociationStore.init();
 

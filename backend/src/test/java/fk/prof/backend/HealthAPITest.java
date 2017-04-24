@@ -112,8 +112,9 @@ public class HealthAPITest {
         List<String> backendDeployments = new ArrayList<String>(((CompositeFuture)ar.result().list().get(0)).list());
         backendDeployments.add((String)((CompositeFuture)ar.result().list().get(1)).list().get(0));
 
-        VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, mock(PolicyStore.class));
-        Runnable leaderElectedTask = BackendManager.createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
+        PolicyStore policyStore = mock(PolicyStore.class);
+        VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
+        Runnable leaderElectedTask = BackendManager.createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments, backendAssociationStore, policyStore);
         VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(
             vertx, configManager, curatorClient, leaderElectedTask);
         VerticleDeployer leaderElectionWatcherVerticleDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, inMemoryLeaderStore);
