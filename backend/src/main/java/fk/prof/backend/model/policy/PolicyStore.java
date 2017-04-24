@@ -1,5 +1,6 @@
 package fk.prof.backend.model.policy;
 
+import fk.prof.backend.model.InitStatus;
 import fk.prof.backend.proto.BackendDTO;
 import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.logging.Logger;
@@ -25,13 +26,35 @@ public class PolicyStore {
   public static String policyStorePath = "/policy_store_temp";
   private final Map<Recorder.ProcessGroup, BackendDTO.RecordingPolicy> store = new ConcurrentHashMap<>();
   private final CuratorFramework curator;
+  private InitStatus initStatus;
 
   public PolicyStore(CuratorFramework curator) throws Exception {
     this.curator = curator;
+    this.initStatus = InitStatus.Uninitialized;
     ensurePolicyStorePath();
+  }
 
-    // populate all existing configs
-    loadAllExistingPolicies();
+  /**
+   * Method to allow delayed initialization. Calling other method before init may result in undefined behaviour.
+   */
+  public void init() throws Exception {
+    synchronized (initStatus) {
+      if (InitStatus.Uninitialized.equals(initStatus)) {
+        // populate all existing policies
+        try {
+          loadAllExistingPolicies();
+        }
+        catch (Exception e) {
+          initStatus = InitStatus.Failed;
+          logger.error("Failed to load existing policies", e);
+          throw e;
+        }
+        initStatus = InitStatus.Initialized;
+      }
+      else if(InitStatus.Failed.equals(initStatus)) {
+        throw new IllegalStateException("Cannot init policyStore after a failed initialization attempt");
+      }
+    }
   }
 
   public void put(Recorder.ProcessGroup processGroup, BackendDTO.RecordingPolicy recordingPolicy) throws Exception {

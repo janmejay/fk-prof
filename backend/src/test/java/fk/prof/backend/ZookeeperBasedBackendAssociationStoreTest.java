@@ -67,6 +67,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
 
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath, 2, 0, new ProcessGroupCountBasedBackendComparator());
+    backendAssociationStore.init();
   }
 
   @After
@@ -148,6 +149,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
             try {
               BackendAssociationStore anotherAssociationStore = new ZookeeperBasedBackendAssociationStore(
               vertx, curatorClient, backendAssociationPath, 2, 0, new ProcessGroupCountBasedBackendComparator());
+              anotherAssociationStore.init();
               Future<Recorder.AssignedBackend> f3_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(0));
               Future<Recorder.AssignedBackend> f4_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(1));
               Future<Recorder.AssignedBackend> f5_1 = anotherAssociationStore.associateAndGetBackend(mockProcessGroups.get(2));
