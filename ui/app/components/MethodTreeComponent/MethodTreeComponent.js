@@ -11,40 +11,37 @@ import HotMethodNode from '../../pojos/HotMethodNode';
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
 
-//Input is expected to be [Array of (nodeIndex, callCount), pathInHotMethodView]   and
+//Input is expected to be Array of (nodeIndex, callCount)   and
 //output returned is an array of objects of type HotMethodNode
 //This function aggregates nodes with same name+lineNo to be rendered and same name for first layer
 //in hotmethodView. As part of aggregation their sampledCallCounts are added and respective parents added in a list
 //with sampledCallCounts caused by them
-const dedupeNodes = (allNodes) => (nodesWithPath) => {
-  const nodesWithCallCount = nodesWithPath[0];
-  const path = nodesWithPath[1];
-  const depth = path.split("->").length-1;
-  const dedupedNodes = nodesWithCallCount.reduce((accum, nodeWithCallCount) => {
+const dedupeNodes = (allNodes) => (nodesWithCallCount) => {
+   let dedupedNodes = {};
+  for(let i=0; i<nodesWithCallCount.length; i++){
+    let nodeWithCallCount = nodesWithCallCount[i];
     const nodeIndex = nodeWithCallCount[0];
     const node = allNodes[nodeIndex];
     const sampledCallCount = nodeWithCallCount[1];
-    if(! node.hasParent()) return accum;
-
+    if(! node.hasParent()) break;
     let renderNode;
-    if(depth === 0)
+    if(sampledCallCount === undefined)
       renderNode = new HotMethodNode(true, node.lineNo, node.name, node.onCPU, [[nodeIndex, node.onCPU]]);
     else
       renderNode = new HotMethodNode(false, node.lineNo, node.name, sampledCallCount, [[node.parent, sampledCallCount]]);
     const key = renderNode.identifier();
-    if (!accum[key]) {
-      accum[key] = renderNode;
+    if (!dedupedNodes[key]) {
+      dedupedNodes[key] = renderNode;
     } else {
-      accum[key].sampledCallCount += renderNode.sampledCallCount;
-      accum[key].parentsWithSampledCallCount = [...accum[key].parentsWithSampledCallCount, ...renderNode.parentsWithSampledCallCount];
+      dedupedNodes[key].sampledCallCount += renderNode.sampledCallCount;
+      dedupedNodes[key].parentsWithSampledCallCount = [...dedupedNodes[key].parentsWithSampledCallCount, ...renderNode.parentsWithSampledCallCount];
     }
-    return accum;
-  }, {});
-   return Object.keys(dedupedNodes).map(k => dedupedNodes[k]).sort((a, b) => b.sampledCallCount - a.sampledCallCount);
+  }
+  return Object.keys(dedupedNodes).map(k => dedupedNodes[k]).sort((a, b) => b.sampledCallCount - a.sampledCallCount);
 };
 
 const stringifierFunction = function (a) {
-  if (Array.isArray(a)) return a[0];
+  if (Array.isArray(a)) return a[0]+":"+a[1];
   if (Number.isInteger(a)) return a;
   return a.name;
 };
@@ -123,7 +120,7 @@ class MethodTreeComponent extends Component {
         if(filterText && !se.p_pth && !displayName.match(new RegExp(filterText, 'i'))) {
           continue;
         }
-        
+
         //This condition is equivalent to (n instanceOf HotMethodNode)
         //since nextNodesAccessorField is = parent in hot method view and
         //Node type for dedupedNodes is HotMethodNode from above
