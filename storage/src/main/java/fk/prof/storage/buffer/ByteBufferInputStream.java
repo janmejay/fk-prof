@@ -53,9 +53,11 @@ public class ByteBufferInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        if(closeHandler != null && !closed) {
+        if(!closed) {
             closed = true;
-            closeHandler.call();
+            if(closeHandler != null) {
+                closeHandler.call();
+            }
         }
     }
 }
