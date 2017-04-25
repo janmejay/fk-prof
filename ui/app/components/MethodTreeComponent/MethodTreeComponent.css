@@ -3,6 +3,10 @@
   width: 200px;
 }
 
+.filterBox input {
+  color: rgb(255,64,129);
+}
+
 .alert {
   padding: 20px;
   background: #fff;

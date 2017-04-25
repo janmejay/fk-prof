@@ -24,19 +24,9 @@ class ProfileComponent extends React.Component {
   }
 
   render () {
-    const isCollapsable = this.props.traces.length > this.state.collapseCount;
+    const tracesScore = this.props.tracesScore ? this.props.tracesScore : [];    
+    const isCollapsable = tracesScore.length > this.state.collapseCount;
     const isCollapsed = (isCollapsable && this.state.collapse);
-
-    const tracesScore = Object.keys(this.props.workTypeSummary).reduce((scores, workType) => {
-      this.props.workTypeSummary[workType].traces.forEach((trace) => {
-        scores[trace.trace_idx] = scores[trace.trace_idx] || 0;
-        scores[trace.trace_idx] += trace.props.samples;
-      });
-      return scores;
-    }, []).map((eachScore, i) => ({
-      score: eachScore,
-      name: this.props.traces[i],
-    })).sort((a, b) => b.score - a.score);
 
     const list = isCollapsed
       ? tracesScore.slice(0, 3) :
@@ -63,10 +53,10 @@ class ProfileComponent extends React.Component {
         {list && list.length > 0 && (
           <div style={{padding: "4px 16px"}}>
             {list.map(l => (
-              <div className={`${styles.itemContainer} ${(l.name === selectedTraceName && this.props.start === selectedProfile) && styles.highlighted}`}
+              <div className={`${styles.itemContainer} ${(l.name === selectedTraceName && this.props.profile.start === selectedProfile) && styles.highlighted}`}
               key={l.name}>
                 <Link
-                  to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.start }})}>
+                  to={loc => ({ pathname: `/profiler/profile-data/${l.name}`, query: { ...loc.query, profileStart: this.props.profile.start }})}>
                   <span>(</span><span className="mdl-color-text--primary">{l.score}</span><span>)</span>
                   <span>&nbsp;</span>
                   <span>{l.name}</span>
@@ -80,6 +70,7 @@ class ProfileComponent extends React.Component {
           <div className={styles.center}>
             <button
               className="mdl-button mdl-js-button mdl-button--accent"
+              style={{fontSize: "12px"}}
               onClick={this.toggle}
             >
               {this.state.collapse ? 'Show more' : 'Show Less'}
