@@ -14,6 +14,7 @@ public class ByteBufferInputStream extends InputStream {
 
     private Callback closeHandler;
     private ByteBuffer buf;
+    private boolean closed = false;
 
     public ByteBufferInputStream(ByteBuffer buf) {
         this.buf = buf;
@@ -52,7 +53,8 @@ public class ByteBufferInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        if(closeHandler != null) {
+        if(closeHandler != null && !closed) {
+            closed = true;
             closeHandler.call();
         }
     }

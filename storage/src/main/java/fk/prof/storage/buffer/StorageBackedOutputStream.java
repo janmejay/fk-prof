@@ -65,10 +65,10 @@ public class StorageBackedOutputStream extends OutputStream {
 
     @Override
     public void write(int b) throws IOException {
-        if(buf == null || buf.remaining() == 0) {
+        if (buf == null || buf.remaining() == 0) {
             storeAndSwapBuffer();
         }
-        buf.put((byte)b);
+        buf.put((byte) b);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class StorageBackedOutputStream extends OutputStream {
             return;
         }
 
-        if(buf == null) {
+        if (buf == null) {
             // get a buffer from pool
             storeAndSwapBuffer();
         }
@@ -92,7 +92,7 @@ public class StorageBackedOutputStream extends OutputStream {
             buf.put(b, off + (len - bytesToWrite), minWriteSize);
             bytesToWrite -= minWriteSize;
 
-            if(buf.remaining() == 0) {
+            if (buf.remaining() == 0) {
                 storeAndSwapBuffer();
             }
         } while (bytesToWrite > 0);
@@ -107,6 +107,8 @@ public class StorageBackedOutputStream extends OutputStream {
         try {
             buf = null; // get rid of the reference, in case the borrow fails
             try (Timer.Context context = tmrBuffPoolBorrow.time()) {
+                LOGGER.debug("acquiring buffer for file: {}", fileNameStrategy.getFileName(0));
+                LOGGER.debug("bufferpool.active: {}", bufferPool.getNumActive());
                 buf = bufferPool.borrowObject();
             }
         }
@@ -140,7 +142,10 @@ public class StorageBackedOutputStream extends OutputStream {
         // prepare for reading
         buf.flip();
         storage.storeAsync(fileNameStrategy.getFileName(part),
-                new ByteBufferInputStream(buf, () -> bufferPool.returnObject(buf)), contentLength)
+            new ByteBufferInputStream(buf, () -> {
+                LOGGER.debug("returning buffer for file: {}", fileNameStrategy.getFileName(0));
+                bufferPool.returnObject(buf);
+            }), contentLength)
             .whenCompleteAsync((v, th) -> {
                 if(th != null) {
                     this.mtrWriteFailure.mark();

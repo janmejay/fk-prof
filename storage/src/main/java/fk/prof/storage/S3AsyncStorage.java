@@ -18,6 +18,7 @@ import com.amazonaws.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
@@ -81,6 +82,12 @@ public class S3AsyncStorage implements AsyncStorage {
                 throw mapClientException(e);
             } catch (Exception ex) {
                 throw new StorageException("Unexpected error during S3 PUT for path=" + path, ex);
+            } finally {
+                try {
+                    content.close();
+                } catch (IOException e) {
+                    LOGGER.error("Failed to close inputStream", e);
+                }
             }
         }, executorService);
     }
