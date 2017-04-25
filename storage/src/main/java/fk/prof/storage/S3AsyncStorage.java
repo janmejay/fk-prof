@@ -81,12 +81,12 @@ public class S3AsyncStorage implements AsyncStorage {
             } catch (AmazonClientException e) { // content InputStream is by default closed by the S3Client, so need to close it.
                 throw mapClientException(e);
             } catch (Exception ex) {
-                throw new StorageException("Unexpected error during S3 PUT for path=" + path, ex);
+                throw new StorageException("Unexpected error during S3 PUT for path: " + path, ex);
             } finally {
                 try {
                     content.close();
                 } catch (IOException e) {
-                    LOGGER.error("Failed to close inputStream", e);
+                    LOGGER.error("Failed to close inputStream for path: {}", path, e);
                 }
             }
         }, executorService);

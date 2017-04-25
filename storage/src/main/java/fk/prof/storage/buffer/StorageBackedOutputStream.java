@@ -107,8 +107,9 @@ public class StorageBackedOutputStream extends OutputStream {
         try {
             buf = null; // get rid of the reference, in case the borrow fails
             try (Timer.Context context = tmrBuffPoolBorrow.time()) {
-                LOGGER.debug("acquiring buffer for file: {}", fileNameStrategy.getFileName(0));
-                LOGGER.debug("bufferpool.active: {}", bufferPool.getNumActive());
+                if(LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("acquiring buffer for file: {}. bufferpool.active: {}", fileNameStrategy.getFileName(0), bufferPool.getNumActive());
+                }
                 buf = bufferPool.borrowObject();
             }
         }
@@ -137,7 +138,9 @@ public class StorageBackedOutputStream extends OutputStream {
                 writeBufToStorage();
             }
             else {
-                LOGGER.debug("returning buffer on close: {}", fileNameStrategy.getFileName(0));
+                if(LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("returning buffer on close: {}", fileNameStrategy.getFileName(0));
+                }
                 bufferPool.returnObject(buf);
             }
         }

@@ -17,7 +17,7 @@ public class ByteBufferInputStream extends InputStream {
     private static final Logger LOGGER = LoggerFactory.getLogger(ByteBufferInputStream.class);
     private GenericObjectPool<ByteBuffer> bufferPool;
     private ByteBuffer buf;
-    private boolean closed = false;
+    private Boolean closed = false;
 
     public ByteBufferInputStream(GenericObjectPool<ByteBuffer> bufferPool, ByteBuffer buf) {
         this.buf = buf;
@@ -52,9 +52,11 @@ public class ByteBufferInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         LOGGER.debug("returning buffer to bufferPool");
-        if(!closed) {
-            closed = true;
-            bufferPool.returnObject(buf);
+        synchronized (closed) {
+            if(!closed) {
+                bufferPool.returnObject(buf);
+                closed = true;
+            }
         }
     }
 }
