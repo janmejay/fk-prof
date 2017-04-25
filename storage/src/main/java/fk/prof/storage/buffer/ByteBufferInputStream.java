@@ -13,11 +13,10 @@ import java.nio.ByteBuffer;
  * @author gaurav.ashok
  */
 public class ByteBufferInputStream extends InputStream {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(ByteBufferInputStream.class);
-    private GenericObjectPool<ByteBuffer> bufferPool;
-    private ByteBuffer buf;
-    private Boolean closed = false;
+    private final GenericObjectPool<ByteBuffer> bufferPool;
+    private final ByteBuffer buf;
+    private boolean closed = false;
 
     public ByteBufferInputStream(GenericObjectPool<ByteBuffer> bufferPool, ByteBuffer buf) {
         this.buf = buf;
@@ -52,7 +51,7 @@ public class ByteBufferInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         LOGGER.debug("returning buffer to bufferPool");
-        synchronized (closed) {
+        synchronized (this) {
             if(!closed) {
                 bufferPool.returnObject(buf);
                 closed = true;
