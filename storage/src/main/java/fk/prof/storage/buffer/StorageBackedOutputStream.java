@@ -132,8 +132,14 @@ public class StorageBackedOutputStream extends OutputStream {
 
     @Override
     public void close() throws IOException {
-        if(buf != null && buf.position() > 0) {
-            writeBufToStorage();
+        if(buf != null) {
+            if(buf.position() > 0) {
+                writeBufToStorage();
+            }
+            else {
+                LOGGER.debug("returning buffer on close: {}", fileNameStrategy.getFileName(0));
+                bufferPool.returnObject(buf);
+            }
         }
     }
 
@@ -142,10 +148,7 @@ public class StorageBackedOutputStream extends OutputStream {
         // prepare for reading
         buf.flip();
         storage.storeAsync(fileNameStrategy.getFileName(part),
-            new ByteBufferInputStream(buf, () -> {
-                LOGGER.debug("returning buffer for file: {}", fileNameStrategy.getFileName(0));
-                bufferPool.returnObject(buf);
-            }), contentLength)
+            new ByteBufferInputStream(bufferPool, buf), contentLength)
             .whenCompleteAsync((v, th) -> {
                 if(th != null) {
                     this.mtrWriteFailure.mark();
