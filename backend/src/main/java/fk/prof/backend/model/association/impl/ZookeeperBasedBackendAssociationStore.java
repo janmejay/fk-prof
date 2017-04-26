@@ -32,7 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ZookeeperBasedBackendAssociationStore implements BackendAssociationStore {
   private static Logger logger = LoggerFactory.getLogger(ZookeeperBasedBackendAssociationStore.class);
 
-  private Boolean initialized;
+  private boolean initialized;
   private final Vertx vertx;
   private final CuratorFramework curatorClient;
   private final String backendAssociationPath;
@@ -295,7 +295,7 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
 
   @Override
   public void init() throws Exception {
-    synchronized (initialized) {
+    synchronized (this) {
       if(!initialized) {
         try {
           loadDataFromZookeeperInBackendLookup();

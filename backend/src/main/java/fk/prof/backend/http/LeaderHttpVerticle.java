@@ -49,7 +49,7 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
         .requestHandler(router::accept)
         .listen(configManager.getLeaderHttpPort(),
-                http -> completeStartup(http, fut));
+            http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {

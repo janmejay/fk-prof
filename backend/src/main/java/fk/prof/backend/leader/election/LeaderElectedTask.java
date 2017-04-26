@@ -85,8 +85,7 @@ public class LeaderElectedTask implements Runnable {
       Future result = Future.future();
       this.backendVerticlesUndeployer.get().setHandler(ar -> {
         if(ar.succeeded()) {
-          CompositeFuture.all(runOnContext(associationStore::init), runOnContext(policyStore::init))
-              .compose(initResult -> deployLeaderHttpVerticles().setHandler(result.completer()), result);
+          deployLeaderHttpVerticles().setHandler(result.completer());
         } else {
           logger.error("Aborting deployment of leader http verticles because error while un-deploying backend verticles", ar.cause());
           result.fail(ar.cause());
@@ -98,16 +97,14 @@ public class LeaderElectedTask implements Runnable {
     }
   }
 
-  private Future<Void> deployLeaderHttpVerticles() {
-    Future<Void> future = Future.future();
-    logger.info("Leader http verticle is being deployed");
-    this.leaderHttpVerticlesDeployer.deploy().setHandler(ar -> {
-      if(ar.failed()) {
-        future.fail(ar.cause());
-      } else {
-        future.complete();
-      }
-    });
+  private Future deployLeaderHttpVerticles() {
+    Future future = Future.future();
+    logger.info("Stores are being initialized");
+    CompositeFuture.all(runOnContext(associationStore::init), runOnContext(policyStore::init))
+        .compose(initResult -> {
+            logger.info("Leader http verticle is being deployed");
+            leaderHttpVerticlesDeployer.deploy().setHandler(future.completer());
+        }, future);
     return future;
   }
 
