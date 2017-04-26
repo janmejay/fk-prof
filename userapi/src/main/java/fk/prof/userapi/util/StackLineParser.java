@@ -1,9 +1,9 @@
 package fk.prof.userapi.util;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** A utility class which parses and converts Java names from their corresponding JVM Types signatures
  - from string of format className#methodName (argTypes)retType
@@ -24,78 +24,99 @@ public class StackLineParser {
         }
     };
 
-    public static String convertSignToJava(String stackLine){
-        if(stackLine.matches("L\\S+;#\\S+ \\(\\S*\\)\\S+")){
-            StringBuilder sb = new StringBuilder();
-            int index = 0;
-            index = parseJavaType(sb, stackLine, index);
-            sb.append(".");
-            index = parseMethodName(sb, stackLine, index);
-            sb.append("-");
-            index = parseArgs(sb, stackLine, index);
-            sb.append("-");
-            parseRet(sb, stackLine, index);
-            return sb.toString();
-        }else{
-            return stackLine;
+    private static List<JVMTypeSignatureParser> parsers = new ArrayList<JVMTypeSignatureParser>(){
+        {
+            add(StackLineParser::parseTerminalType);
+            add(StackLineParser::parseMethodName);
+            add(StackLineParser::parseArgs);
+            add(StackLineParser::parseRet);
         }
+    } ;
+
+    public static String convertJVMTypeSignToJava(String text){
+        StringBuilder sb = new StringBuilder();
+        int textIndex = 0;
+        int sbLength = 0;
+        text = text.replace('/','.');
+        for(JVMTypeSignatureParser parser : parsers){
+            int res = parser.parse(sb, text, textIndex);
+            if(res == -1){
+                return sb.substring(0, sbLength) + text.substring(textIndex);
+            }
+            textIndex = res;
+            sbLength = sb.length();
+        }
+        return sb.toString();
     }
 
-    private static int parseJavaType(StringBuilder sb, String stackLine, int index) {
-        char currChar = stackLine.charAt(index);
+
+
+    @FunctionalInterface
+    private interface JVMTypeSignatureParser{
+        int parse(StringBuilder sb, String text, int textIndex);
+    }
+
+    private static int parseTerminalType(StringBuilder sb, String text, int textIndex){
+        if(textIndex >= text.length()) return -1;
+        char currChar = text.charAt(textIndex);
         if(currChar == '['){
-            int nextIndex = parseJavaType(sb, stackLine, index + 1 );
+            int nextIndex = parseTerminalType(sb, text, textIndex + 1 );
             sb.append("[]");
             return nextIndex;
         }else if(currChar == 'L'){
-            int endIndex = stackLine.indexOf(';', index);
-            int oldLength = sb.length();
-            sb.append(stackLine, index+1, endIndex);
-            int newLength = sb.length();
-            for(int i=oldLength; i<newLength; i++){
-                if(sb.charAt(i) == '/'){
-                    sb.setCharAt(i,'.');
-                }
-            }
+            int endIndex = text.indexOf(';', textIndex);
+            if(endIndex == -1) return -1;
+            sb.append(text, textIndex+1, endIndex);
             return endIndex + 1;
         }else if(signToPrimitiveMap.containsKey(currChar)){
             sb.append(signToPrimitiveMap.get(currChar));
+            return textIndex+1;
         }
-        return index+1;
+        return -1;
     }
 
-    private static int parseArgs(StringBuilder sb, String stackLine, int index) {
-        if(stackLine.charAt(index) == '(') {
-            sb.append('(');
-            index++;
-        }
-        boolean firstArg = true;
-        while(stackLine.charAt(index) != ')') {
-            if(firstArg) {
-                firstArg = false;
-            }else{
+    private static int parseArgs(StringBuilder sb, String text, int textIndex) {
+        if(textIndex + 1 >= text.length()) return -1;
+        if(text.charAt(textIndex) == ' ' && text.charAt(textIndex+1) == '(') {
+            sb.append(" (");
+            textIndex += 2;
+            boolean argsFound = false;
+            int i = textIndex;
+
+            while (i < text.length() && text.charAt(i) != ')' && (i = parseTerminalType(sb, text, textIndex)) != -1) {
                 sb.append(',');
+                textIndex = i;
+                argsFound = true;
             }
-            index = parseJavaType(sb, stackLine, index );
+            if(i >= text.length()) return -1;
+            if (text.charAt(textIndex) == ')') {
+                textIndex += 1;
+                if (argsFound) {
+                    sb.setCharAt(sb.length() - 1, ')');
+                } else {
+                    sb.append(')');
+                }
+                return textIndex;
+            }
         }
-        sb.append(')');
-        return index + 1;
+        return -1;
     }
 
-    private static int parseRet(StringBuilder sb, String stackLine, int index) {
-        return parseJavaType(sb,stackLine, index);
-    }
-
-    private static int parseMethodName(StringBuilder sb, String stackLine, int index) {
-        if(stackLine.charAt(index) == '#') {
-            int endIndex = stackLine.indexOf(" ");
-            sb.append(stackLine, index+1, endIndex);
-            return endIndex + 1;
-        }else{
-            return index+1;
+    private static int parseMethodName(StringBuilder sb, String text, int textIndex) {
+        if(textIndex >= text.length()) return -1;
+        if(text.charAt(textIndex) == '#') {
+            sb.append(".");
+            int endIndex = text.indexOf(" ");
+            if(endIndex == -1) return -1;
+            sb.append(text, textIndex+1, endIndex);
+            return endIndex;
         }
+        return -1;
     }
 
+    private static int parseRet(StringBuilder sb, String text, int textIndex) {
+        return parseTerminalType(sb, text, textIndex);
+    }
 
 
 }

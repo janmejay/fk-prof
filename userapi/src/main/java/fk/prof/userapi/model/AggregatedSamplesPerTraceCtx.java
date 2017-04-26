@@ -12,18 +12,18 @@ import java.util.stream.Collectors;
 public class AggregatedSamplesPerTraceCtx {
 
     private final AggregatedSamples aggregatedSamples;
-    private final List<String> methodIdLookup;
+    private final List<String> methodLookup;
 
     public AggregatedSamplesPerTraceCtx(AggregatedProfileModel.MethodLookUp methodIdlookup, AggregatedSamples aggregatedSamples) {
         this.aggregatedSamples = aggregatedSamples;
-        this.methodIdLookup = methodIdlookup.getFqdnList().stream().map(StackLineParser::convertSignToJava).collect(Collectors.toList());
+        this.methodLookup = methodIdlookup.getFqdnList().stream().map(StackLineParser::convertJVMTypeSignToJava).collect(Collectors.toList());
     }
 
     public AggregatedSamples getAggregatedSamples() {
         return aggregatedSamples;
     }
 
-    public List<String> getMethodIdLookup() {
-        return methodIdLookup;
+    public List<String> getMethodLookup() {
+        return methodLookup;
     }
 }

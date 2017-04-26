@@ -129,8 +129,8 @@ public class ParseProfileTest {
         testListEquality(context, expected.getTraces(), actual.getTraces(), "traces");
         testListEquality(context, expected.getTraceDetails(), actual.getTraceDetails(), "traceDetails");
         testListEquality(context, expected.getProfiles(), actual.getProfiles(), "profile work info");
-        context.assertEquals(expected.getAggregatedSamples(traceName1).getMethodIdLookup(), actual.getAggregatedSamples(traceName1).getMethodIdLookup());
-        context.assertEquals(expected.getAggregatedSamples(traceName2).getMethodIdLookup(), actual.getAggregatedSamples(traceName2).getMethodIdLookup());
+        context.assertEquals(expected.getAggregatedSamples(traceName1).getMethodLookup(), actual.getAggregatedSamples(traceName1).getMethodLookup());
+        context.assertEquals(expected.getAggregatedSamples(traceName2).getMethodLookup(), actual.getAggregatedSamples(traceName2).getMethodLookup());
 
         if(expected.getAggregatedSamples(traceName1).getAggregatedSamples() instanceof AggregatedCpuSamplesData) {
             testEquality(context, (AggregatedCpuSamplesData)expected.getAggregatedSamples(traceName1).getAggregatedSamples(),
