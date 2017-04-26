@@ -413,7 +413,9 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
       for(String processGroupZNodeName: processGroupNodes) {
         String processGroupZNodePath = getZNodePathForProcessGroup(backendZNodeName, processGroupZNodeName);
         Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.parseFrom(ZookeeperUtil.readZNode(curatorClient, processGroupZNodePath));
-        logger.debug("\t{},{},{}", processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
+        if(logger.isDebugEnabled()) {
+          logger.debug("\t{}", RecorderProtoUtil.processGroupCompactRepr(processGroup));
+        }
         if(processGroupToZNodePathLookup.get(processGroup) != null) {
           throw new BackendAssociationException("Found multiple nodes in zookeeper backend association tree for same process group, aborting load from ZK. Process group=" +
               RecorderProtoUtil.processGroupCompactRepr(processGroup), true);
