@@ -8,7 +8,6 @@ import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
-import fk.prof.userapi.model.FilteredProfiles;
 import io.vertx.core.*;
 import org.slf4j.LoggerFactory;
 
