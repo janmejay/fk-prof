@@ -4,6 +4,7 @@ import Modal from 'react-modal';
 import { Chart } from 'react-google-charts';
 import moment from 'moment';
 import $ from 'jquery';
+import Rainbow from 'rainbowvis.js';
 
 import styles from './ProfileComponent.css';
 
@@ -41,7 +42,7 @@ class ProfileComponent extends React.Component {
         timeline: {
           showBarLabels: false
         },
-        tooltip: {isHtml: true}
+        tooltip: {isHtml: true},
       },
       events: [{
         eventName: 'select',
@@ -51,6 +52,45 @@ class ProfileComponent extends React.Component {
         callback: this.handleTimelineReady
       }]
     };
+
+    var rainbow = new Rainbow();
+    rainbow.setSpectrum("#3f51b5", "#ff4081");
+    this.traceChart = {
+      rainbow: rainbow,
+      cols: [
+        {label: "Coverage", type: "number"},        
+        {label: "Traces", type: "number"},
+        {role: 'tooltip', type: 'string', p: {'html': true}},
+        {role: 'style', type: 'string'},
+      ],
+      rows: null,
+      opts: {
+        axisTitlesPosition: "in",
+        hAxis: {minValue: 0, maxValue: 100, gridlines: {count: 11}},
+        vAxis: {ticks:[], baseline: 0, viewWindow: {max: 0, min: 0}, baselineColor: 'none'},
+        legend: 'none',
+        chartArea: {left: 10, top: 10, width:'96%', height: 20},
+        pointSize: 20,
+        backgroundColor: "#f8f8f8",
+        tooltip: {isHtml: true},
+      }
+    };
+
+    this.workSampleChart = {
+      cols: [
+        {label: "Work Type", type: "string"},        
+        {label: "Valid Samples", type: "number"},
+        {label: "Errored Samples", type: "number"},
+        {role: "annotation", type: "string"},
+      ],
+      opts: {
+        backgroundColor: "#f8f8f8",
+        isStacked: true,
+        legend: 'top',
+        chartArea: {left: 10},
+      },
+      rows: null,
+    }
 
     this.w_start = new Date(this.props.profile.start);
     this.w_end = new Date(this.w_start.getTime() + (this.props.profile.duration * 1000));
@@ -74,6 +114,21 @@ class ProfileComponent extends React.Component {
 
   toggle () {
     this.setState({ collapse: !this.state.collapse });
+  }
+
+  updateHeight() {
+    if(this.timelineChart) {
+      let timelineContainer = "#" + this.timelineChart.wrapper.getContainerId();
+      let svgHeights = $(timelineContainer + " svg").map(function() { return $(this).attr("height"); }).toArray();
+      if(svgHeights && svgHeights.length > 1) {
+        let chartHeight = parseInt(svgHeights[svgHeights.length - 1]);
+        if(chartHeight) {
+          let newChartHeight = chartHeight + 60;
+          this.timelineChart.wrapper.setOption("height", newChartHeight);
+          this.timelineChart.wrapper.draw();
+        }
+      }
+    }
   }
 
   render () {
@@ -151,25 +206,75 @@ class ProfileComponent extends React.Component {
           style={modalStyles}
           contentLabel={"Profile Stats for " + this.props.heading}
         >
-          <div style={{flex: 'none'}}><h4>{"Profile Stats for " + this.props.heading}</h4></div>
+          <div style={{flex: 'none'}}>
+            <h4>{"Profile Stats for " + this.props.heading}</h4>
+          </div>
+
           <Chart
             chartType="Timeline"
             columns={this.timeline.cols}
             rows={this.timeline.rows}
             options={this.timeline.opts}
             graph_id="ProfileTimeline"
-            width="800px"
+            width="100%"
             height="100%"
             chartEvents={this.timeline.events}
             chartPackages={['corechart', 'timeline']}
           />
-        
-          <div style={{flex: 'auto', backgroundColor: '#f4f4f4'}} className='mdl-grid'>
-            <div className='mdl-cell mdl-cell--12-col' style={{fontSize: '20px'}}>
-              10.10.10.10
+
+          <div className='statDetail' style={{ backgroundColor: '#f8f8f8'}}>
+            <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
+              <div className='mdl-cell mdl-cell--12-col' style={{fontSize: '20px'}}>
+                <span style={{padding: '5px', color: 'white', borderTopLeftRadius: '5px', borderBottomLeftRadius: '5px', backgroundColor: '#b53f49'}}>IP</span>                
+                <span style={{padding: '5px', color: 'white', borderTopRightRadius: '5px', borderBottomRightRadius: '5px'}} className='mdl-color--primary'>10.10.10.10</span>
+              </div>
             </div>
-            <div className='mdl-grid' style={{fontSize: '20px'}}>
-             
+            <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
+              <div className='mdl-cell mdl-cell--6-col'>
+                <div className='mdl-grid'>
+                  <div className='mdl-cell mdl-cell--6-col'>
+                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>Status</div>
+                    <div>Completed</div>
+                  </div>
+                  <div className='mdl-cell mdl-cell--6-col'>
+                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>Rec Version</div>
+                    <div>1</div>
+                  </div>
+                </div>
+                <div className='mdl-grid'>
+                  <div className='mdl-cell mdl-cell--12-col'>
+                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>JVM ID</div>
+                    <div>jvm id</div>
+                  </div>
+                </div>
+              </div>
+              <div className='mdl-cell mdl-cell--6-col'>
+                <Chart
+                  chartType='BarChart'
+                  options={this.workSampleChart.opts}
+                  columns={this.workSampleChart.cols}
+                  rows={[['cpu-sample', 450, 1000, 'cpu-sample-work'], ['monitor-contention', 250, 100, 'monitor-contention-work']]}
+                  graph_id='WorkSampleChart'
+                  width='100%'
+                  height='100%'
+                  chartPackages={['corechart', 'timeline']}
+                />
+              </div>
+            </div>              
+            <div className='mdl-grid'>
+              <div className='mdl-cell mdl-cell--2-col' style={{color: '#b53f49', textAlign: 'center', paddingTop: '12px'}}>Trace Coverage</div>
+              <div className='mdl-cell mdl-cell--10-col'>
+                <Chart
+                  chartType='ScatterChart'
+                  options={this.traceChart.opts}
+                  columns={this.traceChart.cols}
+                  rows={[[10, 0, '<div>hello, world</div>', 'point { fill-color:' + this.traceChart.rainbow.colorAt(10) + '}'], [100, 0, '<div>rofl, yolo</div>', 'point { fill-color:' + this.traceChart.rainbow.colorAt(50) + '}']]}
+                  graph_id='TraceCoverageChart'
+                  width='100%'
+                  height='100px'
+                  chartPackages={['corechart', 'timeline']}
+                />
+              </div>
             </div>
           </div>
         </Modal>
@@ -188,6 +293,7 @@ class ProfileComponent extends React.Component {
       stat.tcov = p.trace_coverage_map;
       stat.samp = p.sample_count;
       stat.rv = p.recorder_version;
+      stat.vm = p.recorder_info.vm_id;
       return stat;
     });
     this.ips = this.stats.map((s,i) => [s.basic[1], i]).sort((a, b) => (a[0] < b[0]) ? -1 : ((a[0] > b[0]) ? 1 : 0));
@@ -208,6 +314,7 @@ class ProfileComponent extends React.Component {
 
   handleTimelineReady(chart) {
     this.timelineChart = chart;
+    this.updateHeight();
   }
 
   handleTimelineSelect(chart) {
@@ -239,6 +346,7 @@ const modalStyles  = {
     marginRight: '-50%',
     transform: 'translate(-50%, -50%)',
     height: '70%',
+    width: '70%',
     display: 'flex',
     flexFlow: 'column',
     overflowY: 'scroll'
