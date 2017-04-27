@@ -51,6 +51,8 @@ struct ThreadTargetProc {
     }
 
     ~ThreadTargetProc() {
+        await_stop();
+        assert(state == State::stopped);
         logger->trace("ThreadTargetProc for '{}' destroyed", name);
     }
 
