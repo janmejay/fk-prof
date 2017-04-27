@@ -44,7 +44,7 @@ class StackTreeElementComponent extends Component {
               <span className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
                 {this.getStyleAndIconForNode()[1]}
               </span>
-              <span className={`${this.props.highlight && 'mdl-color-text--primary'}`}>{this.props.stackline}</span>
+              <span>{this.props.stackline}</span>
             </span>
           </div>
         </td>

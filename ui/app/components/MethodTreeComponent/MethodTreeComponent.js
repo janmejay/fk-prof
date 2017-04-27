@@ -251,7 +251,10 @@ class MethodTreeComponent extends Component {
             <thead><tr>
               <th className={treeStyles.fixedRightCol1}>Samples</th>
               <th>
-                <div className={`mdl-textfield mdl-js-textfield mdl-textfield--floating-label is-dirty is-upgraded ${styles.filterBox}`}>
+                <div className={`mdl-textfield mdl-js-textfield ${styles.filterBox}`}>
+                  <label htmlFor="method_filter" style={{fontWeight: "bold"}}>
+                    {nextNodesAccessorField === 'parent' ? "Filter hot methods" : "Filter root callers"}
+                  </label>                
                   <input
                     className={`mdl-textfield__input`}
                     type="text"
@@ -260,7 +263,6 @@ class MethodTreeComponent extends Component {
                     onChange={this.debouncedHandleFilterChange}
                     id="method_filter"
                   />
-                  <label htmlFor="method_filter" className="mdl-textfield__label">Filter stack lines</label>
                 </div>
               </th>
             </tr></thead>

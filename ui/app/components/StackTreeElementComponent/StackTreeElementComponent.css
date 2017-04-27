@@ -101,8 +101,8 @@ th.fixedRightCol1 {
   width: 30%;
 }
 
-.highlight {
-  filter: saturate(8);
+.highlight, .highlight div {
+  color: #1bb500 !important;
 }
 
 .subdued {
