@@ -9,6 +9,24 @@ void controllerRunnable(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
     control->run();
 }
 
+void write_system_prop(jvmtiEnv* env, const char* name, std::stringstream& ss) {
+    char* value;
+    if (env->GetSystemProperty(name, &value) == JVMTI_ERROR_NONE) {
+        ss << value << "; ";
+        env->Deallocate((unsigned char *) value);
+    }
+}
+
+std::string load_vm_id(jvmtiEnv* env) {
+    std::stringstream ss;
+    write_system_prop(env, "java.vm.name", ss);
+    write_system_prop(env, "java.vm.specification.version", ss);
+    write_system_prop(env, "java.vm.version", ss);
+    write_system_prop(env, "java.vm.info", ss);
+    write_system_prop(env, "java.vm.vendor", ss);
+    return ss.str();
+}
+
 Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, ConfigurationOptions& _cfg) :
     jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
     serializer(nullptr), processor(nullptr), raw_writer_ring(_cfg.tx_ring_sz),
@@ -29,6 +47,7 @@ Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, C
     current_work_state = recording::WorkResponse::complete;
     current_work_result = recording::WorkResponse::success;
     cancel_work = []{};
+    vm_id = load_vm_id(jvmti);
 }
 
 void Controller::start() {
@@ -69,7 +88,7 @@ static void time_now_str(std::function<void(const char*)> fn) {
     fn(buffer);
 }
 
-static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const Time::Pt& start_time, std::uint64_t poll_tick) {
+static void populate_recorder_info(recording::RecorderInfo& ri, const ConfigurationOptions& cfg, const std::string& vm_id, const Time::Pt& start_time, std::uint64_t poll_tick) {
     ri.set_ip(cfg.ip);
     ri.set_hostname(cfg.host);
     ri.set_app_id(cfg.app_id);
@@ -77,7 +96,7 @@ static void populate_recorder_info(recording::RecorderInfo& ri, const Configurat
     ri.set_cluster(cfg.cluster);
     ri.set_instance_id(cfg.inst_id);
     ri.set_proc_name(cfg.proc);
-    ri.set_vm_id(cfg.vm_id);
+    ri.set_vm_id(vm_id + cfg.vm_id);
     ri.set_zone(cfg.zone);
     ri.set_instance_type(cfg.inst_typ);
     time_now_str([&ri](std::string now) {
@@ -208,7 +227,7 @@ void Controller::run_with_associate(const Buff& associate_response_buff, const T
 
     poll_cb = [&]() {
         recording::PollReq p_req;
-        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, start_time, poll_tick);
+        populate_recorder_info(*p_req.mutable_recorder_info(), cfg, vm_id, start_time, poll_tick);
 
         with_current_work([&p_req](Controller::W& w, Controller::WSt& wst, Controller::WRes& wres, Time::Pt& start_tm, Time::Pt& end_tm) {
                 populate_issued_work_status(*p_req.mutable_work_last_issued(), w.work_id(), wst, wres, start_tm, end_tm);
@@ -273,7 +292,7 @@ void Controller::run() {
     while (keep_running.load(std::memory_order_relaxed)) {
         logger->info("Calling service-endpoint {} for associate resolution", service_endpoint_url);
         recording::RecorderInfo ri;
-        populate_recorder_info(ri, cfg, start_time, 0);
+        populate_recorder_info(ri, cfg, vm_id, start_time, 0);
         auto serialized_size = ri.ByteSize();
         send.ensure_free(serialized_size);
         ri.SerializeToArray(send.buff, send.capacity);

@@ -68,6 +68,8 @@ private:
     SerializationFlushThresholds sft;
     TruncationThresholds tts;
 
+    std::string vm_id;
+
     //[metrics......
     metrics::Timer& s_t_poll_rpc;
     metrics::Ctr& s_c_poll_rpc_failures;
