@@ -272,6 +272,17 @@ std::string tsdb_tags() {
     return tags;
 }
 
+ThdProcP metrics_thd;
+std::atomic<bool> abort_metrics_poll;
+
+void metrics_poller(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
+    auto itvl = std::chrono::seconds(5);
+    while (! abort_metrics_poll.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(itvl);
+        metrics_reporter->run();
+    }
+}
+
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;
@@ -326,7 +337,8 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 
     formatter = new MetricFormatter::SyslogTsdbFormatter(tsdb_tags(), CONFIGURATION->stats_syslog_tag);
     metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, CONFIGURATION->metrics_dst_port);
-    metrics_reporter->start();
+    abort_metrics_poll.store(false, std::memory_order_relaxed);
+    metrics_thd = start_new_thd(jvm, jvmti, "Fk-Prof Metrics Reporter", metrics_poller, nullptr);
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
@@ -336,7 +348,9 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
 AGENTEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
     IMPLICITLY_USE(vm);
 
+    abort_metrics_poll.store(true, std::memory_order_relaxed);
     controller->stop();
+    await_thd_death(metrics_thd);
 
     delete controller;
     delete metrics_reporter;
