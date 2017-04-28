@@ -3,6 +3,7 @@ import { Link, withRouter } from 'react-router';
 import { Chart } from 'react-google-charts';
 import $ from 'jquery';
 import Rainbow from 'rainbowvis.js';
+import moment from 'moment';
 
 import styles from './SubProfileStatComponent.css';
 
@@ -62,7 +63,6 @@ class SubProfileStatComponent extends React.Component {
 
   handleTraceSelect(chart) {
     this.selCov = chart.chart.getSelection()[0] ? chart.chart.getSelection()[0].row : null;
-    console.log(chart, this.selCov);
     if(this.tracesGrpByCov && Object.keys(this.tracesGrpByCov).length && this.selCov !== null) {
       let cov = this.traceChart.rows[this.selCov][0];
       let content = "<div style='color: #b53f49; padding-left: 16px'>Traces with coverage=" + cov + "%</div><div class='mdl-grid'>";
@@ -101,9 +101,15 @@ class SubProfileStatComponent extends React.Component {
       return (
         <div className='statDetail' style={{ backgroundColor: '#f8f8f8'}}>
           <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
-            <div className='mdl-cell mdl-cell--12-col' style={{fontSize: '20px'}}>
+            <div className='mdl-cell mdl-cell--6-col' style={{fontSize: '20px'}}>
               <span style={{padding: '5px', color: 'white', borderTopLeftRadius: '5px', borderBottomLeftRadius: '5px', backgroundColor: '#b53f49'}}>IP</span>                
               <span style={{padding: '5px', color: 'white', borderTopRightRadius: '5px', borderBottomRightRadius: '5px'}} className='mdl-color--primary'>{s.basic[1]}</span>
+            </div>
+            <div className='mdl-cell mdl-cell--6-col' style={{fontSize: '20px'}}>
+              <span style={{float: 'right', padding: '5px', color: 'white', borderTopRightRadius: '5px', borderBottomRightRadius: '5px'}} className='mdl-color--primary'>
+                {moment(s.basic[3]).format("HH:mm:ss") + ' - ' + moment(s.basic[4]).format("HH:mm:ss")}
+              </span>
+              <span style={{float: 'right', padding: '5px', color: 'white', borderTopLeftRadius: '5px', borderBottomLeftRadius: '5px', backgroundColor: '#b53f49'}}>Interval</span>
             </div>
           </div>
           <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
@@ -125,36 +131,42 @@ class SubProfileStatComponent extends React.Component {
                 </div>
               </div>
             </div>
-            <div className='mdl-cell mdl-cell--6-col'>
-              <Chart
-                chartType='BarChart'
-                options={this.workSampleChart.opts}
-                columns={this.workSampleChart.cols}
-                rows={this.workSampleChart.rows}
-                graph_id='WorkSampleChart'
-                width='100%'
-                height='100%'
-                chartPackages={['corechart', 'timeline']}
-              />
-            </div>
-          </div>              
-          <div className='mdl-grid'>
-            <div style={{padding: '12px 20px 0px 20px', fontSize: "12px", color: '#777'}}>Select any point to see traces having that coverage%</div>
-            <div className='mdl-cell mdl-cell--12-col'>
-              <Chart
-                chartType='ScatterChart'
-                chartEvents={this.traceChart.events}
-                options={this.traceChart.opts}
-                columns={this.traceChart.cols}
-                rows={this.traceChart.rows}
-                graph_id='TraceCoverageChart'
-                width='100%'
-                height='80px'
-                chartPackages={['corechart', 'timeline']}
-              />
-            </div>
-            <div className='mdl-cell mdl-cell--12-col covDetail'></div>
+
+            {(this.workSampleChart.rows && this.workSampleChart.rows.length) ? (
+              <div className='mdl-cell mdl-cell--6-col'>
+                <Chart
+                  chartType='BarChart'
+                  options={this.workSampleChart.opts}
+                  columns={this.workSampleChart.cols}
+                  rows={this.workSampleChart.rows}
+                  graph_id='WorkSampleChart'
+                  width='100%'
+                  height='100%'
+                  chartPackages={['corechart', 'timeline']}
+                />
+              </div>
+            ) : null}
           </div>
+
+          {(this.traceChart.rows && this.traceChart.rows.length) ? (
+            <div className='mdl-grid'>
+              <div style={{padding: '12px 20px 0px 20px', fontSize: "12px", color: '#777'}}>Select any point to see traces having that coverage%</div>
+              <div className='mdl-cell mdl-cell--12-col'>
+                <Chart
+                  chartType='ScatterChart'
+                  chartEvents={this.traceChart.events}
+                  options={this.traceChart.opts}
+                  columns={this.traceChart.cols}
+                  rows={this.traceChart.rows}
+                  graph_id='TraceCoverageChart'
+                  width='100%'
+                  height='80px'
+                  chartPackages={['corechart', 'timeline']}
+                />
+              </div>
+              <div className='mdl-cell mdl-cell--12-col covDetail'></div>
+            </div>
+          ) : null}
         </div>
       );
     }

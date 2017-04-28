@@ -4,7 +4,6 @@ import Modal from 'react-modal';
 import { Chart } from 'react-google-charts';
 import moment from 'moment';
 import $ from 'jquery';
-import Rainbow from 'rainbowvis.js';
 import Select from 'react-select';
 
 import styles from './ProfileComponent.css';
@@ -88,7 +87,6 @@ class ProfileComponent extends React.Component {
     if(this.timelineChart) {
       let timelineContainer = "#" + this.timelineChart.wrapper.getContainerId();
       let svgHeights = $(timelineContainer + " svg").map(function() { return $(this).attr("height"); }).toArray();
-      console.log("svg height", svgHeights);
       if(svgHeights && svgHeights.length > 1) {
         let chartHeight = parseInt(svgHeights[svgHeights.length - 1]);
         if(chartHeight) {
@@ -101,7 +99,6 @@ class ProfileComponent extends React.Component {
   }
 
   render () {
-    console.log("yo", this.props.profile);
     const tracesScore = this.props.tracesScore ? this.props.tracesScore : [];    
     const isCollapsable = tracesScore.length > this.state.collapseCount;
     const isCollapsed = (isCollapsable && this.state.collapse);
@@ -223,16 +220,18 @@ class ProfileComponent extends React.Component {
       let stat = {};
       const p_start = new Date(this.w_start.getTime() + (p.start_offset * 1000));
       const p_end = new Date(p_start.getTime() + (p.duration * 1000));
-      const tooltip = '<div style="padding: 4px;"><div style="font-size: 14px;" class="mdl-color-text--primary">' + p.recorder_info.ip + '</div>' 
+      const ip = p.recorder_info ? p.recorder_info.ip : "No available recorder";
+      const vm = p.recorder_info ? p.recorder_info.vm_id : "";
+      const tooltip = '<div style="padding: 4px;"><div style="font-size: 14px;" class="mdl-color-text--primary">' + ip + '</div>' 
         + '<div style="font-size: 10px;">' + moment(p_start).format("HH:mm:ss") + ' - ' + moment(p_end).format("HH:mm:ss") + '</div></div>';
-      stat.basic = [p.status, p.recorder_info.ip, tooltip, p_start, p_end];
+      stat.basic = [p.status, ip, tooltip, p_start, p_end];
       stat.tcov = p.trace_coverage_map;
       stat.samp = p.sample_count;
       stat.rv = p.recorder_version;
-      stat.vm = p.recorder_info.vm_id;
+      stat.vm = vm;
       return stat;
     });
-    this.ips = this.stats.map((s,i) => ({label: s.basic[1], value: i})).sort((a, b) => (a.label < b.label) ? -1 : ((a.label > b.label) ? 1 : 0));
+    this.ips = this.stats.filter(s => s.basic[1]).map((s,i) => ({label: s.basic[1], value: i})).sort((a, b) => (a.label < b.label) ? -1 : ((a.label > b.label) ? 1 : 0));
   }
 
   setupTimeline() {
@@ -244,7 +243,6 @@ class ProfileComponent extends React.Component {
       maxValue: this.w_end,
       format: "HH:mm"
     };
-    console.log("ts setup", this.statsView, this.timeline.rows);
   }
 
   handleTimelineReady(chart) {
