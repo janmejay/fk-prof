@@ -250,6 +250,8 @@ void Controller::run() {
             if (poll_retries_used++ >= cfg.max_retries) {
                 // old associate seems gone for good, let us find a new one
                 logger->error("COMM failed too many times, giving up on the associate: {}", poll_url);
+                poll_retries_used = 0;
+                poll_backoff_seconds = cfg.backoff_start;
                 scheduler.schedule(Time::now(), assoc_cb);
                 return;
             }
