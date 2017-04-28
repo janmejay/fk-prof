@@ -5,8 +5,10 @@ import { Chart } from 'react-google-charts';
 import moment from 'moment';
 import $ from 'jquery';
 import Rainbow from 'rainbowvis.js';
+import Select from 'react-select';
 
 import styles from './ProfileComponent.css';
+import SubProfileStat from 'components/SubProfileStatComponent';
 
 class ProfileComponent extends React.Component {
   constructor (props) {
@@ -15,7 +17,8 @@ class ProfileComponent extends React.Component {
       collapse: true,
       collapseCount: 3,
       filterText: '',
-      statsOpen: false
+      statsOpen: false,
+      selIPValue: null // Unused. IP filtering is disabled because of issues keeping IP dropdown and timeline chart selections in sync
     };
 
     this.toggle = this.toggle.bind(this);
@@ -24,11 +27,18 @@ class ProfileComponent extends React.Component {
     this.closeStats = this.closeStats.bind(this);
     this.handleTimelineReady = this.handleTimelineReady.bind(this);
     this.handleTimelineSelect = this.handleTimelineSelect.bind(this);
+    // this.onIPChange = this.onIPChange.bind(this); // Unused. IP filtering is disabled for now
 
+    this.w_start = new Date(this.props.profile.start);
+    this.w_end = new Date(this.w_start.getTime() + (this.props.profile.duration * 1000));
     this.timelineChart = null;
+    this.subProfileStat = null;
+
     this.stats = null;
+    this.statsView = null;
     this.ips = [];
     this.selStatIdx = 0;
+
     this.timeline = {
       cols: [
         {label: "Status", type: "string"},
@@ -52,48 +62,6 @@ class ProfileComponent extends React.Component {
         callback: this.handleTimelineReady
       }]
     };
-
-    var rainbow = new Rainbow();
-    rainbow.setSpectrum("#3f51b5", "#ff4081");
-    this.traceChart = {
-      rainbow: rainbow,
-      cols: [
-        {label: "Coverage", type: "number"},        
-        {label: "Traces", type: "number"},
-        {role: 'tooltip', type: 'string', p: {'html': true}},
-        {role: 'style', type: 'string'},
-      ],
-      rows: null,
-      opts: {
-        axisTitlesPosition: "in",
-        hAxis: {minValue: 0, maxValue: 100, gridlines: {count: 11}},
-        vAxis: {ticks:[], baseline: 0, viewWindow: {max: 0, min: 0}, baselineColor: 'none'},
-        legend: 'none',
-        chartArea: {left: 10, top: 10, width:'96%', height: 20},
-        pointSize: 20,
-        backgroundColor: "#f8f8f8",
-        tooltip: {isHtml: true},
-      }
-    };
-
-    this.workSampleChart = {
-      cols: [
-        {label: "Work Type", type: "string"},        
-        {label: "Valid Samples", type: "number"},
-        {label: "Errored Samples", type: "number"},
-        {role: "annotation", type: "string"},
-      ],
-      opts: {
-        backgroundColor: "#f8f8f8",
-        isStacked: true,
-        legend: 'top',
-        chartArea: {left: 10},
-      },
-      rows: null,
-    }
-
-    this.w_start = new Date(this.props.profile.start);
-    this.w_end = new Date(this.w_start.getTime() + (this.props.profile.duration * 1000));
   }
 
   openStats() {
@@ -120,6 +88,7 @@ class ProfileComponent extends React.Component {
     if(this.timelineChart) {
       let timelineContainer = "#" + this.timelineChart.wrapper.getContainerId();
       let svgHeights = $(timelineContainer + " svg").map(function() { return $(this).attr("height"); }).toArray();
+      console.log("svg height", svgHeights);
       if(svgHeights && svgHeights.length > 1) {
         let chartHeight = parseInt(svgHeights[svgHeights.length - 1]);
         if(chartHeight) {
@@ -155,7 +124,7 @@ class ProfileComponent extends React.Component {
         <div className={styles.heading}>
           <h5>{this.props.heading}</h5>
           <div className={styles.profileInfoIcon} title="Stats" onClick={this.openStats}>
-            <span className="material-icons">more</span>
+            <span className="material-icons">insert_chart</span>
           </div>
         </div>
 
@@ -200,16 +169,31 @@ class ProfileComponent extends React.Component {
           </div>
         )}
 
+        {this.state.statsOpen && (
         <Modal
           isOpen={this.state.statsOpen}
           onRequestClose={this.closeStats}
           style={modalStyles}
-          contentLabel={"Profile Stats for " + this.props.heading}
+          contentLabel={"Stats for " + this.props.heading}
         >
           <div style={{flex: 'none'}}>
-            <h4>{"Profile Stats for " + this.props.heading}</h4>
+            <h4 style={{margin: '8px 0 16px 0', paddingBottom: '4px', borderBottom: '1px dashed #777'}} className='mdl-color-text--primary'>
+              {"Stats for aggregated profile of " + this.props.heading}
+            </h4>
+            <h6 style={{marginBottom: '8px', color: '#b53f49'}}>Timeline of recorded profiles in this window</h6>
+            <div style={{fontSize: "12px", color: '#777'}}>Select any block to see stats associated with that IP</div>
           </div>
-
+          {/*<div>
+            <label htmlFor="ipSel">Filter by IP</label>
+            <Select
+              id="ipSel"
+              clearable={true}
+              options={this.ips}
+              onChange={this.onIPChange}
+              value={this.state.selIPValue}
+              placeholder="Type to filter..."
+            />
+          </div>*/}
           <Chart
             chartType="Timeline"
             columns={this.timeline.cols}
@@ -221,66 +205,18 @@ class ProfileComponent extends React.Component {
             chartEvents={this.timeline.events}
             chartPackages={['corechart', 'timeline']}
           />
-
-          <div className='statDetail' style={{ backgroundColor: '#f8f8f8'}}>
-            <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
-              <div className='mdl-cell mdl-cell--12-col' style={{fontSize: '20px'}}>
-                <span style={{padding: '5px', color: 'white', borderTopLeftRadius: '5px', borderBottomLeftRadius: '5px', backgroundColor: '#b53f49'}}>IP</span>                
-                <span style={{padding: '5px', color: 'white', borderTopRightRadius: '5px', borderBottomRightRadius: '5px'}} className='mdl-color--primary'>10.10.10.10</span>
-              </div>
-            </div>
-            <div className='mdl-grid' style={{borderBottom: '1px dashed #777'}}>
-              <div className='mdl-cell mdl-cell--6-col'>
-                <div className='mdl-grid'>
-                  <div className='mdl-cell mdl-cell--6-col'>
-                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>Status</div>
-                    <div>Completed</div>
-                  </div>
-                  <div className='mdl-cell mdl-cell--6-col'>
-                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>Rec Version</div>
-                    <div>1</div>
-                  </div>
-                </div>
-                <div className='mdl-grid'>
-                  <div className='mdl-cell mdl-cell--12-col'>
-                    <div style={{color: '#b53f49', lineHeight: 1, fontSize: '12px'}}>JVM ID</div>
-                    <div>jvm id</div>
-                  </div>
-                </div>
-              </div>
-              <div className='mdl-cell mdl-cell--6-col'>
-                <Chart
-                  chartType='BarChart'
-                  options={this.workSampleChart.opts}
-                  columns={this.workSampleChart.cols}
-                  rows={[['cpu-sample', 450, 1000, 'cpu-sample-work'], ['monitor-contention', 250, 100, 'monitor-contention-work']]}
-                  graph_id='WorkSampleChart'
-                  width='100%'
-                  height='100%'
-                  chartPackages={['corechart', 'timeline']}
-                />
-              </div>
-            </div>              
-            <div className='mdl-grid'>
-              <div className='mdl-cell mdl-cell--2-col' style={{color: '#b53f49', textAlign: 'center', paddingTop: '12px'}}>Trace Coverage</div>
-              <div className='mdl-cell mdl-cell--10-col'>
-                <Chart
-                  chartType='ScatterChart'
-                  options={this.traceChart.opts}
-                  columns={this.traceChart.cols}
-                  rows={[[10, 0, '<div>hello, world</div>', 'point { fill-color:' + this.traceChart.rainbow.colorAt(10) + '}'], [100, 0, '<div>rofl, yolo</div>', 'point { fill-color:' + this.traceChart.rainbow.colorAt(50) + '}']]}
-                  graph_id='TraceCoverageChart'
-                  width='100%'
-                  height='100px'
-                  chartPackages={['corechart', 'timeline']}
-                />
-              </div>
-            </div>
-          </div>
+          <SubProfileStat ref={c => { this.subProfileStat = c; }} traces={this.props.profile.traces} defaultStat={this.statsView ? this.statsView[this.selStatIdx] : null} />
         </Modal>
+        )}
       </div>
     );
   }
+
+  // onIPChange(val) {
+  //   this.setState({
+  //     selIPValue: val
+  //   });
+  // }
 
   setupStats() {
     this.stats = this.props.profile.profiles.map(p => {
@@ -296,20 +232,19 @@ class ProfileComponent extends React.Component {
       stat.vm = p.recorder_info.vm_id;
       return stat;
     });
-    this.ips = this.stats.map((s,i) => [s.basic[1], i]).sort((a, b) => (a[0] < b[0]) ? -1 : ((a[0] > b[0]) ? 1 : 0));
+    this.ips = this.stats.map((s,i) => ({label: s.basic[1], value: i})).sort((a, b) => (a.label < b.label) ? -1 : ((a.label > b.label) ? 1 : 0));
   }
 
   setupTimeline() {
-    this.timeline.rows = !this.stats ? [] : this.stats.map(s => s.basic);
-    let fr = this.timeline.rows[0];
-    this.timeline.rows.push(["Completed", "1", fr[2], new Date(fr[3].getTime() + 400*1000), new Date(fr[4].getTime() + 500*1000)]);
-    this.timeline.rows.push([fr[0], "2", fr[2], new Date(fr[3].getTime() + 100*1000), new Date(fr[4].getTime() - 50*1000)]);
-
+    this.statsView = this.state.selIPValue ? [this.stats[this.state.selIPValue.value]] : this.stats;
+    this.selStatIdx = 0;
+    this.timeline.rows = !this.statsView ? [] : this.statsView.map(s => s.basic);
     this.timeline.opts.hAxis = {
       minValue: this.w_start,
       maxValue: this.w_end,
       format: "HH:mm"
     };
+    console.log("ts setup", this.statsView, this.timeline.rows);
   }
 
   handleTimelineReady(chart) {
@@ -318,12 +253,16 @@ class ProfileComponent extends React.Component {
   }
 
   handleTimelineSelect(chart) {
-    this.selStatIdx = chart.chart.getSelection()[0].row;
+    this.selStatIdx = chart.chart.getSelection()[0] ? chart.chart.getSelection()[0].row : null;
     this.renderStatDetail();
   }
 
   renderStatDetail() {
-    console.log("molo", this.selStatIdx);
+    if(this.subProfileStat && this.selStatIdx !== null) {
+      this.subProfileStat.setState({
+        stat: this.stats[this.selStatIdx]
+      });
+    }
   }
 }
 
