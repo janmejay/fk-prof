@@ -57,11 +57,12 @@ void Controller::start() {
 
 void Controller::stop() {
     cancel_work();
+    keep_running.store(false, std::memory_order_relaxed);
     scheduler.schedule(Time::now(), [&]() {
-            //This is necessary because it wakes up the scheduler.poll and keep_running == false
-            //  We can call this directly, but then we'd need additional stop-control in scheduler.
-            //  This hack (in a positive way) simplifies scheduler.
-            keep_running.store(false, std::memory_order_relaxed);
+            //This is necessary because it wakes up the scheduler.poll
+            //  We can either schedule something or we'd need additional stop-control in scheduler.
+            //  This hack simplifies scheduler.
+            logger->trace("No-op shutdown-prep scheduler-waking-task triggered");
         });
     await_thd_death(thd_proc);
     thd_proc.reset();

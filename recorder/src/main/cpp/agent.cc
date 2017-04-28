@@ -26,6 +26,8 @@ ProbPct* GlobalCtx::prob_pct;
 medida::MetricsRegistry* GlobalCtx::metrics_registry;
 medida::reporting::UdpReporter* metrics_reporter;
 MetricFormatter::SyslogTsdbFormatter *formatter;
+ThdProcP metrics_thd;
+std::atomic<bool> abort_metrics_poll;
 
 // This has to be here, or the VM turns off class loading events.
 // And AsyncGetCallTrace needs class loading events to be turned on!
@@ -61,6 +63,14 @@ void CreateJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
     }
 }
 
+void metrics_poller(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
+    auto itvl = std::chrono::seconds(5);
+    while (! abort_metrics_poll.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(itvl);
+        metrics_reporter->run();
+    }
+}
+
 void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
     IMPLICITLY_USE(thread);
     // Forces the creation of jmethodIDs of the classes that had already
@@ -75,6 +85,7 @@ void JNICALL OnVMInit(jvmtiEnv *jvmti, JNIEnv *jniEnv, jthread thread) {
         CreateJMethodIDsForClass(jvmti, klass);
     }
 
+    metrics_thd = start_new_thd(jniEnv, jvmti, "Fk-Prof Metrics Reporter", metrics_poller, nullptr);
     controller->start();
 }
 
@@ -272,17 +283,6 @@ std::string tsdb_tags() {
     return tags;
 }
 
-ThdProcP metrics_thd;
-std::atomic<bool> abort_metrics_poll;
-
-void metrics_poller(jvmtiEnv *jvmti_env, JNIEnv *jni_env, void *arg) {
-    auto itvl = std::chrono::seconds(5);
-    while (! abort_metrics_poll.load(std::memory_order_relaxed)) {
-        std::this_thread::sleep_for(itvl);
-        metrics_reporter->run();
-    }
-}
-
 AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     IMPLICITLY_USE(reserved);
     int err;
@@ -338,7 +338,6 @@ AGENTEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved
     formatter = new MetricFormatter::SyslogTsdbFormatter(tsdb_tags(), CONFIGURATION->stats_syslog_tag);
     metrics_reporter = new medida::reporting::UdpReporter(*GlobalCtx::metrics_registry, *formatter, CONFIGURATION->metrics_dst_port);
     abort_metrics_poll.store(false, std::memory_order_relaxed);
-    metrics_thd = start_new_thd(jvm, jvmti, "Fk-Prof Metrics Reporter", metrics_poller, nullptr);
     
     controller = new Controller(jvm, jvmti, threadMap, *CONFIGURATION);
 
