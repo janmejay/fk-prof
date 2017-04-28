@@ -116,6 +116,19 @@ public class AssociationTest {
         assertThat(assocCalledMoreThanOnce.getValue(), is(false));
     }
 
+    @Test(timeout = 10000)
+    public void should_DieCleanly_InAbsenceOfAssociate() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        associateServer.stop();
+        associateServer2.stop();
+        setupRunner(DEFAULT_ARGS + ",allow_sigprof=n");
+        runner.start();
+
+        Thread.sleep(4000);
+
+        assertThat(runner.stop(), is(true));//this actually waits for the process to be reaped
+        assertThat(runner.exitCode(), is(128 + 15)); //15 == SIGTERM
+    }
+
     @Test
     public void should_RetryPoll_WhenAssociateHasInternalProblems() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         MutableObject<Recorder.RecorderInfo> recInfo = new MutableObject<>();
