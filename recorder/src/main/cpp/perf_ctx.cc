@@ -11,6 +11,7 @@ PerfCtx::MergeSemantic PerfCtx::merge_semantic(PerfCtx::TracePt pt) {
 
 metrics::Mtr* s_m_bad_pairing;
 metrics::Mtr* s_m_nesting_overflow;
+metrics::Mtr* s_m_null_tracker;
 
 PerfCtx::ThreadTracker::ThreadTracker(Registry& _reg, ProbPct& _pct, int _tid) :
     reg(_reg), pct(_pct), ignore_count(0), effective_start(0), effective_end(0), record(false), tid(_tid) {
@@ -185,6 +186,7 @@ PerfCtx::Registry::Registry() :
 
     s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "bad_pairing");
     s_m_nesting_overflow = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "nesting_overflow");
+    s_m_null_tracker = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "trace"}, "null_tracker");
     load_unused_primes(MAX_USER_CTX_COUNT);
 }
 
@@ -382,6 +384,11 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong ctx_id) {
     auto thd_info = get_thread_map().get(env);
+    if (thd_info == nullptr) {
+        SPDLOG_TRACE(logger, "Couldn't discover thd_info for jniEnv: {} to exit ctx_id: {}", reinterpret_cast<std::uint64_t>(env), ctx_id);
+        s_m_null_tracker->mark();
+        return;
+    }
     try {
         SPDLOG_TRACE(logger, "Ending perf-ctx {} for jniEnv: {}", ctx_id, reinterpret_cast<std::uint64_t>(env));
         thd_info->ctx_tracker.exit(static_cast<PerfCtx::TracePt>(ctx_id));
@@ -393,6 +400,11 @@ JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* env, jobject self, jlong ctx_id) {
     auto thd_info = get_thread_map().get(env);
+    if (thd_info == nullptr) {
+        SPDLOG_TRACE(logger, "Couldn't discover thd_info for jniEnv: {} to enter ctx_id: {}", reinterpret_cast<std::uint64_t>(env), ctx_id);
+        s_m_null_tracker->mark();
+        return;
+    }
     SPDLOG_TRACE(logger, "Begining perf-ctx {} for jniEnv: {}", ctx_id, reinterpret_cast<std::uint64_t>(env));
     thd_info->ctx_tracker.enter(static_cast<PerfCtx::TracePt>(ctx_id));
     thd_info->release();

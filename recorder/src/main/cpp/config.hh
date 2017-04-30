@@ -58,6 +58,7 @@ struct ConfigurationOptions {
     ConfigurationOptions(const char* options) :
         service_endpoint(nullptr),
         ip(nullptr),
+        host(nullptr),
         app_id(nullptr),
         inst_grp(nullptr),
         inst_id(nullptr),
