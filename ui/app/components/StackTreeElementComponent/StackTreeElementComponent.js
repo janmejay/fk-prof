@@ -36,7 +36,7 @@ class StackTreeElementComponent extends Component {
           ) : <div>&nbsp;</div>}
         </td>
         <td>
-          <div className={styles.stackline} style={{marginLeft: leftPadding}} title={this.props.stackline}>
+          <div className={styles.stackline} style={{marginLeft: leftPadding}} title={this.props.nodename}>
             <span className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
               {this.getIconForHighlight()}
             </span>
