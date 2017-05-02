@@ -5,118 +5,170 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** A utility class which parses and converts Java names from their corresponding JVM Types signatures
- - from string of format className#methodName (argTypes)retType
+/**
+ * A utility class which parses and converts Java names from their corresponding JVM Types signatures
+ * from string of format className#methodName (argTypes)retType
  * Created by rohit.patiyal on 26/04/17.
  */
 public class StackLineParser {
-    private static Map<Character, String> signToPrimitiveMap = new HashMap<Character, String>(){
+
+    /**
+     * Map of JVM Type signtures to their Java representation names for primitive types
+     */
+    private static Map<Character, String> signToPrimitiveMap = new HashMap<Character, String>() {
         {
-            put('V',"void");
-            put('Z',"boolean");
-            put('B',"byte");
-            put('C',"char");
-            put('S',"short");
-            put('I',"int");
-            put('J',"long");
-            put('F',"float");
-            put('D',"double");
+            put('V', "void");
+            put('Z', "boolean");
+            put('B', "byte");
+            put('C', "char");
+            put('S', "short");
+            put('I', "int");
+            put('J', "long");
+            put('F', "float");
+            put('D', "double");
         }
     };
 
-    private static List<JVMTypeSignatureParser> parsers = new ArrayList<JVMTypeSignatureParser>(){
+
+    /**
+     * List of parsers which enforces the format of input which is :
+     * 1. ClassName (A Type)
+     * 2. MethodName
+     * 3. Arguments (Collection of Types of the arguments enclosed in '(' and ')'
+     * 4. Return Type (A Type)
+     */
+    private static List<JVMTypeSignatureParser> parsers = new ArrayList<JVMTypeSignatureParser>() {
         {
-            add(StackLineParser::parseTerminalType);
+            add(StackLineParser::parseType);
             add(StackLineParser::parseMethodName);
             add(StackLineParser::parseArgs);
-            add(StackLineParser::parseRet);
+            add(StackLineParser::parseType);
         }
-    } ;
+    };
 
-    public static String convertJVMTypeSignToJava(String text){
-        StringBuilder sb = new StringBuilder();
-        int textIndex = 0;
-        int sbLength = 0;
-        text = text.replace('/','.');
-        for(JVMTypeSignatureParser parser : parsers){
-            int res = parser.parse(sb, text, textIndex);
-            if(res == -1){
-                return sb.substring(0, sbLength) + text.substring(textIndex);
+    /**
+     * Converts the raw string from JVM Types signatures format to Java representation
+     *
+     * @param raw String to be parsed and converted to its Java representation
+     * @return Converted string
+     */
+    public static String convertJVMTypeSignToJava(String raw) {
+        StringBuilder parsed = new StringBuilder();
+        int idx = 0;
+        int parsedLength = 0;
+        raw = raw.replace('/', '.'); //Replace occurrences of / with . before even starting to parse
+
+        //Apply parsers (in order as per structure of the stackLine),
+        //parser list enforces the format of the stackLine.
+        //Loop breaks with partial successful result
+        //in case of failure in any parse step
+        for (JVMTypeSignatureParser parser : parsers) {
+            int res = parser.parse(parsed, raw, idx);
+            if (res == -1) {
+                return parsed.substring(0, parsedLength) + raw.substring(idx);
             }
-            textIndex = res;
-            sbLength = sb.length();
+            idx = res;
+            parsedLength = parsed.length();
         }
-        return sb.toString();
+        return parsed.toString();
     }
 
 
-
+    /**
+     * Functional Interface representing a parser function which takes three inputs
+     * 1. string builder to store the parsed and converted string,
+     * 2. the string to be parsed and converted
+     * 3. index in raw input string to start parsing from
+     * and outputs the next index in raw input to parse from or -1 if failes
+     */
     @FunctionalInterface
-    private interface JVMTypeSignatureParser{
-        int parse(StringBuilder sb, String text, int textIndex);
+    private interface JVMTypeSignatureParser {
+        int parse(StringBuilder parsed, String raw, int idx);
     }
 
-    private static int parseTerminalType(StringBuilder sb, String text, int textIndex){
-        if(textIndex >= text.length()) return -1;
-        char currChar = text.charAt(textIndex);
-        if(currChar == '['){
-            int nextIndex = parseTerminalType(sb, text, textIndex + 1 );
-            sb.append("[]");
+    /**
+     * Parses and appends converted input in parsed stringBuilder from raw string
+     * if the input is a type either a full class name, a primitive type or its n-array
+     *
+     * @param parsed String builder containing the parsed and converted string
+     * @param raw    String which is to be parsed
+     * @param idx    Index in raw string starting from which the string is to be parsed
+     * @return Next index in raw string to parse from and -1 if receives unexpected input
+     */
+    private static int parseType(StringBuilder parsed, String raw, int idx) {
+        if (idx >= raw.length()) return -1;
+        char currChar = raw.charAt(idx);
+        if (currChar == '[') {  //represents start of array type
+            int nextIndex = parseType(parsed, raw, idx + 1);
+            parsed.append("[]");
             return nextIndex;
-        }else if(currChar == 'L'){
-            int endIndex = text.indexOf(';', textIndex);
-            if(endIndex == -1) return -1;
-            sb.append(text, textIndex+1, endIndex);
+        } else if (currChar == 'L') { //marks the start of a full class name
+            int endIndex = raw.indexOf(';', idx); //full class name ends with a semi colon in the input
+            if (endIndex == -1) return -1;
+            parsed.append(raw, idx + 1, endIndex);
             return endIndex + 1;
-        }else if(signToPrimitiveMap.containsKey(currChar)){
-            sb.append(signToPrimitiveMap.get(currChar));
-            return textIndex+1;
+        } else if (signToPrimitiveMap.containsKey(currChar)) { // implies that it is a primitive type
+            parsed.append(signToPrimitiveMap.get(currChar));
+            return idx + 1;
         }
         return -1;
     }
 
-    private static int parseArgs(StringBuilder sb, String text, int textIndex) {
-        if(textIndex + 1 >= text.length()) return -1;
-        if(text.charAt(textIndex) == ' ' && text.charAt(textIndex+1) == '(') {
-            sb.append(" (");
-            textIndex += 2;
-            boolean argsFound = false;
-            int i = textIndex;
-
-            while (i < text.length() && text.charAt(i) != ')' && (i = parseTerminalType(sb, text, textIndex)) != -1) {
-                sb.append(',');
-                textIndex = i;
+    /**
+     * Parses and appends converted input in parsed stringBuilder from raw string if the input is
+     * collection of types marked by '(' bracket at start and ')' at the end. The collection can be empty.
+     *
+     * @param parsed String builder containing the parsed and converted string
+     * @param raw    String which is to be parsed
+     * @param idx    Index in raw string starting from which the string is to be parsed
+     * @return Next index in raw string to parse from and -1 if receives unexpected input
+     */
+    private static int parseArgs(StringBuilder parsed, String raw, int idx) {
+        if (idx >= raw.length()) return -1;
+        if (raw.charAt(idx) == '(') {
+            parsed.append("(");
+            idx += 1;
+            boolean argsFound = false; //identifier whether atleast one arg was found to handle last comma correctly
+            int i = idx;
+            while (i < raw.length() && raw.charAt(i) != ')' && (i = parseType(parsed, raw, idx)) != -1) {
+                parsed.append(',');
+                idx = i;
                 argsFound = true;
             }
-            if(i >= text.length()) return -1;
-            if (text.charAt(textIndex) == ')') {
-                textIndex += 1;
+            if (i >= raw.length()) return -1;
+            if (raw.charAt(idx) == ')') {
+                idx += 1;
                 if (argsFound) {
-                    sb.setCharAt(sb.length() - 1, ')');
+                    parsed.setCharAt(parsed.length() - 1, ')'); //consuming the last comma if atleast one arg found
                 } else {
-                    sb.append(')');
+                    parsed.append(')');
                 }
-                return textIndex;
+                return idx;
             }
         }
         return -1;
     }
 
-    private static int parseMethodName(StringBuilder sb, String text, int textIndex) {
-        if(textIndex >= text.length()) return -1;
-        if(text.charAt(textIndex) == '#') {
-            sb.append(".");
-            int endIndex = text.indexOf(" ");
-            if(endIndex == -1) return -1;
-            sb.append(text, textIndex+1, endIndex);
-            return endIndex;
+    /**
+     * Parses and appends converted input in parsed stringBuilder from raw string if the input
+     * starts with '#' hash symbol which marks the start of a Java method name with a space to mark its end
+     *
+     * @param parsed String builder containing the parsed and converted string
+     * @param raw    String which is to be parsed
+     * @param idx    Index in raw string starting from which the string is to be parsed
+     * @return Next index in raw string to parse from and -1 if receives unexpected input
+     */
+    private static int parseMethodName(StringBuilder parsed, String raw, int idx) {
+        if (idx >= raw.length()) return -1;
+        if (raw.charAt(idx) == '#') {
+            parsed.append(".");
+            int endIndex = raw.indexOf(" ");   //index where the method name ends
+            if (endIndex == -1) return -1;
+            parsed.append(raw, idx + 1, endIndex);
+            parsed.append(" "); //appending space without any conversion
+            return endIndex + 1;
         }
         return -1;
     }
-
-    private static int parseRet(StringBuilder sb, String text, int textIndex) {
-        return parseTerminalType(sb, text, textIndex);
-    }
-
 
 }
