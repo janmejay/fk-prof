@@ -29,7 +29,6 @@ public class StackLineParser {
         }
     };
 
-
     /**
      * List of parsers which enforces the format of input which is :
      * 1. ClassName (A Type)
@@ -39,10 +38,10 @@ public class StackLineParser {
      */
     private static List<JVMTypeSignatureParser> parsers = new ArrayList<JVMTypeSignatureParser>() {
         {
-            add(StackLineParser::parseType);
+            add(StackLineParser::parseClassName);
             add(StackLineParser::parseMethodName);
             add(StackLineParser::parseArgs);
-            add(StackLineParser::parseType);
+            add(StackLineParser::parseReturnType);
         }
     };
 
@@ -73,17 +72,38 @@ public class StackLineParser {
         return parsed.toString();
     }
 
-
     /**
      * Functional Interface representing a parser function which takes three inputs
      * 1. string builder to store the parsed and converted string,
      * 2. the string to be parsed and converted
      * 3. index in raw input string to start parsing from
-     * and outputs the next index in raw input to parse from or -1 if failes
+     * and outputs the next index in raw input to parse from or -1 if fails
      */
     @FunctionalInterface
     private interface JVMTypeSignatureParser {
         int parse(StringBuilder parsed, String raw, int idx);
+    }
+
+    /**
+     * Parses and appends converted input in parsed stringBuilder from raw string
+     * if the input is a full class name representing the class name of the method
+     * in the stackLine
+     *
+     * @param parsed String builder containing the parsed and converted string
+     * @param raw    String which is to be parsed
+     * @param idx    Index in raw string starting from which the string is to be parsed
+     * @return Next index in raw string to parse from and -1 if receives unexpected input
+     */
+    private static int parseClassName(StringBuilder parsed, String raw, int idx) {
+        if (idx >= raw.length()) return -1;
+        char currChar = raw.charAt(idx);
+        if (currChar == 'L') {
+            int endIndex = raw.indexOf(';', idx); //full class name ends with a semi colon in the input
+            if (endIndex == -1) return -1;
+            parsed.append(raw, idx + 1, endIndex);
+            return endIndex + 1;
+        }
+        return -1;
     }
 
     /**
@@ -103,10 +123,7 @@ public class StackLineParser {
             parsed.append("[]");
             return nextIndex;
         } else if (currChar == 'L') { //marks the start of a full class name
-            int endIndex = raw.indexOf(';', idx); //full class name ends with a semi colon in the input
-            if (endIndex == -1) return -1;
-            parsed.append(raw, idx + 1, endIndex);
-            return endIndex + 1;
+            return parseClassName(parsed, raw, idx);
         } else if (signToPrimitiveMap.containsKey(currChar)) { // implies that it is a primitive type
             parsed.append(signToPrimitiveMap.get(currChar));
             return idx + 1;
@@ -169,6 +186,20 @@ public class StackLineParser {
             return endIndex + 1;
         }
         return -1;
+    }
+
+    /**
+     * Parses and appends converted input in parsed stringBuilder from raw string
+     * if the input is a full class name, a primitive type or its n-array representing the
+     * return type of the stack line
+     *
+     * @param parsed String builder containing the parsed and converted string
+     * @param raw    String which is to be parsed
+     * @param idx    Index in raw string starting from which the string is to be parsed
+     * @return Next index in raw string to parse from and -1 if receives unexpected input
+     */
+    private static int parseReturnType(StringBuilder parsed, String raw, int idx) {
+        return parseType(parsed, raw, idx);
     }
 
 }
