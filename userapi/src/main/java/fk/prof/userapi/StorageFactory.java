@@ -2,6 +2,7 @@ package fk.prof.userapi;
 
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.S3ClientFactory;
 import io.vertx.core.json.JsonObject;
 
 import java.util.concurrent.ExecutorService;
@@ -13,9 +14,9 @@ import java.util.concurrent.ExecutorService;
  * {
  * "storage":"S3",
  * "S3":{
- * "end.point":"http://10.47.2.3:80",
- * "access.key":"66ZX9WC7ZRO6S5BSO8TG",
- * "secret.key":"fGEJrdiSWNJlsZTiIiTPpUntDm0wCRV4tYbwu2M+"
+ * "end.point":"http://endpoint:port",
+ * "access.key":"access_key",
+ * "secret.key":"secret_key"
  * }
  * }
  * }
@@ -25,27 +26,28 @@ import java.util.concurrent.ExecutorService;
 public class StorageFactory {
 
   private static final String S3 = "s3";
-    private static final String ACCESS_KEY = "access.key";
-    private static final String SECRET_KEY = "secret.key";
-    private static final String END_POINT = "endpoint";
+  private static final String ACCESS_KEY = "access.key";
+  private static final String SECRET_KEY = "secret.key";
+  private static final String END_POINT = "endpoint";
+  private static final String LIST_OBJECTS_TIMEOUT_MS = "list.objects.timeout.ms";
 
-    private static S3AsyncStorage s3AsyncStorage = null;
+  private static S3AsyncStorage s3AsyncStorage = null;
 
   synchronized public static AsyncStorage getAsyncStorage(JsonObject storageConfig, ExecutorService storageExecSvc) {
-    if (storageConfig.fieldNames().isEmpty())
-      return getS3AsyncInstance(storageConfig.getJsonObject(S3), storageExecSvc);
-    switch (storageConfig.fieldNames().iterator().next()) {
-            case S3:
-              return getS3AsyncInstance(storageConfig.getJsonObject(S3), storageExecSvc);
-            default:
-              return getS3AsyncInstance(storageConfig.getJsonObject(S3), storageExecSvc);
-        }
+    for (String key : storageConfig.fieldNames()) {
+      switch (key) {
+        case S3:
+          return getS3AsyncInstance(storageConfig.getJsonObject(S3), storageExecSvc);
+      }
     }
+    throw new RuntimeException("No storage configured");
+  }
 
   private static AsyncStorage getS3AsyncInstance(JsonObject jsonObject, ExecutorService storageExecSvc) {
-        if (s3AsyncStorage == null) {
-          s3AsyncStorage = new S3AsyncStorage(jsonObject.getString(END_POINT), jsonObject.getString(ACCESS_KEY), jsonObject.getString(SECRET_KEY), storageExecSvc);
-        }
-        return s3AsyncStorage;
+    if (s3AsyncStorage == null) {
+      s3AsyncStorage = new S3AsyncStorage(S3ClientFactory.create(jsonObject.getString(END_POINT), jsonObject.getString(ACCESS_KEY), jsonObject.getString(SECRET_KEY)),
+          storageExecSvc, jsonObject.getLong(LIST_OBJECTS_TIMEOUT_MS, 5000L));
     }
+    return s3AsyncStorage;
+  }
 }
