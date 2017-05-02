@@ -85,11 +85,12 @@ public class S3AsyncStorage implements AsyncStorage {
                 Set<String> allObjects = new HashSet<>();
                 ObjectListing objects = null;
                 ListObjectsRequest request = new ListObjectsRequest().withBucketName(objectPath.bucket).withPrefix(objectPath.fileName);
+                if(!recursive) {
+                    request.withDelimiter(DELIMITER);
+                }
+
                 do {
-                    if(!recursive) {
-                        request.withDelimiter(DELIMITER);
-                    }
-                    if(objects != null && objects.isTruncated()) {
+                    if(objects != null) {
                         request.setMarker(objects.getNextMarker());
                     }
                     objects = client.listObjects(request);
@@ -97,12 +98,12 @@ public class S3AsyncStorage implements AsyncStorage {
                     for (S3ObjectSummary objSummary : objects.getObjectSummaries()) {
                         allObjects.add(objectPath.bucket + "/" + objSummary.getKey());                    //All files with prefix with complete path
                     }
-                    for (String commonPrefix : objects.getCommonPrefixes()) {   //Folders in current dir (if delimiter passed)
+                    for (String commonPrefix : objects.getCommonPrefixes()) {                             //Folders in current dir (if delimiter passed)
                         allObjects.add(objectPath.bucket + "/" + commonPrefix);                           //with complete path
                     }
 
                     if(startTime + listObjectsTimeoutInMs < System.currentTimeMillis()) {
-                        LOGGER.warn("Timeout while listing objects for prefix: {}, isRecursive: {}", prefixPath, recursive);
+                        LOGGER.warn("Timeout while listing objects for prefix: {}, isRecursive: {}, fileCount: {}", prefixPath, recursive, allObjects.size());
                         break;
                     }
                 } while (objects.isTruncated());

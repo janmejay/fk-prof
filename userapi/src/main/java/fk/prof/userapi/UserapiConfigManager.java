@@ -75,6 +75,18 @@ public class UserapiConfigManager {
   JsonObject getStorageConfig() {
     JsonObject storageConfig = config.getJsonObject(STORAGE);
     checkNotEmpty(storageConfig, "storage");
+    if(!storageConfig.containsKey("list.objects.timeout.ms")) {
+      // put default value for listObject timeout
+      storageConfig.put("list.objects.timeout.ms", 5000L);
+    }
+
+    // check for consistent config
+    Long requestTimeout = getUserapiHttpDeploymentConfig().getJsonObject("config").getLong("req.timeout");
+    Long ListObjectTimeout = storageConfig.getLong("list.objects.timeout.ms");
+    if(requestTimeout <= ListObjectTimeout) {
+      throw new RuntimeException("request timeout must be greater than listObject timeout");
+    }
+
     return storageConfig;
   }
 
@@ -94,19 +106,17 @@ public class UserapiConfigManager {
   }
 
   public JsonObject getUserapiHttpDeploymentConfig() {
-    return enrichDeploymentConfig(config.getJsonObject(USERAPI_HTTP_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
+    JsonObject deploymentConfig = enrichDeploymentConfig(config.getJsonObject(USERAPI_HTTP_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
+    JsonObject httpConfig = deploymentConfig.getJsonObject("config");
+    if(!httpConfig.containsKey("req.timeout")) {
+      // put default value for request timeout
+      httpConfig.put("req.timeout", 10000);
+    }
+    return deploymentConfig;
   }
 
   int getProfileRetentionDuration() {
     return config.getInteger(PROFILE_RETENTION_KEY, 30);
-  }
-
-  public String getStorageType() {
-
-    if (getStorageConfig().fieldNames().iterator().hasNext())
-      return getStorageConfig().fieldNames().iterator().next();
-    else
-      return "s3";
   }
 
   public int getAggregationWindowDurationInSecs() {
@@ -119,9 +129,5 @@ public class UserapiConfigManager {
 
   public int getUserapiHttpPort() {
     return getUserapiHttpDeploymentConfig().getJsonObject(CONFIG).getInteger(USERPAI_HTTP_PORT_KEY, 8082);
-  }
-
-  public long getRequestTimeout() {
-    return getUserapiHttpDeploymentConfig().getJsonObject(CONFIG).getLong(REQ_TIMEOUT_KEY, 10000L);
   }
 }
