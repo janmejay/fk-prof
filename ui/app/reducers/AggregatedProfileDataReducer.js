@@ -8,6 +8,15 @@ import FrameNode from '../pojos/FrameNode';
 
 
 function createTree (input, methodLookup, terminalNodeIndexes = []) {
+  methodLookup = methodLookup.map(methodName => {
+    const splits =  methodName.split(" ");
+    if(splits.length === 2){
+      return splits;
+    }else{
+      return [methodName, ""];
+    }
+  });
+
   const allNodes = [];
   function formTree (index) {
     let currentNode = input[index];

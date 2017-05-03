@@ -115,7 +115,8 @@ class MethodTreeComponent extends Component {
         renderStack.push(se);
 
         let uniqueId, newNodeIndexes, countToDisplay;
-        let displayName = this.props.methodLookup[n.name];
+        let displayName = this.props.methodLookup[n.name][0];
+        let displayNameWithArgs = this.props.methodLookup[n.name][0] + this.props.methodLookup[n.name][1];
         //If this is a first-level node(p_pth will be empty) and filter is applied, skip rendering of node if display name does not match the filter
         if(filterText && !se.p_pth && !displayName.match(new RegExp(filterText, 'i'))) {
           continue;
@@ -129,6 +130,7 @@ class MethodTreeComponent extends Component {
           newNodeIndexes = n.parentsWithSampledCallCount;
           const lineNoOrNot = (n.belongsToTopLayer)? '' : ':' + n.lineNo;
           displayName = displayName + lineNoOrNot;
+          displayNameWithArgs = displayNameWithArgs + lineNoOrNot;
           countToDisplay = n.sampledCallCount;
         } else {
           // using the index i because in call tree the name of sibling nodes
@@ -136,6 +138,7 @@ class MethodTreeComponent extends Component {
           uniqueId = `${se.p_pth}->${n.name}:${n.lineNo}`;
           newNodeIndexes = n.children;
           displayName = displayName + ':' + n.lineNo;
+          displayNameWithArgs = displayNameWithArgs + ':' + n.lineNo;
           countToDisplay = n.onStack;
         }
 
@@ -157,7 +160,7 @@ class MethodTreeComponent extends Component {
           .filter(filterPaths.bind(null, uniqueId));
         const nodeRender =
           <StackTreeElement
-            data-nodename={displayName}
+            nodename={displayNameWithArgs}
             key={uniqueId}
             stackline={displayName}
             samples={countToDisplay}
@@ -254,7 +257,7 @@ class MethodTreeComponent extends Component {
                 <div className={`mdl-textfield mdl-js-textfield ${styles.filterBox}`}>
                   <label htmlFor="method_filter" style={{fontWeight: "bold"}}>
                     {nextNodesAccessorField === 'parent' ? "Filter hot methods" : "Filter root callers"}
-                  </label>                
+                  </label>
                   <input
                     className={`mdl-textfield__input`}
                     type="text"
