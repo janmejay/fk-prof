@@ -45,7 +45,7 @@ struct ThreadTargetProc {
     ThreadTargetProc(void* _arg, jvmtiStartFunction _run_fn, const char* _name) :
         arg(_arg), run_fn(_run_fn), name(_name), state(State::pre_start),
 
-        s_c_thds(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "threads", "running"})) {
+        s_c_thds(get_metrics_registry().new_counter({METRICS_DOMAIN, "threads", "running"})) {
 
         logger->trace("ThreadTargetProc for '{}' created", name);
     }

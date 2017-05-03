@@ -62,7 +62,7 @@ struct ThreadBucket {
 	map::GC::EpochType localEpoch;
     PerfCtx::ThreadTracker ctx_tracker;
 
-	ThreadBucket(int id, const char *n, std::uint32_t _priority, bool _is_daemon) : tid(id), priority(_priority), is_daemon(_is_daemon), refs(1), ctx_tracker(*GlobalCtx::ctx_reg, *GlobalCtx::prob_pct, id) {
+	ThreadBucket(int id, const char *n, std::uint32_t _priority, bool _is_daemon) : tid(id), priority(_priority), is_daemon(_is_daemon), refs(1), ctx_tracker(get_ctx_reg(), get_prob_pct(), id) {
 		int len = strlen(n) + 1;
 		name = new char[len];
 		std::copy(n, n + len, name);

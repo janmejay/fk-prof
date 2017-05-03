@@ -31,17 +31,17 @@ Controller::Controller(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap& _thread_map, C
     jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), cfg(_cfg), keep_running(false), writer(nullptr),
     serializer(nullptr), processor(nullptr), raw_writer_ring(_cfg.tx_ring_sz),
 
-    s_t_poll_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
-    s_c_poll_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll", "failures"})),
+    s_t_poll_rpc(get_metrics_registry().new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll"})),
+    s_c_poll_rpc_failures(get_metrics_registry().new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "poll", "failures"})),
 
-    s_t_associate_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})),
-    s_c_associate_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate", "failures"})),
+    s_t_associate_rpc(get_metrics_registry().new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate"})),
+    s_c_associate_rpc_failures(get_metrics_registry().new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "associate", "failures"})),
 
-    s_v_work_cpu_sampling(GlobalCtx::metrics_registry->new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working", "cpu_sampling"})),
+    s_v_work_cpu_sampling(get_metrics_registry().new_value({METRICS_DOMAIN, METRICS_TYPE_STATE, "working", "cpu_sampling"})),
 
-    s_c_work_success(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retire", "success"})),
-    s_c_work_failure(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retire", "failure"})),
-    s_c_work_retired(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, "work", "retired"})) {
+    s_c_work_success(get_metrics_registry().new_counter({METRICS_DOMAIN, "work", "retire", "success"})),
+    s_c_work_failure(get_metrics_registry().new_counter({METRICS_DOMAIN, "work", "retire", "failure"})),
+    s_c_work_retired(get_metrics_registry().new_counter({METRICS_DOMAIN, "work", "retired"})) {
 
     current_work.set_work_id(0);
     current_work_state = recording::WorkResponse::complete;
@@ -405,11 +405,11 @@ public:
                          BlockingRingBuffer& _ring, std::function<void()>& _cancellation_fn, const std::uint32_t _tx_timeout) :
         RawWriter(), host(_host), port(_port), ring(_ring), cancellation_fn(_cancellation_fn), tx_timeout(_tx_timeout),
 
-        s_t_rpc(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
-        s_c_rpc_failures(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile", "failures"})),
+        s_t_rpc(get_metrics_registry().new_timer({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile"})),
+        s_c_rpc_failures(get_metrics_registry().new_counter({METRICS_DOMAIN, METRICS_TYPE_RPC, "profile", "failures"})),
 
-        s_t_fill_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRICS_TYPE_WAIT, "profile", "req_data_feed"})),
-        s_h_req_chunk_sz(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRICS_TYPE_SZ, "profile", "chunk"})) {
+        s_t_fill_wait(get_metrics_registry().new_timer({METRICS_DOMAIN, METRICS_TYPE_WAIT, "profile", "req_data_feed"})),
+        s_h_req_chunk_sz(get_metrics_registry().new_histogram({METRICS_DOMAIN, METRICS_TYPE_SZ, "profile", "chunk"})) {
 
         ring.reset();
         thd_proc = start_new_thd(jvm, jvmti, "Fk-Prof Profiler Writer Thread", http_raw_writer_runnable, this);
@@ -498,7 +498,7 @@ void Controller::issue_work(const std::string& host, const std::uint32_t port, s
                         prep(work);
                     }
 
-                    serializer.reset(new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, *GlobalCtx::ctx_reg, sft, tts, cfg.noctx_cov_pct));
+                    serializer.reset(new ProfileSerializingWriter(jvmti, *writer.get(), SiteResolver::method_info, SiteResolver::line_no, get_ctx_reg(), sft, tts, cfg.noctx_cov_pct));
 
                     JNIEnv *env = getJNIEnv(jvm);
                     Processes processes;
@@ -662,7 +662,7 @@ void Controller::issue(const recording::CpuSampleWork& csw, Processes& processes
     auto freq = csw.frequency();
     logger->info("Starting cpu-sampling at {} Hz and for upto {} frames", freq, tts.cpu_samples_max_stack_sz);
     
-    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, *serializer.get(), tts.cpu_samples_max_stack_sz, freq, *GlobalCtx::prob_pct, cfg.noctx_cov_pct));
+    GlobalCtx::recording.cpu_profiler.reset(new Profiler(jvm, jvmti, thread_map, *serializer.get(), tts.cpu_samples_max_stack_sz, freq, get_prob_pct(), cfg.noctx_cov_pct));
     ReadsafePtr<Profiler> p(GlobalCtx::recording.cpu_profiler);
     p->start(env);
     processes.push_back(new CpuProfileProcess());

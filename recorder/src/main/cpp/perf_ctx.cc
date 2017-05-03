@@ -176,17 +176,17 @@ PerfCtx::Registry::Registry() :
     unused_prime_nos(MAX_USER_CTX_COUNT),
     exhausted(false),
 
-    s_c_ctx(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "count"})),
-    s_m_create_rebind(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "rebind"}, "rate")),
-    s_m_create_conflict(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "conflict"}, "rate")),
-    s_m_create_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "runout"}, "rate")),
+    s_c_ctx(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "count"})),
+    s_m_create_rebind(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "rebind"}, "rate")),
+    s_m_create_conflict(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "conflict"}, "rate")),
+    s_m_create_runout(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "runout"}, "rate")),
 
-    s_m_merge_reuse(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "merge", "reuse"}, "rate")),
-    s_c_merge_new(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "merge", "new"})) {
+    s_m_merge_reuse(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "merge", "reuse"}, "rate")),
+    s_c_merge_new(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "merge", "new"})) {
 
-    s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "bad_pairing"}, "rate");
-    s_m_nesting_overflow = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "nesting_overflow"}, "rate");
-    s_m_null_tracker = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "trace", "null_tracker"}, "rate");
+    s_m_bad_pairing = &get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "bad_pairing"}, "rate");
+    s_m_nesting_overflow = &get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "nesting_overflow"}, "rate");
+    s_m_null_tracker = &get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "trace", "null_tracker"}, "rate");
     load_unused_primes(MAX_USER_CTX_COUNT);
 }
 
@@ -371,7 +371,7 @@ JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject se
     try {
         name_str = env->GetStringUTFChars(name, nullptr);
         SPDLOG_DEBUG(logger, "Attempting registration of perf-ctx {} (cov: {}, merge: {})", name_str, coverage_pct, merge_type);
-        auto id = GlobalCtx::ctx_reg->find_or_bind(name_str, static_cast<std::uint8_t>(coverage_pct), static_cast<std::uint8_t>(merge_type));
+        auto id = get_ctx_reg().find_or_bind(name_str, static_cast<std::uint8_t>(coverage_pct), static_cast<std::uint8_t>(merge_type));
         SPDLOG_DEBUG(logger, "Registered perf-ctx {} as {}", name_str, id);
         return static_cast<jlong>(id);
     } catch (PerfCtx::CtxCreationFailure& e) {
@@ -399,6 +399,7 @@ JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_end(JNIEnv* env, jobject self, jlong
 }
 
 JNIEXPORT void JNICALL Java_fk_prof_PerfCtx_begin(JNIEnv* env, jobject self, jlong ctx_id) {
+    
     auto thd_info = get_thread_map().get(env);
     if (thd_info == nullptr) {
         SPDLOG_TRACE(logger, "Couldn't discover thd_info for jniEnv: {} to enter ctx_id: {}", reinterpret_cast<std::uint64_t>(env), ctx_id);
