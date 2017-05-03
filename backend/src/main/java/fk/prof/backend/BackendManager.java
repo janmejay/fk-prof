@@ -20,6 +20,7 @@ import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.metrics.MetricName;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.S3ClientFactory;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
 import io.vertx.core.*;
 import io.vertx.core.Future;
@@ -150,8 +151,8 @@ public class BackendManager {
                 new AbortPolicy("s3ExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
-        storageExecSvc);
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key")),
+        storageExecSvc, s3Config.getLong("list.objects.timeout.ms", 5000L));
 
     // buffer pool to temporarily store serialized bytes
     JsonObject bufferPoolConfig = configManager.getBufferPoolConfig();

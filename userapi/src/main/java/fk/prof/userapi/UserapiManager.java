@@ -11,6 +11,8 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.base.Preconditions;
 import fk.prof.storage.AsyncStorage;
+import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.S3ClientFactory;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
 import fk.prof.userapi.deployer.VerticleDeployer;
@@ -115,7 +117,9 @@ public class UserapiManager {
             new AbortPolicy("storageExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    this.storage = StorageFactory.getAsyncStorage(userapiConfigManager.getStorageConfig(), storageExecSvc);
+    JsonObject s3Config = userapiConfigManager.getS3Config();
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key")),
+            storageExecSvc, s3Config.getLong("list.objects.timeout.ms"));
   }
 
 
