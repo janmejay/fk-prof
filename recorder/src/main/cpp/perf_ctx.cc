@@ -177,16 +177,16 @@ PerfCtx::Registry::Registry() :
     exhausted(false),
 
     s_c_ctx(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "count"})),
-    s_m_create_rebind(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "rebind")),
-    s_m_create_conflict(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "conflict")),
-    s_m_create_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create"}, "runout")),
+    s_m_create_rebind(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "rebind"}, "rate")),
+    s_m_create_conflict(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "conflict"}, "rate")),
+    s_m_create_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "create", "runout"}, "rate")),
 
-    s_m_merge_reuse(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "merge"}, "reuse")),
+    s_m_merge_reuse(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "merge", "reuse"}, "rate")),
     s_c_merge_new(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "merge", "new"})) {
 
-    s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "bad_pairing");
-    s_m_nesting_overflow = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry"}, "nesting_overflow");
-    s_m_null_tracker = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "trace"}, "null_tracker");
+    s_m_bad_pairing = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "bad_pairing"}, "rate");
+    s_m_nesting_overflow = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "entry", "nesting_overflow"}, "rate");
+    s_m_null_tracker = &GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "trace", "null_tracker"}, "rate");
     load_unused_primes(MAX_USER_CTX_COUNT);
 }
 

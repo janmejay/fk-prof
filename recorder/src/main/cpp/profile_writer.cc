@@ -237,10 +237,10 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
 
     s_c_frame_snipped(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "backtrace_snipped"})),
 
-    s_m_stack_sample_err(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample"}, "err")),
-    s_m_cpu_sample_add(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample"}, "rpt")) {
+    s_m_stack_sample_err(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "err"}, "rate")),
+    s_m_cpu_sample_add(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "rpt"}, "rate")) {
 
-    s_c_new_mthd_info.clear();
+    s_c_new_thd_info.clear();
     s_c_new_ctx_info.clear();
     s_c_total_mthd_info.clear();
     s_c_new_mthd_info.clear();
