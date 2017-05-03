@@ -76,7 +76,7 @@ include_directories(${JAVA_INCLUDE_PATH2})
 
 pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
-pkg_check_modules(MEDIDA REQUIRED libmedida>=0.3.0)
+pkg_check_modules(MEDIDA REQUIRED libmedida>=1.0.0)
 include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})

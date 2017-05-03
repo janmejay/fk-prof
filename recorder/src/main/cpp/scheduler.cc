@@ -81,7 +81,7 @@ bool Scheduler::poll() {
 #define METRIC_TYPE "scheduler"
 
 Scheduler::Scheduler() :
-    s_m_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "queue"}, "runout")),
+    s_m_runout(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "queue", "runout"}, "rate")),
     s_t_wait(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "sched", "wait"})),
     s_t_exec(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "sched", "exec"})),
     s_h_exec_spree_len(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRIC_TYPE, "sched", "exec_spree"})),
