@@ -367,15 +367,15 @@ const char* PerfCtx::IncorrectEnterExitPairing::what() const {
 }
 
 JNIEXPORT jlong JNICALL Java_fk_prof_PerfCtx_registerCtx(JNIEnv* env, jobject self, jstring name, jint coverage_pct, jint merge_type) {
-    const char* name_str = nullptr;
     try {
-        name_str = env->GetStringUTFChars(name, nullptr);
-        SPDLOG_DEBUG(logger, "Attempting registration of perf-ctx {} (cov: {}, merge: {})", name_str, coverage_pct, merge_type);
-        auto id = get_ctx_reg().find_or_bind(name_str, static_cast<std::uint8_t>(coverage_pct), static_cast<std::uint8_t>(merge_type));
-        SPDLOG_DEBUG(logger, "Registered perf-ctx {} as {}", name_str, id);
+        std::unique_ptr<const char, std::function<void(const char*)>>
+            name_str(env->GetStringUTFChars(name, nullptr),
+                     [&](const char* str) { if (str != nullptr) env->ReleaseStringUTFChars(name, str); });
+        SPDLOG_DEBUG(logger, "Attempting registration of perf-ctx {} (cov: {}, merge: {})", name_str.get(), coverage_pct, merge_type);
+        auto id = get_ctx_reg().find_or_bind(name_str.get(), static_cast<std::uint8_t>(coverage_pct), static_cast<std::uint8_t>(merge_type));
+        SPDLOG_DEBUG(logger, "Registered perf-ctx {} as {}", name_str.get(), id);
         return static_cast<jlong>(id);
     } catch (PerfCtx::CtxCreationFailure& e) {
-        if (name_str != nullptr) env->ReleaseStringUTFChars(name, name_str);
         if (env->ThrowNew(env->FindClass("fk/prof/PerfCtxInitException"), e.what()) == 0) return -1;
         logger->warn("Conflicting definition of perf-ctx ignored, details: {}", e.what());
         return -1;

@@ -229,8 +229,8 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     sigemptyset(&prof_signal_mask);
     sigaddset(&prof_signal_mask, SIGPROF);
     // Create the list of callbacks to be called on given events.
-    jvmtiEventCallbacks *callbacks = new jvmtiEventCallbacks();
-    memset(callbacks, 0, sizeof(jvmtiEventCallbacks));
+    std::unique_ptr<jvmtiEventCallbacks> callbacks(new jvmtiEventCallbacks());
+    memset(callbacks.get(), 0, sizeof(jvmtiEventCallbacks));
 
     callbacks->VMInit = &OnVMInit;
     callbacks->VMDeath = &OnVMDeath;
@@ -244,7 +244,7 @@ static bool RegisterJvmti(jvmtiEnv *jvmti) {
     callbacks->ThreadStart = &OnThreadStart;
     callbacks->ThreadEnd = &OnThreadEnd;
 
-    JVMTI_ERROR_RET((jvmti->SetEventCallbacks(callbacks, sizeof(jvmtiEventCallbacks))), false);
+    JVMTI_ERROR_RET((jvmti->SetEventCallbacks(callbacks.get(), sizeof(jvmtiEventCallbacks))), false);
 
     jvmtiEvent events[] = { JVMTI_EVENT_VM_DEATH, JVMTI_EVENT_VM_INIT,
                             JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, JVMTI_EVENT_CLASS_LOAD, JVMTI_EVENT_CLASS_PREPARE, JVMTI_EVENT_COMPILED_METHOD_LOAD,
