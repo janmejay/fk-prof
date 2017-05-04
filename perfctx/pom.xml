@@ -6,7 +6,7 @@
   <parent>
     <artifactId>prof</artifactId>
     <groupId>fk</groupId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
   </parent>
 
   <groupId>fk.prof</groupId>
