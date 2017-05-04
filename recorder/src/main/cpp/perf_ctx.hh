@@ -168,4 +168,6 @@ namespace PerfCtx {
 
 std::ostream& operator<<(std::ostream& os, PerfCtx::MergeSemantic ms);
 
+PerfCtx::Registry& get_ctx_reg();
+
 #endif

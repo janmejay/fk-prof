@@ -228,17 +228,17 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
     jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
     trunc_thresholds(_trunc_thresholds),
 
-    s_c_new_thd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "thd_rpt", "new"})),
-    s_c_new_ctx_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "ctx_rpt", "new"})),
-    s_c_total_mthd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "total"})),
-    s_c_new_mthd_info(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "new"})),
+    s_c_new_thd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "thd_rpt", "new"})),
+    s_c_new_ctx_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "ctx_rpt", "new"})),
+    s_c_total_mthd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "total"})),
+    s_c_new_mthd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "new"})),
 
-    s_c_bad_lineno(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "line_rpt", "bad"})),
+    s_c_bad_lineno(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "line_rpt", "bad"})),
 
-    s_c_frame_snipped(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "backtrace_snipped"})),
+    s_c_frame_snipped(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "backtrace_snipped"})),
 
-    s_m_stack_sample_err(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "err"}, "rate")),
-    s_m_cpu_sample_add(GlobalCtx::metrics_registry->new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "rpt"}, "rate")) {
+    s_m_stack_sample_err(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "err"}, "rate")),
+    s_m_cpu_sample_add(get_metrics_registry().new_meter({METRICS_DOMAIN, METRIC_TYPE, "cpu_sample", "rpt"}, "rate")) {
 
     s_c_new_thd_info.clear();
     s_c_new_ctx_info.clear();

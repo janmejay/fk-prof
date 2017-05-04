@@ -36,8 +36,8 @@ JNIEXPORT void JNICALL Java_fk_prof_TestJni_teardownPerfCtx(JNIEnv* jni, jobject
         jni->ThrowNew(jni->FindClass("java/lang/IllegalStateException"), "PerfCtx is not setup yet, so can't tear it down");
         return;
     }
-    delete GlobalCtx::ctx_reg;
-    delete GlobalCtx::prob_pct;
+    delete ctx_reg;
+    delete prob_pct;
     delete test_env;
     ctx_ready.store(false, std::memory_order_release);
 
@@ -49,8 +49,8 @@ JNIEXPORT void JNICALL Java_fk_prof_TestJni_setupPerfCtx(JNIEnv* jni, jobject se
         return;
     }
     test_env = new TestEnv();
-    GlobalCtx::ctx_reg = new PerfCtx::Registry();
-    GlobalCtx::prob_pct = new ProbPct();
+    ctx_reg = new PerfCtx::Registry();
+    prob_pct = new ProbPct();
     ctx_ready.store(true, std::memory_order_release);
 }
 
@@ -108,7 +108,7 @@ JNIEXPORT jint JNICALL Java_fk_prof_TestJni_getCurrentCtx(JNIEnv* jni, jobject s
     std::uint8_t cov_pct;                                               \
     PerfCtx::MergeSemantic m_sem;                                       \
     try {                                                               \
-        GlobalCtx::ctx_reg->resolve(pt, name, is_gen, cov_pct, m_sem);  \
+        get_ctx_reg().resolve(pt, name, is_gen, cov_pct, m_sem);        \
     } catch (const PerfCtx::UnknownCtx& e) {                            \
         jni->ThrowNew(jni->FindClass("java/lang/IllegalStateException"), e.what()); \
         return ret;                                                     \

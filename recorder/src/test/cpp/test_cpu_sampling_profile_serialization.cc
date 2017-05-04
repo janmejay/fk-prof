@@ -170,9 +170,9 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     auto ctx_bar = reg.find_or_bind("bar", 30, to_parent_semantic);
     auto ctx_baz = reg.find_or_bind("baz", 40, dup_semantic);
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -339,9 +339,9 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
     auto ctx_bar = reg.find_or_bind("bar", 30, scoped_semantic);
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -450,9 +450,9 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -549,9 +549,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
     auto ctx_bar = reg.find_or_bind("bar", 30, to_parent_semantic);
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -716,9 +716,9 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     PerfCtx::Registry reg;
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -799,9 +799,9 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
     
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 
@@ -904,9 +904,9 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
 
-    ProbPct prob_pct;
-    GlobalCtx::prob_pct = &prob_pct;
-    GlobalCtx::ctx_reg = &reg;
+    ProbPct ppct;
+    prob_pct = &ppct;
+    ctx_reg = &reg;
 
     jvmtiEnv* ti = nullptr;
 

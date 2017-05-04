@@ -36,8 +36,8 @@ if (${CAPTURE_BUILD_ENV} MATCHES "y")
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
-set(fkp_version_major 0)
-set(fkp_version_minor 9)
+set(fkp_version_major 1)
+set(fkp_version_minor 5)
 set(fkp_version_patch 0)
 
 add_definitions("-DGIT_COMMIT=${GIT_COMMIT}")
