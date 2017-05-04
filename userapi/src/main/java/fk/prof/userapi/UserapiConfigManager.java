@@ -62,7 +62,19 @@ public class UserapiConfigManager {
   }
 
   JsonObject getS3Config() {
-    return getStorageConfig().getJsonObject(S3);
+    JsonObject s3Config = getStorageConfig().getJsonObject(S3);
+    if(!s3Config.containsKey("list.objects.timeout.ms")) {
+      // put default value for listObject timeout
+      s3Config.put("list.objects.timeout.ms", 5000L);
+    }
+
+    // check for consistent config
+    Long requestTimeout = getUserapiHttpDeploymentConfig().getJsonObject("config").getLong("req.timeout");
+    Long ListObjectTimeout = s3Config.getLong("list.objects.timeout.ms");
+    if(requestTimeout <= ListObjectTimeout) {
+      throw new RuntimeException("request timeout must be greater than listObject timeout");
+    }
+    return s3Config;
   }
 
 
@@ -75,18 +87,6 @@ public class UserapiConfigManager {
   JsonObject getStorageConfig() {
     JsonObject storageConfig = config.getJsonObject(STORAGE);
     checkNotEmpty(storageConfig, "storage");
-    if(!storageConfig.containsKey("list.objects.timeout.ms")) {
-      // put default value for listObject timeout
-      storageConfig.put("list.objects.timeout.ms", 5000L);
-    }
-
-    // check for consistent config
-    Long requestTimeout = getUserapiHttpDeploymentConfig().getJsonObject("config").getLong("req.timeout");
-    Long ListObjectTimeout = storageConfig.getLong("list.objects.timeout.ms");
-    if(requestTimeout <= ListObjectTimeout) {
-      throw new RuntimeException("request timeout must be greater than listObject timeout");
-    }
-
     return storageConfig;
   }
 
