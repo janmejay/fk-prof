@@ -14,6 +14,12 @@
 #include <string>
 #include <complex>
 #include <cstdint>
+#include <fstream>
+
+#include <map>
+
+#include <sys/types.h>
+#include <unistd.h>
 
 typedef std::uint64_t Addr;
 
@@ -61,42 +67,41 @@ BOOST_FUSION_ADAPT_STRUCT(
     (std::string, path))
 
 namespace MRegion {
-    typedef boost::variant<MapLine> Event;
+    typedef Region Event;
     typedef std::string::const_iterator Iter;
 
     struct Parser : qi::grammar<Iter, Event(), ascii::space_type> {
     private:
         const std::function<bool(const Event&)> handler;
 
-        qi::rule<Iter, std::string()> hex_num_;
+        qi::rule<Iter, std::string()> hex_;
         qi::rule<Iter, Range(), ascii::space_type> range_;
         qi::rule<Iter, std::string()> perms_;
         qi::rule<Iter, Dev(), ascii::space_type> dev_;
         qi::rule<Iter, Region(), ascii::space_type> region_;
-        qi::rule<Iter, Event(), ascii::space_type> line_;
 
         void populate_rules() {
             using qi::int_;
+            using qi::hex;
+            using qi::ulong_;
             using qi::lit;
             using qi::double_;
             using qi::lexeme;
             using ascii::char_;
 
-            hex_num_ %= +char_("a-fA-F0-9");
+            hex_ %= +char_("a-fA-F0-9");
 
-            range_ %= hex_num_ >> lit("-") >> hex_num_;
+            range_ %= hex_ >> lit("-") >> hex_;
 
             perms_ %= +char_("-rwxps");
 
-            dev_ %= hex_ >> lit(":") >> hex_;
+            dev_ %= hex >> lit(":") >> hex;
 
-            region_ %= range_ >> perms_ >> ulong_ >> dev_ >> ulong_ >> +(char_)
-                                
-            event_ %= (range_);
+            region_ %= range_ >> perms_ >> ulong_ >> dev_ >> ulong_ >> +(char_);
         }
         
     public:
-        Parser(std::function<bool(const Event&)> _handler) : Parser::base_type(event_), handler(_handler) {
+        Parser(std::function<bool(const Event&)> _handler) : Parser::base_type(region_), handler(_handler) {
             populate_rules();
         }
         ~Parser() {}
@@ -127,20 +132,38 @@ private:
     Addr start;
     Addr end;
     std::map<Addr, std::string> symbols;
+
+public:
+    MappedRegion(Addr start_, Addr end_): start(start_), end(end_) {}
+    ~MappedRegion() {}
     
 };
 
 class SymInfo {
 private:
-    std::map<Addr, MappedRegion> mapped; //start -> region
+    std::map<Addr, std::unique_ptr<MappedRegion>> mapped; //start -> region
 
 public:
     SymInfo() {
-        
+        auto pid = getpid();
+        MRegion::Parser parser([&](const MRegion::Event& e) {
+                std::stringstream ss;
+                ss << e.range.start;
+                std::uint64_t start, end;
+                ss >> std::hex >> start;
+                ss << e.range.end;
+                ss >> std::hex >> end;
+                mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end));
+                return true;
+            });
+
+        std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
+        parser.feed(f_maps);
     }
 };
 
 void print_bt() {
+    SymInfo s;
     // asm("movq $1729, %rax");
     std::uint64_t rbp, rpc, rax;
     asm("movq %%rax, %2;"
@@ -158,7 +181,7 @@ void print_bt() {
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
     while (true) {
-        std::cout << "0x" << std::hex << rpc << name_for(rpc, ) << '\n';
+        std::cout << "0x" << std::hex << rpc << '\n';
         rbp = *reinterpret_cast<std::uint64_t*>(rbp);
         if (rbp == 0) break;
         rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
