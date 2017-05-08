@@ -127,43 +127,58 @@ namespace MRegion {
     };
 }
 
-class MappedRegion {
-private:
+struct MappedRegion {
     Addr start;
     Addr end;
+    const std::string file;
     std::map<Addr, std::string> symbols;
 
-public:
-    MappedRegion(Addr start_, Addr end_): start(start_), end(end_) {}
+    MappedRegion(Addr start_, Addr end_, std::string file_): start(start_), end(end_), file(file_) {}
     ~MappedRegion() {}
     
 };
 
 class SymInfo {
 private:
-    std::map<Addr, std::unique_ptr<MappedRegion>> mapped; //start -> region
+    typedef std::map<Addr, std::unique_ptr<MappedRegion>> Mapped;
+    Mapped mapped; //start -> region
+    typedef Mapped::const_iterator It;
+
+    It region_for(Addr addr) const {
+        auto it = mapped.lower_bound(addr);
+        it--;
+        return it;
+    }
 
 public:
     SymInfo() {
         auto pid = getpid();
         MRegion::Parser parser([&](const MRegion::Event& e) {
                 std::stringstream ss;
-                ss << e.range.start;
                 std::uint64_t start, end;
+                
+                ss << e.range.start;
                 ss >> std::hex >> start;
+                
                 ss << e.range.end;
                 ss >> std::hex >> end;
-                mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end));
+                
+                mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, e.path));
                 return true;
             });
-
         std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
         parser.feed(f_maps);
+    }
+
+    const std::string& file_for(Addr addr) const {
+        auto it = region_for(addr);
+        if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
+        return it->second->file;
     }
 };
 
 void print_bt() {
-    SymInfo s;
+    SymInfo syms;
     // asm("movq $1729, %rax");
     std::uint64_t rbp, rpc, rax;
     asm("movq %%rax, %2;"
@@ -181,7 +196,8 @@ void print_bt() {
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
     while (true) {
-        std::cout << "0x" << std::hex << rpc << '\n';
+        auto f = syms.file_for(rpc);
+        std::cout << "0x" << std::hex << rpc << " > " << f <<'\n';
         rbp = *reinterpret_cast<std::uint64_t*>(rbp);
         if (rbp == 0) break;
         rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
