@@ -357,11 +357,15 @@ public class CpuSamplingTest {
             put("p100", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
             put("p100 > c1", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
             put("p100 > c1 > c2", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put("c1", rootMatcher(Collections.emptySet()));
+            put("c2", rootMatcher(Collections.emptySet()));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
         assertThat(traceInfoMap.values(), hasItems(
                 new TraceInfo("p100", 100, MergeSemantics.STACK_UP),
                 TraceInfo.mergedTraceInfo("p100 > c1"),
-                TraceInfo.mergedTraceInfo("p100 > c1 > c2")));
+                TraceInfo.mergedTraceInfo("p100 > c1 > c2"),
+                new TraceInfo("c1", 0, MergeSemantics.PARENT_SCOPED),
+                new TraceInfo("c2", 0, MergeSemantics.PARENT_SCOPED)));
     }
 
     @Test

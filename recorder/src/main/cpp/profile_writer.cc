@@ -74,7 +74,6 @@ ProfileWriter::~ProfileWriter() {
     flush();
 }
 
-
 recording::StackSample::Error translate_forte_error(jint num_frames_error) {
     /** copied form forte.cpp, this is error-table we are trying to translate
         enum {
