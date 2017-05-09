@@ -95,6 +95,33 @@ recording::StackSample::Error translate_forte_error(jint num_frames_error) {
     return static_cast<recording::StackSample::Error>(-1 * num_frames_error);
 }
 
+ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::TracePt trace_pt) {
+    auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
+    auto known_ctx = known_ctxs.find(trace_pt);
+    if (known_ctx == known_ctxs.end()) {
+        CtxId ctx_id = next_ctx_id++;
+        known_ctxs.insert({trace_pt, ctx_id});
+        auto new_ctx = idx_dat->add_trace_ctx();
+        new_ctx->set_trace_id(ctx_id);
+        std::string name;
+        bool is_generated;
+        std::uint8_t coverage_pct;
+        PerfCtx::MergeSemantic m_sem;
+        reg.resolve(trace_pt, name, is_generated, coverage_pct, m_sem);
+        new_ctx->set_is_generated(is_generated);
+        if (! is_generated) {
+            new_ctx->set_coverage_pct(coverage_pct);
+            new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
+        }
+        new_ctx->set_trace_name(name);
+        SPDLOG_DEBUG(logger, "Reporting trace named '{}', cov {}% as ctx-id: {}", name, coverage_pct, ctx_id);
+        s_c_new_ctx_info.inc();
+        return ctx_id;
+    } else {
+        return known_ctx->second;
+    }
+}
+
 void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
@@ -132,29 +159,8 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
 
     for (auto i = 0; i < ctx_len; i++) {
         auto trace_pt = ctx->at(i);
-        auto known_ctx = known_ctxs.find(trace_pt);
-        if (known_ctx == known_ctxs.end()) {
-            CtxId ctx_id = next_ctx_id++;
-            known_ctxs.insert({trace_pt, ctx_id});
-            auto new_ctx = idx_dat->add_trace_ctx();
-            new_ctx->set_trace_id(ctx_id);
-            std::string name;
-            bool is_generated;
-            std::uint8_t coverage_pct;
-            PerfCtx::MergeSemantic m_sem;
-            reg.resolve(trace_pt, name, is_generated, coverage_pct, m_sem);
-            new_ctx->set_is_generated(is_generated);
-            if (! is_generated) {
-                new_ctx->set_coverage_pct(coverage_pct);
-                new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
-            }
-            new_ctx->set_trace_name(name);
-            ss->add_trace_id(ctx_id);
-            SPDLOG_DEBUG(logger, "Reporting trace named '{}', cov {}% as ctx-id: {}", name, coverage_pct, ctx_id);
-            s_c_new_ctx_info.inc();
-        } else {
-            ss->add_trace_id(known_ctx->second);
-        }
+        auto known_ctx = report_ctx(trace_pt);
+        ss->add_trace_id(known_ctx);
     }
 
     auto snipped = trace.num_frames > trunc_thresholds.cpu_samples_max_stack_sz;
@@ -259,7 +265,13 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
 }
 
 ProfileSerializingWriter::~ProfileSerializingWriter() {
-    if (cpu_samples_flush_ctr != 0) flush();
+    std::vector<PerfCtx::TracePt> user_ctxs;
+    reg.user_ctxs(user_ctxs);
+    auto last_ctx_id_reported = next_ctx_id;
+    for (auto pt : user_ctxs) report_ctx(pt);
+
+    if ((cpu_samples_flush_ctr != 0) ||
+        (last_ctx_id_reported != next_ctx_id)) flush();
     assert(cpu_samples_flush_ctr == 0);
 }
 
