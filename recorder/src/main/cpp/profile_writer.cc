@@ -266,11 +266,11 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
 ProfileSerializingWriter::~ProfileSerializingWriter() {
     std::vector<PerfCtx::TracePt> user_ctxs;
     reg.user_ctxs(user_ctxs);
-    auto last_ctx_id_reported = next_ctx_id;
+    auto next_ctx_to_be_reported = next_ctx_id;
     for (auto pt : user_ctxs) report_ctx(pt);
 
     if ((cpu_samples_flush_ctr != 0) ||
-        (last_ctx_id_reported != next_ctx_id)) flush();
+        (next_ctx_to_be_reported != next_ctx_id)) flush();
     assert(cpu_samples_flush_ctr == 0);
 }
 
