@@ -95,9 +95,8 @@ jmethodID mid(std::uint64_t id) {
         CHECK_EQUAL(fn_sig, mthd_info.signature());                     \
     }
 
-#define ASSERT_TRACE_CTX_INFO_IS(trace_ctx, ctx_id, ctx_name, cov_pct, merge_semantics, is_gen) \
+#define ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(trace_ctx, ctx_name, cov_pct, merge_semantics, is_gen) \
     {                                                                   \
-        CHECK_EQUAL(ctx_id, trace_ctx.trace_id());                      \
         CHECK_EQUAL(ctx_name, trace_ctx.trace_name());                  \
         if (is_gen) {                                                   \
             CHECK_EQUAL(true, trace_ctx.is_generated());                \
@@ -109,6 +108,12 @@ jmethodID mid(std::uint64_t id) {
             CHECK_EQUAL(cov_pct, trace_ctx.coverage_pct());             \
             CHECK_EQUAL(merge_semantics, trace_ctx.merge());            \
         }                                                               \
+    }
+
+#define ASSERT_TRACE_CTX_INFO_IS(trace_ctx, ctx_id, ctx_name, cov_pct, merge_semantics, is_gen) \
+    {                                                                   \
+        CHECK_EQUAL(ctx_id, trace_ctx.trace_id());                      \
+        ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(trace_ctx, ctx_name, cov_pct, merge_semantics, is_gen); \
     }
 
 typedef std::int64_t F_mid;
@@ -886,8 +891,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, true); //TODO: fix this to actually record time-offset, right now we are using zero
 }
 
-TEST(ProfileSerializer__should_EOF_after_last_flush) {
-    TestEnv _;
+void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
     Buff pw_buff;
@@ -903,6 +907,17 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     PerfCtx::Registry reg;
     auto to_parent_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::to_parent);
     auto ctx_foo = reg.find_or_bind("foo", 20, to_parent_semantic);
+
+    //we create some unused ones, to test they indeed get flushed
+    auto duplicate_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::duplicate);
+    auto stack_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::stack_up);
+    auto scoped_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::scoped);
+    auto strict_scoped_semantic = static_cast<std::uint8_t>(PerfCtx::MergeSemantic::scoped_strict);
+    reg.find_or_bind("bar", 40, to_parent_semantic);
+    reg.find_or_bind("baz", 50, duplicate_semantic);
+    reg.find_or_bind("quux", 60, stack_semantic);
+    reg.find_or_bind("corge", 70, scoped_semantic);
+    reg.find_or_bind("grault", 80, strict_scoped_semantic);
 
     ProbPct ppct;
     prob_pct = &ppct;
@@ -934,9 +949,12 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
 
         CircularQueue q(ps, 10);
 
-        for (auto i = 0; i < 11; i++) {
+        for (auto i = 0; i < 10 + additional_traces; i++) {
             q.push(ct0, ThreadBucket::acq_bucket(&t25));
             CHECK(q.pop());
+        }
+        if (additional_traces == 0) {
+            ps.flush();
         }
     }
     t25.ctx_tracker.exit(ctx_foo);
@@ -954,7 +972,7 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     std::uint32_t len;
     std::uint32_t csum;
     Checksum c_calc;
-    recording::Wse wse0, wse1;
+    recording::Wse wse0;
 
     CHECK(cis.ReadVarint32(&len));
     auto lim = cis.PushLimit(len);
@@ -1006,14 +1024,78 @@ TEST(ProfileSerializer__should_EOF_after_last_flush) {
     for (auto i = 0; i < 10; i++) {
         ASSERT_STACK_SAMPLE_IS(cse0.stack_sample(i), 0, 3, s0, s0_ctxs, false);
     }
+}
 
-    auto idx_data1 = wse1.indexed_data();
-    CHECK_EQUAL(0, idx_data1.monitor_info_size());
-    CHECK_EQUAL(0, idx_data1.thread_info_size());
-    CHECK_EQUAL(0, idx_data1.method_info_size());
-    CHECK_EQUAL(0, idx_data1.trace_ctx_size());
-    auto cse1 = wse1.cpu_sample_entry();
+#include <algorithm>
+
+TEST(ProfileSerializer__should_report_unflushed_trace__and_EOF_after_last_flush) {
+    TestEnv _;
+    recording::Wse last;
+    play_last_flush_scenario(last, 1);
+
+    //There is a little bit of duplication here, but its for readability reasons
+    //duplicating entire test is no more readable, and returning these variables or
+    //passing them in for re-use hurts readability too.
+    //Anyway, we are better off with tests that are more readable than DRY.
+    std::int64_t y = 1, c = 2;
+    auto s0 = {fr(c, 10, 1), fr(y, 20, 2)};
+    auto s0_ctxs = {5};
+
+    auto last_data = last.indexed_data();
+    CHECK_EQUAL(0, last_data.monitor_info_size());
+    CHECK_EQUAL(0, last_data.thread_info_size());
+    CHECK_EQUAL(0, last_data.method_info_size());
+
+    CHECK_EQUAL(5, last_data.trace_ctx_size());
+    typedef std::pair<std::string, int> TraceCtxEntry;
+    std::vector<TraceCtxEntry> tce;
+    for (auto i = 0; i < 5; i ++) {
+        tce.emplace_back(last_data.trace_ctx(i).trace_name(), i);
+    }
+    std::sort(tce.begin(), tce.end());
+
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[0].second), "bar", 40, 0, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[1].second), "baz", 50, 4, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[2].second), "corge", 70, 1, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[3].second), "grault", 80, 2, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[4].second), "quux", 60, 3, false);
+
+    auto cse1 = last.cpu_sample_entry();
     CHECK_EQUAL(1, cse1.stack_sample_size());
     ASSERT_STACK_SAMPLE_IS(cse1.stack_sample(0), 0, 3, s0, s0_ctxs, false);
+}
+
+
+TEST(ProfileSerializer__should_report_all_user_tracepoints_that_were_never_reported_before__and_EOF_after_last_flush) {
+    TestEnv _;
+    recording::Wse last;
+    play_last_flush_scenario(last, 0);
+
+    //There is a little bit of duplication here, but its for readability reasons
+    //duplicating entire test is no more readable, and returning these variables or
+    //passing them in for re-use hurts readability too.
+    //Anyway, we are better off with tests that are more readable than DRY.
+
+    auto last_data = last.indexed_data();
+    CHECK_EQUAL(0, last_data.monitor_info_size());
+    CHECK_EQUAL(0, last_data.thread_info_size());
+    CHECK_EQUAL(0, last_data.method_info_size());
+
+    CHECK_EQUAL(5, last_data.trace_ctx_size());
+    typedef std::pair<std::string, int> TraceCtxEntry;
+    std::vector<TraceCtxEntry> tce;
+    for (auto i = 0; i < 5; i ++) {
+        tce.emplace_back(last_data.trace_ctx(i).trace_name(), i);
+    }
+    std::sort(tce.begin(), tce.end());
+
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[0].second), "bar", 40, 0, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[1].second), "baz", 50, 4, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[2].second), "corge", 70, 1, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[3].second), "grault", 80, 2, false);
+    ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(last_data.trace_ctx(tce[4].second), "quux", 60, 3, false);
+
+    auto cse1 = last.cpu_sample_entry();
+    CHECK_EQUAL(0, cse1.stack_sample_size());
 }
 
