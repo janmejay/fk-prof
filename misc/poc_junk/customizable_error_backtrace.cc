@@ -150,37 +150,58 @@ public:
     }
 };
 
-struct MappedRegion {
-    Addr start;
-    Addr end;
-    Addr offset;
-    const std::string file;
-    std::map<Addr, std::string> symbols;
+class ElfFile {
+private:
+    int fd_;
+    Elf *elf_;
+    std::string path_;
 
-    MappedRegion(Addr start_, Addr end_, Addr offset_, std::string file_): start(start_), end(end_), offset(offset_), file(file_) {
-        int fd = open(file.c_str(), O_RDONLY);
-        if (fd == -1) throw SymInfoError::err(errno);
-        Elf *elf = elf_begin(fd, ELF_C_READ_MMAP, NULL);
-        if (elf == nullptr) {
-            close(fd);
-            throw SymInfoError("File format not recognizable for: " + file);
+public:
+    ElfFile(const std::string& path) : path_(path) {
+        fd_ = open(path.c_str(), O_RDONLY);
+        if (fd_ == -1) throw SymInfoError::err(errno);
+        elf_ = elf_begin(fd_, ELF_C_READ_MMAP, NULL);
+        if (elf_ == nullptr) {
+            throw SymInfoError("File format not recognizable for: " + path_);
         }
-        if (elf_kind (elf) != ELF_K_ELF) {
-            close(fd);
-            throw SymInfoError("File " + file + " is not an elf.");
+        if (elf_kind(elf_) != ELF_K_ELF) {
+            throw SymInfoError("File " + path_ + " is not an elf.");
         }
-        load_elf(elf);
-        if (elf_end(elf) != 0) {
-            close(fd);
-            throw SymInfoError("Elf " + file + " couldn't be closed.");
-        }
-        close(fd);
     }
+
+    ~ElfFile() {
+        if (elf_ != nullptr) {
+            if (elf_end(elf_) != 0) {
+                std::cout << "Couldn't close elf\n";//log me
+            }
+        }
+        if (fd_ > -1) {
+            close(fd_);
+        }
+    }
+
+    Elf* get() {
+        return elf_;
+    }
+};
+
+struct MappedRegion {
+    Addr start_;
+    Addr end_;
+    Addr offset_;
+    const std::string file_;
+    std::map<Addr, std::string> symbols_;
+
+    MappedRegion(Addr start, Addr end, Addr offset, std::string file): start_(start), end_(end), offset_(offset), file_(file) {
+        ElfFile elf_file(file_);
+        load_elf(elf_file.get());
+    }
+
     ~MappedRegion() {}
 
     const std::string site_for(Addr addr) {
-        auto it = symbols.lower_bound(addr);
-        if (it == std::end(symbols)) return "Unknown";
+        auto it = symbols_.lower_bound(addr);
+        if (it == std::end(symbols_)) return "???";
         it--;
         return it->second + " +" + std::to_string(addr - it->first);
     }
@@ -189,15 +210,13 @@ private:
 
     SymInfoError section_error(Ebl* ebl, Elf* elf, size_t shstrndx, Elf_Scn *scn, GElf_Shdr *shdr, const std::string& msg) {
         std::stringstream ss;
-        ss << file << ": " << elf_ndxscn(scn) << " " <<
+        ss << file_ << ": " << elf_ndxscn(scn) << " " <<
             elf_strptr(elf, shstrndx, shdr->sh_name)<< ": " << msg;
         std::string err = ss.str();
         throw SymInfoError(err.c_str());
     }
 
-    void load_symbols(Ebl* ebl, Elf* elf, GElf_Ehdr* ehdr,
-                      Elf_Scn* scn, Elf_Scn* xndxscn,
-                      GElf_Shdr* shdr) {
+    void load_symbols(Ebl* ebl, Elf* elf, GElf_Ehdr* ehdr, Elf_Scn* scn, Elf_Scn* xndxscn, GElf_Shdr* shdr) {
         size_t shstrndx;
         if (elf_getshdrstrndx (elf, &shstrndx) < 0) {
             throw SymInfoError("Cannot get section header str-table index");
@@ -219,9 +238,6 @@ private:
         if (data == NULL || (xndxscn != NULL && xndxdata == NULL))
             throw SymInfoError("Couldn't get section/extended-section data");
 
-        size_t demangle_buffer_len = 0;
-        char *demangle_buffer = nullptr;
-
         GElf_Sym sym_buff;
         Elf32_Word xndx;
         for (size_t cnt = 0; cnt < nentries; cnt++) {
@@ -232,23 +248,28 @@ private:
             if (sym->st_shndx == SHN_UNDEF) continue;
             const char* symstr = elf_strptr(elf, shdr->sh_link, sym->st_name);
             if (symstr == nullptr) continue;
+            bool sym_loaded = false;
             if ((strlen(symstr) > 1) && (symstr[0] == '_') && (symstr[1] == 'Z')) {
                 int status = -1;
-                char* dmsymstr = abi::__cxa_demangle (symstr, demangle_buffer, &demangle_buffer_len, &status);
-                if (status == 0) symstr = dmsymstr;
+                char* dmsymstr = abi::__cxa_demangle(symstr, nullptr, 0, &status);
+                if (status == 0) {
+                    symbols_[sym->st_value] = dmsymstr;
+                    sym_loaded = true;
+                    free(dmsymstr);
+                }
             }
-            symbols[sym->st_value] = symstr;
+            if (! sym_loaded) symbols_[sym->st_value] = symstr;
         }
-        if (demangle_buffer != nullptr) free(demangle_buffer);
     }
-    
+
     void load_elf(Elf* elf) {
-        Ebl* ebl = ebl_openbackend(elf);
+        std::unique_ptr<Ebl, std::function<void(Ebl*)>> ebl(ebl_openbackend(elf), [](Ebl* ebl) {
+                ebl_closebackend(ebl);
+            });
         GElf_Ehdr ehdr_mem;
         GElf_Ehdr *ehdr = gelf_getehdr (elf, &ehdr_mem);
         if (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) {
-            ebl_closebackend(ebl);
-            throw SymInfoError("Elf " + file + " wasn't an executable or a shared-lib");
+            throw SymInfoError("Elf " + file_ + " wasn't an executable or a shared-lib");
         }
         Elf_Scn* scn = nullptr;
         while ((scn = elf_nextscn(elf, scn)) != nullptr) {
@@ -271,10 +292,9 @@ private:
                         && xndxshdr->sh_link == scnndx)
                         break;
                 }
-                load_symbols(ebl, elf, ehdr, scn, xndxscn, shdr);
+                load_symbols(ebl.get(), elf, ehdr, scn, xndxscn, shdr);
             }
         }
-        ebl_closebackend(ebl);
     }
 
 };
@@ -318,7 +338,7 @@ public:
     const std::string& file_for(Addr addr) const {
         auto it = region_for(addr);
         if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
-        return it->second->file;
+        return it->second->file_;
     }
 
     std::string site_for(Addr addr) const {
@@ -326,6 +346,12 @@ public:
         if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
         return it->second->site_for(addr);
     }
+
+    void print_frame(Addr pc) const {
+        auto site = site_for(pc);
+        auto file = file_for(pc);
+        std::cout << "0x" << std::hex << pc << " > " << site << " @ " << file <<'\n';
+     }
 };
 
 void print_bt() {
@@ -347,16 +373,11 @@ void print_bt() {
 
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
-    auto site = syms.site_for(rpc);
-    auto file = syms.file_for(rpc);
-    std::cout << "0x" << std::hex << rpc << " > " << site << " @ " << file <<'\n';
-
+    syms.print_frame(rpc);
     while (true) {
         rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
         if (rpc == 0) break;
-        auto site = syms.site_for(rpc);
-        auto file = syms.file_for(rpc);
-        std::cout << "0x" << std::hex << rpc << " > " << site << " @ " << file <<'\n';
+        syms.print_frame(rpc);
         rbp = *reinterpret_cast<std::uint64_t*>(rbp);
         if (rbp == 0) break;
     }
