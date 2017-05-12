@@ -1,7 +1,5 @@
 syntax = "proto2";
 package fk.prof.backend.proto;
-import "backend.proto";
-
 option java_outer_classname = "PolicyDTO";
 
 message PolicyDetails {
@@ -23,11 +21,37 @@ message Schedule {
     required string after = 3;
 }
 
-message Status{
-    required uint32 vms_coverage = 1;
-    required uint32 vms_live = 2;
-    required uint32 profiles_discarded = 3;
-    required uint32 failures_observed = 4;
-    required float effective_pg_cov_pct = 5;
-    required string last_scheduled = 6;
+enum WorkType {
+    cpu_sample_work = 0;
+    thread_sample_work = 1;
+    monitor_contention_work = 2;
+    monitor_wait_work = 3;
+}
+
+message Work {
+    required WorkType w_type = 1;
+    optional CpuSampleWork cpu_sample = 2;
+    optional ThreadSampleWork thd_sample = 3;
+    optional MonitorContentionWork monitor_block = 4;
+    optional MonitorWaitWork monitor_wait = 5;
+}
+
+message CpuSampleWork {
+    required uint32 frequency = 1;
+    required uint32 max_frames = 2;
+}
+
+message ThreadSampleWork {
+    required uint32 frequency = 1;
+    required uint32 max_frames = 2;
+}
+
+message MonitorContentionWork {
+    required uint32 max_monitors = 1;
+    required uint32 max_frames = 2;
+}
+
+message MonitorWaitWork {
+    required uint32 max_monitors = 1;
+    required uint32 max_frames = 2;
 }
