@@ -1,0 +1,33 @@
+syntax = "proto2";
+package fk.prof.backend.proto;
+import "backend.proto";
+
+option java_outer_classname = "PolicyDTO";
+
+message PolicyDetails {
+    required Policy policy = 1;
+    required string modified_by = 2;
+    required string modified_at = 3;
+    required string created_at = 4;
+    required string last_scheduled = 5;
+}
+
+message Policy {
+    required Schedule schedule = 1;
+    repeated Work work = 2;
+}
+
+message Schedule {
+    required uint32 duration = 1;
+    required float pg_cov_pct = 2;
+    required string after = 3;
+}
+
+message Status{
+    required int32 vms_coverage = 1;
+    required int32 vms_live = 2;
+    required int32 profiles_discarded = 3;
+    required int32 failures_observed = 4;
+    required float effective_pg_cov_pct = 5;
+    required string last_scheduled = 6;
+}
