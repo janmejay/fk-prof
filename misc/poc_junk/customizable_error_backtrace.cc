@@ -15,6 +15,7 @@
 #include <complex>
 #include <cstdint>
 #include <fstream>
+#include <atomic>
 
 #include <map>
 
@@ -343,21 +344,36 @@ void print_bt() {
     // std::uint64_t rax_rr;
     // asm("movq %%rax, %0" : "=r" (rax_rr));
     // std::cout << "RAX_rr: " << rax_rr << " " << std::hex << rax_rr << '\n';
+
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
+    auto site = syms.site_for(rpc);
+    auto file = syms.file_for(rpc);
+    std::cout << "0x" << std::hex << rpc << " > " << site << " @ " << file <<'\n';
+
     while (true) {
+        rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
+        if (rpc == 0) break;
         auto site = syms.site_for(rpc);
         auto file = syms.file_for(rpc);
         std::cout << "0x" << std::hex << rpc << " > " << site << " @ " << file <<'\n';
         rbp = *reinterpret_cast<std::uint64_t*>(rbp);
         if (rbp == 0) break;
-        rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
-        if (rpc == 0) break;
     }
 }
 
+std::atomic<bool> x;
+
+struct Foo {
+    void quux() {
+        x.store(true, std::memory_order_relaxed);
+        print_bt();
+    }
+};
+
 int baz() {
-    print_bt();
+    Foo f;
+    f.quux();
     return 5;
 }
 
