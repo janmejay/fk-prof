@@ -6,8 +6,9 @@
 #include <fstream>
 #include <atomic>
 #include <memory>
-
+#include <cstring>
 #include <map>
+#include <thread>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -16,7 +17,7 @@
 #include <gelf.h>
 #include <cxxabi.h>
 #include <link.h>
-#include <cstring>
+#include <signal.h>
 
 typedef std::uint64_t Addr;
 
@@ -249,6 +250,7 @@ void print_bt() {
         : "=r"(rbp), "=r"(rpc)
         :);
 
+    std::cout << "**************************\n";
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
     syms.print_frame(rpc);
@@ -289,6 +291,34 @@ int foo() {
     return foo(10);
 }
 
+namespace Corge {
+    void grault() {
+        print_bt();
+    }
+}
+
+void bt_sig_hdlr(int signum, siginfo_t *info, void *context) {
+    Corge::grault();
+}
+
+void hookup_sighdlr() {
+    struct sigaction sa;
+    struct sigaction sa_old;
+
+    sa.sa_handler = nullptr;
+    sa.sa_sigaction = bt_sig_hdlr;
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGUSR1, &sa, &sa_old) != 0) {
+        std::cerr << "Couldn't hook up sig-hdlr\n";
+    }
+}
+
 int main() {
+    hookup_sighdlr();
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
     return foo();
 }
