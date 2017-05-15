@@ -232,7 +232,15 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
     auto si = reinterpret_cast<SymInfo*>(data);
 
     if (strlen(info->dlpi_name) == 0) {
-        si->index("/proc/self/exe", info->dlpi_addr);
+        auto max_path_sz = 1024;
+        std::unique_ptr<char[]> buff(new char[max_path_sz]);
+        auto path_len = readlink("/proc/self/exe", buff.get(), max_path_sz);
+        if ((path_len > 0) && (path_len < max_path_sz)) {
+            buff.get()[path_len] = '\0';
+            si->index(buff.get(), info->dlpi_addr);
+        } else {
+            si->index("/proc/self/exe", info->dlpi_addr);
+        }
     } else if (strstr(info->dlpi_name, "linux-vdso.so") != info->dlpi_name) {
         si->index(info->dlpi_name, info->dlpi_addr);
     }
