@@ -24,8 +24,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <gelf.h>
-#include <elfutils/libebl.h>
 #include <cxxabi.h>
+#include <link.h>
 
 typedef std::uint64_t Addr;
 
@@ -187,12 +187,12 @@ public:
 
 struct MappedRegion {
     Addr start_;
-    Addr end_;
-    Addr offset_;
+    // Addr end_;
+    // Addr offset_;
     const std::string file_;
     std::map<Addr, std::string> symbols_;
 
-    MappedRegion(Addr start, Addr end, Addr offset, std::string file): start_(start), end_(end), offset_(offset), file_(file) {
+    MappedRegion(Addr start,/* Addr end, Addr offset,*/ std::string file): start_(start),/* end_(end), offset_(offset),*/ file_(file) {
         ElfFile elf_file(file_);
         load_elf(elf_file.get());
     }
@@ -200,15 +200,16 @@ struct MappedRegion {
     ~MappedRegion() {}
 
     const std::string site_for(Addr addr) {
-        auto it = symbols_.lower_bound(addr);
+        auto unrelocated_address = addr - start_;
+        auto it = symbols_.lower_bound(unrelocated_address);
         if (it == std::end(symbols_)) return "???";
         it--;
-        return it->second + " +" + std::to_string(addr - it->first);
+        return it->second + " +" + std::to_string(unrelocated_address - it->first);
     }
 
 private:
 
-    SymInfoError section_error(Ebl* ebl, Elf* elf, size_t shstrndx, Elf_Scn *scn, GElf_Shdr *shdr, const std::string& msg) {
+    SymInfoError section_error(Elf* elf, size_t shstrndx, Elf_Scn *scn, GElf_Shdr *shdr, const std::string& msg) {
         std::stringstream ss;
         ss << file_ << ": " << elf_ndxscn(scn) << " " <<
             elf_strptr(elf, shstrndx, shdr->sh_name)<< ": " << msg;
@@ -216,7 +217,7 @@ private:
         throw SymInfoError(err.c_str());
     }
 
-    void load_symbols(Ebl* ebl, Elf* elf, GElf_Ehdr* ehdr, Elf_Scn* scn, Elf_Scn* xndxscn, GElf_Shdr* shdr) {
+    void load_symbols(Elf* elf, GElf_Ehdr* ehdr, Elf_Scn* scn, Elf_Scn* xndxscn, GElf_Shdr* shdr) {
         size_t shstrndx;
         if (elf_getshdrstrndx (elf, &shstrndx) < 0) {
             throw SymInfoError("Cannot get section header str-table index");
@@ -226,9 +227,9 @@ private:
 
         if (entsize == 0
             || entsize != gelf_fsize (elf, ELF_T_SYM, 1, EV_CURRENT)) {
-            throw section_error(ebl, elf, shstrndx, scn, shdr, "Entry size in section not as expected");
+            throw section_error(elf, shstrndx, scn, shdr, "Entry size in section not as expected");
         } else if (size % entsize != 0) {
-            throw section_error(ebl, elf, shstrndx, scn, shdr, "Size of section not multiple of entry sz");
+            throw section_error(elf, shstrndx, scn, shdr, "Size of section not multiple of entry sz");
         }
 
         size_t nentries = size / (entsize ?: 1);
@@ -248,6 +249,7 @@ private:
             if (sym->st_shndx == SHN_UNDEF) continue;
             const char* symstr = elf_strptr(elf, shdr->sh_link, sym->st_name);
             if (symstr == nullptr) continue;
+
             bool sym_loaded = false;
             if ((strlen(symstr) > 1) && (symstr[0] == '_') && (symstr[1] == 'Z')) {
                 int status = -1;
@@ -263,11 +265,8 @@ private:
     }
 
     void load_elf(Elf* elf) {
-        std::unique_ptr<Ebl, std::function<void(Ebl*)>> ebl(ebl_openbackend(elf), [](Ebl* ebl) {
-                ebl_closebackend(ebl);
-            });
         GElf_Ehdr ehdr_mem;
-        GElf_Ehdr *ehdr = gelf_getehdr (elf, &ehdr_mem);
+        GElf_Ehdr *ehdr = gelf_getehdr(elf, &ehdr_mem);
         if (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) {
             throw SymInfoError("Elf " + file_ + " wasn't an executable or a shared-lib");
         }
@@ -279,25 +278,28 @@ private:
                 //report this error
                 continue;
             }
-            if (shdr->sh_type == SHT_SYMTAB) {
-                Elf_Scn* xndxscn = NULL;
-                size_t scnndx = elf_ndxscn(scn);
-                while ((xndxscn = elf_nextscn(elf, xndxscn)) != NULL) {
-                    GElf_Shdr xndxshdr_mem;
-                    GElf_Shdr *xndxshdr = gelf_getshdr(xndxscn, &xndxshdr_mem);
+            if ((shdr->sh_type == SHT_SYMTAB) || (shdr->sh_type == SHT_DYNSYM)) {
+                Elf_Scn* xndxscn = nullptr;
+                if (shdr->sh_type == SHT_SYMTAB) {
+                    size_t scnndx = elf_ndxscn(scn);
+                    while ((xndxscn = elf_nextscn(elf, xndxscn)) != nullptr) {
+                        GElf_Shdr xndxshdr_mem;
+                        GElf_Shdr *xndxshdr = gelf_getshdr(xndxscn, &xndxshdr_mem);
 
-                    if (xndxshdr == NULL) { /*report error*/ }
+                        if (xndxshdr == NULL) { /*report error*/ }
 
-                    if (xndxshdr->sh_type == SHT_SYMTAB_SHNDX
-                        && xndxshdr->sh_link == scnndx)
-                        break;
+                        if (xndxshdr->sh_type == SHT_SYMTAB_SHNDX
+                            && xndxshdr->sh_link == scnndx)
+                            break;
+                    }
                 }
-                load_symbols(ebl.get(), elf, ehdr, scn, xndxscn, shdr);
+                load_symbols(elf, ehdr, scn, xndxscn, shdr);
             }
         }
     }
-
 };
+
+static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data);
 
 class SymInfo {
 private:
@@ -314,25 +316,30 @@ private:
 public:
     SymInfo() {
         elf_version(EV_CURRENT);
-        auto pid = getpid();
-        MRegion::Parser parser([&](const MRegion::Event& e) {
-                if (e.perms.find('x') != std::string::npos) {
-                    std::stringstream ss;
-                    std::uint64_t start, end;
+        // auto pid = getpid();
+        // MRegion::Parser parser([&](const MRegion::Event& e) {
+        //         if (e.perms.find('x') != std::string::npos) {
+        //             std::stringstream ss;
+        //             std::uint64_t start, end;
                 
-                    ss << e.range.start;
-                    ss >> std::hex >> start;
+        //             ss << e.range.start;
+        //             ss >> std::hex >> start;
                 
-                    ss << e.range.end;
-                    ss >> std::hex >> end;
+        //             ss << e.range.end;
+        //             ss >> std::hex >> end;
 
-                    if (e.path == "[vdso]" || e.path == "[vsyscall]") return true;
-                    mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, e.offset, e.path));
-                }
-                return true;
-            });
-        std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
-        parser.feed(f_maps);
+        //             if (e.path == "[vdso]" || e.path == "[vsyscall]") return true;
+        //             mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, e.offset, e.path));
+        //         }
+        //         return true;
+        //     });
+        // std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
+        // parser.feed(f_maps);
+        dl_iterate_phdr(dyn_link_handler, this);
+    }
+
+    void index(const char* path, Addr start) {
+        mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, path));
     }
 
     const std::string& file_for(Addr addr) const {
@@ -354,18 +361,28 @@ public:
      }
 };
 
+static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) {
+    auto si = reinterpret_cast<SymInfo*>(data);
+
+    if (strlen(info->dlpi_name) == 0) {
+        si->index("/proc/self/exe", info->dlpi_addr);
+    } else if (strstr(info->dlpi_name, "linux-vdso.so") != info->dlpi_name) {
+        si->index(info->dlpi_name, info->dlpi_addr);
+    }
+    
+    return 0;
+}
+
 void print_bt() {
     SymInfo syms;
     // asm("movq $1729, %rax");
     std::uint64_t rbp, rpc, rax;
-    asm("movq %%rax, %2;"
-        "movq %%rbp, %%rax;"
+    asm("movq %%rbp, %%rax;"
         "movq %%rax, %0;"
         "lea (%%rip), %%rax;"
         "movq %%rax, %1;"
-        "movq %3, %%rax;"
-        : "=r"(rbp), "=r"(rpc), "=r"(rax)
-        : "r"(rax));
+        : "=r"(rbp), "=r"(rpc)
+        :);
 
     // std::uint64_t rax_rr;
     // asm("movq %%rax, %0" : "=r" (rax_rr));
