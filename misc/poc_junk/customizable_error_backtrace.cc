@@ -1,14 +1,3 @@
-#include <cstdint>
-#include <iostream>
-#include <boost/config/warning_disable.hpp>
-#include <boost/spirit/include/qi.hpp>
-#include <boost/spirit/include/phoenix_core.hpp>
-#include <boost/spirit/include/phoenix_operator.hpp>
-#include <boost/spirit/include/phoenix_object.hpp>
-#include <boost/fusion/include/adapt_struct.hpp>
-#include <boost/fusion/include/io.hpp>
-#include <boost/variant.hpp>
-
 #include <iostream>
 #include <functional>
 #include <string>
@@ -16,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <atomic>
+#include <memory>
 
 #include <map>
 
@@ -26,112 +16,9 @@
 #include <gelf.h>
 #include <cxxabi.h>
 #include <link.h>
+#include <cstring>
 
 typedef std::uint64_t Addr;
-
-namespace MRegion {
-    namespace qi = boost::spirit::qi;
-    namespace ascii = boost::spirit::ascii;
-
-    struct Range {
-        std::string start;
-        std::string end;
-    };
-
-    struct Dev {
-        std::uint32_t maj;
-        std::uint32_t min;
-    };
-
-    struct Region {
-        Range range;
-        std::string perms;
-        std::uint64_t offset;
-        Dev dev;
-        std::uint64_t inode;
-        std::string path;
-    };
-}
-
-BOOST_FUSION_ADAPT_STRUCT(
-    MRegion::Range,
-    (std::string, start)
-    (std::string, end))
-
-BOOST_FUSION_ADAPT_STRUCT(
-    MRegion::Dev,
-    (std::uint32_t, maj)
-    (std::uint32_t, min))
-
-BOOST_FUSION_ADAPT_STRUCT(
-    MRegion::Region,
-    (MRegion::Range, range)
-    (std::string, perms)
-    (std::uint64_t, offset)
-    (MRegion::Dev, dev)
-    (std::uint64_t, inode)
-    (std::string, path))
-
-namespace MRegion {
-    typedef Region Event;
-    typedef std::string::const_iterator Iter;
-
-    struct Parser : qi::grammar<Iter, Event(), ascii::space_type> {
-    private:
-        const std::function<bool(const Event&)> handler;
-
-        qi::rule<Iter, std::string()> hex_;
-        qi::rule<Iter, Range(), ascii::space_type> range_;
-        qi::rule<Iter, std::string()> perms_;
-        qi::rule<Iter, Dev(), ascii::space_type> dev_;
-        qi::rule<Iter, Region(), ascii::space_type> region_;
-
-        void populate_rules() {
-            using qi::int_;
-            using qi::hex;
-            using qi::ulong_;
-            using qi::lit;
-            using qi::double_;
-            using qi::lexeme;
-            using ascii::char_;
-
-            hex_ %= +char_("a-fA-F0-9");
-
-            range_ %= hex_ >> lit("-") >> hex_;
-
-            perms_ %= +char_("-rwxps");
-
-            dev_ %= hex >> lit(":") >> hex;
-
-            region_ %= range_ >> perms_ >> ulong_ >> dev_ >> ulong_ >> +(char_);
-        }
-        
-    public:
-        Parser(std::function<bool(const Event&)> _handler) : Parser::base_type(region_), handler(_handler) {
-            populate_rules();
-        }
-        ~Parser() {}
-
-        bool feed(std::istream& input) {
-            std::string line;
-            auto handler_ok = true;
-            while (handler_ok && input.good()) {
-                getline(input, line);
-                if (line.empty()) continue;
-
-                Event evt;
-                Iter current = line.begin();
-                Iter end = line.end();
-                bool r = boost::spirit::qi::phrase_parse(current, end, *this, boost::spirit::ascii::space, evt);
-
-                if (r && (current == end)) {
-                    handler_ok = handler(evt);
-                }
-            }
-            return input.eof();
-        }
-    };
-}
 
 class SymInfoError : std::runtime_error {
 public:
@@ -187,12 +74,10 @@ public:
 
 struct MappedRegion {
     Addr start_;
-    // Addr end_;
-    // Addr offset_;
     const std::string file_;
     std::map<Addr, std::string> symbols_;
 
-    MappedRegion(Addr start,/* Addr end, Addr offset,*/ std::string file): start_(start),/* end_(end), offset_(offset),*/ file_(file) {
+    MappedRegion(Addr start, std::string file): start_(start), file_(file) {
         ElfFile elf_file(file_);
         load_elf(elf_file.get());
     }
@@ -316,25 +201,6 @@ private:
 public:
     SymInfo() {
         elf_version(EV_CURRENT);
-        // auto pid = getpid();
-        // MRegion::Parser parser([&](const MRegion::Event& e) {
-        //         if (e.perms.find('x') != std::string::npos) {
-        //             std::stringstream ss;
-        //             std::uint64_t start, end;
-                
-        //             ss << e.range.start;
-        //             ss >> std::hex >> start;
-                
-        //             ss << e.range.end;
-        //             ss >> std::hex >> end;
-
-        //             if (e.path == "[vdso]" || e.path == "[vsyscall]") return true;
-        //             mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, e.offset, e.path));
-        //         }
-        //         return true;
-        //     });
-        // std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
-        // parser.feed(f_maps);
         dl_iterate_phdr(dyn_link_handler, this);
     }
 
@@ -375,7 +241,6 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
 
 void print_bt() {
     SymInfo syms;
-    // asm("movq $1729, %rax");
     std::uint64_t rbp, rpc, rax;
     asm("movq %%rbp, %%rax;"
         "movq %%rax, %0;"
@@ -383,10 +248,6 @@ void print_bt() {
         "movq %%rax, %1;"
         : "=r"(rbp), "=r"(rpc)
         :);
-
-    // std::uint64_t rax_rr;
-    // asm("movq %%rax, %0" : "=r" (rax_rr));
-    // std::cout << "RAX_rr: " << rax_rr << " " << std::hex << rax_rr << '\n';
 
     std::cout << "base: 0x" << std::hex << rbp << "    PC: 0x" << std::hex << rpc << '\n';
 
