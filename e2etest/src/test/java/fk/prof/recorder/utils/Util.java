@@ -77,6 +77,17 @@ public class Util {
         return cast(temp.get(fields[i]));
     }
 
+    public static <T> T get(Object m, Integer... idx) {
+        assert idx.length > 0;
+        List<Object> temp = cast(m);
+        int i = 0;
+        for(; i < idx.length - 1; ++i) {
+            temp = cast(temp.get(idx[i]));
+        }
+
+        return cast(temp.get(idx[i]));
+    }
+
     public static <T> List<T> asList(Object obj) {
         return (List<T>) obj;
     }

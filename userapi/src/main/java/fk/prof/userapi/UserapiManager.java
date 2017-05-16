@@ -23,16 +23,13 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.dropwizard.DropwizardMetricsOptions;
 import io.vertx.ext.dropwizard.Match;
 import io.vertx.ext.dropwizard.MatchType;
-import org.apache.commons.pool2.impl.GenericObjectPool;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.*;
 
 public class UserapiManager {
@@ -41,7 +38,6 @@ public class UserapiManager {
   private final Vertx vertx;
   private final UserapiConfigManager userapiConfigManager;
   private AsyncStorage storage;
-  private GenericObjectPool<ByteBuffer> bufferPool;
   private MetricRegistry metricRegistry;
 
   public UserapiManager(String configFilePath) throws Exception {
@@ -52,7 +48,7 @@ public class UserapiManager {
     UserapiConfigManager.setDefaultSystemProperties();
     this.userapiConfigManager = Preconditions.checkNotNull(userapiConfigManager);
 
-    VertxOptions vertxOptions = new VertxOptions(userapiConfigManager.getVertxConfig());
+    VertxOptions vertxOptions = new VertxOptions();
     vertxOptions.setMetricsOptions(buildMetricsOptions());
     this.vertx = Vertx.vertx(vertxOptions);
     this.metricRegistry = SharedMetricRegistries.getOrCreate(UserapiConfigManager.METRIC_REGISTRY);
@@ -107,19 +103,19 @@ public class UserapiManager {
   }
 
   private void initStorage() {
-    JsonObject threadPoolConfig = userapiConfigManager.getStorageThreadPoolConfig();
+    Configuration.FixedSizeThreadPoolConfig threadPoolConfig = userapiConfigManager.getStorageThreadPoolConfig();
     Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(AsyncStorage.class, "threadpool.rejections"));
 
     // thread pool with bounded queue for s3 io.
-    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getInteger("queue.maxsize"));
+    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.queueMaxSize);
     ExecutorService storageExecSvc = new InstrumentedExecutorService(
-        new ThreadPoolExecutor(threadPoolConfig.getInteger("coresize"), threadPoolConfig.getInteger("maxsize"), threadPoolConfig.getInteger("idletime.secs"), TimeUnit.SECONDS, ioTaskQueue,
+        new ThreadPoolExecutor(threadPoolConfig.coreSize, threadPoolConfig.maxSize, threadPoolConfig.idleTimeSec, TimeUnit.SECONDS, ioTaskQueue,
             new AbortPolicy("storageExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    JsonObject s3Config = userapiConfigManager.getS3Config();
-    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key")),
-            storageExecSvc, s3Config.getLong("list.objects.timeout.ms"));
+    Configuration.S3Config s3Config = userapiConfigManager.getS3Config();
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.endpoint, s3Config.accessKey, s3Config.secretKey),
+            storageExecSvc, s3Config.listObjectsTimeoutMs);
   }
 
 

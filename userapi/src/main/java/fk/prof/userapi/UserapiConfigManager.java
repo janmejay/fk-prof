@@ -2,57 +2,39 @@ package fk.prof.userapi;
 
 import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 
+import javax.validation.ConstraintViolation;
+import javax.validation.Validation;
+import javax.validation.Validator;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Map configuration to POJO and encapsulate default settings inside it
- * Use this POJO to access config and remove jsonobject getters from rest of the code base
+ * Map configuration to {@link Configuration} and encapsulate default settings inside it.
  */
 public class UserapiConfigManager {
 
-  private static final String VERTX_OPTIONS_KEY = "vertxOptions";
-  private static final String USERAPI_HTTP_DEPLOYMENT_OPTIONS_KEY = "userapiHttpOptions";
+  private static Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
   private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
   private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
-  private static final String STORAGE = "storage";
-  private static final String S3 = "s3";
-  private static final String THREAD_POOL = "thread.pool";
-  private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
 
-  static final String METRIC_REGISTRY = "backend-metric-registry";
-  private static final String PROFILE_RETENTION_KEY = "profile.retention.duration.min";
-  private static final String USERPAI_HTTP_PORT_KEY = "port";
-  private static final String REQ_TIMEOUT_KEY = "req.timeout";
-  private static final String CONFIG = "config";
+  public static final String METRIC_REGISTRY = "backend-metric-registry";
 
-  private final JsonObject config;
-
+  private final Configuration config;
 
   public UserapiConfigManager(String configFilePath) throws IOException {
     Preconditions.checkNotNull(configFilePath);
-    this.config = new JsonObject(Files.toString(
-        new File(configFilePath), StandardCharsets.UTF_8));
-  }
+    JsonObject json = new JsonObject(Files.toString(new File(configFilePath), StandardCharsets.UTF_8));
+    this.config = json.mapTo(Configuration.class);
 
-  public UserapiConfigManager(JsonObject config) {
-    Preconditions.checkNotNull(config);
-    this.config = config;
-  }
-
-  JsonObject getVertxConfig() {
-    return config.getJsonObject(VERTX_OPTIONS_KEY, new JsonObject());
-  }
-
-  private JsonObject enrichDeploymentConfig(JsonObject deploymentConfig) {
-    if (deploymentConfig.getJsonObject("config") == null) {
-      deploymentConfig.put("config", new JsonObject());
-    }
-    return deploymentConfig;
+    validateConfig(this.config);
   }
 
   public static void setDefaultSystemProperties() {
@@ -61,73 +43,54 @@ public class UserapiConfigManager {
     properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
   }
 
-  JsonObject getS3Config() {
-    JsonObject s3Config = getStorageConfig().getJsonObject(S3);
-    if(!s3Config.containsKey("list.objects.timeout.ms")) {
-      // put default value for listObject timeout
-      s3Config.put("list.objects.timeout.ms", 5000L);
-    }
+  Configuration.S3Config getS3Config() {
+    return getStorageConfig().s3Config;
+  }
+
+  Configuration.FixedSizeThreadPoolConfig getStorageThreadPoolConfig() {
+    return getStorageConfig().tpConfig;
+  }
+
+  Configuration.StorageConfig getStorageConfig() {
+    Configuration.StorageConfig storageConfig = config.storageConfig;
 
     // check for consistent config
-    Long requestTimeout = getUserapiHttpDeploymentConfig().getJsonObject("config").getLong("req.timeout");
-    Long ListObjectTimeout = s3Config.getLong("list.objects.timeout.ms");
+    Long requestTimeout = getUserapiHttpConfig().requestTimeout;
+    Long ListObjectTimeout = storageConfig.s3Config.listObjectsTimeoutMs;
     if(requestTimeout <= ListObjectTimeout) {
       throw new RuntimeException("request timeout must be greater than listObject timeout");
     }
-    return s3Config;
-  }
 
-
-  JsonObject getStorageThreadPoolConfig() {
-    JsonObject tpConfig = getStorageConfig().getJsonObject(THREAD_POOL);
-    checkNotEmpty(tpConfig, "thread pool");
-    return tpConfig;
-  }
-
-  JsonObject getStorageConfig() {
-    JsonObject storageConfig = config.getJsonObject(STORAGE);
-    checkNotEmpty(storageConfig, "storage");
     return storageConfig;
   }
 
-  JsonObject getBufferPoolConfig() {
-    JsonObject poolConfig = config.getJsonObject(BUFFER_POOL_OPTIONS_KEY, new JsonObject());
-    if (poolConfig.getInteger("max.total") <= 0 || poolConfig.getInteger("max.idle") < 0 || poolConfig.getInteger("buffer.size") <= 0) {
-      throw new RuntimeException("buffer pool config is not proper");
-    }
-    return poolConfig;
-  }
-
-  private void checkNotEmpty(JsonObject json, String tag) {
-    if (json == null || json.isEmpty()) {
-      // TODO: convert these to configException
-      throw new RuntimeException(tag + " config is not present");
-    }
-  }
-
-  public JsonObject getUserapiHttpDeploymentConfig() {
-    JsonObject deploymentConfig = enrichDeploymentConfig(config.getJsonObject(USERAPI_HTTP_DEPLOYMENT_OPTIONS_KEY, new JsonObject()));
-    JsonObject httpConfig = deploymentConfig.getJsonObject("config");
-    if(!httpConfig.containsKey("req.timeout")) {
-      // put default value for request timeout
-      httpConfig.put("req.timeout", 10000);
-    }
-    return deploymentConfig;
+  public DeploymentOptions getUserapiHttpDeploymentConfig() {
+    return config.httpVerticleConfig;
   }
 
   int getProfileRetentionDuration() {
-    return config.getInteger(PROFILE_RETENTION_KEY, 30);
+    return config.profileRetentionDurationMin;
   }
 
   public int getAggregationWindowDurationInSecs() {
-    return config.getInteger("aggregation_window.duration.secs", 30);
+    return config.aggregationWindowDurationSec;
   }
 
   public String getBaseDir() {
-    return config.getString("base.dir", "profiles");
+    return config.baseDir;
   }
 
-  public int getUserapiHttpPort() {
-    return getUserapiHttpDeploymentConfig().getJsonObject(CONFIG).getInteger(USERPAI_HTTP_PORT_KEY, 8082);
+  public Configuration.HttpConfig getUserapiHttpConfig() {
+    return getUserapiHttpDeploymentConfig().getConfig().mapTo(Configuration.HttpConfig.class);
+  }
+
+  public static <T> void validateConfig(T config) {
+    Set<ConstraintViolation<T>> violations = validator.validate(config);
+    if(violations.size() > 0) {
+      String message = "Configuration is invalid:\n" +
+          String.join("\n",
+              violations.stream().map(v -> v.getPropertyPath().toString() + " " + v.getMessage()).collect(Collectors.toList()));
+      throw new RuntimeException(message);
+    }
   }
 }
