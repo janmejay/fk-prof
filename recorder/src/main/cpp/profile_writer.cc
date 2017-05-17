@@ -122,6 +122,10 @@ ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::Tr
 }
 
 void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
+    if (trace.flags & CT_NATIVE) {
+        return;
+    }
+
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
     

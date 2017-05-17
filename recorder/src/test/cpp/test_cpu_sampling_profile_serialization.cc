@@ -207,7 +207,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
 
@@ -228,7 +228,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ThreadBucket tmain(42, "main thread", 10, false);
     tmain.ctx_tracker.enter(ctx_bar);
     tmain.ctx_tracker.enter(ctx_baz);
-    q.push(ct, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&tmain));
     tmain.ctx_tracker.exit(ctx_baz);
 
     frames[0].method_id = mid(c);
@@ -244,13 +244,13 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[5].method_id = mid(y);
     frames[5].lineno = 30;
     ct.num_frames = 6;
-    q.push(ct, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&tmain));
     
     tmain.ctx_tracker.exit(ctx_bar);
 
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
-    q.push(ct, nullptr);
+    q.push(ct, CT_JVMPI, nullptr);
 
     CHECK(q.pop());
     CHECK(q.pop());
@@ -371,7 +371,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
 
@@ -383,7 +383,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     t25.ctx_tracker.enter(ctx_bar);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     t25.ctx_tracker.exit(ctx_bar);
 
@@ -481,13 +481,13 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     for (auto i = 0; i < 10; i++) {
-        q.push(ct, ThreadBucket::acq_bucket(&t25));
+        q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
         CHECK(q.pop());
 
         std::uint8_t tmp;
         CHECK_EQUAL(0, buff.read(&tmp, 0, 1, false));
     }
-    q.push(ct, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     CHECK(q.pop());
 
@@ -595,9 +595,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
             ps.flush();//check manual flush interleving
         }
         if (i < 15) {
-            q.push(ct0, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
         } else {
-            q.push(ct1, ThreadBucket::acq_bucket(&t10));
+            q.push(ct1, CT_JVMPI, ThreadBucket::acq_bucket(&t10));
         }
         CHECK(q.pop());
     }
@@ -741,7 +741,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     for (auto i = 0; i < 11; i++) {
         ct.num_frames = -1 * i;
-        q.push(ct, nullptr);
+        q.push(ct, CT_JVMPI, nullptr);
         CHECK(q.pop());
     }
 
@@ -834,7 +834,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
 
     ThreadBucket t25(25, "Thread No. 25", 5, true);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
 
     CHECK(q.pop());
@@ -950,7 +950,7 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
         CircularQueue q(ps, 10);
 
         for (auto i = 0; i < 10 + additional_traces; i++) {
-            q.push(ct0, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
             CHECK(q.pop());
         }
         if (additional_traces == 0) {

@@ -47,7 +47,8 @@ typedef struct {
 
 #define CT_JVMPI 0x1
 #define CT_JVMPI_ERROR 0x2
-#define CT_NATIVE 0x4
+#define CT_NO_JNI_ENV 0x4
+#define CT_NATIVE 0x8
 
 typedef void (*ASGCTType)(JVMPI_CallTrace *, jint, void *);
 typedef int (*IsGCActiveType)();

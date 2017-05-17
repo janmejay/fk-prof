@@ -1,4 +1,5 @@
 #include "profiler.hh"
+#include "backtracer.hh"
 
 ASGCTType Asgct::asgct_;
 IsGCActiveType Asgct::is_gc_active_;
@@ -37,30 +38,33 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         }
     }
 
-    STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
+    std::uint8_t bt_flags = 0;
 
-    JVMPI_CallTrace trace;
-    trace.frames = frames;
-    
-    if (jniEnv == NULL) {
-        IsGCActiveType is_gc_active = Asgct::GetIsGCActive();
-        if ((is_gc_active != NULL) && ((*is_gc_active)() == 1)) {
-            trace.num_frames = -2;
-            s_c_cpu_samp_gc.inc();
-        } else {
-            trace.num_frames = -3;// ticks_unknown_not_Java or GC
-            s_c_cpu_samp_err_no_jni.inc();
-        }
-    } else {
+    if (jniEnv != NULL) {
+        STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
+        JVMPI_CallTrace trace;
         trace.env_id = jniEnv;
+        trace.frames = frames;
         ASGCTType asgct = Asgct::GetAsgct();
         (*asgct)(&trace, capture_stack_depth(), context);
+        if (trace.num_frames > 0) {
+            bt_flags |= CT_JVMPI;
+            buffer->push(trace, bt_flags, thread_info);
+            return; // we got java trace, so bail-out
+        }
         if (trace.num_frames <= 0) {
+            bt_flags |= CT_JVMPI_ERROR;
             s_c_cpu_samp_err_unexpected.inc();
         }
+    } else {
+        bt_flags |= CT_NO_JNI_ENV;
+        s_c_cpu_samp_err_no_jni.inc();
     }
-    // log all samples, failures included, let the post processing sift through the data
-    buffer->push(trace, thread_info);
+
+    STATIC_ARRAY(native_trace, NativeFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
+
+    auto bt_len = Backtracer::fill_backtrace(native_trace, capture_stack_depth());
+    buffer->push(native_trace, bt_len, bt_flags | CT_NATIVE, thread_info);
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {
@@ -117,7 +121,6 @@ Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, Profi
 
       s_c_cpu_samp_err_no_jni(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
       s_c_cpu_samp_err_unexpected(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),
-      s_c_cpu_samp_gc(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})),
 
       s_h_pop_spree_len(get_metrics_registry().new_histogram({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "length"})),
       s_t_pop_spree_tm(get_metrics_registry().new_timer({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "time"})) {

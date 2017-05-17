@@ -97,7 +97,6 @@ private:
     metrics::Ctr& s_c_cpu_samp_total;
     metrics::Ctr& s_c_cpu_samp_err_no_jni;
     metrics::Ctr& s_c_cpu_samp_err_unexpected;
-    metrics::Ctr& s_c_cpu_samp_gc;
     metrics::Hist& s_h_pop_spree_len;
     metrics::Timer& s_t_pop_spree_tm;
 

@@ -109,6 +109,8 @@ private:
     metrics::Mtr& s_m_stack_sample_err;
     metrics::Mtr& s_m_cpu_sample_add;
 
+    SymInfo syms;
+
     CtxId report_ctx(PerfCtx::TracePt trace_pt);
 
 public:

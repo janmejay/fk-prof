@@ -43,7 +43,12 @@ public:
 
     ~CircularQueue();
 
-    bool push(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr);
+    // We tolerate following obnoxious push overloads (and write overloads) for performance reasons
+    //      (this is already a 1-copy impl, the last thing we want is make it 2-copy, just to make it pretty).
+    // Yuck! I know...
+    bool push(const JVMPI_CallTrace &item, std::uint8_t flags, ThreadBucket *info = nullptr);
+
+    bool push(const NativeFrame* item, std::uint32_t num_frames, std::uint8_t flags, ThreadBucket *info = nullptr);
 
     bool pop();
 
@@ -59,7 +64,15 @@ private:
 
     size_t advance(size_t index) const;
 
-    void write(const JVMPI_CallTrace &item, const size_t slot, ThreadBucket* info);
+    bool acquire_write_slot(size_t& slot);
+
+    void update_trace_info(StackFrame* fb, const std::uint8_t flags, const size_t slot, std::uint32_t num_frames, ThreadBucket* info);
+
+    void write(const JVMPI_CallTrace& item, const size_t slot, ThreadBucket* info, std::uint8_t flags);
+
+    void write(const NativeFrame* trace, std::uint32_t num_frames, const size_t slot, ThreadBucket* info, std::uint8_t flags);
+
+    void mark_committed(const size_t slot);
 };
 
 #endif /* CIRCULAR_QUEUE_H */
