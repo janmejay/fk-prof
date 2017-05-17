@@ -19,6 +19,12 @@
 #include <link.h>
 #include <signal.h>
 
+#include "error_backtrace_different_compilation_unit_helper.hh"
+
+#ifdef W_JNI
+#include "BtPrinter.h"
+#endif
+
 typedef std::uint64_t Addr;
 
 class SymInfoError : std::runtime_error {
@@ -271,15 +277,6 @@ void print_bt() {
     }
 }
 
-std::atomic<bool> x;
-
-struct Foo {
-    void quux() {
-        x.store(true, std::memory_order_relaxed);
-        print_bt();
-    }
-};
-
 int baz() {
     Foo f;
     f.quux();
@@ -288,15 +285,6 @@ int baz() {
 
 int bar() {
     return 5 + baz();
-}
-
-int foo(int x) {
-    auto b = bar();
-    return x - b;
-}
-
-int foo() {
-    return foo(10);
 }
 
 namespace Corge {
@@ -323,6 +311,8 @@ void hookup_sighdlr() {
     }
 }
 
+#ifndef W_JNI
+
 int main() {
     hookup_sighdlr();
 
@@ -330,3 +320,11 @@ int main() {
 
     return foo();
 }
+
+#else
+
+JNIEXPORT void JNICALL Java_BtPrinter_printBt(JNIEnv* jni, jobject self) {
+    foo();
+}
+
+#endif
