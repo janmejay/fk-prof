@@ -7,7 +7,6 @@ message PolicyDetails {
     required string modified_by = 2;
     required string modified_at = 3;
     required string created_at = 4;
-    required string last_scheduled = 5;
 }
 
 message Policy {
@@ -17,7 +16,7 @@ message Policy {
 
 message Schedule {
     required uint32 duration = 1;
-    required float pg_cov_pct = 2;
+    required uint32 pg_cov_pct = 2;
     required string after = 3;
 }
 
