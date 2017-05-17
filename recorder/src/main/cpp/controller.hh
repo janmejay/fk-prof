@@ -68,6 +68,8 @@ private:
     SerializationFlushThresholds sft;
     TruncationThresholds tts;
 
+    std::string vm_id;
+
     //[metrics......
     metrics::Timer& s_t_poll_rpc;
     metrics::Ctr& s_c_poll_rpc_failures;
@@ -84,8 +86,6 @@ private:
 
     void run();
     
-    void run_with_associate(const Buff& associate_response_buff, const Time::Pt& start_time);
-
     void accept_work(Buff& poll_response_buff, const std::string& host, const std::uint32_t port);
 
     void with_current_work(std::function<void(W&, WSt&, WRes&, Time::Pt&, Time::Pt&)> proc);

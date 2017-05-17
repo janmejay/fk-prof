@@ -67,7 +67,9 @@ TEST(ReadsafePtr___should_not_destruct___until_all_readers_are_done) {
     logger->info("Came out of scope...");
     std::uint32_t destruct_time_lag = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - scope_ended_at).count();
     t1->join();
+    delete t1;
     t2->join();
+    delete t2;
 
     CHECK(destruct_time_lag >= (20 * 1000));//atleast 20 ms
     CHECK(last_read_at_usec.load() <= destroyed_at_usec.load());

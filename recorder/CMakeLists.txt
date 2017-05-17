@@ -36,8 +36,8 @@ if (${CAPTURE_BUILD_ENV} MATCHES "y")
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
-set(fkp_version_major 0)
-set(fkp_version_minor 9)
+set(fkp_version_major 1)
+set(fkp_version_minor 5)
 set(fkp_version_patch 0)
 
 add_definitions("-DGIT_COMMIT=${GIT_COMMIT}")
@@ -76,7 +76,7 @@ include_directories(${JAVA_INCLUDE_PATH2})
 
 pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
-pkg_check_modules(MEDIDA REQUIRED libmedida>=0.3.0)
+pkg_check_modules(MEDIDA REQUIRED libmedida>=1.0.0)
 include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
@@ -212,7 +212,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-g3 -ggdb")
-set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O0")
+set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O0") # -fsanitize=address when needed
 SET(VERBOSE_LOGS "n" CACHE STRING "'Enable Verbose Logging' flag, turns on compile-time controlled debug and trace logs, defaults to 'n'")
 if (${VERBOSE_LOGS} MATCHES "y")
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")

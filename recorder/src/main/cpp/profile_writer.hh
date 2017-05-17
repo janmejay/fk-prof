@@ -109,6 +109,8 @@ private:
     metrics::Mtr& s_m_stack_sample_err;
     metrics::Mtr& s_m_cpu_sample_add;
 
+    CtxId report_ctx(PerfCtx::TracePt trace_pt);
+
 public:
     ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
                              PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,

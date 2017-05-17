@@ -49,8 +49,6 @@ namespace GlobalCtx {
     } Rec;
 
     extern GlobalCtx::Rec recording;
-    extern PerfCtx::Registry* ctx_reg;
-    extern ProbPct* prob_pct;
 }
 
 Profiler *getProfiler();

@@ -30,7 +30,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         bool do_record = true;
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
-            do_record = ctx_tracker->in_ctx() ? ctx_tracker->should_record() : prob_pct.on(current_sampling_attempt, noctx_cov_pct);
+            do_record = ctx_tracker->in_ctx() ? ctx_tracker->should_record() : get_prob_pct().on(current_sampling_attempt, noctx_cov_pct);
         }
         if (! do_record) {
             return;
@@ -113,14 +113,14 @@ Profiler::Profiler(JavaVM *_jvm, jvmtiEnv *_jvmti, ThreadMap &_thread_map, Profi
     : jvm(_jvm), jvmti(_jvmti), thread_map(_thread_map), max_stack_depth(_max_stack_depth), serializer(_serializer),
       prob_pct(_prob_pct), sampling_attempts(0), noctx_cov_pct(_noctx_cov_pct), running(false), samples_handled(0),
 
-      s_c_cpu_samp_total(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
+      s_c_cpu_samp_total(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "opportunities"})),
 
-      s_c_cpu_samp_err_no_jni(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
-      s_c_cpu_samp_err_unexpected(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),
-      s_c_cpu_samp_gc(GlobalCtx::metrics_registry->new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})),
+      s_c_cpu_samp_err_no_jni(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_no_jni"})),
+      s_c_cpu_samp_err_unexpected(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_unexpected"})),
+      s_c_cpu_samp_gc(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "err_in_gc"})),
 
-      s_h_pop_spree_len(GlobalCtx::metrics_registry->new_histogram({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "length"})),
-      s_t_pop_spree_tm(GlobalCtx::metrics_registry->new_timer({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "time"})) {
+      s_h_pop_spree_len(get_metrics_registry().new_histogram({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "length"})),
+      s_t_pop_spree_tm(get_metrics_registry().new_timer({METRICS_DOMAIN, METRIC_TYPE, "pop_spree", "time"})) {
 
     set_sampling_freq(_sampling_freq);
     configure();

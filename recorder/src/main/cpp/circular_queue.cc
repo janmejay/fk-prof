@@ -6,9 +6,9 @@ bool CircularQueue::push(const JVMPI_CallTrace &item, ThreadBucket *info) {
     size_t currentInput;
     size_t nextInput;
     do {
-        currentInput = input.load(std::memory_order_relaxed);
+        currentInput = input.load(std::memory_order_seq_cst);
         nextInput = advance(currentInput);
-        if (output.load(std::memory_order_relaxed) == nextInput) {
+        if (output.load(std::memory_order_seq_cst) == nextInput) {
             return false;
         }
         // TODO: have someone review the memory ordering constraints
@@ -38,10 +38,10 @@ void CircularQueue::write(const JVMPI_CallTrace &trace, const size_t slot) {
 }
 
 bool CircularQueue::pop() {
-    const auto current_output = output.load(std::memory_order_relaxed);
+    const auto current_output = output.load(std::memory_order_seq_cst);
 
     // queue is empty
-    if (current_output == input.load(std::memory_order_relaxed)) {
+    if (current_output == input.load(std::memory_order_seq_cst)) {
         return false;
     }
 
@@ -55,7 +55,7 @@ bool CircularQueue::pop() {
     // ensure that the record is ready to be written to
     buffer[current_output].is_committed.store(UNCOMMITTED, std::memory_order_release);
     // Signal that you've finished reading the record
-    output.store(advance(current_output), std::memory_order_relaxed);
+    output.store(advance(current_output), std::memory_order_seq_cst);
 
     return true;
 }

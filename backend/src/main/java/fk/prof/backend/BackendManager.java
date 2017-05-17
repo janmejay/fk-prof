@@ -20,6 +20,7 @@ import fk.prof.backend.model.policy.PolicyStore;
 import fk.prof.metrics.MetricName;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.storage.S3AsyncStorage;
+import fk.prof.storage.S3ClientFactory;
 import fk.prof.storage.buffer.ByteBufferPoolFactory;
 import io.vertx.core.*;
 import io.vertx.core.Future;
@@ -112,7 +113,7 @@ public class BackendManager {
           PolicyStore policyStore = new PolicyStore(curatorClient);
 
           VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
-          Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments);
+          Runnable leaderElectedTask = createLeaderElectedTask(vertx, leaderHttpVerticleDeployer, backendDeployments, backendAssociationStore, policyStore);
 
           VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(
               vertx, configManager, curatorClient, leaderElectedTask);
@@ -150,8 +151,8 @@ public class BackendManager {
                 new AbortPolicy("s3ExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    this.storage = new S3AsyncStorage(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key"),
-        storageExecSvc);
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getString("endpoint"), s3Config.getString("access.key"), s3Config.getString("secret.key")),
+        storageExecSvc, s3Config.getLong("list.objects.timeout.ms", 5000L));
 
     // buffer pool to temporarily store serialized bytes
     JsonObject bufferPoolConfig = configManager.getBufferPoolConfig();
@@ -192,10 +193,11 @@ public class BackendManager {
         loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }
 
-  public static Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments) {
+  public static Runnable createLeaderElectedTask(Vertx vertx, VerticleDeployer leaderHttpVerticleDeployer, List<String> backendDeployments,
+                                                 BackendAssociationStore associationStore, PolicyStore policyStore) {
     LeaderElectedTask.Builder builder = LeaderElectedTask.newBuilder();
     builder.disableBackend(backendDeployments);
-    return builder.build(vertx, leaderHttpVerticleDeployer);
+    return builder.build(vertx, leaderHttpVerticleDeployer, associationStore, policyStore);
   }
 
   private MetricsOptions buildMetricsOptions() {
