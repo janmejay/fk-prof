@@ -121,7 +121,7 @@ ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::Tr
     }
 }
 
-void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
+void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
     
@@ -176,7 +176,7 @@ void ProfileSerializingWriter::record(const JVMPI_CallTrace &trace, ThreadBucket
 
     for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
         auto f = ss->add_frame();
-        auto& jvmpi_cf = trace.frames[i];
+        auto& jvmpi_cf = trace.frames[i].jvmpi_frame;
         //find method
         auto mth_id = jvmpi_cf.method_id;
         if (known_methods.count(reinterpret_cast<MthId>(mth_id)) == 0) {

@@ -21,10 +21,9 @@ const size_t Capacity = Size + 1;
 
 class QueueListener {
 public:
-    virtual void record(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) = 0;
+    virtual void record(const Backtrace& item, ThreadBucket* info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) = 0;
 
-    virtual ~QueueListener() {
-    }
+    virtual ~QueueListener() { }
 };
 
 const int COMMITTED = 1;
@@ -32,7 +31,7 @@ const int UNCOMMITTED = 0;
 
 struct TraceHolder {
     std::atomic<int> is_committed;
-    JVMPI_CallTrace trace;
+    Backtrace trace;
     ThreadBucket *info;
     PerfCtx::ThreadTracker::EffectiveCtx ctx;
     std::uint8_t ctx_len;
@@ -40,17 +39,9 @@ struct TraceHolder {
 
 class CircularQueue {
 public:
-    explicit CircularQueue(QueueListener &listener, std::uint32_t maxFrameSize)
-            : listener_(listener), input(0), output(0) {
-        memset(buffer, 0, sizeof(buffer));
-        for (int i = 0; i < Capacity; ++i)
-            frame_buffer_[i] = new JVMPI_CallFrame[maxFrameSize]();
-    }
+    explicit CircularQueue(QueueListener &listener, std::uint32_t maxFrameSize);
 
-    ~CircularQueue() {
-        for (int i = 0; i < Capacity; ++i)
-            delete[] frame_buffer_[i];
-    }
+    ~CircularQueue();
 
     bool push(const JVMPI_CallTrace &item, ThreadBucket *info = nullptr);
 
@@ -64,11 +55,11 @@ private:
     std::atomic<size_t> output;
 
     TraceHolder buffer[Capacity];
-    JVMPI_CallFrame *frame_buffer_[Capacity];
+    StackFrame *frame_buffer_[Capacity];
 
     size_t advance(size_t index) const;
 
-    void write(const JVMPI_CallTrace &item, const size_t slot);
+    void write(const JVMPI_CallTrace &item, const size_t slot, ThreadBucket* info);
 };
 
 #endif /* CIRCULAR_QUEUE_H */

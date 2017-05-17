@@ -2,7 +2,19 @@
 #include <iostream>
 #include <unistd.h>
 
-bool CircularQueue::push(const JVMPI_CallTrace &item, ThreadBucket *info) {
+CircularQueue::CircularQueue(QueueListener& listener, std::uint32_t maxFrameSize) : listener_(listener), input(0), output(0) {
+    memset(buffer, 0, sizeof(buffer));
+    for (int i = 0; i < Capacity; ++i)
+        frame_buffer_[i] = new StackFrame[maxFrameSize]();
+}
+
+CircularQueue::~CircularQueue() {
+    for (int i = 0; i < Capacity; ++i)
+        delete[] frame_buffer_[i];
+}
+
+
+bool CircularQueue::push(const JVMPI_CallTrace &item, ThreadBucket* info) {
     size_t currentInput;
     size_t nextInput;
     do {
@@ -13,28 +25,28 @@ bool CircularQueue::push(const JVMPI_CallTrace &item, ThreadBucket *info) {
         }
         // TODO: have someone review the memory ordering constraints
     } while (!input.compare_exchange_strong(currentInput, nextInput, std::memory_order_relaxed));
-    write(item, currentInput);
-    
-    buffer[currentInput].info = info;
-    buffer[currentInput].ctx_len = (info == nullptr) ? 0 : info->ctx_tracker.current(buffer[currentInput].ctx);
+
+    write(item, currentInput, info);
 
     buffer[currentInput].is_committed.store(COMMITTED, std::memory_order_release);
     return true;
 }
 
 // Unable to use memcpy inside the push method because its not async-safe
-void CircularQueue::write(const JVMPI_CallTrace &trace, const size_t slot) {
-    JVMPI_CallFrame *fb = frame_buffer_[slot];
+void CircularQueue::write(const JVMPI_CallTrace &trace, const size_t slot, ThreadBucket* info) {
+    StackFrame* fb = frame_buffer_[slot];
     for (int frame_num = 0; frame_num < trace.num_frames; ++frame_num) {
         // Padding already set to 0 by the consumer.
 
-        fb[frame_num].lineno = trace.frames[frame_num].lineno;
-        fb[frame_num].method_id = trace.frames[frame_num].method_id;
+        fb[frame_num].jvmpi_frame.lineno = trace.frames[frame_num].lineno;
+        fb[frame_num].jvmpi_frame.method_id = trace.frames[frame_num].method_id;
     }
 
     buffer[slot].trace.frames = fb;
+    buffer[slot].trace.flags = CT_JVMPI;
     buffer[slot].trace.num_frames = trace.num_frames;
-    buffer[slot].trace.env_id = trace.env_id;
+    buffer[slot].info = info;
+    buffer[slot].ctx_len = (info == nullptr) ? 0 : info->ctx_tracker.current(buffer[slot].ctx);
 }
 
 bool CircularQueue::pop() {

@@ -17,14 +17,37 @@ typedef struct {
     jmethodID method_id;
 } JVMPI_CallFrame;
 
+typedef std::uint64_t NativeFrame;
+
+typedef union {
+    JVMPI_CallFrame jvmpi_frame;
+    NativeFrame native_frame;
+} StackFrame;
+
 typedef struct {
     // JNIEnv of the thread from which we grabbed the trace
-    JNIEnv *env_id;
+    JNIEnv* env_id;
     // < 0 if the frame isn't walkable
     jint num_frames;
     // The frames, callee first.
     JVMPI_CallFrame *frames;
 } JVMPI_CallTrace;
+
+typedef struct {
+    // flags that identify frame-type and error-conditions
+    std::uint8_t flags;
+    // < 0 if the frame isn't walkable
+    jint num_frames;
+    // The frames, callee first
+    StackFrame* frames;
+    // Frame may be one of:
+    // - The frames, callee first: JVMPI_CallFrame *frames;
+    // - native frames (PC):  std::uint64_t *frames;
+} Backtrace;
+
+#define CT_JVMPI 0x1
+#define CT_JVMPI_ERROR 0x2
+#define CT_NATIVE 0x4
 
 typedef void (*ASGCTType)(JVMPI_CallTrace *, jint, void *);
 typedef int (*IsGCActiveType)();

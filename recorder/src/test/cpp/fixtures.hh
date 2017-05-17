@@ -8,13 +8,14 @@ class ItemHolder : public QueueListener {
 public:
   explicit ItemHolder() {}
 
-    virtual void record(const JVMPI_CallTrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
-    CHECK_EQUAL(2, trace.num_frames);
-    CHECK_EQUAL((JNIEnv *)envId, trace.env_id);
+    virtual void record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
+        CHECK_EQUAL(2, trace.num_frames);
+        CHECK_EQUAL(CT_JVMPI, trace.flags);
 
-    JVMPI_CallFrame frame0 = trace.frames[0];
-    CHECK_EQUAL(52, frame0.lineno);
-    CHECK_EQUAL((jmethodID)1, frame0.method_id);
+        JVMPI_CallFrame frame0 = trace.frames[0].jvmpi_frame;
+
+        CHECK_EQUAL(52, frame0.lineno);
+        CHECK_EQUAL((jmethodID)1, frame0.method_id);
   }
 
   long envId;
