@@ -77,6 +77,7 @@ include_directories(${JAVA_INCLUDE_PATH2})
 pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
 pkg_check_modules(MEDIDA REQUIRED libmedida>=1.0.0)
+pkg_check_modules(ELF REQUIRED libelf)
 include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
@@ -145,7 +146,9 @@ set(SOURCE_FILES
     ${SRC}/prob_pct.cc
     ${SRC}/metric_formatter.hh
     ${SRC}/metric_formatter.cc
-    ${SRC}/unique_readsafe_ptr.hh)
+    ${SRC}/unique_readsafe_ptr.hh
+    ${SRC}/backtracer.hh
+    ${SRC}/backtracer.cc)
 
 set(TI_SRC_FILES
     ${SRC}/agent.cc)
@@ -227,9 +230,9 @@ add_library(${BASE_OUTPUT} STATIC ${SOURCE_FILES})
 add_library(${OUTPUT} SHARED ${TI_SRC_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
+    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
 else()
-    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
+    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
 target_link_libraries(${OUTPUT} ${BASE_OUTPUT})
 

@@ -10,6 +10,7 @@
 #include "circular_queue.hh"
 #include <unordered_map>
 #include <unordered_set>
+#include "backtracer.hh"
 
 #define NOCTX_NAME "~ OTHERS ~"
 
@@ -109,7 +110,7 @@ private:
     metrics::Mtr& s_m_stack_sample_err;
     metrics::Mtr& s_m_cpu_sample_add;
 
-    SymInfo syms;
+    Backtracer::SymInfo syms;
 
     CtxId report_ctx(PerfCtx::TracePt trace_pt);
 

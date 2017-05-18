@@ -123,6 +123,11 @@ ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::Tr
 
 void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
     if (trace.flags & CT_NATIVE) {
+        std::cout << "\n**********************************\n";
+        for (auto i = 0; i < trace.num_frames; i++) {
+            std::cout << "\t";
+            syms.print_frame(trace.frames[i].native_frame);
+        }
         return;
     }
 

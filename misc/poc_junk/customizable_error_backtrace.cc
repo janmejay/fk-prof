@@ -270,7 +270,6 @@ void print_bt() {
     syms.print_frame(rpc);
     while (true) {
         rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
-        if (rpc == 0) break;
         syms.print_frame(rpc);
         rbp = *reinterpret_cast<std::uint64_t*>(rbp);
         if (rbp == 0) break;
@@ -315,8 +314,6 @@ void hookup_sighdlr() {
 
 int main() {
     hookup_sighdlr();
-
-    std::this_thread::sleep_for(std::chrono::seconds(5));
 
     return foo();
 }

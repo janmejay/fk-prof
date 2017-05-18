@@ -100,6 +100,8 @@ private:
     metrics::Hist& s_h_pop_spree_len;
     metrics::Timer& s_t_pop_spree_tm;
 
+    Backtracer::SymInfo si;
+
     void set_sampling_freq(std::uint32_t sampling_freq);
 
     void set_max_stack_depth(std::uint32_t max_stack_depth);

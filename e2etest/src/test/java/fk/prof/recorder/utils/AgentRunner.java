@@ -91,7 +91,7 @@ public class AgentRunner {
         ProcessBuilder pb = new ProcessBuilder();
         populateEnvVars(pb);
         process = pb
-                .command("java", agentArg, "-cp", String.join(":", classpath), fqdn)
+                .command("java", "-XX:+PreserveFramePointer", agentArg, "-cp", String.join(":", classpath), fqdn)
                 .redirectError(new File("/tmp/fkprof_stderr.log"))
                 .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
