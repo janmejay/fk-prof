@@ -1,7 +1,7 @@
 package fk.prof.userapi.deployer;
 
 import com.google.common.base.Preconditions;
-import fk.prof.userapi.UserapiConfigManager;
+import fk.prof.userapi.Configuration;
 import io.vertx.core.*;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -13,15 +13,15 @@ public abstract class VerticleDeployer {
   private static Logger logger = LoggerFactory.getLogger(VerticleDeployer.class);
 
   private final Vertx vertx;
-  private final UserapiConfigManager configManager;
+  private final Configuration configuration;
 
-  public VerticleDeployer(Vertx vertx, UserapiConfigManager configManager) {
+  public VerticleDeployer(Vertx vertx, Configuration configuration) {
     this.vertx = Preconditions.checkNotNull(vertx);
-    this.configManager = Preconditions.checkNotNull(configManager);
+    this.configuration = Preconditions.checkNotNull(configuration);
   }
 
-  protected UserapiConfigManager getConfigManager() {
-    return configManager;
+  protected Configuration getConfig() {
+    return configuration;
   }
 
   protected abstract DeploymentOptions getDeploymentOptions();

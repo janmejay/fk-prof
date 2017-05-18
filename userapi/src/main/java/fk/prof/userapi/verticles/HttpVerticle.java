@@ -4,7 +4,6 @@ import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.StreamTransformer;
 import fk.prof.userapi.Configuration;
-import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
@@ -45,16 +44,17 @@ public class HttpVerticle extends AbstractVerticle {
     private Configuration.HttpConfig httpConfig;
 
     private ProfileStoreAPI profileStoreAPI;
-    private UserapiConfigManager userapiConfigManager;
 
-    public HttpVerticle(UserapiConfigManager userapiConfigManager, ProfileStoreAPI profileStoreAPI) {
-        this.userapiConfigManager = userapiConfigManager;
+    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int aggregationWindowDurationInSecs) {
+        this.httpConfig = httpConfig;
         this.profileStoreAPI = profileStoreAPI;
+        this.baseDir = baseDir;
+        this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
     }
 
     private Router configureRouter() {
         Router router = Router.router(vertx);
-        router.route().handler(TimeoutHandler.create(httpConfig.requestTimeout));
+        router.route().handler(TimeoutHandler.create(httpConfig.getRequestTimeout()));
         router.route().handler(LoggerHandler.create());
 
         router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
@@ -69,14 +69,12 @@ public class HttpVerticle extends AbstractVerticle {
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
-        aggregationWindowDurationInSecs = userapiConfigManager.getAggregationWindowDurationInSecs();
-        baseDir = userapiConfigManager.getBaseDir();
         httpConfig = config().mapTo(Configuration.HttpConfig.class);
 
         Router router = configureRouter();
         vertx.createHttpServer()
                 .requestHandler(router::accept)
-                .listen(httpConfig.httpPort, event -> {
+                .listen(httpConfig.getHttpPort(), event -> {
                     if (event.succeeded()) {
                         startFuture.complete();
                     } else {

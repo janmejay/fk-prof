@@ -36,19 +36,19 @@ public class UserapiManager {
   private static Logger logger = LoggerFactory.getLogger(UserapiManager.class);
 
   private final Vertx vertx;
-  private final UserapiConfigManager userapiConfigManager;
+  private final Configuration config;
   private AsyncStorage storage;
   private MetricRegistry metricRegistry;
 
   public UserapiManager(String configFilePath) throws Exception {
-    this(new UserapiConfigManager(configFilePath));
+    this(UserapiConfigManager.loadConfig(configFilePath));
   }
 
-  public UserapiManager(UserapiConfigManager userapiConfigManager) throws Exception {
+  public UserapiManager(Configuration config) throws Exception {
     UserapiConfigManager.setDefaultSystemProperties();
-    this.userapiConfigManager = Preconditions.checkNotNull(userapiConfigManager);
+    this.config = Preconditions.checkNotNull(config);
 
-    VertxOptions vertxOptions = new VertxOptions();
+    VertxOptions vertxOptions = config.getVertxOptions();
     vertxOptions.setMetricsOptions(buildMetricsOptions());
     this.vertx = Vertx.vertx(vertxOptions);
     this.metricRegistry = SharedMetricRegistries.getOrCreate(UserapiConfigManager.METRIC_REGISTRY);
@@ -77,8 +77,8 @@ public class UserapiManager {
     registerSerializers(Json.mapper);
     registerSerializers(Json.prettyMapper);
 
-    ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, userapiConfigManager.getProfileRetentionDuration());
-    VerticleDeployer userapiHttpVerticleDeployer = new UserapiHttpVerticleDeployer(vertx, userapiConfigManager, profileStoreAPI);
+    ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, config.getProfileRetentionDurationMin());
+    VerticleDeployer userapiHttpVerticleDeployer = new UserapiHttpVerticleDeployer(vertx, config, profileStoreAPI);
 
     userapiHttpVerticleDeployer.deploy().setHandler(verticleDeployCompositeResult -> {
       if (verticleDeployCompositeResult.succeeded()) {
@@ -103,19 +103,19 @@ public class UserapiManager {
   }
 
   private void initStorage() {
-    Configuration.FixedSizeThreadPoolConfig threadPoolConfig = userapiConfigManager.getStorageThreadPoolConfig();
+    Configuration.FixedSizeThreadPoolConfig threadPoolConfig = config.getStorageConfig().getTpConfig();
     Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(AsyncStorage.class, "threadpool.rejections"));
 
     // thread pool with bounded queue for s3 io.
-    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.queueMaxSize);
+    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getQueueMaxSize());
     ExecutorService storageExecSvc = new InstrumentedExecutorService(
-        new ThreadPoolExecutor(threadPoolConfig.coreSize, threadPoolConfig.maxSize, threadPoolConfig.idleTimeSec, TimeUnit.SECONDS, ioTaskQueue,
+        new ThreadPoolExecutor(threadPoolConfig.getCoreSize(), threadPoolConfig.getMaxSize(), threadPoolConfig.getIdleTimeSec(), TimeUnit.SECONDS, ioTaskQueue,
             new AbortPolicy("storageExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    Configuration.S3Config s3Config = userapiConfigManager.getS3Config();
-    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.endpoint, s3Config.accessKey, s3Config.secretKey),
-            storageExecSvc, s3Config.listObjectsTimeoutMs);
+    Configuration.S3Config s3Config = config.getStorageConfig().getS3Config();
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getEndpoint(), s3Config.getAccessKey(), s3Config.getSecretKey()),
+            storageExecSvc, s3Config.getListObjectsTimeoutMs());
   }
 
 

@@ -1,10 +1,13 @@
 package fk.prof.userapi;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.vertx.core.DeploymentOptions;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 
 import javax.validation.Valid;
+import javax.validation.constraints.AssertTrue;
 import javax.validation.constraints.NotNull;
 import java.util.Map;
 
@@ -13,95 +16,187 @@ import java.util.Map;
  */
 public class Configuration {
 
+  @JsonProperty("vertxOptions")
+  private VertxOptions vertxOptions = new VertxOptions();
+
   @JsonProperty("profile.retention.duration.min")
-  public Integer profileRetentionDurationMin = 30;
+  private Integer profileRetentionDurationMin = 30;
 
   @JsonProperty("aggregation_window.duration.secs")
-  public Integer aggregationWindowDurationSec = 1800;
+  private Integer aggregationWindowDurationSec = 1800;
 
   @NotNull
-  public DeploymentOptions httpVerticleConfig;
+  @JsonProperty("userapiHttpOptions")
+  private DeploymentOptions httpVerticleConfig;
+
+  @NotNull
+  @Valid
+  @JsonIgnore
+  private HttpConfig httpConfig;
 
   @NotNull
   @Valid
   @JsonProperty("storage")
-  public StorageConfig storageConfig;
+  private StorageConfig storageConfig;
 
   @NotNull
   @JsonProperty("base.dir")
-  public String baseDir;
+  private String baseDir;
 
-  @JsonProperty("userapiHttpOptions")
-  public void setHttpVerticleConfig(Map<String, Object> jsonMap) {
-    if (jsonMap != null) {
-      httpVerticleConfig = new DeploymentOptions(new JsonObject(jsonMap));
-    }
+  public VertxOptions getVertxOptions() {
+    return vertxOptions;
+  }
+
+  public Integer getProfileRetentionDurationMin() {
+    return profileRetentionDurationMin;
+  }
+
+  public Integer getAggregationWindowDurationSec() {
+    return aggregationWindowDurationSec;
+  }
+
+  public DeploymentOptions getHttpVerticleConfig() {
+    return httpVerticleConfig;
+  }
+
+  public HttpConfig getHttpConfig() {
+    return httpConfig;
+  }
+
+  public StorageConfig getStorageConfig() {
+    return storageConfig;
+  }
+
+  public String getBaseDir() {
+    return baseDir;
+  }
+
+  private void setVertxOptions(Map<String, Object> vertxOptionsMap) {
+    this.vertxOptions = new VertxOptions(new JsonObject(vertxOptionsMap));
+  }
+
+  private void setHttpVerticleConfig(Map<String, Object> httpVerticleConfigMap) {
+    httpVerticleConfig = new DeploymentOptions(new JsonObject(httpVerticleConfigMap));
+    httpConfig = httpVerticleConfig.getConfig().mapTo(HttpConfig.class);
   }
 
   public static class HttpConfig {
     @NotNull
     @JsonProperty("verticle.count")
-    public Integer verticleCount;
+    private Integer verticleCount;
 
     @NotNull
     @JsonProperty("http.port")
-    public Integer httpPort;
+    private Integer httpPort;
 
     @NotNull
     @JsonProperty("req.timeout")
-    public Long requestTimeout;
+    private Long requestTimeout;
+
+    public Integer getVerticleCount() {
+      return verticleCount;
+    }
+
+    public Integer getHttpPort() {
+      return httpPort;
+    }
+
+    public Long getRequestTimeout() {
+      return requestTimeout;
+    }
   }
 
   public static class StorageConfig {
     @NotNull
     @Valid
     @JsonProperty("s3")
-    public S3Config s3Config;
+    private S3Config s3Config;
 
     @NotNull
     @Valid
     @JsonProperty("thread.pool")
-    public FixedSizeThreadPoolConfig tpConfig;
+    private FixedSizeThreadPoolConfig tpConfig;
+
+    public S3Config getS3Config() {
+      return s3Config;
+    }
+
+    public FixedSizeThreadPoolConfig getTpConfig() {
+      return tpConfig;
+    }
   }
 
   public static class S3Config {
     @NotNull
-    public String endpoint;
+    private String endpoint;
 
     @NotNull
     @JsonProperty("access.key")
-    public String accessKey;
+    private String accessKey;
 
     @NotNull
     @JsonProperty("secret.key")
-    public String secretKey;
+    private String secretKey;
 
     @NotNull
     @JsonProperty("list.objects.timeout.ms")
-    public Long listObjectsTimeoutMs;
+    private Long listObjectsTimeoutMs;
+
+    public String getEndpoint() {
+      return endpoint;
+    }
+
+    public String getAccessKey() {
+      return accessKey;
+    }
+
+    public String getSecretKey() {
+      return secretKey;
+    }
+
+    public Long getListObjectsTimeoutMs() {
+      return listObjectsTimeoutMs;
+    }
   }
 
   public static class FixedSizeThreadPoolConfig {
     @NotNull
     @JsonProperty("coresize")
-    public Integer coreSize;
+    private Integer coreSize;
 
     @NotNull
     @JsonProperty("maxsize")
-    public Integer maxSize;
+    private Integer maxSize;
 
     @NotNull
     @JsonProperty("idletime.secs")
-    public Integer idleTimeSec;
+    private Integer idleTimeSec;
 
     @NotNull
     @JsonProperty("queue.maxsize")
-    public Integer queueMaxSize;
+    private Integer queueMaxSize;
+
+    public Integer getCoreSize() {
+      return coreSize;
+    }
+
+    public Integer getMaxSize() {
+      return maxSize;
+    }
+
+    public Integer getIdleTimeSec() {
+      return idleTimeSec;
+    }
+
+    public Integer getQueueMaxSize() {
+      return queueMaxSize;
+    }
   }
 
-  @NotNull
-  @Valid
-  public HttpConfig getHttpConfig() {
-    return httpVerticleConfig.getConfig().mapTo(HttpConfig.class);
+  @AssertTrue(message = "request timeout must be greater than listObject timeout")
+  private boolean isListTimeoutValid() {
+    Long requestTimeout = httpConfig.requestTimeout;
+    Long ListObjectTimeout = storageConfig.s3Config.listObjectsTimeoutMs;
+    return requestTimeout > ListObjectTimeout;
   }
 }
