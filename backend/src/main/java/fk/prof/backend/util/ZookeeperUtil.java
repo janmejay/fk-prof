@@ -2,13 +2,25 @@ package fk.prof.backend.util;
 
 import io.vertx.core.Future;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
+import java.util.List;
+
 public class ZookeeperUtil {
+
+  private static final String DELIMITER = "/";
 
   public static byte[] readZNode(CuratorFramework curatorClient, String zNodePath)
       throws Exception {
     return curatorClient.getData().forPath(zNodePath);
+  }
+
+  public static byte[] readLatestSeqZNodeChild(CuratorFramework curatorClient, String zNodePath) throws Exception {
+    List<String> sequentialPolicies = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
+    zNodePath = zNodePath + DELIMITER + sequentialPolicies.get(sequentialPolicies.size() - 1);
+    return readZNode(curatorClient, zNodePath);
   }
 
   public static void writeZNode(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create)
@@ -36,7 +48,6 @@ public class ZookeeperUtil {
     return future;
   }
 
-  //TODO: Keeping this around in case required for policy CRUD. If not used there, remove
   public static Future<byte[]> readZNodeAsync(CuratorFramework curatorClient, String zNodePath)
       throws Exception {
     Future<byte[]> future = Future.future();
@@ -50,12 +61,11 @@ public class ZookeeperUtil {
     return future;
   }
 
-  //TODO: Keeping this around in case required for policy CRUD. If not used there, remove
-  public static Future<Void> writeZNodeAsync(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create)
+  public static Future<Void> writeZNodeAsync(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create, CreateMode mode)
       throws Exception {
     Future<Void> future = Future.future();
     if(create) {
-      curatorClient.create().inBackground((client, event) -> {
+      curatorClient.create().creatingParentsIfNeeded().withMode(mode).inBackground((client, event) -> {
         if (KeeperException.Code.OK.intValue() == event.getResultCode()) {
           future.complete(null);
         } else {
