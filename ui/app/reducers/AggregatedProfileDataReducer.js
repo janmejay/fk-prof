@@ -23,6 +23,7 @@ function createTree (input, methodLookup, terminalNodeIndexes = []) {
     if (!currentNode) return {};
     currentNode = new FrameNode(currentNode[0], currentNode[1], currentNode[2], currentNode[3][0], currentNode[3][1]);
     const currentNodeIndex = allNodes.push(currentNode) - 1;
+    currentNode.id = currentNodeIndex;
     let nextChildIndex = currentNodeIndex;
     if (currentNode.childCount !== 0) {
       for (let i = 0; i < currentNode.childCount; i++) {

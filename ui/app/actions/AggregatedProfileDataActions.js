@@ -29,6 +29,6 @@ export default function fetchAggregatedProfileDataAction (req) {
     const url = queryParams ? `${baseUrl}?${queryParams}` : baseUrl;
     return http.get(url)
       .then(response => dispatch(getAggregatedProfileDataSuccessAction({ res: response, req })))
-      .catch(err => dispatch(getAggregatedProfileDataFailureAction({ err, req })));
+      .catch(err => { console.log("ro", err); return dispatch(getAggregatedProfileDataFailureAction({ err, req })); });
   };
 }
