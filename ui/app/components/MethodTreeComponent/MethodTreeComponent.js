@@ -11,9 +11,10 @@ import treeStyles from 'components/StackTreeElementComponent/StackTreeElementCom
 import HotMethodNode from '../../pojos/HotMethodNode';
 import 'react-virtualized/styles.css';
 
+//TODO: eval and remove childautoexpand, autoexpand later if unnecessary
+
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
-const data = [];
 
 //Input is expected to be Array of (nodeIndex, callCount)   and
 //output returned is an array of objects of type HotMethodNode
@@ -21,7 +22,7 @@ const data = [];
 //in hotmethodView. As part of aggregation their sampledCallCounts are added and respective parents added in a list
 //with sampledCallCounts caused by them
 const dedupeNodes = (allNodes) => (nodesWithCallCount) => {
-   let dedupedNodes = {};
+  let dedupedNodes = {};
   for(let i=0; i<nodesWithCallCount.length; i++){
     let nodeWithCallCount = nodesWithCallCount[i];
     const nodeIndex = nodeWithCallCount[0];
@@ -53,11 +54,11 @@ const stringifierFunction = function (a) {
 class MethodTreeComponent extends Component {
   constructor (props) {
     super(props);
+    this.opened = {}; // keeps track of all opened/closed nodes
     this.state = {
-      opened: {}, // keeps track of all opened/closed nodes
+      itemCount: 0,
       highlighted: {}, // keeps track of all highlighted nodes
     };
-    this.renderData = [];
     this.rowRenderer = this.rowRenderer.bind(this);
     this.listRef = null;
     this.setListRef = this.setListRef.bind(this);
@@ -69,6 +70,12 @@ class MethodTreeComponent extends Component {
     this.debouncedHandleFilterChange = debounce(this.handleFilterChange, 250);
     this.memoizedDedupeNodes = memoize(
       dedupeNodes(props.allNodes), stringifierFunction, true);
+
+    this.renderData = this.getInitialRenderData();
+    this.state.itemCount = this.renderData.length;
+    this.getRenderedDescendantCountForListItem = this.getRenderedDescendantCountForListItem.bind(this);
+    this.getRenderedChildrenCountForListItem = this.getRenderedChildrenCountForListItem.bind(this);
+    this.isNodeHavingChildren = this.isNodeHavingChildren.bind(this);
   }
 
   renderTree = (nodeIndexes = [], filterText) => {
@@ -229,22 +236,22 @@ class MethodTreeComponent extends Component {
     });
   }
 
-  toggle (open) {
-    this.userToggledNode = open;
-    this.setState({
-      opened: {
-        ...this.state.opened,
-        [open]: !this.state.opened[open],
-      },
-    });
-  }
+  // toggle (open) {
+  //   this.userToggledNode = open;
+  //   this.setState({
+  //     opened: {
+  //       ...this.state.opened,
+  //       [open]: !this.state.opened[open],
+  //     },
+  //   });
+  // }
 
   handleFilterChange (e) {
     const { pathname, query } = this.props.location;
     this.props.router.push({ pathname, query: { ...query, [this.props.filterKey]: e.target.value } });
   }
 
-  render () {
+  getInitialRenderData() {
     const filterText = this.props.location.query[this.props.filterKey];
     const { nextNodesAccessorField } = this.props;
     let nodeIndexes;
@@ -253,9 +260,11 @@ class MethodTreeComponent extends Component {
     } else {
       nodeIndexes = this.props.nodeIndexes;
     }
-    // const treeNodes = this.renderTree(nodeIndexes, filterText);
-    this.setRenderData(nodeIndexes, filterText, '', false, 0, false);
-    console.log("tree nodes calculated from scratch");
+    return this.getRenderData(nodeIndexes, filterText, '', false, 0, true);
+  }
+
+  render () {    
+    console.log("render of methodtree called");
     return (
       <div>
         <div style={{flex: "1 1 auto", height: "400px"}}>
@@ -265,7 +274,7 @@ class MethodTreeComponent extends Component {
                 ref={this.setListRef}
                 width={width}
                 height={height}
-                rowCount={this.renderData.length}
+                rowCount={this.state.itemCount}
                 rowHeight={25}
                 rowRenderer={this.rowRenderer}
                 overscanRowCount={2}
@@ -273,8 +282,8 @@ class MethodTreeComponent extends Component {
             )}
           </AutoSizer>
         </div>
-        {filterText && !treeNodes.length && (
-          <p className={styles.alert}>Sorry, no results found for your search query!</p>
+        {!this.state.itemCount && (
+          <p className={styles.alert}>No results</p>
         )}
       </div>
     );
@@ -287,7 +296,7 @@ class MethodTreeComponent extends Component {
     let n = rowdata[1], uniqueId = rowdata[0];
 
     //TODO: optimize, move below assignment to lifecycle method when properties are received by component
-    const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
+    const percentageDenominator = (this.props.allNodes.length > 0) ? this.props.allNodes[0].onStack : 1;
 
     let countToDisplay, newNodeIndexes;
     let displayName = this.props.methodLookup[n.name][0];
@@ -315,38 +324,122 @@ class MethodTreeComponent extends Component {
       .filter(filterPaths.bind(null, uniqueId));
 
     return (
-      <div key={params.key} style={rowstyle}>
-         <StackTreeElement
-            nodename={displayNameWithArgs}
-            key={uniqueId}
-            stackline={displayName}
-            samples={countToDisplay}
-            samplesPct={onStackPercentage}
-            indent={rowdata[2]}
-            nodestate={this.state.opened[uniqueId]}
-            highlight={isHighlighted.length}
-            subdued={rowdata[3] == 1 ? true : false}
-            onHighlight={noop}
-            onClick={newNodeIndexes ? this.toggle.bind(this, uniqueId) : noop}>
-          </StackTreeElement>
-      </div>
+      <StackTreeElement
+        nodename={displayNameWithArgs}
+        key={uniqueId}
+        listIdx={params.index}
+        style={rowstyle}
+        stackline={displayName}
+        samples={countToDisplay}
+        samplesPct={onStackPercentage}
+        indent={rowdata[2]}
+        nodestate={this.opened[uniqueId]}
+        highlight={isHighlighted.length}
+        subdued={rowdata[3] == 1 ? true : false}
+        onHighlight={noop}
+        onClick={newNodeIndexes ? this.toggle.bind(this, params.index) : noop}>
+      </StackTreeElement> 
     );
   }
 
-  setRenderData (nodeIndexes = [], filterText, parentPath, parentHasSiblings, parentIndent, autoExpand) {
+  toggle (listIdx) {
+    const rowdata = this.renderData[listIdx];
+    const uniqueId = rowdata[0];
+
+    let nodeIndexes;
+    if (this.props.nextNodesAccessorField === 'parent') {
+      nodeIndexes = rowdata[1].parentsWithSampledCallCount;
+    } else {
+      nodeIndexes = rowdata[1].children;
+    }
+
+    if(!this.opened[uniqueId]) {
+      //expand
+      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3], rowdata[2], rowdata[4]);
+      var postarr = this.renderData.splice(listIdx + 1);
+      this.renderData = this.renderData.concat(childRenderData, postarr);            
+    } else {
+      //collapse
+      const descendants = this.getRenderedDescendantCountForListItem(listIdx);
+      if(descendants > 0) {
+        this.renderData.splice(listIdx + 1, descendants);
+      }
+    }
+    this.opened[uniqueId] = !this.opened[uniqueId];
+    this.setState({
+      itemCount: this.renderData.length
+    });
+  }
+
+  getRenderedDescendantCountForListItem(listIdx) {
+    let currIdx = listIdx;
+    let toVisit = this.getRenderedChildrenCountForListItem(currIdx);
+    while(toVisit > 0) {
+      toVisit--;
+      currIdx++;
+      toVisit += this.getRenderedChildrenCountForListItem(currIdx);
+    }
+    return currIdx - listIdx;
+  }
+
+  getRenderedChildrenCountForListItem(listIdx) {
+    let children = 0;
+    let rowdata = this.renderData[listIdx];
+    if(rowdata) {
+      const uniqueId = rowdata[0];
+      if(this.opened[uniqueId]) {
+        if(this.isNodeHavingChildren(rowdata[1])) {
+          //At least one rendered child item is going to be present for this item
+          //Cannot rely on childNodeIndexes(calculated in isNodeHavingChildren method) to get count of children because actual rendered children can be lesser after deduping of nodes for hot method tree          
+          let child_rowdata = this.renderData[listIdx + 1];
+          if(child_rowdata) {
+            return child_rowdata[3];
+          } else {
+            console.error("This should never happen. If list item is expanded and its childNodeIndexes > 0, then at least one more item should be present in renderdata list")
+          }
+        }
+      }
+    }
+    return children;
+  }
+
+  isNodeHavingChildren(node) {
+    if(this.props.nextNodesAccessorField === 'parent') {
+      let childNodeIndexes = node.parentsWithSampledCallCount;
+      if(childNodeIndexes && childNodeIndexes.length > 0) {
+        if(childNodeIndexes.length != 1) {
+          return true;
+        } else {
+          //If this has only one childnodeindex and that is "0" node => corresponds to root node which is not rendered in UI
+          //"if(! node.hasParent()) break;" condition in dedupeNodes method ensure above node is not rendered
+          if(childNodeIndexes[0][0] === 0) {
+            return false;
+          } else {
+            return true;
+          }
+        }
+      } else {
+        return false;
+      }
+    } else {
+      return (node.children && node.children.length > 0);
+    }
+  }
+
+  getRenderData (nodeIndexes = [], filterText, parentPath, parentHasSiblings, parentIndent, autoExpand) {
     const renderStack = [];
     renderStack.push({
-      ae: autoExpand, //false, //autoExpand behaviour
-      p_pth: parentPath, // '', //parent path
+      ae: autoExpand, //autoExpand behaviour
+      p_pth: parentPath, //parent path
       gen: {
         nis: nodeIndexes, //indexes of first-level nodes in the tree subject to de-duplication
-        p_ind: parentIndent, //0, //indentation of parent node
-        p_sib: parentHasSiblings, //false //parentHasSiblings
+        p_ind: parentIndent, //indentation of parent node
+        p_sib: parentHasSiblings, //parentHasSiblings
       }
     });
 
-    const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
-    this.renderData = [];
+    const percentageDenominator = (this.props.allNodes.length > 0) ? this.props.allNodes[0].onStack : 1;
+    const renderData = [];
 
     while(renderStack.length > 0) {
       let se = renderStack.pop();
@@ -367,7 +460,7 @@ class MethodTreeComponent extends Component {
           node: {
             dn: dedupedNodes, //first-level nodes
             ind: indent, //indentation to be applied to rendered node
-            idx: 0 //index in array "dn" to identify the node to render
+            idx: 0, //index in array "dn" to identify the node to render,
           }
         });
       } else {
@@ -405,20 +498,21 @@ class MethodTreeComponent extends Component {
         //By default, keep auto expand behavior of children same as parent.
         //As a special case, if this is the node toggled by user and it was expanded, then enable auto expand in the children of this node
         let childAutoExpand = se.ae;
-        if(this.userToggledNode && this.userToggledNode == uniqueId && this.state.opened[uniqueId]) {
-          childAutoExpand = true;
-        }
+        // console.log("childautoexpand", this.userToggledNode, uniqueId, this.opened[uniqueId]);
+        // if(this.userToggledNode && this.userToggledNode == uniqueId && this.opened[uniqueId]) {
+        //   childAutoExpand = true;
+        // }
         // Following condition should always be evaluated after the childAutoExpand is set, since this mutates this.state.opened[uniqueId]
         // If auto expand behavior is enabled and only single node is being rendered, expand the node
         // Or if the node has no children, then expand the node, so that expanded icon is rendered against this node
         if((se.ae && se.node.dn.length == 1) || newNodeIndexes.length == 0) {
-          this.state.opened[uniqueId] = true;
+          this.opened[uniqueId] = true;
         }
 
         const nodeData = [uniqueId, n, se.node.ind, se.node.dn.length, childAutoExpand];
-        this.renderData.push(nodeData);
+        renderData.push(nodeData);
 
-        if(this.state.opened[uniqueId] && newNodeIndexes) {
+        if(this.opened[uniqueId] && newNodeIndexes) {
           renderStack.push({
             ae: childAutoExpand,
             p_pth: uniqueId,
@@ -431,6 +525,7 @@ class MethodTreeComponent extends Component {
         }
       }
     }
+    return renderData;
   }
 
   setListRef (ref) {
