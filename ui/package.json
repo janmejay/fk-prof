@@ -61,11 +61,13 @@
     "react-datetime": "^2.8.3",
     "react-dom": "^15.4.1",
     "react-google-charts": "^1.5.4-alpha.1",
+    "react-infinite": "^0.11.0",
     "react-modal": "^1.7.7",
     "react-redux": "^4.4.6",
     "react-router": "^3.0.0",
     "react-select": "^1.0.0-beta13",
     "react-treeview": "^0.4.6",
+    "react-virtualized": "^9.7.5",
     "redux": "^3.6.0",
     "redux-thunk": "^2.1.0"
   }
