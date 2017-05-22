@@ -33,117 +33,117 @@ import io.vertx.ext.dropwizard.MatchType;
 import java.util.concurrent.*;
 
 public class UserapiManager {
-  private static Logger logger = LoggerFactory.getLogger(UserapiManager.class);
+    private static Logger logger = LoggerFactory.getLogger(UserapiManager.class);
 
-  private final Vertx vertx;
-  private final Configuration config;
-  private AsyncStorage storage;
-  private MetricRegistry metricRegistry;
+    private final Vertx vertx;
+    private final Configuration config;
+    private AsyncStorage storage;
+    private MetricRegistry metricRegistry;
 
-  public UserapiManager(String configFilePath) throws Exception {
-    this(UserapiConfigManager.loadConfig(configFilePath));
-  }
+    public UserapiManager(String configFilePath) throws Exception {
+        this(UserapiConfigManager.loadConfig(configFilePath));
+    }
 
-  public UserapiManager(Configuration config) throws Exception {
-    UserapiConfigManager.setDefaultSystemProperties();
-    this.config = Preconditions.checkNotNull(config);
+    public UserapiManager(Configuration config) throws Exception {
+        UserapiConfigManager.setDefaultSystemProperties();
+        this.config = Preconditions.checkNotNull(config);
 
-    VertxOptions vertxOptions = config.getVertxOptions();
-    vertxOptions.setMetricsOptions(buildMetricsOptions());
-    this.vertx = Vertx.vertx(vertxOptions);
-    this.metricRegistry = SharedMetricRegistries.getOrCreate(UserapiConfigManager.METRIC_REGISTRY);
+        VertxOptions vertxOptions = config.getVertxOptions();
+        vertxOptions.setMetricsOptions(buildMetricsOptions());
+        this.vertx = Vertx.vertx(vertxOptions);
+        this.metricRegistry = SharedMetricRegistries.getOrCreate(UserapiConfigManager.METRIC_REGISTRY);
 
-    initStorage();
-  }
+        initStorage();
+    }
 
-  public Future<Void> close() {
-    Future future = Future.future();
-    vertx.close(closeResult -> {
-      if (closeResult.succeeded()) {
-        logger.info("Shutdown successful for vertx instance");
-        future.complete();
-      } else {
-        logger.error("Error shutting down vertx instance");
-        future.fail(closeResult.cause());
-      }
-    });
+    public Future<Void> close() {
+        Future future = Future.future();
+        vertx.close(closeResult -> {
+            if (closeResult.succeeded()) {
+                logger.info("Shutdown successful for vertx instance");
+                future.complete();
+            } else {
+                logger.error("Error shutting down vertx instance");
+                future.fail(closeResult.cause());
+            }
+        });
 
-    return future;
-  }
+        return future;
+    }
 
-  public Future<Void> launch() {
-    Future<Void> result = Future.future();
-    // register serializers
-    registerSerializers(Json.mapper);
-    registerSerializers(Json.prettyMapper);
+    public Future<Void> launch() {
+        Future<Void> result = Future.future();
+        // register serializers
+        registerSerializers(Json.mapper);
+        registerSerializers(Json.prettyMapper);
 
-    ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, config.getProfileRetentionDurationMin());
-    VerticleDeployer userapiHttpVerticleDeployer = new UserapiHttpVerticleDeployer(vertx, config, profileStoreAPI);
+        ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, config.getProfileRetentionDurationMin());
+        VerticleDeployer userapiHttpVerticleDeployer = new UserapiHttpVerticleDeployer(vertx, config, profileStoreAPI);
 
-    userapiHttpVerticleDeployer.deploy().setHandler(verticleDeployCompositeResult -> {
-      if (verticleDeployCompositeResult.succeeded()) {
-        result.complete();
-      } else {
-        result.fail(verticleDeployCompositeResult.cause());
-      }
-    });
+        userapiHttpVerticleDeployer.deploy().setHandler(verticleDeployCompositeResult -> {
+            if (verticleDeployCompositeResult.succeeded()) {
+                result.complete();
+            } else {
+                result.fail(verticleDeployCompositeResult.cause());
+            }
+        });
 
-    return result;
-  }
+        return result;
+    }
 
-  private void registerSerializers(ObjectMapper mapper) {
-    // protobuf
-    ProtoSerializers.registerSerializers(mapper);
+    private void registerSerializers(ObjectMapper mapper) {
+        // protobuf
+        ProtoSerializers.registerSerializers(mapper);
 
-    // java 8, datetime
-    mapper.registerModule(new Jdk8Module());
-    mapper.registerModule(new JavaTimeModule());
-    mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    mapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
-  }
+        // java 8, datetime
+        mapper.registerModule(new Jdk8Module());
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
+    }
 
-  private void initStorage() {
-    Configuration.FixedSizeThreadPoolConfig threadPoolConfig = config.getStorageConfig().getTpConfig();
-    Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(AsyncStorage.class, "threadpool.rejections"));
+    private void initStorage() {
+        Configuration.FixedSizeThreadPoolConfig threadPoolConfig = config.getStorageConfig().getTpConfig();
+        Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricRegistry.name(AsyncStorage.class, "threadpool.rejections"));
 
-    // thread pool with bounded queue for s3 io.
-    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getQueueMaxSize());
-    ExecutorService storageExecSvc = new InstrumentedExecutorService(
-        new ThreadPoolExecutor(threadPoolConfig.getCoreSize(), threadPoolConfig.getMaxSize(), threadPoolConfig.getIdleTimeSec(), TimeUnit.SECONDS, ioTaskQueue,
-            new AbortPolicy("storageExectorSvc", threadPoolRejectionsMtr)),
-        metricRegistry, "executors.fixed_thread_pool.storage");
+        // thread pool with bounded queue for s3 io.
+        BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getQueueMaxSize());
+        ExecutorService storageExecSvc = new InstrumentedExecutorService(
+            new ThreadPoolExecutor(threadPoolConfig.getCoreSize(), threadPoolConfig.getMaxSize(), threadPoolConfig.getIdleTimeSec(), TimeUnit.SECONDS, ioTaskQueue,
+                new AbortPolicy("storageExectorSvc", threadPoolRejectionsMtr)),
+            metricRegistry, "executors.fixed_thread_pool.storage");
 
-    Configuration.S3Config s3Config = config.getStorageConfig().getS3Config();
-    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getEndpoint(), s3Config.getAccessKey(), s3Config.getSecretKey()),
+        Configuration.S3Config s3Config = config.getStorageConfig().getS3Config();
+        this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getEndpoint(), s3Config.getAccessKey(), s3Config.getSecretKey()),
             storageExecSvc, s3Config.getListObjectsTimeoutMs());
-  }
-
-
-  private MetricsOptions buildMetricsOptions() {
-    return new DropwizardMetricsOptions()
-        .setEnabled(true)
-        .setJmxEnabled(true)
-        .setRegistryName(UserapiConfigManager.METRIC_REGISTRY)
-        .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.APPS + ".*").setAlias(UserapiApiPathConstants.APPS).setType(MatchType.REGEX))
-        .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.CLUSTER_GIVEN_APPID + ".*").setAlias(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).setType(MatchType.REGEX))
-        .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID + ".*").setAlias(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).setType(MatchType.REGEX))
-        .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).setAlias(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setType(MatchType.REGEX))
-        .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setAlias(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setType(MatchType.REGEX));
-  }
-
-  public static class AbortPolicy implements RejectedExecutionHandler {
-
-    private String forExecutorSvc;
-    private Meter meter;
-
-    public AbortPolicy(String forExecutorSvc, Meter meter) {
-      this.forExecutorSvc = forExecutorSvc;
-      this.meter = meter;
     }
 
-    public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-      meter.mark();
-      throw new RejectedExecutionException("Task rejected from " + forExecutorSvc);
+
+    private MetricsOptions buildMetricsOptions() {
+        return new DropwizardMetricsOptions()
+            .setEnabled(true)
+            .setJmxEnabled(true)
+            .setRegistryName(UserapiConfigManager.METRIC_REGISTRY)
+            .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.APPS + ".*").setAlias(UserapiApiPathConstants.APPS).setType(MatchType.REGEX))
+            .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.CLUSTER_GIVEN_APPID + ".*").setAlias(UserapiApiPathConstants.CLUSTER_GIVEN_APPID).setType(MatchType.REGEX))
+            .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID + ".*").setAlias(UserapiApiPathConstants.PROC_GIVEN_APPID_CLUSTERID).setType(MatchType.REGEX))
+            .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROFILES_GIVEN_APPID_CLUSTERID_PROCID).setAlias(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setType(MatchType.REGEX))
+            .addMonitoredHttpServerUri(new Match().setValue(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setAlias(UserapiApiPathConstants.PROFILE_GIVEN_APPID_CLUSTERID_PROCID_WORKTYPE_TRACENAME).setType(MatchType.REGEX));
     }
-  }
+
+    public static class AbortPolicy implements RejectedExecutionHandler {
+
+        private String forExecutorSvc;
+        private Meter meter;
+
+        public AbortPolicy(String forExecutorSvc, Meter meter) {
+            this.forExecutorSvc = forExecutorSvc;
+            this.meter = meter;
+        }
+
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+            meter.mark();
+            throw new RejectedExecutionException("Task rejected from " + forExecutorSvc);
+        }
+    }
 }

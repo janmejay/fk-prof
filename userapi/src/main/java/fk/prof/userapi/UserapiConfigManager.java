@@ -19,39 +19,39 @@ import java.util.stream.Collectors;
  */
 public class UserapiConfigManager {
 
-  private static Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+    private static Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
-  private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
-  private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
+    private static final String LOGFACTORY_SYSTEM_PROPERTY_KEY = "vertx.logger-delegate-factory-class-name";
+    private static final String LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE = "io.vertx.core.logging.SLF4JLogDelegateFactory";
 
-  public static final String METRIC_REGISTRY = "userapi-metric-registry";
+    public static final String METRIC_REGISTRY = "userapi-metric-registry";
 
-  public static Configuration loadConfig(String configFilePath) throws IOException {
-    Preconditions.checkNotNull(configFilePath);
-    JsonObject json = new JsonObject(Files.toString(new File(configFilePath), StandardCharsets.UTF_8));
-    return loadConfig(json);
-  }
-
-  public static Configuration loadConfig(JsonObject jsonConfig) {
-    Preconditions.checkNotNull(jsonConfig);
-    Configuration config = jsonConfig.mapTo(Configuration.class);
-    validateConfig(config);
-    return config;
-  }
-
-  public static void setDefaultSystemProperties() {
-    Properties properties = System.getProperties();
-    properties.computeIfAbsent(UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
-    properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
-  }
-
-  public static <T> void validateConfig(T config) {
-    Set<ConstraintViolation<T>> violations = validator.validate(config);
-    if(violations.size() > 0) {
-      String message = "Configuration is invalid:\n" +
-          String.join("\n",
-              violations.stream().map(v -> v.getPropertyPath().toString() + " " + v.getMessage()).collect(Collectors.toList()));
-      throw new RuntimeException(message);
+    public static Configuration loadConfig(String configFilePath) throws IOException {
+        Preconditions.checkNotNull(configFilePath);
+        JsonObject json = new JsonObject(Files.toString(new File(configFilePath), StandardCharsets.UTF_8));
+        return loadConfig(json);
     }
-  }
+
+    public static Configuration loadConfig(JsonObject jsonConfig) {
+        Preconditions.checkNotNull(jsonConfig);
+        Configuration config = jsonConfig.mapTo(Configuration.class);
+        validateConfig(config);
+        return config;
+    }
+
+    public static void setDefaultSystemProperties() {
+        Properties properties = System.getProperties();
+        properties.computeIfAbsent(UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
+        properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
+    }
+
+    public static <T> void validateConfig(T config) {
+        Set<ConstraintViolation<T>> violations = validator.validate(config);
+        if (violations.size() > 0) {
+            String message = "Configuration is invalid:\n" +
+                String.join("\n",
+                    violations.stream().map(v -> v.getPropertyPath().toString() + " " + v.getMessage()).collect(Collectors.toList()));
+            throw new RuntimeException(message);
+        }
+    }
 }
