@@ -40,8 +40,8 @@ public class Configuration {
   private StorageConfig storageConfig;
 
   @NotNull
-  @JsonProperty("base.dir")
-  private String baseDir;
+  @JsonProperty("aggregatedProfiles.baseDir")
+  private String profilesBaseDir;
 
   public VertxOptions getVertxOptions() {
     return vertxOptions;
@@ -67,8 +67,8 @@ public class Configuration {
     return storageConfig;
   }
 
-  public String getBaseDir() {
-    return baseDir;
+  public String getProfilesBaseDir() {
+    return profilesBaseDir;
   }
 
   private void setVertxOptions(Map<String, Object> vertxOptionsMap) {

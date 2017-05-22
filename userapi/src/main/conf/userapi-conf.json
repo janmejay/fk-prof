@@ -22,5 +22,5 @@
       "queue.maxsize": 50
     }
   },
-  "base.dir": "profiles"
+  "aggregatedProfiles.baseDir": "profiles"
 }
