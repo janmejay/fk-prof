@@ -55,19 +55,22 @@ class StackTreeElementComponent extends Component {
       console.log("rofl");
     }
     let leftPadding = (this.props.indent || 0) + "px";
+    let containerStyle = this.props.style;
+    containerStyle.display = "flex";
+    containerStyle.flexDirection = "row";
     return (
       <div className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
-        <div>
-          <div className={styles.stackline} style={{marginLeft: leftPadding}} title={this.props.nodename}>
-            <span className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
+        <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}}>
+          <div className={styles.stackline} style={{marginLeft: leftPadding, display: "flex", flexDirection: "row", flex: "1 1 auto"}} title={this.props.nodename}>
+            <div style={{flex: "0 0 auto"}} className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
               {this.getIconForHighlight()}
-            </span>
-            <span className={styles.stacklineText} onClick={this.props.onClick}>
-              <span className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
+            </div>
+            <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}} className={styles.stacklineText} onClick={this.props.onClick}>
+              <div style={{flex: "0 0 auto"}} className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
                 {this.getStyleAndIconForNode()[1]}
-              </span>
-              <span>{this.props.stackline}</span>
-            </span>
+              </div>
+              <div style={{flex: "1 1 auto"}}>{this.props.stackline}</div>
+            </div>
           </div>
         </div>
       </div>

@@ -12,6 +12,8 @@ import HotMethodNode from '../../pojos/HotMethodNode';
 import 'react-virtualized/styles.css';
 
 //TODO: eval and remove childautoexpand, autoexpand later if unnecessary
+//TODO: remove memoize related code
+//TODO: optimize elements of this.renderdata, see if some entries can be removed/computed
 
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
@@ -63,13 +65,13 @@ class MethodTreeComponent extends Component {
     this.listRef = null;
     this.setListRef = this.setListRef.bind(this);
     this.userToggledNode = null;
-    this.renderTree = this.renderTree.bind(this);
     this.toggle = this.toggle.bind(this);
     this.handleFilterChange = this.handleFilterChange.bind(this);
     this.highlight = this.highlight.bind(this);
     this.debouncedHandleFilterChange = debounce(this.handleFilterChange, 250);
-    this.memoizedDedupeNodes = memoize(
-      dedupeNodes(props.allNodes), stringifierFunction, true);
+    // this.memoizedDedupeNodes = memoize(
+    //   dedupeNodes(props.allNodes), stringifierFunction, true);
+    this.dedupeNodes = dedupeNodes(props.allNodes);
 
     this.renderData = this.getInitialRenderData();
     this.state.itemCount = this.renderData.length;
@@ -77,133 +79,6 @@ class MethodTreeComponent extends Component {
     this.getRenderedChildrenCountForListItem = this.getRenderedChildrenCountForListItem.bind(this);
     this.isNodeHavingChildren = this.isNodeHavingChildren.bind(this);
   }
-
-  renderTree = (nodeIndexes = [], filterText) => {
-    const renderStack = [];
-    renderStack.push({
-      ae: false, //autoExpand behaviour
-      p_pth: '', //parent path
-      gen: {
-        nis: nodeIndexes, //indexes of first-level nodes in the tree subject to de-duplication
-        p_ind: 0, //indentation of parent node
-        p_sib: false //parentHasSiblings
-      },
-      node: null
-    });
-
-    const percentageDenominator = (this.props.allNodes.length > 0)? this.props.allNodes[0].onStack: 1;
-    const dedupedTreeNodes = [];
-
-    while(renderStack.length > 0) {
-      let se = renderStack.pop();
-      if (se.gen) {
-        // only need to de-dupe for bottom-up not top-down,
-        // hence the ternary :/
-        //TODO: Check if this memoization can be skipped with just using the isOpen state variable
-        const dedupedNodes = this.props.nextNodesAccessorField === 'parent'
-          ? this.memoizedDedupeNodes(...se.gen.nis)
-          : se.gen.nis.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
-
-        //Indent should always be zero if no parent
-        //Otherwise, if parent has siblings or if this node has siblings, do a major indent of the nodes, minor indent otherwise
-        const indent = !se.p_pth ? 0 : ((se.gen.p_sib || dedupedNodes.length > 1 ) ? se.gen.p_ind + 10 : se.gen.p_ind + 3);
-        renderStack.push({
-          ae: se.ae,
-          p_pth: se.p_pth,
-          gen: null,
-          node: {
-            dn: dedupedNodes, //first-level nodes
-            ind: indent, //indentation to be applied to rendered node
-            idx: 0 //index in array "dn" to identify the node to render
-          }
-        });
-      } else {
-        if(se.node.idx >= se.node.dn.length) {
-          continue;
-        }
-        const n = se.node.dn[se.node.idx];
-        //Node has been retrieved so it is safe to increment index and push stack entry back in render stack
-        //Fields from this entry will be read further in this iteration but not modified beyond this point, avoiding un-necessary object copy
-        se.node.idx++;
-        //After index increment, stack entry refers to next sibling, pushing it now itself on stack
-        //This ensures that stack entries of children of the current node are pushed later and hence processed earlier
-        renderStack.push(se);
-
-        let uniqueId, newNodeIndexes, countToDisplay;
-        let displayName = this.props.methodLookup[n.name][0];
-        let displayNameWithArgs = this.props.methodLookup[n.name][0] + this.props.methodLookup[n.name][1];
-        //If this is a first-level node(p_pth will be empty) and filter is applied, skip rendering of node if display name does not match the filter
-        if(filterText && !se.p_pth && !displayName.match(new RegExp(filterText, 'i'))) {
-          continue;
-        }
-
-        //This condition is equivalent to (n instanceOf HotMethodNode)
-        //since nextNodesAccessorField is = parent in hot method view and
-        //Node type for dedupedNodes is HotMethodNode from above
-        if (this.props.nextNodesAccessorField === 'parent') {
-          uniqueId = `${se.p_pth}->${n.identifier()}`;
-          newNodeIndexes = n.parentsWithSampledCallCount;
-          const lineNoOrNot = (n.belongsToTopLayer)? '' : ':' + n.lineNo;
-          displayName = displayName + lineNoOrNot;
-          displayNameWithArgs = displayNameWithArgs + lineNoOrNot;
-          countToDisplay = n.sampledCallCount;
-        } else {
-          // using the index i because in call tree the name of sibling nodes
-          // can be same, react will throw up, argh!
-          uniqueId = `${se.p_pth}->${n.name}:${n.lineNo}`;
-          newNodeIndexes = n.children;
-          displayName = displayName + ':' + n.lineNo;
-          displayNameWithArgs = displayNameWithArgs + ':' + n.lineNo;
-          countToDisplay = n.onStack;
-        }
-
-        //By default, keep auto expand behavior of children same as parent.
-        //As a special case, if this is the node toggled by user and it was expanded, then enable auto expand in the children of this node
-        let childAutoExpand = se.ae;
-        if((this.userToggledNode && this.userToggledNode == uniqueId) && this.state.opened[uniqueId]) {
-          childAutoExpand = true;
-        }
-        // Following condition should always be evaluated after the childAutoExpand is set, since this mutates this.state.opened[uniqueId]
-        // If auto expand behavior is enabled and only single node is being rendered, expand the node
-        // Or if the node has no children, then expand the node, so that expanded icon is rendered against this node
-        if((se.ae && se.node.dn.length == 1) || newNodeIndexes.length == 0) {
-          this.state.opened[uniqueId] = true;
-        }
-
-        const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
-        const isHighlighted = Object.keys(this.state.highlighted)
-          .filter(filterPaths.bind(null, uniqueId));
-        const nodeRender =
-          <StackTreeElement
-            nodename={displayNameWithArgs}
-            key={uniqueId}
-            stackline={displayName}
-            samples={countToDisplay}
-            samplesPct={onStackPercentage}
-            indent={se.node.ind}
-            nodestate={this.state.opened[uniqueId]}
-            highlight={isHighlighted.length}
-            subdued={se.node.dn.length == 1 ? true : false}
-            onHighlight={this.highlight.bind(this, uniqueId)}
-            onClick={newNodeIndexes ? this.toggle.bind(this, uniqueId) : noop}>
-          </StackTreeElement>;
-        dedupedTreeNodes.push(nodeRender);
-
-        if(this.state.opened[uniqueId] && newNodeIndexes) {
-          renderStack.push({
-            ae: childAutoExpand,
-            p_pth: uniqueId,
-            gen: {
-              nis: newNodeIndexes,
-              p_ind: se.node.ind,
-              p_sib: se.node.dn.length > 1
-            }
-          });
-        }
-      }
-    }
-    return dedupedTreeNodes;
-  };
 
   highlight (path) {
     if (path in this.state.highlighted) {
@@ -277,6 +152,7 @@ class MethodTreeComponent extends Component {
                 rowCount={this.state.itemCount}
                 rowHeight={25}
                 rowRenderer={this.rowRenderer}
+                containerStyle={{"overflowX": "auto"}}
                 overscanRowCount={2}
               />
             )}
@@ -446,9 +322,8 @@ class MethodTreeComponent extends Component {
       if (se.gen) {
         // only need to de-dupe for bottom-up not top-down,
         // hence the ternary :/
-        //TODO: Check if this memoization can be skipped with just using the isOpen state variable
         const dedupedNodes = this.props.nextNodesAccessorField === 'parent'
-          ? this.memoizedDedupeNodes(...se.gen.nis)
+          ? this.dedupeNodes(se.gen.nis)
           : se.gen.nis.map((nodeIndex) => this.props.allNodes[nodeIndex]).slice().sort((a, b) => b.onStack - a.onStack);
 
         //Indent should always be zero if no parent
@@ -565,3 +440,18 @@ export default withRouter(MethodTreeComponent);
             )}
           </WindowScroller>
           */
+
+/*<AutoSizer >
+            {({ width, height }) => (
+              <List
+                ref={this.setListRef}
+                width={width}
+                height={height}
+                rowCount={this.state.itemCount}
+                rowHeight={25}
+                rowRenderer={this.rowRenderer}
+                containerStyle={{"overflowX": "auto"}}
+                overscanRowCount={2}
+              />
+            )}
+          </AutoSizer>*/
