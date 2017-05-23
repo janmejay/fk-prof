@@ -30,7 +30,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
 
   private static List<Recorder.ProcessGroup> mockProcessGroups;
   private static Vertx vertx;
-  private static ConfigManager configManager;
+  private static Configuration config;
 
   private TestingServer testingServer;
   private CuratorFramework curatorClient;
@@ -46,9 +46,9 @@ public class ZookeeperBasedBackendAssociationStoreTest {
     );
 
     ConfigManager.setDefaultSystemProperties();
-    configManager = new ConfigManager(ZookeeperBasedBackendAssociationStoreTest.class.getClassLoader().getResource("config.json").getFile());
+    config = ConfigManager.loadConfig(ZookeeperBasedBackendAssociationStoreTest.class.getClassLoader().getResource("config.json").getFile());
 
-    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
+    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
   }
 
   @AfterClass

@@ -12,7 +12,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -36,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 @RunWith(VertxUnitRunner.class)
 public class LeaderAPILoadAndAssociationTest {
   private Vertx vertx;
-  private ConfigManager configManager;
+  private Configuration config;
   private Integer port;
 
   private TestingServer testingServer;
@@ -58,22 +57,21 @@ public class LeaderAPILoadAndAssociationTest {
     curatorClient.start();
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
 
-    configManager = new ConfigManager(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
-    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    port = configManager.getLeaderHttpPort();
+    config = ConfigManager.loadConfig(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
+    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
+    port = config.leaderHttpServerOpts.getPort();
 
-    JsonObject leaderHttpConfig = configManager.getLeaderHttpDeploymentConfig();
-    String backendAssociationPath = leaderHttpConfig.getString("backend.association.path", "/assoc");
+    String backendAssociationPath = config.associationsCfg.associationPath;
     curatorClient.create().forPath(backendAssociationPath);
 
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
-        configManager.getLoadReportIntervalInSeconds(),
-        leaderHttpConfig.getInteger("load.miss.tolerance", 1),
+        config.loadReportItvlSecs,
+        config.associationsCfg.loadMissTolerance,
         new ProcessGroupCountBasedBackendComparator());
     PolicyStore policyStore = new PolicyStore(curatorClient);
 
-    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
+    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, config, backendAssociationStore, policyStore);
     leaderHttpDeployer.deploy();
     //Wait for some time for deployment to complete
     Thread.sleep(1000);

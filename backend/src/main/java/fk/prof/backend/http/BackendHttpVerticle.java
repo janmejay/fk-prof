@@ -6,6 +6,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.primitives.Ints;
 import fk.prof.backend.ConfigManager;
+import fk.prof.backend.Configuration;
 import fk.prof.backend.aggregator.AggregationWindow;
 import fk.prof.backend.exception.AggregationFailure;
 import fk.prof.backend.exception.BadRequestException;
@@ -46,7 +47,7 @@ import java.time.format.DateTimeFormatter;
 public class BackendHttpVerticle extends AbstractVerticle {
   private static Logger logger = LoggerFactory.getLogger(BackendHttpVerticle.class);
 
-  private final ConfigManager configManager;
+  private final Configuration config;
   private final LeaderReadContext leaderReadContext;
   private final AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext;
   private final ProcessGroupDiscoveryContext processGroupDiscoveryContext;
@@ -61,14 +62,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
   private Counter ctrLeaderSelfReq = metricRegistry.counter(MetricName.Backend_Self_Leader_Request.get());
   private Counter ctrLeaderUnknownReq = metricRegistry.counter(MetricName.Backend_Unknown_Leader_Request.get());
 
-  public BackendHttpVerticle(ConfigManager configManager,
+  public BackendHttpVerticle(Configuration config,
                              LeaderReadContext leaderReadContext,
                              AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
                              ProcessGroupDiscoveryContext processGroupDiscoveryContext) {
-    this.configManager = configManager;
-    this.backendHttpPort = configManager.getBackendHttpPort();
-    this.ipAddress = configManager.getIPAddress();
-    this.backendVersion = configManager.getBackendVersion();
+    this.config = config;
+    this.backendHttpPort = config.backendHttpServerOpts.getPort();
+    this.ipAddress = config.ipAddress;
+    this.backendVersion = config.backendVersion;
 
     this.leaderReadContext = leaderReadContext;
     this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
@@ -77,14 +78,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   @Override
   public void start(Future<Void> fut) {
-    JsonObject httpClientConfig = configManager.getHttpClientConfig();
+    Configuration.HttpClientConfig httpClientConfig = config.httpClientCfg;
     httpClient = ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getBackendHttpServerConfig()))
+    vertx.createHttpServer(config.backendHttpServerOpts)
         .requestHandler(router::accept)
-        .listen(configManager.getBackendHttpPort(), http -> completeStartup(http, fut));
+        .listen(config.backendHttpServerOpts.getPort(), http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {

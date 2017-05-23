@@ -5,6 +5,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.protobuf.util.JsonFormat;
 import fk.prof.backend.ConfigManager;
+import fk.prof.backend.Configuration;
 import fk.prof.backend.exception.HttpFailure;
 import fk.prof.backend.model.association.BackendAssociationStore;
 import fk.prof.backend.model.policy.PolicyStore;
@@ -29,16 +30,16 @@ import recording.Recorder;
 import java.io.IOException;
 
 public class LeaderHttpVerticle extends AbstractVerticle {
-  private final ConfigManager configManager;
+  private final Configuration config;
   private final BackendAssociationStore backendAssociationStore;
   private final PolicyStore policyStore;
 
   private final MetricRegistry metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
 
-  public LeaderHttpVerticle(ConfigManager configManager,
+  public LeaderHttpVerticle(Configuration config,
                             BackendAssociationStore backendAssociationStore,
                             PolicyStore policyStore) {
-    this.configManager = configManager;
+    this.config = config;
     this.backendAssociationStore = backendAssociationStore;
     this.policyStore = policyStore;
   }
@@ -46,9 +47,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    vertx.createHttpServer(HttpHelper.getHttpServerOptions(configManager.getLeaderHttpServerConfig()))
+    vertx.createHttpServer(config.leaderHttpServerOpts)
         .requestHandler(router::accept)
-        .listen(configManager.getLeaderHttpPort(),
+        .listen(config.leaderHttpServerOpts.getPort(),
             http -> completeStartup(http, fut));
   }
 

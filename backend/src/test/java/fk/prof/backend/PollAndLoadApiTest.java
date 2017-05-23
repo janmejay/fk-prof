@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
 @RunWith(VertxUnitRunner.class)
 public class PollAndLoadApiTest {
   private Vertx vertx;
-  private ConfigManager configManager;
+  private Configuration config;
   private CuratorFramework curatorClient;
   private TestingServer testingServer;
 
@@ -82,8 +82,8 @@ public class PollAndLoadApiTest {
     config.getJsonObject("curatorOptions").put("connection.timeout.ms", 1000);
     config.getJsonObject("curatorOptions").put("session.timeout.ms", 1000);
 
-    configManager = new ConfigManager(config);
-    String backendAssociationPath = configManager.getLeaderHttpDeploymentConfig().getString("backend.association.path");
+    this.config = ConfigManager.loadConfig(config);
+    String backendAssociationPath = this.config.associationsCfg.associationPath;
 
     testingServer = new TestingServer();
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));
@@ -91,19 +91,19 @@ public class PollAndLoadApiTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
     curatorClient.create().forPath(backendAssociationPath);
 
-    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
+    vertx = Vertx.vertx(new VertxOptions(this.config.vertxOptions));
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, new ProcessGroupCountBasedBackendComparator());
-    leaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
+    leaderStore = spy(new InMemoryLeaderStore(this.config.ipAddress, this.config.leaderHttpServerOpts.getPort()));
     when(leaderStore.isLeader()).thenReturn(false);
-    associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
-    workSlotPool = new WorkSlotPool(configManager.getSlotPoolCapacity());
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(this.config.recorderDefunctThresholdSecs);
+    workSlotPool = new WorkSlotPool(this.config.scheduleSlotPoolCapacity);
     activeAggregationWindows = new ActiveAggregationWindowsImpl();
     policyStore = spy(new PolicyStore(curatorClient));
     aggregationWindowStorage = mock(AggregationWindowStorage.class);
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, leaderStore,
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, this.config, leaderStore,
         activeAggregationWindows, associatedProcessGroups);
-    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, configManager, leaderStore,
+    VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, this.config, leaderStore,
         associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
     CompositeFuture.all(backendHttpVerticleDeployer.deploy(), backendDaemonVerticleDeployer.deploy()).setHandler(ar -> {
       if(ar.failed()) {
@@ -113,11 +113,11 @@ public class PollAndLoadApiTest {
         backendHttpVerticleDeployments = ((CompositeFuture)ar.result().list().get(0)).list();
         backendDaemonVerticleDeployment = (String)((CompositeFuture)ar.result().list().get(0)).list().get(0);
 
-        VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
+        VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, this.config, backendAssociationStore, policyStore);
         Runnable leaderElectedTask = LeaderElectedTask.newBuilder().build(vertx, leaderHttpVerticleDeployer, backendAssociationStore, policyStore);
         VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(
-            vertx, configManager, curatorClient, leaderElectedTask);
-        VerticleDeployer leaderElectionWatcherVerticleDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, leaderStore);
+            vertx, this.config, curatorClient, leaderElectedTask);
+        VerticleDeployer leaderElectionWatcherVerticleDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, this.config, curatorClient, leaderStore);
         CompositeFuture.all(leaderElectionParticipatorVerticleDeployer.deploy(), leaderElectionWatcherVerticleDeployer.deploy()).setHandler(ar1 -> {
           if(ar1.failed()) {
             context.fail(ar1.cause());
@@ -156,7 +156,7 @@ public class PollAndLoadApiTest {
     //this test can be brittle because teardown of zk in previous running test, causes delay in setting up of leader when zk is setup again for this test
     //mocking leader address here so that association does not return 503
     when(leaderStore.getLeader())
-        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(configManager.getLeaderHttpPort()).build());
+        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(config.leaderHttpServerOpts.getPort()).build());
     try {
       makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
         if (ar.failed()) {
@@ -246,7 +246,7 @@ public class PollAndLoadApiTest {
         .setRecorderInfo(buildRecorderInfo(processGroup, 1))
         .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
         .build();
-    Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(configManager.getIPAddress()).setPort(configManager.getBackendHttpPort()).build();
+    Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(config.ipAddress).setPort(config.backendHttpServerOpts.getPort()).build();
     makePollRequest(assignedBackend, pollReq).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -294,7 +294,7 @@ public class PollAndLoadApiTest {
                                 context.assertEquals(200, ar4.result().getStatusCode());
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
-                                context.assertEquals(BitOperationUtil.constructLongFromInts(configManager.getBackendId(), 1),
+                                context.assertEquals(BitOperationUtil.constructLongFromInts(config.backendId, 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
                               } catch (Exception ex) {
@@ -332,7 +332,7 @@ public class PollAndLoadApiTest {
       throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .post(configManager.getBackendHttpPort(), "localhost", "/association")
+        .post(config.backendHttpServerOpts.getPort(), "localhost", "/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
