@@ -107,4 +107,8 @@ private:
     DISALLOW_IMPLICIT_CONSTRUCTORS(Asgct);
 };
 
+namespace Stacktraces {
+    std::uint32_t fill_backtrace(NativeFrame* buff, std::uint32_t capacity);
+}
+
 #endif // STACKTRACES_H

@@ -1,5 +1,5 @@
 #include "profiler.hh"
-#include "backtracer.hh"
+#include "stacktraces.hh"
 
 ASGCTType Asgct::asgct_;
 IsGCActiveType Asgct::is_gc_active_;
@@ -63,7 +63,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
 
     STATIC_ARRAY(native_trace, NativeFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
-    auto bt_len = Backtracer::fill_backtrace(native_trace, capture_stack_depth());
+    auto bt_len = Stacktraces::fill_backtrace(native_trace, capture_stack_depth());
     buffer->push(native_trace, bt_len, bt_flags | CT_NATIVE, thread_info);
 }
 

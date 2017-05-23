@@ -9,8 +9,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TestJni {
     private static final AtomicBoolean loaded = new AtomicBoolean(false);
 
-    public native boolean generateCpusampleSimpleProfile(String filePath);
-        
     public static void loadJniLib() {
         if (loaded.compareAndSet(false, true)) {
             String linkTargetPath = new File("build/libtestjni" + Platforms.getDynamicLibraryExtension()).getAbsolutePath();
