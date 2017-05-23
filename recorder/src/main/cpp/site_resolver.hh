@@ -66,7 +66,7 @@ namespace SiteResolver {
 
         const std::string& file_for(Addr addr) const;
 
-        void site_for(Addr addr, std::string& fn, Addr& pc_offset) const;
+        void site_for(Addr addr, std::string& file_name, std::string& fn_name, Addr& pc_offset) const;
 
         void print_frame(Addr pc) const;
     };

@@ -27,20 +27,35 @@ TEST(SiteResolver__should_resolve_backtrace) {
         });
     CHECK(bt_len > 4);
 
+    auto max_path_sz = 1024;
+    std::unique_ptr<char[]> link_path(new char[max_path_sz]);
+    auto path_len = readlink("/proc/self/exe", link_path.get(), max_path_sz);
+    CHECK((path_len > 0) && (path_len < max_path_sz));//ensure we read link correctly
+    link_path.get()[path_len] = '\0';
+    std::string path = link_path.get();
+
     SiteResolver::SymInfo s_info;
     std::string fn_name;
+    std::string file_name;
     SiteResolver::Addr pc_offset;
-    s_info.site_for(buff[0], fn_name, pc_offset);
+    s_info.site_for(buff[0], file_name, fn_name, pc_offset);
     CHECK_EQUAL("foo(unsigned long*, unsigned int)", fn_name);
-    s_info.site_for(buff[1], fn_name, pc_offset);
+    CHECK_EQUAL(path, file_name);
+    s_info.site_for(buff[1], file_name, fn_name, pc_offset);
     CHECK_EQUAL("caller_of_foo(unsigned long*, unsigned int)", fn_name);
+    CHECK_EQUAL(path, file_name);
 
-    std::set<std::string> some_recent_frames;
+    std::map<std::string, std::string> fn_files;
     for (auto i = bt_len; i > 0; i--) {
-        s_info.site_for(buff[i - 1], fn_name, pc_offset);
-        some_recent_frames.insert(fn_name);
+        s_info.site_for(buff[i - 1], file_name, fn_name, pc_offset);
+        fn_files[fn_name] = file_name;
     }
 
-    CHECK(some_recent_frames.find("some_λ_caller(std::function<void ()>)") != std::end(some_recent_frames));//this symbol comes from a shared-lib (aim is to ensure it works well with relocatable symbols)
+    auto it = fn_files.find("some_λ_caller(std::function<void ()>)");
+    CHECK(it != std::end(fn_files));//this symbol comes from a shared-lib (aim is to ensure it works well with relocatable symbols)
+
+    auto dir = path.substr(0, path.rfind("/"));
+    CHECK_EQUAL(0, it->second.find(dir));
+    CHECK_EQUAL("/libtestutil.so", it->second.substr(dir.length()));
 }
 

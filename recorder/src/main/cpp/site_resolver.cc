@@ -280,24 +280,18 @@ void SiteResolver::SymInfo::index(const char* path, Addr start) {
     mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, path));
 }
 
-const std::string& SiteResolver::SymInfo::file_for(Addr addr) const {
-    auto it = region_for(addr);
-    if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
-    return it->second->file_;
-}
-
-void SiteResolver::SymInfo::site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const {
+void SiteResolver::SymInfo::site_for(Addr addr, std::string& file_name, std::string& fn_name, Addr& pc_offset) const {
     auto it = region_for(addr);
     if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
     it->second->site_for(addr, fn_name, pc_offset);
+    file_name = it->second->file_;
 }
 
 void SiteResolver::SymInfo::print_frame(Addr pc) const {
-    std::string fn_name;
+    std::string file_name, fn_name;
     Addr pc_offset;
-    site_for(pc, fn_name, pc_offset);
-    auto file = file_for(pc);
-    std::cout << "0x" << std::hex << pc << " > " << fn_name << " +" << pc_offset << " @ " << file <<'\n';
+    site_for(pc, file_name, fn_name, pc_offset);
+    std::cout << "0x" << std::hex << pc << " > " << fn_name << " +" << pc_offset << " @ " << file_name <<'\n';
 }
 
 static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) {
