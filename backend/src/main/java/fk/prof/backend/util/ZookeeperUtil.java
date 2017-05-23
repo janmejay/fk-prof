@@ -10,7 +10,7 @@ import java.util.List;
 
 public class ZookeeperUtil {
 
-  private static final String DELIMITER = "/";
+    public static final String DELIMITER = "/";
 
   public static byte[] readZNode(CuratorFramework curatorClient, String zNodePath)
       throws Exception {
@@ -18,8 +18,12 @@ public class ZookeeperUtil {
   }
 
   public static byte[] readLatestSeqZNodeChild(CuratorFramework curatorClient, String zNodePath) throws Exception {
-    List<String> sequentialPolicies = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
-    zNodePath = zNodePath + DELIMITER + sequentialPolicies.get(sequentialPolicies.size() - 1);
+      List<String> sortedPolicyNodes = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
+      if (sortedPolicyNodes.isEmpty()) {
+          return null;
+      } else {
+          zNodePath = zNodePath + DELIMITER + sortedPolicyNodes.get(sortedPolicyNodes.size() - 1);
+      }
     return readZNode(curatorClient, zNodePath);
   }
 
@@ -61,21 +65,33 @@ public class ZookeeperUtil {
     return future;
   }
 
-  public static Future<Void> writeZNodeAsync(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create, CreateMode mode)
-      throws Exception {
-    Future<Void> future = Future.future();
-    if(create) {
-      curatorClient.create().creatingParentsIfNeeded().withMode(mode).inBackground((client, event) -> {
-        if (KeeperException.Code.OK.intValue() == event.getResultCode()) {
-          future.complete(null);
+    /**
+     * Write data to a ZK node path asynchronously
+     * Note: This method creates parents if needed given create is true
+     *
+     * @param curatorClient curator client
+     * @param zNodePath     path where data is to be stored
+     * @param data          data to be stored
+     * @param create        whether node is to be created or it exists already
+     * @param mode          ZK Create mode to be used
+     * @return a void future with exception if write fails
+     * @throws Exception
+     */
+    public static Future<Void> writeZNodeAsync(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create, CreateMode mode)
+            throws Exception {
+        Future<Void> future = Future.future();
+        if(create) {
+            curatorClient.create().creatingParentsIfNeeded().withMode(mode).inBackground((client, event) -> {
+                if (KeeperException.Code.OK.intValue() == event.getResultCode()) {
+                    future.complete(null);
+                } else {
+                    future.fail(new RuntimeException("Error writing association data to backend znode. result_code=" + event.getResultCode()));
+                }
+            }).forPath(zNodePath, data);
         } else {
-          future.fail(new RuntimeException("Error writing association data to backend znode. result_code=" + event.getResultCode()));
+            curatorClient.setData().forPath(zNodePath, data);
         }
-      }).forPath(zNodePath, data);
-    } else {
-      curatorClient.setData().forPath(zNodePath, data);
+        return future;
     }
-    return future;
-  }
 
 }

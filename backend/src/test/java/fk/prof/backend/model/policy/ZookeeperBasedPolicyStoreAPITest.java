@@ -1,8 +1,8 @@
 package fk.prof.backend.model.policy;
 
-import com.google.common.io.BaseEncoding;
 import fk.prof.backend.mock.MockPolicyData;
 import fk.prof.backend.proto.PolicyDTO;
+import fk.prof.backend.util.EncodingUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -21,11 +21,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import recording.Recorder;
 
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static fk.prof.backend.util.ZookeeperUtil.DELIMITER;
 
 /**
  * Test for ZKWithCacheBasedPolicyStore
@@ -33,17 +34,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @RunWith(VertxUnitRunner.class)
 public class ZookeeperBasedPolicyStoreAPITest {
-
     private static final String POLICY_PATH = "/policy";
-    private static final String DELIMITER = "/";
-
     private TestingServer testingServer;
     private CuratorFramework curatorClient;
     private ZookeeperBasedPolicyStoreAPI policyStoreAPI;
-
-    private static String encode(String str) {
-        return BaseEncoding.base32().encode(str.getBytes(Charset.forName("utf-8")));
-    }
 
     @Before
     public void setUp() throws Exception {
@@ -86,7 +80,7 @@ public class ZookeeperBasedPolicyStoreAPITest {
             //SUCCESS ON CREATION OF A NEW POLICY
             context.assertTrue(ar.succeeded());
             PolicyDTO.PolicyDetails got = policyStoreAPI.getPolicy(MockPolicyData.mockProcessGroups.get(0));
-            String zNodePath = POLICY_PATH + DELIMITER + encode(pG.getAppId()) + DELIMITER + encode(pG.getCluster()) + DELIMITER + encode(pG.getProcName());
+            String zNodePath = POLICY_PATH + DELIMITER + EncodingUtil.encode32(pG.getAppId()) + DELIMITER + EncodingUtil.encode32(pG.getCluster()) + DELIMITER + EncodingUtil.encode32(pG.getProcName());
             try {
                 //DATA IS ACTUALLY WRITTEN TO ZK
                 context.assertEquals(PolicyDTO.PolicyDetails.parseFrom(ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, zNodePath)), MockPolicyData.mockPolicyDetails.get(0));
@@ -136,7 +130,7 @@ public class ZookeeperBasedPolicyStoreAPITest {
                     Recorder.ProcessGroup pG = MockPolicyData.mockProcessGroups.get(0);
                     try {
                         latch.await(2, TimeUnit.SECONDS);
-                        String zNodePath = POLICY_PATH + DELIMITER + encode(pG.getAppId()) + DELIMITER + encode(pG.getCluster()) + DELIMITER + encode(pG.getProcName());
+                        String zNodePath = POLICY_PATH + DELIMITER + EncodingUtil.encode32(pG.getAppId()) + DELIMITER + EncodingUtil.encode32(pG.getCluster()) + DELIMITER + EncodingUtil.encode32(pG.getProcName());
                         List<String> sortedChildren = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
                         //VERSIONS IN ZK Node IS EQUAL AS SUCCESSFUL API REQUESTS (includes 1 CREATE request)
                         context.assertEquals(sortedChildren.size(), successes.get());
@@ -240,13 +234,25 @@ public class ZookeeperBasedPolicyStoreAPITest {
         Map<String, Set<String>> testPairs = new HashMap<String, Set<String>>() {{
             put("a", new HashSet<>(Arrays.asList("a1", "a2")));
             put("", new HashSet<>(Arrays.asList("a1", "a2", "b1")));
-            put(null, new HashSet<>());
+            put(null, null);
         }};
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (String pre : testPairs.keySet()) {
-                    Set<String> got = policyStoreAPI.getAppIds(pre);
-                    context.assertEquals(got, testPairs.get(pre));
+                    if (pre != null) {
+                        Set<String> got = policyStoreAPI.getAppIds(pre);
+                        context.assertEquals(got, testPairs.get(pre));
+                    } else {
+                        try {
+                            policyStoreAPI.getAppIds(pre);
+                            context.fail("IllegalArguementException not thrown");
+                        } catch (IllegalArgumentException ex) {
+                            //Expected exception
+                        } catch (Exception ex) {
+                            context.fail("Unexpected exception thrown");
+                        }
+
+                    }
                 }
             } else {
                 context.fail(event.cause());
@@ -272,8 +278,19 @@ public class ZookeeperBasedPolicyStoreAPITest {
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (List<String> args : testPairs.keySet()) {
-                    Set<String> got = policyStoreAPI.getClusterIds(args.get(0), args.get(1));
-                    context.assertEquals(got, testPairs.get(args));
+                    if (!args.contains(null)) {
+                        Set<String> got = policyStoreAPI.getClusterIds(args.get(0), args.get(1));
+                        context.assertEquals(got, testPairs.get(args));
+                    } else {
+                        try {
+                            policyStoreAPI.getClusterIds(args.get(0), args.get(1));
+                            context.fail("IllegalArguementException not thrown");
+                        } catch (IllegalArgumentException ex) {
+                            //Expected exception
+                        } catch (Exception ex) {
+                            context.fail("Unexpected exception thrown");
+                        }
+                    }
                 }
             } else {
                 context.fail(event.cause());
@@ -299,8 +316,19 @@ public class ZookeeperBasedPolicyStoreAPITest {
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (List<String> args : testPairs.keySet()) {
-                    Set<String> got = policyStoreAPI.getProcNames(args.get(0), args.get(1), args.get(2));
-                    context.assertEquals(got, testPairs.get(args));
+                    if (!args.contains(null)) {
+                        Set<String> got = policyStoreAPI.getProcNames(args.get(0), args.get(1), args.get(2));
+                        context.assertEquals(got, testPairs.get(args));
+                    } else {
+                        try {
+                            policyStoreAPI.getProcNames(args.get(0), args.get(1), args.get(2));
+                            context.fail("IllegalArguementException not thrown");
+                        } catch (IllegalArgumentException ex) {
+                            //Expected exception
+                        } catch (Exception ex) {
+                            context.fail("Unexpected exception thrown");
+                        }
+                    }
                 }
             } else {
                 context.fail(event.cause());
