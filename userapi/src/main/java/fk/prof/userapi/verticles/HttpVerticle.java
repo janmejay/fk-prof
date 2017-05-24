@@ -246,7 +246,16 @@ public class HttpVerticle extends AbstractVerticle {
             if(gzipped && safeContains(routingContext.request().getHeader("Accept-Encoding"), "gzip")) {
                 Buffer compressedBuf;
                 try {
+                    System.out.println("er=" + encodedResponse.length());
+//                    compressedBuf = Buffer.buffer(encodedResponse.length() * 2);
+//                    compressedBuf.appendBytes(StreamTransformer.compress(encodedResponse.getBytes(Charset.forName("utf-8"))));
+//                    encodedResponse += encodedResponse;
                     compressedBuf = Buffer.buffer(StreamTransformer.compress(encodedResponse.getBytes(Charset.forName("utf-8"))));
+                    System.out.println("er=" + encodedResponse.length() + ", cb=" + compressedBuf.length());
+//                    compressedBuf.appendBytes(StreamTransformer.compress(encodedResponse.getBytes(Charset.forName("utf-8"))));
+//                    System.out.println("er=" + encodedResponse.length() + ", cb=" + compressedBuf.length());
+//                    compressedBuf.appendBytes(StreamTransformer.compress(encodedResponse.getBytes(Charset.forName("utf-8"))));
+//                    System.out.println("er=" + encodedResponse.length() + ", cb=" + compressedBuf.length());
                 }
                 catch(IOException e) {
                     setResponse(Future.failedFuture(e), routingContext, false);

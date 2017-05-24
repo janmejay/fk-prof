@@ -3,17 +3,17 @@
     "config": {
       "verticle.count": 1,
       "http.port": 8082,
-      "req.timeout": 2000
+      "req.timeout": 60000
     }
   },
   "profile.retention.duration.min": 30,
-  "aggregation_window.duration.secs": 1800,
+  "aggregation_window.duration.secs": 300,
   "storage": {
     "s3": {
-      "endpoint": "http://127.0.0.1:13031",
-      "access.key": "",
-      "secret.key": "",
-      "list.objects.timeout.ms": 5000
+      "endpoint": "http://10.47.2.33:80",
+      "access.key": "J1WVRCCMIZ5L3DVFSQKD",
+      "secret.key": "HyfECCbRz2BTkxASvoM5tRQiD/OaaPsVdaF0uPtH",
+      "list.objects.timeout.ms": 30000
     },
     "thread.pool": {
       "coresize": 10,

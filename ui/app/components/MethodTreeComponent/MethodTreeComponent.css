@@ -20,3 +20,11 @@ input:focus {
   outline-width: 1px;
   outline-color: rgb(63,81,181);
 }
+
+table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 100%;  
+}

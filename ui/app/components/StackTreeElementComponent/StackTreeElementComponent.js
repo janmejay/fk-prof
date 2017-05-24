@@ -55,21 +55,18 @@ class StackTreeElementComponent extends Component {
       console.log("rofl");
     }
     let leftPadding = (this.props.indent || 0) + "px";
-    let containerStyle = this.props.style;
-    containerStyle.display = "flex";
-    containerStyle.flexDirection = "row";
     return (
-      <div className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
-        <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}}>
-          <div className={styles.stackline} style={{marginLeft: leftPadding, display: "flex", flexDirection: "row", flex: "1 1 auto"}} title={this.props.nodename}>
-            <div style={{flex: "0 0 auto"}} className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
+       <div className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
+        <div>
+          <div className={styles.stackline} style={{marginLeft: leftPadding}} title={this.props.nodename}>
+            <div style={{float: "left"}} className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
               {this.getIconForHighlight()}
             </div>
-            <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}} className={styles.stacklineText} onClick={this.props.onClick}>
-              <div style={{flex: "0 0 auto"}} className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
+            <div className={styles.stacklineText} onClick={this.props.onClick}>
+              <div style={{float: "left"}} className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
                 {this.getStyleAndIconForNode()[1]}
               </div>
-              <div style={{flex: "1 1 auto"}}>{this.props.stackline}</div>
+              <div style={{whiteSpace: "nowrap"}}>{this.props.stackline}</div>
             </div>
           </div>
         </div>
@@ -82,8 +79,9 @@ export default StackTreeElementComponent;
 
 
 
-      /*<tr className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued}>
-        <td>
+      /*
+    <tr className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
+        <td className={styles.fixedRightCol1}>
           {this.props.samples ? (
             <div className={`${styles.pill} mdl-color-text--primary`}>
               <div className={styles.number}>{this.props.samples}</div>
@@ -107,4 +105,44 @@ export default StackTreeElementComponent;
             </span>
           </div>
         </td>
-      </tr>*/
+      </tr>
+      */
+
+/*
+ <div className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
+        <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}}>
+          <div className={styles.stackline} style={{marginLeft: leftPadding, display: "flex", flexDirection: "row", flex: "1 1 auto"}} title={this.props.nodename}>
+            <div style={{flex: "0 0 auto"}} className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
+              {this.getIconForHighlight()}
+            </div>
+            <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}} className={styles.stacklineText} onClick={this.props.onClick}>
+              <div style={{flex: "0 0 auto"}} className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
+                {this.getStyleAndIconForNode()[1]}
+              </div>
+              <div style={{flex: "1 1 auto"}}>{this.props.stackline}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+*/
+
+
+
+/*
+       <div className={this.props.highlight ? styles.highlight : this.props.subdued && styles.subdued} style={this.props.style}>
+        <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}}>
+          <div className={styles.stackline} style={{marginLeft: leftPadding, display: "flex", flexDirection: "row", flex: "1 1 auto"}} title={this.props.nodename}>
+            <div style={{flex: "0 0 auto"}} className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
+              {this.getIconForHighlight()}
+            </div>
+            <div style={{display: "flex", flexDirection: "row", flex: "1 1 auto"}} className={styles.stacklineText} onClick={this.props.onClick}>
+              <div style={{flex: "0 0 auto"}} className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
+                {this.getStyleAndIconForNode()[1]}
+              </div>
+              <div style={{flex: "1 1 auto"}}>{this.props.stackline}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      */

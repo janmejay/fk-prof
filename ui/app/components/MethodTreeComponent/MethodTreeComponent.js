@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import StackTreeElement from 'components/StackTreeElementComponent';
 import { withRouter } from 'react-router';
-import Infinite from 'react-infinite';
 import { List, AutoSizer, WindowScroller } from 'react-virtualized';
 import memoize from 'utils/memoize';
 import debounce from 'utils/debounce';
@@ -141,22 +140,21 @@ class MethodTreeComponent extends Component {
   render () {    
     console.log("render of methodtree called");
     return (
-      <div>
+      <div style={{display: "flex"}}>
         <div style={{flex: "1 1 auto", height: "400px"}}>
-          <AutoSizer >
-            {({ width, height }) => (
+          
               <List
                 ref={this.setListRef}
-                width={width}
-                height={height}
+                width={500}
+                height={400}
                 rowCount={this.state.itemCount}
                 rowHeight={25}
                 rowRenderer={this.rowRenderer}
-                containerStyle={{"overflowX": "auto"}}
+                className={treeStyles.container}
+                containerStyle={{overflowX: "auto", width: "2000px", maxWidth: "2000px"}}
                 overscanRowCount={2}
               />
-            )}
-          </AutoSizer>
+            
         </div>
         {!this.state.itemCount && (
           <p className={styles.alert}>No results</p>
@@ -168,6 +166,9 @@ class MethodTreeComponent extends Component {
   rowRenderer (params) {
     let newstyle = {display: "flex", flexDirection: "row", alignItems: "center"};
     let rowstyle = Object.assign({}, params.style);
+    rowstyle.width = "auto";
+    // rowstyle.position = "relative";
+    rowstyle.right = "0px";
     let rowdata = this.renderData[params.index];
     let n = rowdata[1], uniqueId = rowdata[0];
 
@@ -441,7 +442,8 @@ export default withRouter(MethodTreeComponent);
           </WindowScroller>
           */
 
-/*<AutoSizer >
+/*
+<AutoSizer >
             {({ width, height }) => (
               <List
                 ref={this.setListRef}
@@ -450,8 +452,10 @@ export default withRouter(MethodTreeComponent);
                 rowCount={this.state.itemCount}
                 rowHeight={25}
                 rowRenderer={this.rowRenderer}
+                className={treeStyles.container}
                 containerStyle={{"overflowX": "auto"}}
                 overscanRowCount={2}
               />
             )}
-          </AutoSizer>*/
+          </AutoSizer>
+          */

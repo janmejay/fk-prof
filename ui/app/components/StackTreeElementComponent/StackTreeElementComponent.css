@@ -1,7 +1,6 @@
 .container { 
-  width: auto; 
   overflow-x: scroll;  
-  margin-right: 100px;
+  margin-right: 170px;
   overflow-y: visible;
   margin-left: 10px;
 }

@@ -30,7 +30,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     public static final String WORKER_POOL_NAME = "aggregation.loader.pool";
     public static final int WORKER_POOL_SIZE = 50;
-    public static final int DEFAULT_LOAD_TIMEOUT = 10000;   // in ms
+    public static final int DEFAULT_LOAD_TIMEOUT = 60000;   // in ms
     private int loadTimeout = DEFAULT_LOAD_TIMEOUT;
 
     private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(ProfileStoreAPIImpl.class);
