@@ -9,7 +9,8 @@ import org.apache.zookeeper.KeeperException;
 import java.util.List;
 
 public class ZookeeperUtil {
-
+    //TODO : GET IT FROM CONFIG
+    public static final String VERSION = "v0001";
     public static final String DELIMITER = "/";
 
   public static byte[] readZNode(CuratorFramework curatorClient, String zNodePath)

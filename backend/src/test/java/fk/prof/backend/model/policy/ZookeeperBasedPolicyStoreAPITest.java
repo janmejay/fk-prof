@@ -2,7 +2,7 @@ package fk.prof.backend.model.policy;
 
 import fk.prof.backend.mock.MockPolicyData;
 import fk.prof.backend.proto.PolicyDTO;
-import fk.prof.backend.util.EncodingUtil;
+import fk.prof.backend.util.PathNamingUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static fk.prof.backend.util.ZookeeperUtil.DELIMITER;
+import static fk.prof.backend.util.ZookeeperUtil.VERSION;
 
 /**
  * Test for ZKWithCacheBasedPolicyStore
@@ -35,7 +36,6 @@ import static fk.prof.backend.util.ZookeeperUtil.DELIMITER;
 @RunWith(VertxUnitRunner.class)
 public class ZookeeperBasedPolicyStoreAPITest {
     private static final String POLICY_PATH = "/policy";
-    private static final String VERSION = "v0001";
     private TestingServer testingServer;
     private CuratorFramework curatorClient;
     private ZookeeperBasedPolicyStoreAPI policyStoreAPI;
@@ -92,7 +92,7 @@ public class ZookeeperBasedPolicyStoreAPITest {
         policyStoreAPI.createVersionedPolicy(pG, MockPolicyData.mockVersionedPolicyDetails.get(0)).setHandler(ar -> {
             //SUCCESS ON CREATION OF A NEW POLICY
             context.assertTrue(ar.succeeded());
-            String zNodePath = POLICY_PATH + DELIMITER + VERSION + DELIMITER + EncodingUtil.encode32(pG.getAppId()) + DELIMITER + EncodingUtil.encode32(pG.getCluster()) + DELIMITER + EncodingUtil.encode32(pG.getProcName());
+            String zNodePath = POLICY_PATH + DELIMITER + VERSION + PathNamingUtil.getDirectoryPath(pG);
             try {
                 //DATA IS ACTUALLY WRITTEN TO ZK
                 context.assertEquals(PolicyDTO.PolicyDetails.parseFrom(ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, zNodePath)), MockPolicyData.mockVersionedPolicyDetails.get(0).getPolicyDetails());
