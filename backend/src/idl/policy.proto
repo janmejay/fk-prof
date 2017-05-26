@@ -2,6 +2,12 @@ syntax = "proto2";
 package fk.prof.backend.proto;
 option java_outer_classname = "PolicyDTO";
 
+
+message VersionedPolicyDetails {
+    required int32 version = 1;
+    required PolicyDetails policyDetails = 2;
+}
+
 message PolicyDetails {
     required Policy policy = 1;
     required string modified_by = 2;

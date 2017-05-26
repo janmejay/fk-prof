@@ -9,9 +9,9 @@ import recording.Recorder;
  * Created by rohit.patiyal on 18/05/17.
  */
 public interface PolicyStoreAPI {
-    PolicyDTO.PolicyDetails getPolicy(Recorder.ProcessGroup processGroup);
+    PolicyDTO.VersionedPolicyDetails getVersionedPolicy(Recorder.ProcessGroup processGroup);
 
-    Future<Void> createPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.PolicyDetails policyDetails);
+    Future<Void> createVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
 
-    Future<Void> updatePolicy(Recorder.ProcessGroup processGroup, PolicyDTO.PolicyDetails policyDetails);
+    Future<Void> updateVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
 }

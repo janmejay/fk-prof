@@ -27,6 +27,16 @@ public class ZookeeperUtil {
     return readZNode(curatorClient, zNodePath);
   }
 
+    public static String getLatestSeqZNodeChildName(CuratorFramework curatorClient, String zNodePath) throws Exception {
+        List<String> sortedPolicyNodes = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
+        if (sortedPolicyNodes.isEmpty()) {
+            return null;
+        } else {
+            zNodePath = zNodePath + DELIMITER + sortedPolicyNodes.get(sortedPolicyNodes.size() - 1);
+        }
+        return ZKPaths.getNodeFromPath(zNodePath);
+    }
+
   public static void writeZNode(CuratorFramework curatorClient, String zNodePath, byte[] data, boolean create)
       throws Exception {
     if(create) {
@@ -85,7 +95,7 @@ public class ZookeeperUtil {
                 if (KeeperException.Code.OK.intValue() == event.getResultCode()) {
                     future.complete(null);
                 } else {
-                    future.fail(new RuntimeException("Error writing association data to backend znode. result_code=" + event.getResultCode()));
+                    future.fail(new RuntimeException("Error writing data to backend znode. result_code=" + event.getResultCode()));
                 }
             }).forPath(zNodePath, data);
         } else {
