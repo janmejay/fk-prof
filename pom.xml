@@ -26,6 +26,7 @@
         <vertx.version>3.3.3</vertx.version>
         <maven.compiler.version>3.3</maven.compiler.version>
         <jackson.version>2.7.4</jackson.version>
+        <hibernate.version>5.4.1.Final</hibernate.version>
     </properties>
 
     <dependencies>

@@ -3,12 +3,11 @@ package fk.prof.userapi.verticles;
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.StreamTransformer;
-import fk.prof.userapi.UserapiConfigManager;
+import fk.prof.userapi.Configuration;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.http.UserapiApiPathConstants;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
@@ -18,11 +17,12 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.CompositeFutureImpl;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.LoggerHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
-import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,22 +37,24 @@ import java.util.*;
  */
 public class HttpVerticle extends AbstractVerticle {
 
-  private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
-    private static String baseDir = "profiles";
-    private static int aggregationWindowDurationInSecs = 1800;
+    private String baseDir;
+    private int aggregationWindowDurationInSecs;
+    private Configuration.HttpConfig httpConfig;
 
     private ProfileStoreAPI profileStoreAPI;
-    private UserapiConfigManager userapiConfigManager;
 
-    public HttpVerticle(UserapiConfigManager userapiConfigManager, ProfileStoreAPI profileStoreAPI) {
-        this.userapiConfigManager = userapiConfigManager;
+    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int aggregationWindowDurationInSecs) {
+        this.httpConfig = httpConfig;
         this.profileStoreAPI = profileStoreAPI;
+        this.baseDir = baseDir;
+        this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
     }
 
     private Router configureRouter() {
         Router router = Router.router(vertx);
-        router.route().handler(TimeoutHandler.create(config().getInteger("req.timeout")));
+        router.route().handler(TimeoutHandler.create(httpConfig.getRequestTimeout()));
         router.route().handler(LoggerHandler.create());
 
         router.get(UserapiApiPathConstants.APPS).handler(this::getAppIds);
@@ -67,12 +69,12 @@ public class HttpVerticle extends AbstractVerticle {
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
-        aggregationWindowDurationInSecs = userapiConfigManager.getAggregationWindowDurationInSecs();
-        baseDir = userapiConfigManager.getBaseDir();
+        httpConfig = config().mapTo(Configuration.HttpConfig.class);
+
         Router router = configureRouter();
         vertx.createHttpServer()
                 .requestHandler(router::accept)
-                .listen(config().getInteger("http.port", 8080), event -> {
+                .listen(httpConfig.getHttpPort(), event -> {
                     if (event.succeeded()) {
                         startFuture.complete();
                     } else {
