@@ -77,16 +77,16 @@ public class BackendDaemon extends AbstractVerticle {
     aggregationWindowPlannerStore = buildAggregationWindowPlannerStore();
 
     serializationWorkerExecutor = vertx.createSharedWorkerExecutor("aggregation.window.serialization.threadpool",
-            config.serializationWorkerPoolCfg.size, config.serializationWorkerPoolCfg.timeoutSecs * 1000);
+            config.serializationWorkerPoolConfig.size, config.serializationWorkerPoolConfig.timeoutSecs * 1000);
     postLoadToLeader();
   }
 
   private ProfHttpClient buildHttpClient() {
-    return ProfHttpClient.newBuilder().setConfig(config.httpClientCfg).build(vertx);
+    return ProfHttpClient.newBuilder().setConfig(config.httpClientConfig).build(vertx);
   }
 
   private AggregationWindowPlannerStore buildAggregationWindowPlannerStore() {
-    Configuration.DaemonVerticleConfig daemonConfig = config.daemonVerticleCfg;
+    Configuration.DaemonVerticleConfig daemonConfig = config.daemonVerticleConfig;
     return new AggregationWindowPlannerStore(
         vertx,
         config.backendId,

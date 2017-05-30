@@ -61,13 +61,13 @@ public class LeaderAPILoadAndAssociationTest {
     vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
     port = config.leaderHttpServerOpts.getPort();
 
-    String backendAssociationPath = config.associationsCfg.associationPath;
+    String backendAssociationPath = config.associationsConfig.associationPath;
     curatorClient.create().forPath(backendAssociationPath);
 
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
         config.loadReportItvlSecs,
-        config.associationsCfg.loadMissTolerance,
+        config.associationsConfig.loadMissTolerance,
         new ProcessGroupCountBasedBackendComparator());
     PolicyStore policyStore = new PolicyStore(curatorClient);
 

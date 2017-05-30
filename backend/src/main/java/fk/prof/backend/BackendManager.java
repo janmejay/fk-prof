@@ -67,7 +67,7 @@ public class BackendManager {
 
     this.curatorClient = createCuratorClient();
     curatorClient.start();
-    curatorClient.blockUntilConnected(config.curatorCfg.connectionTimeoutMs, TimeUnit.MILLISECONDS);
+    curatorClient.blockUntilConnected(config.curatorConfig.connectionTimeoutMs, TimeUnit.MILLISECONDS);
     ensureRequiredZkNodesPresent();
 
     initStorage();
@@ -95,7 +95,7 @@ public class BackendManager {
     ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
     AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(config.recorderDefunctThresholdSecs);
     WorkSlotPool workSlotPool = new WorkSlotPool(config.scheduleSlotPoolCapacity);
-    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(config.storageCfg.profilesBaseDir, storage, bufferPool, metricRegistry);
+    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(config.profilesBaseDir, storage, bufferPool, metricRegistry);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, leaderStore, activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, config, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
@@ -139,8 +139,8 @@ public class BackendManager {
   }
 
   private void initStorage() {
-    Configuration.StorageConfig.S3Config s3Config = config.storageCfg.s3Config;
-    Configuration.StorageConfig.FixedSizeThreadPoolConfig threadPoolConfig = config.storageCfg.tpConfig;
+    Configuration.StorageConfig.S3Config s3Config = config.storageConfig.s3Config;
+    Configuration.StorageConfig.FixedSizeThreadPoolConfig threadPoolConfig = config.storageConfig.tpConfig;
     Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricName.S3_Threadpool_Rejection.get());
 
     // thread pool with bounded queue for s3 io.
@@ -154,7 +154,7 @@ public class BackendManager {
         storageExecSvc, s3Config.listObjectsTimeoutMs);
 
     // buffer pool to temporarily store serialized bytes
-    Configuration.BufferPoolConfig bufferPoolConfig = config.bufferPoolCfg;
+    Configuration.BufferPoolConfig bufferPoolConfig = config.bufferPoolConfig;
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
     poolConfig.setMaxTotal(bufferPoolConfig.maxTotal);
     poolConfig.setMaxIdle(bufferPoolConfig.maxIdle);
@@ -163,7 +163,7 @@ public class BackendManager {
   }
 
   private CuratorFramework createCuratorClient() {
-    Configuration.CuratorConfig curatorConfig = config.curatorCfg;
+    Configuration.CuratorConfig curatorConfig = config.curatorConfig;
     return CuratorFrameworkFactory.builder()
         .connectString(curatorConfig.connectionUrl)
         .retryPolicy(new ExponentialBackoffRetry(1000, curatorConfig.maxRetries))
@@ -175,7 +175,7 @@ public class BackendManager {
 
   private void ensureRequiredZkNodesPresent() throws  Exception {
     try {
-      curatorClient.create().forPath(config.associationsCfg.associationPath);
+      curatorClient.create().forPath(config.associationsConfig.associationPath);
     } catch (KeeperException.NodeExistsException ex) {
       logger.warn(ex);
     }
@@ -185,8 +185,8 @@ public class BackendManager {
       Vertx vertx, CuratorFramework curatorClient)
       throws Exception {
     int loadReportIntervalInSeconds = config.loadReportItvlSecs;
-    String backendAssociationPath = config.associationsCfg.associationPath;
-    int loadMissTolerance = config.associationsCfg.loadMissTolerance;
+    String backendAssociationPath = config.associationsConfig.associationPath;
+    int loadMissTolerance = config.associationsConfig.loadMissTolerance;
     return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath,
         loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }

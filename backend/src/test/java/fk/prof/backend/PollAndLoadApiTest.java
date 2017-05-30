@@ -83,7 +83,7 @@ public class PollAndLoadApiTest {
     config.getJsonObject("curatorOptions").put("session.timeout.ms", 1000);
 
     this.config = ConfigManager.loadConfig(config);
-    String backendAssociationPath = this.config.associationsCfg.associationPath;
+    String backendAssociationPath = this.config.associationsConfig.associationPath;
 
     testingServer = new TestingServer();
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));

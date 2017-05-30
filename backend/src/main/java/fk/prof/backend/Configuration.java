@@ -1,7 +1,6 @@
 package fk.prof.backend;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import fk.prof.backend.leader.election.KillBehavior;
 import io.vertx.core.DeploymentOptions;
@@ -26,16 +25,17 @@ public class Configuration {
                          @JsonProperty("slot.pool.capacity") Integer scheduleSlotPoolCapacity,
                          @JsonProperty("backend.http.server") Map<String, Object> backendHttpServerCfgMap,
                          @JsonProperty("leader.http.server") Map<String, Object> leaderHttpServerCfgMap,
-                         @JsonProperty("http.client") HttpClientConfig httpClientCfg,
+                         @JsonProperty("http.client") HttpClientConfig httpClientConfig,
                          @JsonProperty("vertxOptions") Map<String, Object> vertxOptionsMap,
                          @JsonProperty("backendHttpOptions") Map<String, Object> backendDeploymentOptsMap,
                          @JsonProperty("leaderElectionOptions") Map<String, Object> leaderElectionDeploymentOptsMap,
-                         @JsonProperty("curatorOptions") CuratorConfig curatorCfg,
-                         @JsonProperty("backendAssociations") BackendAssociationsConfig associationsCfg,
+                         @JsonProperty("curatorOptions") CuratorConfig curatorConfig,
+                         @JsonProperty("backendAssociations") BackendAssociationsConfig associationsConfig,
                          @JsonProperty("daemonOptions") Map<String, Object> daemonDeploymentOptsMap,
-                         @JsonProperty("serializationWorkerPool") SerializationWorkerPoolConfig serializationWorkerPoolCfg,
-                         @JsonProperty("storage") StorageConfig storageCfg,
-                         @JsonProperty("bufferPoolOptions") BufferPoolConfig bufferPoolCfg) {
+                         @JsonProperty("serializationWorkerPool") SerializationWorkerPoolConfig serializationWorkerPoolConfig,
+                         @JsonProperty("storage") StorageConfig storageConfig,
+                         @JsonProperty("bufferPoolOptions") BufferPoolConfig bufferPoolConfig,
+                         @JsonProperty("aggregatedProfiles.baseDir") String profilesBaseDir) {
         this.ipAddress = ipAddress;
         this.backendVersion = backendVersion;
         this.backendId = backendId;
@@ -44,30 +44,32 @@ public class Configuration {
         this.scheduleSlotPoolCapacity = scheduleSlotPoolCapacity;
         this.backendHttpServerOpts = toHttpServerOptions(backendHttpServerCfgMap);
         this.leaderHttpServerOpts = toHttpServerOptions(leaderHttpServerCfgMap);
-        this.httpClientCfg = httpClientCfg;
+        this.httpClientConfig = httpClientConfig;
 
         this.vertxOptions = vertxOptionsMap != null ? new VertxOptions(new JsonObject(vertxOptionsMap)) : null;
 
         this.backendDeploymentOpts = toDeploymentOptions(backendDeploymentOptsMap);
-        this.backendHttpVerticleCfg = toVerticleConfig(this.backendDeploymentOpts, BackendHttpVerticleConfig.class);
+        this.backendHttpVerticleConfig = toVerticleConfig(this.backendDeploymentOpts, BackendHttpVerticleConfig.class);
 
         this.leaderElectionDeploymentOpts = toDeploymentOptions(leaderElectionDeploymentOptsMap);
-        this.leaderElectionVerticleCfg = toVerticleConfig(this.leaderElectionDeploymentOpts, LeaderElectionVerticleConfig.class);
+        this.leaderElectionVerticleConfig = toVerticleConfig(this.leaderElectionDeploymentOpts, LeaderElectionVerticleConfig.class);
 
-        this.curatorCfg = curatorCfg;
-        this.associationsCfg = associationsCfg;
+        this.curatorConfig = curatorConfig;
+        this.associationsConfig = associationsConfig;
 
         this.daemonDeploymentOpts = toDeploymentOptions(daemonDeploymentOptsMap);
         //Backend daemon should never be deployed more than once, so hardcoding verticle count to 1, to protect from illegal configuration
         this.daemonDeploymentOpts.getConfig().put("verticle.count", 1);
-        this.daemonVerticleCfg = toVerticleConfig(this.daemonDeploymentOpts, DaemonVerticleConfig.class);
+        this.daemonVerticleConfig = toVerticleConfig(this.daemonDeploymentOpts, DaemonVerticleConfig.class);
 
-        this.serializationWorkerPoolCfg = serializationWorkerPoolCfg;
-        this.storageCfg = storageCfg;
-        this.bufferPoolCfg = bufferPoolCfg;
+        this.serializationWorkerPoolConfig = serializationWorkerPoolConfig;
+        this.storageConfig = storageConfig;
+        this.bufferPoolConfig = bufferPoolConfig;
 
         //default config for now
         this.leaderDeploymentOpts = new DeploymentOptions().setConfig(new JsonObject());
+
+        this.profilesBaseDir = profilesBaseDir;
     }
 
     @NotNull
@@ -90,7 +92,7 @@ public class Configuration {
     public final HttpServerOptions leaderHttpServerOpts;
     @NotNull
     @Valid
-    public final HttpClientConfig httpClientCfg;
+    public final HttpClientConfig httpClientConfig;
     @NotNull
     public final VertxOptions vertxOptions;
 
@@ -98,7 +100,7 @@ public class Configuration {
     public final DeploymentOptions backendDeploymentOpts;
     @NotNull
     @Valid
-    public final BackendHttpVerticleConfig backendHttpVerticleCfg;
+    public final BackendHttpVerticleConfig backendHttpVerticleConfig;
 
     @NotNull
     public final DeploymentOptions leaderDeploymentOpts;
@@ -107,30 +109,32 @@ public class Configuration {
     public final DeploymentOptions leaderElectionDeploymentOpts;
     @NotNull
     @Valid
-    public final LeaderElectionVerticleConfig leaderElectionVerticleCfg;
+    public final LeaderElectionVerticleConfig leaderElectionVerticleConfig;
 
     @NotNull
     @Valid
-    public final CuratorConfig curatorCfg;
+    public final CuratorConfig curatorConfig;
     @NotNull
     @Valid
-    public final BackendAssociationsConfig associationsCfg;
+    public final BackendAssociationsConfig associationsConfig;
 
     @NotNull
     public final DeploymentOptions daemonDeploymentOpts;
     @NotNull
     @Valid
-    public final DaemonVerticleConfig daemonVerticleCfg;
+    public final DaemonVerticleConfig daemonVerticleConfig;
 
     @NotNull
     @Valid
-    public final SerializationWorkerPoolConfig serializationWorkerPoolCfg;
+    public final SerializationWorkerPoolConfig serializationWorkerPoolConfig;
     @NotNull
     @Valid
-    public final StorageConfig storageCfg;
+    public final StorageConfig storageConfig;
     @NotNull
     @Valid
-    public final BufferPoolConfig bufferPoolCfg;
+    public final BufferPoolConfig bufferPoolConfig;
+    @NotNull
+    public final String profilesBaseDir;
 
     public static class HttpClientConfig {
         @JsonCreator
@@ -157,10 +161,10 @@ public class Configuration {
         @JsonCreator
         public BackendHttpVerticleConfig(@JsonProperty("verticle.count") Integer verticleCount,
                                          @JsonProperty("report.load") Boolean reportLoad,
-                                         @JsonProperty("parser") ParserConfig parserCfg) {
+                                         @JsonProperty("parser") ParserConfig parserConfig) {
             this.verticleCount = verticleCount;
             this.reportLoad = getOrDefault(reportLoad, true);
-            this.parserCfg = parserCfg;
+            this.parserConfig = parserConfig;
         }
 
         @NotNull
@@ -169,7 +173,7 @@ public class Configuration {
         public final Boolean reportLoad;
         @NotNull
         @Valid
-        public final ParserConfig parserCfg;
+        public final ParserConfig parserConfig;
 
         public static class ParserConfig {
             @JsonCreator
@@ -295,11 +299,9 @@ public class Configuration {
     public static class StorageConfig {
         @JsonCreator
         public StorageConfig(@JsonProperty("s3") S3Config s3Config,
-                             @JsonProperty("thread.pool") FixedSizeThreadPoolConfig tpConfig,
-                             @JsonProperty("aggregatedProfiles.baseDir") String profilesBaseDir) {
+                             @JsonProperty("thread.pool") FixedSizeThreadPoolConfig tpConfig) {
             this.s3Config = s3Config;
             this.tpConfig = tpConfig;
-            this.profilesBaseDir = profilesBaseDir;
         }
 
         @NotNull
@@ -308,8 +310,6 @@ public class Configuration {
         @NotNull
         @Valid
         public final FixedSizeThreadPoolConfig tpConfig;
-        @NotNull
-        public final String profilesBaseDir;
 
         public static class S3Config {
             @JsonCreator

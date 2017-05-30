@@ -78,7 +78,7 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   @Override
   public void start(Future<Void> fut) {
-    Configuration.HttpClientConfig httpClientConfig = config.httpClientCfg;
+    Configuration.HttpClientConfig httpClientConfig = config.httpClientConfig;
     httpClient = ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
 
     Router router = setupRouting();

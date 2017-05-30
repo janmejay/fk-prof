@@ -265,7 +265,7 @@ public class LeaderElectionTest {
   private CompositeFuture populateAssociationAndPolicies(Recorder.ProcessGroup pg1, Recorder.ProcessGroup pg2, BackendDTO.RecordingPolicy policy) throws Exception {
     // make sure association node is present
     try {
-      curatorClient.create().forPath(config.associationsCfg.associationPath);
+      curatorClient.create().forPath(config.associationsConfig.associationPath);
     } catch (KeeperException.NodeExistsException ex) {
       // ignore
     }
@@ -291,8 +291,8 @@ public class LeaderElectionTest {
           Vertx vertx, CuratorFramework curatorClient)
           throws Exception {
     int loadReportIntervalInSeconds = config.loadReportItvlSecs;
-    String backendAssociationPath = config.associationsCfg.associationPath;
-    int loadMissTolerance = config.associationsCfg.loadMissTolerance;
+    String backendAssociationPath = config.associationsConfig.associationPath;
+    int loadMissTolerance = config.associationsConfig.loadMissTolerance;
     return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath,
             loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }
