@@ -41,8 +41,8 @@ public class UserapiConfigManager {
 
     public static void setDefaultSystemProperties() {
         Properties properties = System.getProperties();
-        properties.computeIfAbsent(UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, k -> UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
-        properties.computeIfAbsent("vertx.metrics.options.enabled", k -> true);
+        properties.putIfAbsent(UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_KEY, UserapiConfigManager.LOGFACTORY_SYSTEM_PROPERTY_DEFAULT_VALUE);
+        properties.putIfAbsent("vertx.metrics.options.enabled", true);
     }
 
     public static <T> void validateConfig(T config) {

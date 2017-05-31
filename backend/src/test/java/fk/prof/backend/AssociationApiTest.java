@@ -52,7 +52,7 @@ public class AssociationApiTest {
   private AssociatedProcessGroups associatedProcessGroups;
   private PolicyStore policyStore;
   private InMemoryLeaderStore inMemoryLeaderStore;
-  private ConfigManager configManager;
+  private Configuration config;
 
   private final String backendAssociationPath = "/assoc";
 
@@ -66,17 +66,17 @@ public class AssociationApiTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
     curatorClient.create().forPath(backendAssociationPath);
 
-    configManager = new ConfigManager(AssociationApiTest.class.getClassLoader().getResource("config.json").getFile());
-    vertx = Vertx.vertx(new VertxOptions(configManager.getVertxConfig()));
-    port = configManager.getBackendHttpPort();
-    leaderPort = configManager.getLeaderHttpPort();
+    config = ConfigManager.loadConfig(AssociationApiTest.class.getClassLoader().getResource("config.json").getFile());
+    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
+    port = config.backendHttpServerOpts.getPort();
+    leaderPort = config.leaderHttpServerOpts.getPort();
 
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, new ProcessGroupCountBasedBackendComparator());
-    inMemoryLeaderStore = spy(new InMemoryLeaderStore(configManager.getIPAddress(), configManager.getLeaderHttpPort()));
-    associatedProcessGroups = new AssociatedProcessGroupsImpl(configManager.getRecorderDefunctThresholdInSeconds());
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort()));
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(config.recorderDefunctThresholdSecs);
     policyStore = new PolicyStore(curatorClient);
 
-    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, configManager, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), associatedProcessGroups);
+    VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), associatedProcessGroups);
     backendHttpVerticleDeployer.deploy();
     //Wait for some time for deployment to complete
     Thread.sleep(1000);
@@ -119,8 +119,8 @@ public class AssociationApiTest {
       latch.countDown();
     };
 
-    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
-    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, inMemoryLeaderStore);
+    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, config, curatorClient, leaderElectedTask);
+    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, config, curatorClient, inMemoryLeaderStore);
 
     CompositeFuture.all(leaderParticipatorDeployer.deploy(), leaderWatcherDeployer.deploy()).setHandler(deployResult -> {
       if(deployResult.succeeded()) {
@@ -165,11 +165,11 @@ public class AssociationApiTest {
   public void getAssociationProxiedToLeader(TestContext context) throws InterruptedException, IOException {
     final Async async = context.async();
     CountDownLatch latch = new CountDownLatch(1);
-    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, configManager, backendAssociationStore, policyStore);
+    VerticleDeployer leaderHttpDeployer = new LeaderHttpVerticleDeployer(vertx, config, backendAssociationStore, policyStore);
     Runnable leaderElectedTask = LeaderElectedTask.newBuilder().build(vertx, leaderHttpDeployer, backendAssociationStore, policyStore);
 
-    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, configManager, curatorClient, leaderElectedTask);
-    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, configManager, curatorClient, inMemoryLeaderStore);
+    VerticleDeployer leaderParticipatorDeployer = new LeaderElectionParticipatorVerticleDeployer(vertx, config, curatorClient, leaderElectedTask);
+    VerticleDeployer leaderWatcherDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, config, curatorClient, inMemoryLeaderStore);
 
     CompositeFuture.all(leaderParticipatorDeployer.deploy(), leaderWatcherDeployer.deploy()).setHandler(deployResult -> {
       if(deployResult.succeeded()) {
