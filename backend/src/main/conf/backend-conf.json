@@ -82,6 +82,8 @@
     },
     "base.dir": "profiles"
   },
+  "policy.baseDir": "policy",
+  "policy.version": "v0001",
   "bufferPoolOptions": {
     "max.total": 20,
     "max.idle": 20,

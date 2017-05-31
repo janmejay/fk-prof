@@ -2,7 +2,6 @@ package fk.prof.backend.model.policy;
 
 import fk.prof.backend.mock.MockPolicyData;
 import fk.prof.backend.proto.PolicyDTO;
-import fk.prof.backend.util.PathNamingUtil;
 import fk.prof.backend.util.ZookeeperUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -26,8 +25,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static fk.prof.backend.util.PathNamingUtil.encode32;
 import static fk.prof.backend.util.ZookeeperUtil.DELIMITER;
-import static fk.prof.backend.util.ZookeeperUtil.VERSION;
 
 /**
  * Test for ZKWithCacheBasedPolicyStore
@@ -35,7 +34,8 @@ import static fk.prof.backend.util.ZookeeperUtil.VERSION;
  */
 @RunWith(VertxUnitRunner.class)
 public class ZookeeperBasedPolicyStoreAPITest {
-    private static final String POLICY_PATH = "/policy";
+    private static final String POLICY_BASEDIR = "policy";
+    private static final String POLICY_VERSION = "v0001";
     private TestingServer testingServer;
     private CuratorFramework curatorClient;
     private ZookeeperBasedPolicyStoreAPI policyStoreAPI;
@@ -48,9 +48,9 @@ public class ZookeeperBasedPolicyStoreAPITest {
         curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), timing.session(), timing.connection(), new RetryOneTime(1));
         curatorClient.start();
         curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
-        curatorClient.create().forPath(POLICY_PATH);
+        curatorClient.create().forPath(DELIMITER + POLICY_BASEDIR);
         vertx = Vertx.vertx();
-        policyStoreAPI = new ZookeeperBasedPolicyStoreAPI(vertx, curatorClient, POLICY_PATH);
+        policyStoreAPI = new ZookeeperBasedPolicyStoreAPI(vertx, curatorClient, POLICY_BASEDIR, POLICY_VERSION);
     }
 
     @After
@@ -91,12 +91,14 @@ public class ZookeeperBasedPolicyStoreAPITest {
         Recorder.ProcessGroup pG = MockPolicyData.mockProcessGroups.get(0);
         policyStoreAPI.createVersionedPolicy(pG, MockPolicyData.mockVersionedPolicyDetails.get(0)).setHandler(ar -> {
             //SUCCESS ON CREATION OF A NEW POLICY
-            context.assertTrue(ar.succeeded());
-            String zNodePath = POLICY_PATH + DELIMITER + VERSION + PathNamingUtil.getDirectoryPath(pG);
+            context.assertEquals(ar.result().getPolicyDetails(), MockPolicyData.mockVersionedPolicyDetails.get(0).getPolicyDetails());
+            context.assertEquals(ar.result().getVersion(), MockPolicyData.mockVersionedPolicyDetails.get(0).getVersion() + 1);
+
+            String procNamePath = DELIMITER + POLICY_BASEDIR + DELIMITER + POLICY_VERSION + DELIMITER + encode32(pG.getAppId()) + DELIMITER + encode32(pG.getCluster()) + DELIMITER + encode32(pG.getProcName());
             try {
                 //DATA IS ACTUALLY WRITTEN TO ZK
-                context.assertEquals(PolicyDTO.PolicyDetails.parseFrom(ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, zNodePath)), MockPolicyData.mockVersionedPolicyDetails.get(0).getPolicyDetails());
-                int gotVersion = Integer.parseInt(ZookeeperUtil.getLatestSeqZNodeChildName(curatorClient, zNodePath));
+                context.assertEquals(PolicyDTO.PolicyDetails.parseFrom(ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, procNamePath).getValue()), MockPolicyData.mockVersionedPolicyDetails.get(0).getPolicyDetails());
+                int gotVersion = Integer.parseInt(ZookeeperUtil.getLatestSeqZNodeChildName(curatorClient, procNamePath));
                 //VERSION OF WRITTEN TO ZK IS ONE PLUS THE OLD VERSION
                 context.assertEquals(gotVersion, MockPolicyData.mockVersionedPolicyDetails.get(0).getVersion() + 1);
 
@@ -222,8 +224,13 @@ public class ZookeeperBasedPolicyStoreAPITest {
                 policyStoreAPI.updateVersionedPolicy(MockPolicyData.mockProcessGroups.get(0), MockPolicyData.mockVersionedPolicyDetails.get(1)).setHandler(ar2 -> {
                     //SUCCESS ON UPDATING AN EXISTING POLICY
                     context.assertTrue(ar2.succeeded());
-                    PolicyDTO.VersionedPolicyDetails got2 = policyStoreAPI.getVersionedPolicy(MockPolicyData.mockProcessGroups.get(0));
                     //POLICY IS THE NEW ONE
+                    context.assertEquals(ar2.result().getVersion(), MockPolicyData.mockVersionedPolicyDetails.get(1).getVersion() + 1);
+                    context.assertEquals(ar2.result().getPolicyDetails(), MockPolicyData.mockVersionedPolicyDetails.get(1).getPolicyDetails());
+
+
+                    PolicyDTO.VersionedPolicyDetails got2 = policyStoreAPI.getVersionedPolicy(MockPolicyData.mockProcessGroups.get(0));
+                    //GET GIVES THE NEW POLICY
                     context.assertEquals(got2.getVersion(), MockPolicyData.mockVersionedPolicyDetails.get(1).getVersion() + 1);
                     context.assertEquals(got2.getPolicyDetails(), MockPolicyData.mockVersionedPolicyDetails.get(1).getPolicyDetails());
                     future1.complete();
@@ -301,8 +308,8 @@ public class ZookeeperBasedPolicyStoreAPITest {
     public void testInit(TestContext context) throws Exception {
         final Async async = context.async();
 
-        Future<Void> future1 = policyStoreAPI.createVersionedPolicy(MockPolicyData.mockProcessGroups.get(0), MockPolicyData.getMockVersionedPolicyDetails(MockPolicyData.mockPolicyDetails.get(0), -1));
-        Future<Void> future2 = Future.future();
+        Future<PolicyDTO.VersionedPolicyDetails> future1 = policyStoreAPI.createVersionedPolicy(MockPolicyData.mockProcessGroups.get(0), MockPolicyData.getMockVersionedPolicyDetails(MockPolicyData.mockPolicyDetails.get(0), -1));
+        Future<PolicyDTO.VersionedPolicyDetails> future2 = Future.future();
         policyStoreAPI.createVersionedPolicy(MockPolicyData.mockProcessGroups.get(1), MockPolicyData.getMockVersionedPolicyDetails(MockPolicyData.mockPolicyDetails.get(1), -1)).setHandler(ar -> {
             if (ar.succeeded()) {
                 policyStoreAPI.updateVersionedPolicy(MockPolicyData.mockProcessGroups.get(1), MockPolicyData.getMockVersionedPolicyDetails(MockPolicyData.mockPolicyDetails.get(2), 0)).setHandler(ar2 -> {
@@ -317,7 +324,7 @@ public class ZookeeperBasedPolicyStoreAPITest {
             }
         });
         CompositeFuture.all(future1, future2).setHandler(event -> {
-            ZookeeperBasedPolicyStoreAPI anotherPolicyStore = new ZookeeperBasedPolicyStoreAPI(vertx, curatorClient, POLICY_PATH);
+            ZookeeperBasedPolicyStoreAPI anotherPolicyStore = new ZookeeperBasedPolicyStoreAPI(vertx, curatorClient, POLICY_BASEDIR, POLICY_VERSION);
             try {
                 //GET RETURNS NULL RESULTS FROM ANOTHERSTORE BEFORE INIT
                 PolicyDTO.VersionedPolicyDetails got1 = anotherPolicyStore.getVersionedPolicy(MockPolicyData.mockProcessGroups.get(0));
@@ -353,21 +360,20 @@ public class ZookeeperBasedPolicyStoreAPITest {
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (String pre : testPairs.keySet()) {
-                    if (pre != null) {
+                    try {
                         Set<String> got = policyStoreAPI.getAppIds(pre);
                         context.assertEquals(got, testPairs.get(pre));
-                    } else {
-                        try {
-                            policyStoreAPI.getAppIds(pre);
-                            context.fail("IllegalArguementException not thrown");
-                        } catch (IllegalArgumentException ex) {
-                            //Expected exception
-                        } catch (Exception ex) {
-                            context.fail("Unexpected exception thrown");
+                    } catch (NullPointerException ex) {
+                        //Expected exception
+                        if (testPairs.get(pre) != null) {
+                            context.fail("Unexpected NPE");
                         }
-
+                    } catch (Exception ex) {
+                        context.fail("Unexpected exception thrown");
                     }
+
                 }
+
             } else {
                 context.fail(event.cause());
             }
@@ -386,24 +392,23 @@ public class ZookeeperBasedPolicyStoreAPITest {
         Map<List<String>, Set<String>> testPairs = new HashMap<List<String>, Set<String>>() {{
             put(Arrays.asList("a1", "c1"), new HashSet<>(Arrays.asList("c1")));
             put(Arrays.asList("a1", ""), new HashSet<>(Arrays.asList("c1", "c2")));
-            put(Arrays.asList("", ""), new HashSet<>());
-            put(Arrays.asList("a2", null), new HashSet<>());
+            put(Arrays.asList("", ""), null);
+            put(Arrays.asList("a2", null), null);
+            put(Arrays.asList(null, "c1"), null);
         }};
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (List<String> args : testPairs.keySet()) {
-                    if (!args.contains(null)) {
+                    try {
                         Set<String> got = policyStoreAPI.getClusterIds(args.get(0), args.get(1));
                         context.assertEquals(got, testPairs.get(args));
-                    } else {
-                        try {
-                            policyStoreAPI.getClusterIds(args.get(0), args.get(1));
-                            context.fail("IllegalArguementException not thrown");
-                        } catch (IllegalArgumentException ex) {
-                            //Expected exception
-                        } catch (Exception ex) {
-                            context.fail("Unexpected exception thrown");
+                    } catch (NullPointerException ex) {
+                        //Expected exception
+                        if (testPairs.get(args) != null) {
+                            context.fail("Unexpected NPE");
                         }
+                    } catch (Exception ex) {
+                        context.fail("Unexpected exception thrown");
                     }
                 }
             } else {
@@ -424,24 +429,23 @@ public class ZookeeperBasedPolicyStoreAPITest {
         Map<List<String>, Set<String>> testPairs = new HashMap<List<String>, Set<String>>() {{
             put(Arrays.asList("a1", "c1", "p1"), new HashSet<>(Arrays.asList("p1")));
             put(Arrays.asList("a1", "c1", ""), new HashSet<>(Arrays.asList("p1", "p2")));
-            put(Arrays.asList("", "c1", ""), new HashSet<>());
-            put(Arrays.asList("", "c1", null), new HashSet<>());
+            put(Arrays.asList("", "c1", ""), null);
+            put(Arrays.asList("", "c1", null), null);
+            put(Arrays.asList(null, "c1", "p1"), null);
         }};
         CompositeFuture.all(futures).setHandler(event -> {
             if (event.succeeded()) {
                 for (List<String> args : testPairs.keySet()) {
-                    if (!args.contains(null)) {
+                    try {
                         Set<String> got = policyStoreAPI.getProcNames(args.get(0), args.get(1), args.get(2));
                         context.assertEquals(got, testPairs.get(args));
-                    } else {
-                        try {
-                            policyStoreAPI.getProcNames(args.get(0), args.get(1), args.get(2));
-                            context.fail("IllegalArguementException not thrown");
-                        } catch (IllegalArgumentException ex) {
-                            //Expected exception
-                        } catch (Exception ex) {
-                            context.fail("Unexpected exception thrown");
+                    } catch (NullPointerException ex) {
+                        //Expected exception
+                        if (testPairs.get(args) != null) {
+                            context.fail("Unexpected NPE");
                         }
+                    } catch (Exception ex) {
+                        context.fail("Unexpected exception thrown");
                     }
                 }
             } else {

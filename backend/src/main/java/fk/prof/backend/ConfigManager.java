@@ -38,6 +38,8 @@ public class ConfigManager {
   private static final String THREAD_POOL = "thread.pool";
   private static final String BUFFER_POOL_OPTIONS_KEY = "bufferPoolOptions";
   private static final String SERIALIZATION_WORKER_POOL_KEY = "serializationWorkerPool";
+  private static final String POLICY_BASEDIR_KEY = "policy.baseDir";
+  private static final String POLICY_VERSION_KEY = "policy.version";
 
   public static final String METRIC_REGISTRY = "backend-metric-registry";
 
@@ -172,4 +174,13 @@ public class ConfigManager {
       throw new RuntimeException(tag + " config is not present");
     }
   }
+
+  public String getPolicyVersion() {
+    return config.getString(POLICY_VERSION_KEY, "v0001");
+  }
+
+  public String gerPolicyBaseDir() {
+    return config.getString(POLICY_BASEDIR_KEY, "policy");
+  }
+
 }

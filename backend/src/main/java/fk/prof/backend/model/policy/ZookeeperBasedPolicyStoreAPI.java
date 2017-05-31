@@ -10,6 +10,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import javafx.util.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
@@ -23,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static fk.prof.backend.util.ZookeeperUtil.DELIMITER;
-import static fk.prof.backend.util.ZookeeperUtil.VERSION;
 
 /**
  * Zookeeper based implementation of the policy store
@@ -31,27 +31,33 @@ import static fk.prof.backend.util.ZookeeperUtil.VERSION;
  */
 public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
     private static final Logger LOGGER = LoggerFactory.getLogger(ZookeeperBasedPolicyStoreAPI.class);
-    private static final String POLICY_NODE_PREFIX = "0";
+
     private final CuratorFramework curatorClient;
     private final String policyPath;
+    private final String policyVersion;
     private final Vertx vertx;
     private final Map<Recorder.ProcessGroup, PolicyDTO.VersionedPolicyDetails> policyCache = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, ConcurrentHashMap.KeySetView<String, Boolean>>> processGroupAsTree = new ConcurrentHashMap<>();
     private boolean initialized;
 
 
-    ZookeeperBasedPolicyStoreAPI(Vertx vertx, CuratorFramework curatorClient, String policyPath) {
+    ZookeeperBasedPolicyStoreAPI(Vertx vertx, CuratorFramework curatorClient, String policyBaseDir, String policyVersion) {
         if (vertx == null) {
             throw new IllegalArgumentException("Vertx instance is required");
         }
         if (curatorClient == null) {
             throw new IllegalArgumentException("Curator client is required");
         }
-        if (policyPath == null) {
-            throw new IllegalArgumentException("Policy path in zookeeper hierarchy is required");
+        if (policyBaseDir == null) {
+            throw new IllegalArgumentException("Policy baseDir in zookeeper hierarchy is required");
+        }
+        if (policyVersion == null) {
+            throw new IllegalArgumentException("Policy version is required");
         }
         this.vertx = vertx;
         this.curatorClient = curatorClient;
-        this.policyPath = policyPath;
+        this.policyPath = DELIMITER + policyBaseDir;
+        this.policyVersion = policyVersion;
         this.initialized = false;
     }
 
@@ -74,18 +80,24 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
         if (syncException.getCause() != null) {
             throw new PolicyException(syncException, true);
         }
-        for (String appId : curatorClient.getChildren().forPath(policyPath + DELIMITER + VERSION)) {
-            for (String clusterId : curatorClient.getChildren().forPath(policyPath + DELIMITER + VERSION + DELIMITER + appId)) {
-                for (String procName : curatorClient.getChildren().forPath(policyPath + DELIMITER + VERSION + DELIMITER + appId + DELIMITER + clusterId)) {
+        String rootNodePath = policyPath + DELIMITER + policyVersion;
+        for (String appId : curatorClient.getChildren().forPath(rootNodePath)) {
+            String appNodePath = rootNodePath + DELIMITER + appId;
+            for (String clusterId : curatorClient.getChildren().forPath(appNodePath)) {
+                String clusterNodePath = appNodePath + DELIMITER + clusterId;
+                for (String procName : curatorClient.getChildren().forPath(clusterNodePath)) {
+                    String procNamePath = clusterNodePath + DELIMITER + procName;
                     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId(PathNamingUtil.decode32(appId))
                             .setCluster(PathNamingUtil.decode32(clusterId))
                             .setProcName(PathNamingUtil.decode32(procName)).build();
-                    String zNodePath = policyPath + DELIMITER + VERSION + PathNamingUtil.getDirectoryPath(processGroup);
 
-                    PolicyDTO.PolicyDetails policyDetails = PolicyDTO.PolicyDetails.parseFrom(ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, zNodePath));
-                    int version = Integer.parseInt(ZookeeperUtil.getLatestSeqZNodeChildName(curatorClient, zNodePath));
+                    Pair<String, byte[]> policyNode = ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, procNamePath);
+                    PolicyDTO.PolicyDetails policyDetails = PolicyDTO.PolicyDetails.parseFrom(policyNode.getValue());
+                    int version = Integer.parseInt(policyNode.getKey());
                     PolicyDTO.VersionedPolicyDetails versionedPolicyDetails = PolicyDTO.VersionedPolicyDetails.newBuilder().setPolicyDetails(policyDetails).setVersion(version).build();
+
                     policyCache.put(processGroup, versionedPolicyDetails);
+                    putInProcessGroupAsTree(processGroup);
                 }
             }
         }
@@ -100,38 +112,16 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
         }
     }
 
-    public Set<String> getAppIds(String prefix) {
-        if (prefix == null) {
-            throw new IllegalArgumentException("Prefix is required");
-        }
-        return policyCache.keySet().stream().map(Recorder.ProcessGroup::getAppId)
-                .filter(appIds -> appIds.startsWith(prefix)).collect(Collectors.toSet());
+    public Set<String> getAppIds(String prefix) throws Exception {
+        return processGroupAsTree.keySet().stream().filter(appIds -> appIds.startsWith(prefix)).collect(Collectors.toSet());
     }
 
-    public Set<String> getClusterIds(String appId, String prefix) {
-        if (appId == null) {
-            throw new IllegalArgumentException("AppId is required");
-        }
-        if (prefix == null) {
-            throw new IllegalArgumentException("Prefix is required");
-        }
-
-        return policyCache.keySet().stream().filter(pG -> (pG.getAppId().equals(appId) && pG.getCluster().startsWith(prefix)))
-                .map(Recorder.ProcessGroup::getCluster).collect(Collectors.toSet());
+    public Set<String> getClusterIds(String appId, String prefix) throws Exception {
+        return processGroupAsTree.get(appId).keySet().stream().filter(clusterIds -> clusterIds.startsWith(prefix)).collect(Collectors.toSet());
     }
 
-    public Set<String> getProcNames(String appId, String clusterId, String prefix) {
-        if (appId == null) {
-            throw new IllegalArgumentException("AppId is required");
-        }
-        if (clusterId == null) {
-            throw new IllegalArgumentException("ClusterId is required");
-        }
-        if (prefix == null) {
-            throw new IllegalArgumentException("Prefix is required");
-        }
-        return policyCache.keySet().stream().filter(pG -> (pG.getAppId().equals(appId) && pG.getCluster().equals(clusterId) && pG.getProcName().startsWith(prefix)))
-                .map(Recorder.ProcessGroup::getProcName).collect(Collectors.toSet());
+    public Set<String> getProcNames(String appId, String clusterId, String prefix) throws Exception {
+        return processGroupAsTree.get(appId).get(clusterId).stream().filter(procNames -> procNames.startsWith(prefix)).collect(Collectors.toSet());
     }
 
     @Override
@@ -143,52 +133,61 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
     }
 
     @Override
-    public Future<Void> createVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails) {
+    public Future<PolicyDTO.VersionedPolicyDetails> createVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails) {
         return putVersionedPolicy(processGroup, versionedPolicyDetails, true);
     }
 
     @Override
-    public Future<Void> updateVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails) {
+    public Future<PolicyDTO.VersionedPolicyDetails> updateVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails) {
         return putVersionedPolicy(processGroup, versionedPolicyDetails, false);
     }
 
-    private Future<Void> putVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails requestedVersionedPolicyDetails, boolean create) {
+    private Future<PolicyDTO.VersionedPolicyDetails> putVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails requestedVersionedPolicyDetails, boolean create) {
         if (processGroup == null) {
             throw new IllegalArgumentException("Process group is required");
         }
         if (requestedVersionedPolicyDetails == null) {
             throw new IllegalArgumentException("PolicyDetails is required");
         }
-        Future<Void> future = Future.future();
-        String zNodePath = policyPath + DELIMITER + VERSION + PathNamingUtil.getDirectoryPath(processGroup) + DELIMITER + POLICY_NODE_PREFIX;
+        Future<PolicyDTO.VersionedPolicyDetails> future = Future.future();
+        String policyNodePath = PathNamingUtil.getPolicyNodePath(processGroup, policyPath, policyVersion);
 
         vertx.executeBlocking(fut -> {
             try {
-                policyCache.compute(processGroup, (k, v) -> {
+                PolicyDTO.VersionedPolicyDetails newVersionedPolicy = policyCache.compute(processGroup, (k, v) -> {
                     if (v != null && create) {
-                        throw new PolicyException(String.format("Policy for ProcessGroup = %s already exists, policyDetails = %s", RecorderProtoUtil.processGroupCompactRepr(processGroup), PolicyProtoUtil.policyDetailsCompactRepr(getVersionedPolicy(processGroup).getPolicyDetails())), true);
+                        throw new PolicyException(String.format("Failing create of policy, Policy for ProcessGroup = %s already exists, policyDetails = %s", RecorderProtoUtil.processGroupCompactRepr(processGroup), PolicyProtoUtil.versionedPolicyDetailsCompactRepr(getVersionedPolicy(processGroup))), true);
                     }
                     if (v == null && !create) {
-                        throw new PolicyException(String.format("Policy for ProcessGroup = %s does not exist", RecorderProtoUtil.processGroupCompactRepr(processGroup)), true);
+                        throw new PolicyException(String.format("Failing update of policy, Policy for ProcessGroup = %s does not exist", RecorderProtoUtil.processGroupCompactRepr(processGroup)), true);
                     }
                     if (v != null && v.getVersion() != requestedVersionedPolicyDetails.getVersion()) {
-                        throw new PolicyException("Policy Version mismatch, currentVersion = " + v.getVersion() + ", your version = " + requestedVersionedPolicyDetails.getVersion() + ", for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup), true);
+                        throw new PolicyException("Failing update of policy, policy version mismatch, current version = " + v.getVersion() + ", your version = " + requestedVersionedPolicyDetails.getVersion() + ", for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup), true);
                     }
                     try {
                         String res = curatorClient.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL).
-                                forPath(zNodePath, requestedVersionedPolicyDetails.getPolicyDetails().toByteArray());
+                                forPath(policyNodePath, requestedVersionedPolicyDetails.getPolicyDetails().toByteArray());
                         res = ZKPaths.getNodeFromPath(res);
                         Integer newVersion = Integer.parseInt(res);
-                        return requestedVersionedPolicyDetails.toBuilder().setVersion(newVersion).build();
+
+                        PolicyDTO.VersionedPolicyDetails updated = requestedVersionedPolicyDetails.toBuilder().setVersion(newVersion).build();
+                        putInProcessGroupAsTree(processGroup);
+                        return updated;
                     } catch (Exception e) {
-                        throw new PolicyException("Exception thrown by ZK while Writing policy for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup) + ", error = " + e.getMessage(), true);
+                        throw new PolicyException("Exception thrown by ZK while writing policy for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup), e, true);
                     }
                 });
-                fut.complete();
+                fut.complete(newVersionedPolicy);
             } catch (Exception e) {
                 fut.fail(e);
             }
         }, true, future.completer());
         return future;
+    }
+
+    private void putInProcessGroupAsTree(Recorder.ProcessGroup processGroup) {
+        processGroupAsTree.putIfAbsent(processGroup.getAppId(), new ConcurrentHashMap<>());
+        processGroupAsTree.get(processGroup.getAppId()).putIfAbsent(processGroup.getCluster(), ConcurrentHashMap.newKeySet());
+        processGroupAsTree.get(processGroup.getAppId()).get(processGroup.getCluster()).add(processGroup.getProcName());
     }
 }

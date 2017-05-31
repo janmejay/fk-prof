@@ -21,15 +21,15 @@ public interface PolicyStoreAPI {
      * Creates a VersionedPolicyDetails for the processGroup supplied if there exists no policy for it previously
      * @param processGroup of which the policy mapping is to be created
      * @param versionedPolicyDetails to be set for the processGroup
-     * @return a void future which can be used to check failure
+     * @return a void future which contains the created versionedPolicyDetails
      */
-    Future<Void> createVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
+    Future<PolicyDTO.VersionedPolicyDetails> createVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
 
     /**
      * Updates a VersionedPolicyDetails for the processGroup supplied if there exists a policy for it previously
      * @param processGroup of which the policy mapping is to be updated
      * @param versionedPolicyDetails to be set for the processGroup
-     * @return a void future which can be used to check failure
+     * @return a void future which contains the created versionedPolicyDetails
      */
-    Future<Void> updateVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
+    Future<PolicyDTO.VersionedPolicyDetails> updateVersionedPolicy(Recorder.ProcessGroup processGroup, PolicyDTO.VersionedPolicyDetails versionedPolicyDetails);
 }
