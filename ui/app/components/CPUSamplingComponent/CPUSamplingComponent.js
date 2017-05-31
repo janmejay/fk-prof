@@ -1,15 +1,23 @@
 import React, { Component, PropTypes } from 'react';
 import { connect } from 'react-redux';
-
+import { AutoSizer } from 'react-virtualized';
 import fetchCPUSamplingAction from 'actions/AggregatedProfileDataActions';
 import safeTraverse from 'utils/safeTraverse';
 import Loader from 'components/LoaderComponent';
 import MethodTree from 'components/MethodTreeComponent';
 import Tabs from 'components/Tabs';
 import styles from './CPUSamplingComponent.css';
+import SampleComponent from 'components/SampleComponent';
 
 
 export class CPUSamplingComponent extends Component {
+  constructor (props) {
+    super(props);
+    this.state = {
+      hmContainerWidth: null
+    };
+  }
+
   componentDidMount () {
     const { app, cluster, proc, workType, profileStart, selectedWorkType } = this.props.location.query;
     const { traceName } = this.props.params;
@@ -105,16 +113,21 @@ export class CPUSamplingComponent extends Component {
           </div>
         )}
         <Tabs>
-          <div>
-            <div>Hot Methods</div>
-            <div>
-              <MethodTree
-                allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
-                nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'terminalNodeIndexes'])}
-                nextNodesAccessorField="parent"
-                methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
-                filterKey="cs_hm_filter"
-              />
+          <div style={{display: "flex"}}>
+            <div>Hot Methods</div>        
+            <div style={{display: "flex", flex: "1 1 auto"}}>
+              <AutoSizer disableHeight>
+                {({ width }) => (
+                  <MethodTree
+                    allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
+                    nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'terminalNodeIndexes'])}
+                    nextNodesAccessorField="parent"
+                    methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
+                    filterKey="cs_hm_filter"
+                    containerWidth={width}
+                  />
+                )}
+              </AutoSizer>
             </div>
           </div>
           <div>
@@ -122,13 +135,13 @@ export class CPUSamplingComponent extends Component {
               Call Tree
             </div>
             <div>
-              <MethodTree
+              {/*<MethodTree
                 allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
                 nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'children'])}
                 nextNodesAccessorField="children"
                 methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
                 filterKey="cs_ct_filter"
-              />
+              />*/}
             </div>
           </div>
         </Tabs>

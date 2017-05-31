@@ -1,8 +1,8 @@
 .container { 
   overflow-x: scroll;  
-  margin-right: 170px;
+
   overflow-y: visible;
-  margin-left: 10px;
+
 }
 
 .container table {

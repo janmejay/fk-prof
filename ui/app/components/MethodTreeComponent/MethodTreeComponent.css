@@ -28,3 +28,29 @@ table {
   width: 100%;
   max-width: 100%;  
 }
+
+
+.GridRow {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+
+.RightGridContainer {
+  flex: 0 0 150px;
+  z-index: 10;
+}
+
+.RightGrid {
+  outline: 0;
+  overflow: hidden !important;
+}
+
+.LeftGridContainer {
+  flex: 1 1 auto;
+}
+
+.LeftGrid {
+  width: 100%;
+  outline: 0;
+}

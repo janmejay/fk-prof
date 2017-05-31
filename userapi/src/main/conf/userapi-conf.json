@@ -3,7 +3,7 @@
     "config": {
       "verticle.count": 1,
       "http.port": 8082,
-      "req.timeout": 60000
+      "req.timeout": 90000
     }
   },
   "profile.retention.duration.min": 30,
