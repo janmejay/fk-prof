@@ -12,7 +12,10 @@ import io.vertx.core.*;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -111,20 +114,43 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     @Override
     public void getProfilesInTimeWindow(Future<List<AggregatedProfileNamingStrategy>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds) {
+        ZonedDateTime startTimes = ZonedDateTime.ofInstant(startTime.toInstant(), ZoneId.of("UTC"));
+        LocalDate startDate = startTimes.toLocalDate();
+        LocalDate endDate = ZonedDateTime.ofInstant(startTime.plusSeconds(durationInSeconds).toInstant(), ZoneId.of("UTC")).toLocalDate();
+        LocalDate currentDate = startDate;
         String prefix = baseDir + DELIMITER + VERSION + DELIMITER + encode(appId)
                 + DELIMITER + encode(clusterId) + DELIMITER + encode(proc) + DELIMITER;
 
-        asyncStorage.listAsync(prefix, true).thenApply(allObjects -> {
-            ZonedDateTime start = startTime.minusSeconds(1);
-            ZonedDateTime end = startTime.plusSeconds(durationInSeconds);
+        List<Future> allDatesProfilesFutures = new ArrayList<>();
+        while (!currentDate.isAfter(endDate)) {
+            String prefixWithDate = prefix + currentDate.toString();
+            System.out.println(startDate + " " + currentDate);
+            Future<List<AggregatedProfileNamingStrategy>> currentDateProfilesFuture = Future.future();
+            allDatesProfilesFutures.add(currentDateProfilesFuture);
+            asyncStorage.listAsync(prefixWithDate, true).thenApply(allObjects ->
+                    allObjects.stream()
+                            .map(AggregatedProfileNamingStrategy::fromFileName)
+                            // filter by time and isSummary
+                            .filter(s -> s.isSummaryFile &&
+                                    s.startTime.isAfter(startTime.minusSeconds(1)) &&
+                                    s.startTime.isBefore(startTime.plusSeconds(durationInSeconds))).collect(Collectors.toList())
+            ).whenComplete((result, error) -> completeFuture(result, error, currentDateProfilesFuture));
+            currentDate = currentDate.plus(1, ChronoUnit.DAYS);
+        }
 
-            List<AggregatedProfileNamingStrategy> summaryFilenames = allObjects.stream()
-                    .map(AggregatedProfileNamingStrategy::fromFileName)
-                    // filter by time and isSummary
-                    .filter(s -> s.isSummaryFile && s.startTime.isAfter(start) && s.startTime.isBefore(end)).collect(Collectors.toList());
-
-            return summaryFilenames;
-        }).whenComplete((result, error) -> completeFuture(result, error, profiles));
+        CompositeFuture.all(allDatesProfilesFutures).setHandler(compositeFutureAsyncResult -> {
+            if (compositeFutureAsyncResult.succeeded()) {
+                List<List<AggregatedProfileNamingStrategy>> allDatesProfiles = compositeFutureAsyncResult.result().list();
+                List<AggregatedProfileNamingStrategy> allDatesProfilesCombined = allDatesProfiles.stream().reduce(new ArrayList<>(), (list1, list2) -> {
+                    list1.addAll(list2);
+                    return list1;
+                });
+                allDatesProfilesCombined.sort(Comparator.comparing(agg -> agg.startTime));
+                profiles.complete(allDatesProfilesCombined);
+            } else {
+                profiles.fail(compositeFutureAsyncResult.cause());
+            }
+        });
     }
 
     @Override
@@ -132,20 +158,19 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         String fileNameKey = filename.getFileName(0);
 
         AggregatedProfileInfo cachedProfileInfo = cache.getIfPresent(fileNameKey);
-        if(cachedProfileInfo == null) {
+        if (cachedProfileInfo == null) {
             boolean fileLoadInProgress = futuresForLoadingFiles.containsKey(fileNameKey);
             // save the future, so that it can be notified when the loading visit finishes
             saveRequestedFuture(fileNameKey, future);
             // set the timeout for this future
             vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
 
-            if(!fileLoadInProgress) {
+            if (!fileLoadInProgress) {
                 workerExecutor.executeBlocking((Future<AggregatedProfileInfo> f) -> profileLoader.load(f, filename),
                         true,
                         result -> completeAggregatedProfileLoading(cache, result, fileNameKey));
             }
-        }
-        else {
+        } else {
             future.complete(cachedProfileInfo);
         }
     }
@@ -153,7 +178,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     @Override
     synchronized public void loadSummary(Future<AggregationWindowSummary> future, AggregatedProfileNamingStrategy filename) {
 
-        if(!filename.isSummaryFile) {
+        if (!filename.isSummaryFile) {
             future.fail(new IllegalArgumentException(filename.getFileName(0) + " is not a summaryFile"));
             return;
         }
@@ -161,20 +186,19 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         String fileNameKey = filename.getFileName(0);
 
         AggregationWindowSummary cachedProfileInfo = summaryCache.getIfPresent(fileNameKey);
-        if(cachedProfileInfo == null) {
+        if (cachedProfileInfo == null) {
             boolean fileLoadInProgress = futuresForLoadingFiles.containsKey(fileNameKey);
             // save the future, so that it can be notified when the loading visit finishes
             saveRequestedFuture(fileNameKey, future);
             // set the timeout for this future
             vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
 
-            if(!fileLoadInProgress) {
+            if (!fileLoadInProgress) {
                 workerExecutor.executeBlocking((Future<AggregationWindowSummary> f) -> profileLoader.loadSummary(f, filename),
                         true,
                         result -> completeAggregatedProfileLoading(summaryCache, result, fileNameKey));
             }
-        }
-        else {
+        } else {
             future.complete(cachedProfileInfo);
         }
     }
@@ -182,7 +206,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     synchronized private <T> void saveRequestedFuture(String filename, Future<T> future) {
         FuturesList futures = futuresForLoadingFiles.get(filename);
-        if(futures == null) {
+        if (futures == null) {
             futures = new FuturesList();
             futuresForLoadingFiles.put(filename, futures);
         }
@@ -190,7 +214,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     synchronized private <T> void timeoutRequestedFuture(String filename, Future<T> future) {
-        if(future.isComplete()) {
+        if (future.isComplete()) {
             return;
         }
         FuturesList futures = futuresForLoadingFiles.get(filename);
@@ -200,7 +224,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     synchronized private <T> void completeAggregatedProfileLoading(Cache<String, T> cache, AsyncResult<T> result, String filename) {
-        if(result.succeeded()) {
+        if (result.succeeded()) {
             cache.put(filename, result.result());
         }
 
@@ -212,10 +236,9 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     }
 
     private <T> void completeFuture(T result, Throwable error, Future<T> future) {
-        if(error == null) {
+        if (error == null) {
             future.complete(result);
-        }
-        else {
+        } else {
             future.fail(error);
         }
     }
@@ -232,9 +255,10 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         return new Pair(fileName.startTime, fileName.startTime.plusSeconds(fileName.duration));
     }
 
-    private static class Pair<T,U> {
+    private static class Pair<T, U> {
         public T first;
         public U second;
+
         Pair(T first, U second) {
             this.first = first;
             this.second = second;
@@ -246,7 +270,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             if (first != null) {
                 hash = 31 * hash + first.hashCode();
             }
-            if(second != null) {
+            if (second != null) {
                 hash = 31 * hash + second.hashCode();
             }
             return hash;
@@ -254,7 +278,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
         @Override
         public boolean equals(Object that) {
-            if(that == null || !(that instanceof Pair)) {
+            if (that == null || !(that instanceof Pair)) {
                 return false;
             }
 
@@ -266,7 +290,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         List<Future<T>> futures = new ArrayList<>(2);
 
         synchronized public void addFuture(Future<T> future) {
-            if(!exists(future)) {
+            if (!exists(future)) {
                 futures.add(future);
             }
         }
@@ -276,10 +300,9 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         }
 
         synchronized public void complete(AsyncResult<T> result) {
-            if(result.succeeded()) {
+            if (result.succeeded()) {
                 futures.forEach(f -> f.complete(result.result()));
-            }
-            else {
+            } else {
                 futures.forEach(f -> f.fail(result.cause()));
             }
 

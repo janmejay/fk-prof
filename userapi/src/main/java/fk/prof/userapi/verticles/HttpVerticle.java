@@ -44,6 +44,8 @@ public class HttpVerticle extends AbstractVerticle {
     private Configuration.HttpConfig httpConfig;
 
     private ProfileStoreAPI profileStoreAPI;
+    private static final Long MAX_TIME_WINDOW = 604800L; //seconds in 7 days
+
 
     public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int aggregationWindowDurationInSecs) {
         this.httpConfig = httpConfig;
@@ -127,8 +129,10 @@ public class HttpVerticle extends AbstractVerticle {
         try {
             startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
             duration = Integer.parseInt(routingContext.request().getParam("duration"));
-        }
-        catch (Exception e) {
+            if (duration > MAX_TIME_WINDOW) { // Seconds in seven days
+                throw new RuntimeException("Max window size supported = " + MAX_TIME_WINDOW + " seconds, requested window size = " + duration + " seconds");
+            }
+        } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
         }
@@ -136,7 +140,6 @@ public class HttpVerticle extends AbstractVerticle {
         Future<List<AggregatedProfileNamingStrategy>> foundProfiles = Future.future();
         foundProfiles.setHandler(result -> {
             List<Future> profileSummaries = new ArrayList<>();
-
             for (AggregatedProfileNamingStrategy filename: result.result()) {
                 Future<AggregationWindowSummary> summary = Future.future();
 
@@ -195,10 +198,11 @@ public class HttpVerticle extends AbstractVerticle {
         String traceName = routingContext.request().getParam("traceName");
 
         String startTime = routingContext.request().getParam("start");
+        String duration = routingContext.request().getParam("duration");
 
         AggregatedProfileNamingStrategy filename;
         try {
-            filename = buildFileName(appId, clusterId, procId, workType, startTime);
+            filename = buildFileName(appId, clusterId, procId, workType, startTime, duration);
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
@@ -265,9 +269,15 @@ public class HttpVerticle extends AbstractVerticle {
     }
 
     private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
-                                                          AggregatedProfileModel.WorkType workType, String startTime) {
+                                                          AggregatedProfileModel.WorkType workType, String startTime, String duration) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
+        int windowDuration;
+        try {
+            windowDuration = Integer.parseInt(duration);
+        } catch (Exception e) {
+            windowDuration = aggregationWindowDurationInSecs;
+        }
+        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, windowDuration, workType);
     }
 
     private boolean safeContains(String str, String subStr) {
