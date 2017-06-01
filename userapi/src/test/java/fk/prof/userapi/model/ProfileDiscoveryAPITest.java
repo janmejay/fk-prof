@@ -1,7 +1,6 @@
 package fk.prof.userapi.model;
 
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
-import fk.prof.aggregation.proto.AggregatedProfileModel;
 import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
@@ -22,7 +21,6 @@ import org.mockito.internal.util.collections.Sets;
 
 import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
