@@ -32,14 +32,15 @@ namespace SiteResolver {
 
     struct MappedRegion {
         Addr start_;
+        Addr end_;
         const std::string file_;
         std::map<Addr, std::string> symbols_;
 
-        MappedRegion(Addr start, std::string file);
+        MappedRegion(Addr start, Addr end, std::string file);
 
         ~MappedRegion();
 
-        const void site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const;
+        const bool site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const;
 
     private:
         SymInfoError section_error(Elf* elf, size_t shstrndx, Elf_Scn *scn, GElf_Shdr *shdr, const std::string& msg);
@@ -59,10 +60,12 @@ namespace SiteResolver {
 
         It region_for(Addr addr) const;
 
+        void update_mapped_ranges();
+
     public:
         SymInfo();
 
-        void index(const char* path, Addr start);
+        void index(const char* path, Addr start, Addr end);
 
         const std::string& file_for(Addr addr) const;
 

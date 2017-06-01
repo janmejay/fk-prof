@@ -1,6 +1,10 @@
 #include "site_resolver.hh"
 #include <cxxabi.h>
 #include <link.h>
+#include <linux/limits.h>
+#include <algorithm>
+#include "mapping_parser.hh"
+#include <fstream>
 
 bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener) {
     jint error;
@@ -159,19 +163,25 @@ public:
     }
 };
 
-SiteResolver::MappedRegion::MappedRegion(Addr start, std::string file): start_(start), file_(file) {
+SiteResolver::MappedRegion::MappedRegion(Addr start, Addr end, std::string file): start_(start), end_(end), file_(file) {
     ElfFile elf_file(file_);
     load_elf(elf_file.get());
 }
 
 SiteResolver::MappedRegion::~MappedRegion() {}
 
-const void SiteResolver::MappedRegion::site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const {
+const bool SiteResolver::MappedRegion::site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const {
+    if (end_ < addr) {
+        fn_name = "*unknown symbol*";
+        pc_offset = 0;
+        return false;
+    }
     auto unrelocated_address = addr - start_;
     auto it = symbols_.lower_bound(unrelocated_address);
     it--;
     fn_name = it->second;
     pc_offset = unrelocated_address - it->first;
+    return true;
 }
 
 SiteResolver::SymInfoError SiteResolver::MappedRegion::section_error(Elf* elf, size_t shstrndx, Elf_Scn *scn, GElf_Shdr *shdr, const std::string& msg) {
@@ -263,8 +273,6 @@ void SiteResolver::MappedRegion::load_elf(Elf* elf) {
     }
 }
 
-static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data);
-
 SiteResolver::SymInfo::It SiteResolver::SymInfo::region_for(Addr addr) const {
     auto it = mapped.lower_bound(addr);
     it--;
@@ -273,18 +281,21 @@ SiteResolver::SymInfo::It SiteResolver::SymInfo::region_for(Addr addr) const {
 
 SiteResolver::SymInfo::SymInfo() {
     elf_version(EV_CURRENT);
-    dl_iterate_phdr(dyn_link_handler, this);
+    update_mapped_ranges();
 }
 
-void SiteResolver::SymInfo::index(const char* path, Addr start) {
-    mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, path));
+void SiteResolver::SymInfo::index(const char* path, Addr start, Addr end) {
+    mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, path));
 }
 
 void SiteResolver::SymInfo::site_for(Addr addr, std::string& file_name, std::string& fn_name, Addr& pc_offset) const {
     auto it = region_for(addr);
     if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
-    it->second->site_for(addr, fn_name, pc_offset);
-    file_name = it->second->file_;
+    if (it->second->site_for(addr, fn_name, pc_offset)) {
+        file_name = it->second->file_;
+    } else {
+        file_name = "*unknown mapping*";
+    }
 }
 
 void SiteResolver::SymInfo::print_frame(Addr pc) const {
@@ -294,21 +305,72 @@ void SiteResolver::SymInfo::print_frame(Addr pc) const {
     std::cout << "0x" << std::hex << pc << " > " << fn_name << " +" << pc_offset << " @ " << file_name <<'\n';
 }
 
-static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) {
-    auto si = reinterpret_cast<SiteResolver::SymInfo*>(data);
+struct Mapping {
+    Addr start_;
+    Addr end_;
+    std::string path_;
 
-    if (strlen(info->dlpi_name) == 0) {
-        auto max_path_sz = 1024;
-        std::unique_ptr<char[]> buff(new char[max_path_sz]);
-        auto path_len = readlink("/proc/self/exe", buff.get(), max_path_sz);
-        if ((path_len > 0) && (path_len < max_path_sz)) {
-            buff.get()[path_len] = '\0';
-            si->index(buff.get(), info->dlpi_addr);
-        } else {
-            si->index("/proc/self/exe", info->dlpi_addr);
-        }
-    } else if (strstr(info->dlpi_name, "linux-vdso.so") != info->dlpi_name) {
-        si->index(info->dlpi_name, info->dlpi_addr);
+public:
+    Mapping(Addr start, Addr end, const std::string& path) : start_(start), end_(end), path_(path) {}
+};
+
+struct LinkHandler {
+    SiteResolver::SymInfo& sym_info_;
+    const std::vector<Mapping>& mapping_;
+    const char* executable_path_;
+
+    LinkHandler(SiteResolver::SymInfo& sym_info, const std::vector<Mapping>& mapping, const char* executable_path) :
+        sym_info_(sym_info), mapping_(mapping), executable_path_(executable_path) {}
+};
+
+static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) {
+    auto lh = reinterpret_cast<LinkHandler*>(data);
+    auto& si = lh->sym_info_;
+    auto& mapping = lh->mapping_;
+    auto executable_path = lh->executable_path_;
+
+    Addr end = 0;
+
+    const char* exec_path = (strlen(info->dlpi_name) == 0) ? executable_path : info->dlpi_name;
+    Mapping key{0, info->dlpi_addr, ""};
+    auto it = std::lower_bound(std::begin(mapping), std::end(mapping), key, [](const Mapping& one, const Mapping& other) {
+            return one.end_ < other.end_;
+        });
+
+    if (it != std::end(mapping)) {
+        end = it->end_;
     }
+
+    if (strstr(exec_path, "linux-vdso.so") != exec_path) si.index(exec_path, info->dlpi_addr, end);
+
     return 0;
+}
+
+void SiteResolver::SymInfo::update_mapped_ranges() {
+    std::vector<Mapping> mapped;
+    MRegion::Parser parser([&mapped](const MRegion::Event& e) {
+            if (e.perms.find('x') == std::string::npos) return true;
+
+            std::stringstream ss;
+            Addr start, end;
+
+            ss << e.range.start;
+            ss >> std::hex >> start;
+
+            ss.clear();
+            ss << e.range.end;
+            ss >> std::hex >> end;
+
+            mapped.emplace_back(start, end, e.path);
+
+            return true;
+        });
+    auto pid = getpid();
+    std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
+    parser.feed(f_maps);
+    char executable_path[PATH_MAX];
+    auto path_len = readlink("/proc/self/exe", executable_path, PATH_MAX);
+    executable_path[path_len] = '\0';
+    LinkHandler h{*this, mapped, executable_path};
+    dl_iterate_phdr(dyn_link_handler, &h);
 }

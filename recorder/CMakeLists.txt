@@ -90,9 +90,9 @@ else()
         pkg_check_modules (unittest++ REQUIRED unittest++)
     endif()
     include_directories(${unittest++_INCLUDE_DIRS})
-  endif()
+endif()
 
-find_package(Boost)
+find_package(Boost 1.49.0 COMPONENTS spirit)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
@@ -120,6 +120,8 @@ set(SOURCE_FILES
     ${SRC}/signal_handler.hh
     ${SRC}/processor.cc
     ${SRC}/processor.hh
+    ${SRC}/mapping_parser.hh
+    ${SRC}/mapping_parser.cc
     ${SRC}/site_resolver.cc
     ${SRC}/site_resolver.hh
     ${SRC}/profiler.cc
