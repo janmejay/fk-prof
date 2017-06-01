@@ -1,7 +1,7 @@
-import React, { PureComponent } from 'react'
+import React, { PureComponent } from 'react';
 import { CellMeasurer, CellMeasurerCache, List, AutoSizer, WindowScroller, Grid } from 'react-virtualized';
-import styles from './SampleComponent.css'
-import StackTreeElementComponent from 'components/StackTreeElementComponent'
+import styles from './SampleComponent.css';
+import StacklineDetailComponent from 'components/StacklineDetailComponent';
 
 export default class SampleComponent extends PureComponent {
 

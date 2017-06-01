@@ -1,10 +1,11 @@
 .filterBox {
   font-size: 14px;
-  width: 200px;
+  width: 300px;
 }
 
 .filterBox input {
   color: rgb(255,64,129);
+  border-bottom: 1px solid rgb(63,81,181);
 }
 
 .alert {
@@ -39,6 +40,7 @@ table {
 .RightGridContainer {
   flex: 0 0 150px;
   z-index: 10;
+  flex-direction: column;
 }
 
 .RightGrid {
@@ -47,6 +49,28 @@ table {
 }
 
 .LeftGridContainer {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  margin-left: 10px;
+}
+
+.GridHeader {
+  flex: 0 0 auto;
+  height: 87px;
+  display: flex;
+  align-items: center;
+  label {
+    font-weight: bold;
+    color: #3f51b5;
+  }
+}
+
+.GridBody {
+  flex: 1 1 auto;
+}
+
+.GridHeaderContent {
   flex: 1 1 auto;
 }
 

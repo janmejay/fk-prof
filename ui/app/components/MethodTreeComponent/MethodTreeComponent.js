@@ -1,19 +1,16 @@
 import React, { Component } from 'react';
-import StackTreeElement from 'components/StackTreeElementComponent';
+import StacklineDetail from 'components/StacklineDetailComponent';
 import StacklineStats from 'components/StacklineStatsComponent';
 import { withRouter } from 'react-router';
-import { ScrollSync, CellMeasurer, CellMeasurerCache, List, AutoSizer, WindowScroller, Grid } from 'react-virtualized';
+import { ScrollSync, AutoSizer, Grid } from 'react-virtualized';
 import memoize from 'utils/memoize';
 import debounce from 'utils/debounce';
 
 import styles from './MethodTreeComponent.css';
-import treeStyles from 'components/StackTreeElementComponent/StackTreeElementComponent.css';
 import HotMethodNode from '../../pojos/HotMethodNode';
 import 'react-virtualized/styles.css';
 
-//TODO: eval and remove childautoexpand, autoexpand later if unnecessary
-//TODO: remove memoize related code
-//TODO: optimize elements of this.renderdata, see if some entries can be removed/computed
+//TODO: use monospace font for stack line to simplify width calculation
 
 const noop = () => {};
 const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
@@ -47,12 +44,6 @@ const dedupeNodes = (allNodes) => (nodesWithCallCount) => {
   return Object.keys(dedupedNodes).map(k => dedupedNodes[k]).sort((a, b) => b.sampledCallCount - a.sampledCallCount);
 };
 
-const stringifierFunction = function (a) {
-  if (Array.isArray(a)) return a[0]+":"+a[1];
-  if (Number.isInteger(a)) return a;
-  return a.name;
-};
-
 const getTextWidth = function(text, font) {
     // re-use canvas object for better performance
     var canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement("canvas"));
@@ -64,35 +55,29 @@ const getTextWidth = function(text, font) {
 
 class MethodTreeComponent extends Component {
   constructor (props) {
-    console.log("rofl", props);
     super(props);
-    this.opened = {}; // keeps track of all opened/closed nodes
     this.state = {
       itemCount: 0,
       highlighted: {}, // keeps track of all highlighted nodes
     };
 
     this.containerWidth = 0;
-    this.cellRenderer = this.cellRenderer.bind(this);
-    this.cellRenderer1 = this.cellRenderer1.bind(this);
+    this.opened = {}; // keeps track of all opened/closed nodes
+
+    this.stacklineDetailCellRenderer = this.stacklineDetailCellRenderer.bind(this);
+    this.stacklineStatCellRenderer = this.stacklineStatCellRenderer.bind(this);
     this.getMaxWidthOfRenderedStacklines = this.getMaxWidthOfRenderedStacklines.bind(this);
-    
-    this.listRef = null;
-    this.userToggledNode = null;
     this.toggle = this.toggle.bind(this);
     this.handleFilterChange = this.handleFilterChange.bind(this);
     this.highlight = this.highlight.bind(this);
     this.debouncedHandleFilterChange = debounce(this.handleFilterChange, 250);
-    // this.memoizedDedupeNodes = memoize(
-    //   dedupeNodes(props.allNodes), stringifierFunction, true);
-    this.dedupeNodes = dedupeNodes(props.allNodes);
-
-    this.renderData = this.getInitialRenderData();
-    this.state.itemCount = this.renderData.length;
     this.getRenderedDescendantCountForListItem = this.getRenderedDescendantCountForListItem.bind(this);
     this.getRenderedChildrenCountForListItem = this.getRenderedChildrenCountForListItem.bind(this);
     this.isNodeHavingChildren = this.isNodeHavingChildren.bind(this);
-    this.cellMeasurerCache = null;
+
+    this.dedupeNodes = dedupeNodes(props.allNodes);
+    this.renderData = this.getInitialRenderData(props.location.query[props.filterKey]);
+    this.state.itemCount = this.renderData.length;
 
     this.setup(props.containerWidth); 
   }
@@ -103,14 +88,6 @@ class MethodTreeComponent extends Component {
 
   setup(containerWidth) {
     if(containerWidth > 0 && containerWidth !== this.containerWidth) {
-      this.cellMeasurerCache = new CellMeasurerCache({
-        minWidth: containerWidth - 165,
-        fixedHeight: true,
-        keyMapper: (rowIndex: number, columnIndex: number) => {
-          // console.log(this.renderData[rowIndex][0]);
-          return this.renderData[rowIndex][0];
-        }
-      });
       this.containerWidth = containerWidth;
     }
   }
@@ -118,8 +95,8 @@ class MethodTreeComponent extends Component {
   getMaxWidthOfRenderedStacklines() {
     let maxWidthOfRenderedStacklines = 0;
     for(let i = 0;i < this.renderData.length;i++) {
-      if (maxWidthOfRenderedStacklines < this.renderData[i][5]) {
-        maxWidthOfRenderedStacklines = this.renderData[i][5];
+      if (maxWidthOfRenderedStacklines < this.renderData[i][4]) {
+        maxWidthOfRenderedStacklines = this.renderData[i][4];
       }
     }
     maxWidthOfRenderedStacklines += 10; //added some buffer
@@ -158,23 +135,16 @@ class MethodTreeComponent extends Component {
     });
   }
 
-  // toggle (open) {
-  //   this.userToggledNode = open;
-  //   this.setState({
-  //     opened: {
-  //       ...this.state.opened,
-  //       [open]: !this.state.opened[open],
-  //     },
-  //   });
-  // }
-
   handleFilterChange (e) {
     const { pathname, query } = this.props.location;
     this.props.router.push({ pathname, query: { ...query, [this.props.filterKey]: e.target.value } });
+    this.renderData = this.getInitialRenderData(e.target.value);
+    this.setState({
+      itemCount: this.renderData.length
+    });
   }
 
-  getInitialRenderData() {
-    const filterText = this.props.location.query[this.props.filterKey];
+  getInitialRenderData(filterText) {
     const { nextNodesAccessorField } = this.props;
     let nodeIndexes;
     if (nextNodesAccessorField === 'parent') {
@@ -182,53 +152,78 @@ class MethodTreeComponent extends Component {
     } else {
       nodeIndexes = this.props.nodeIndexes;
     }
-    return this.getRenderData(nodeIndexes, filterText, '', false, 0, true);
+    return this.getRenderData(nodeIndexes, filterText, '', false, 0);
   }
 
   render () {    
-    console.log("render of methodtree called", this.containerWidth, this.cellMeasurerCache);
-    if(!this.cellMeasurerCache) {
+    const filterText = this.props.location.query[this.props.filterKey];
+    console.log("render of methodtree called", this.containerWidth, filterText);
+    
+    const { nextNodesAccessorField } = this.props;
+    if(this.containerWidth == 0) {
       return null;
     }
-    let height = window.innerHeight - 270;
+    let containerHeight = window.innerHeight - 270; //subtracting height of everything above the container
+    let gridHeight = containerHeight - 87; //subtracting height of filter box
     return (
       <div style={{display: "flex", width: this.containerWidth}}>
-        <div style={{flex: "1 1 auto", height: height + "px"}}>
+        <div style={{flex: "1 1 auto", height: containerHeight + "px"}}>
           <ScrollSync>
             {({ clientHeight, clientWidth, onScroll, scrollHeight, scrollLeft, scrollTop, scrollWidth }) => (
               <div className={styles.GridRow}>
                 <div className={styles.LeftGridContainer}>
-                  <AutoSizer disableHeight>
-                    {({ width }) => (
-                      <Grid
-                        columnCount={1}
-                        columnWidth={this.getMaxWidthOfRenderedStacklines()}
-                        height={height}
-                        width={width}
-                        rowCount={this.state.itemCount}
-                        rowHeight={25}
-                        cellRenderer={this.cellRenderer}
-                        className={styles.LeftGrid}
-                        containerStyle={{overflowX: "auto"}}
-                        overscanRowCount={2}
-                        onScroll={onScroll}
+                  <div className={styles.GridHeader}>
+                    <div className={`mdl-textfield mdl-js-textfield ${styles.filterBox}`}>
+                      <label htmlFor="method_filter">
+                        {nextNodesAccessorField === 'parent' ? "Filter hot methods" : "Filter root callers"}
+                      </label>
+                      <input
+                        className={`mdl-textfield__input`}
+                        type="text"
+                        defaultValue={filterText}
+                        autoFocus
+                        onChange={this.debouncedHandleFilterChange}
+                        id="method_filter"
                       />
-                    )}
-                  </AutoSizer>
+                    </div>
+                  </div>
+                  <div className={styles.GridBody}>
+                    <AutoSizer disableHeight>
+                      {({ width }) => (
+                        <Grid
+                          columnCount={1}
+                          columnWidth={this.getMaxWidthOfRenderedStacklines()}
+                          height={gridHeight}
+                          width={width}
+                          rowCount={this.state.itemCount}
+                          rowHeight={25}
+                          cellRenderer={this.stacklineDetailCellRenderer}
+                          className={styles.LeftGrid}
+                          overscanRowCount={2}
+                          onScroll={onScroll}
+                        />
+                      )}
+                    </AutoSizer>
+                  </div>
                 </div>
                 <div className={styles.RightGridContainer}>
-                  <Grid
-                    columnCount={1}
-                    columnWidth={150}
-                    height={height}
-                    width={150}
-                    rowCount={this.state.itemCount}
-                    rowHeight={25}
-                    cellRenderer={this.cellRenderer1}
-                    className={styles.RightGrid}
-                    overscanRowCount={2}
-                    scrollTop={scrollTop}
-                  />
+                  <div className={styles.GridHeader}>
+                    <label>Samples</label>
+                  </div>
+                  <div className={styles.GridBody}>
+                    <Grid
+                      columnCount={1}
+                      columnWidth={150}
+                      height={gridHeight}
+                      width={150}
+                      rowCount={this.state.itemCount}
+                      rowHeight={25}
+                      cellRenderer={this.stacklineStatCellRenderer}
+                      className={styles.RightGrid}
+                      overscanRowCount={2}
+                      scrollTop={scrollTop}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -241,7 +236,7 @@ class MethodTreeComponent extends Component {
     );
   }
 
-  cellRenderer (params) {
+  stacklineDetailCellRenderer (params) {
     let newstyle = {display: "flex", flexDirection: "row", alignItems: "center"};
     let rowstyle = Object.assign({}, params.style);
     //rowstyle.width = "auto";
@@ -279,31 +274,26 @@ class MethodTreeComponent extends Component {
     const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
     const isHighlighted = Object.keys(this.state.highlighted)
       .filter(filterPaths.bind(null, uniqueId));
-    
-    // console.log("textwidth", displayName, getTextWidth(displayName, "14px Arial"));
 
     return (
-      
-        <StackTreeElement
+        <StacklineDetail
           key={uniqueId}
           style={{...params.style, height: 25, whiteSpace: 'nowrap'}}
           nodename={displayNameWithArgs}
           listIdx={params.rowIndex}
           stackline={displayName}
-          samples={countToDisplay}
-          samplesPct={onStackPercentage}
           indent={rowdata[2]}
           nodestate={this.opened[uniqueId]}
           highlight={isHighlighted.length}
           subdued={rowdata[3] == 1 ? true : false}
           onHighlight={noop}
           onClick={newNodeIndexes ? this.toggle.bind(this, params.rowIndex) : noop}>
-        </StackTreeElement> 
+        </StacklineDetail> 
       
     );
   }
 
-  cellRenderer1({ columnIndex, key, parent, rowIndex, style }) {
+  stacklineStatCellRenderer({ columnIndex, key, parent, rowIndex, style }) {
     let rowdata = this.renderData[rowIndex];
     let n = rowdata[1], uniqueId = rowdata[0];
 
@@ -347,7 +337,7 @@ class MethodTreeComponent extends Component {
 
     if(!this.opened[uniqueId]) {
       //expand
-      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3], rowdata[2], rowdata[4]);
+      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3], rowdata[2]);
       var postarr = this.renderData.splice(listIdx + 1);
       this.renderData = this.renderData.concat(childRenderData, postarr);            
     } else {
@@ -418,10 +408,9 @@ class MethodTreeComponent extends Component {
     }
   }
 
-  getRenderData (nodeIndexes = [], filterText, parentPath, parentHasSiblings, parentIndent, autoExpand) {
+  getRenderData (nodeIndexes = [], filterText, parentPath, parentHasSiblings, parentIndent) {
     const renderStack = [];
     renderStack.push({
-      ae: autoExpand, //autoExpand behaviour
       p_pth: parentPath, //parent path
       gen: {
         nis: nodeIndexes, //indexes of first-level nodes in the tree subject to de-duplication
@@ -446,7 +435,6 @@ class MethodTreeComponent extends Component {
         //Otherwise, if parent has siblings or if this node has siblings, do a major indent of the nodes, minor indent otherwise
         const indent = !se.p_pth ? 0 : ((se.gen.p_sib || dedupedNodes.length > 1 ) ? se.gen.p_ind + 10 : se.gen.p_ind + 3);
         renderStack.push({
-          ae: se.ae,
           p_pth: se.p_pth,
           node: {
             dn: dedupedNodes, //first-level nodes
@@ -488,27 +476,18 @@ class MethodTreeComponent extends Component {
           newNodeIndexes = n.children;
           displayName = displayName + ':' + n.lineNo;
         }
-
-        //By default, keep auto expand behavior of children same as parent.
-        //As a special case, if this is the node toggled by user and it was expanded, then enable auto expand in the children of this node
-        let childAutoExpand = se.ae;
-        // console.log("childautoexpand", this.userToggledNode, uniqueId, this.opened[uniqueId]);
-        // if(this.userToggledNode && this.userToggledNode == uniqueId && this.opened[uniqueId]) {
-        //   childAutoExpand = true;
-        // }
-        // Following condition should always be evaluated after the childAutoExpand is set, since this mutates this.state.opened[uniqueId]
-        // If auto expand behavior is enabled and only single node is being rendered, expand the node
+    
+        // If only single node is being rendered, expand the node
         // Or if the node has no children, then expand the node, so that expanded icon is rendered against this node
-        if((se.ae && se.node.dn.length == 1) || newNodeIndexes.length == 0) {
+        if(se.node.dn.length == 1 || newNodeIndexes.length == 0) {
           this.opened[uniqueId] = true;
         }
 
-        const nodeData = [uniqueId, n, se.node.ind, se.node.dn.length, childAutoExpand, getTextWidth(displayName, "14px Arial") + 28 + se.node.ind];
+        const nodeData = [uniqueId, n, se.node.ind, se.node.dn.length, getTextWidth(displayName, "14px Arial") + 28 + se.node.ind];
         renderData.push(nodeData);
 
         if(this.opened[uniqueId] && newNodeIndexes) {
           renderStack.push({
-            ae: childAutoExpand,
             p_pth: uniqueId,
             gen: {
               nis: newNodeIndexes,
@@ -532,43 +511,3 @@ MethodTreeComponent.propTypes = {
 };
 
 export default withRouter(MethodTreeComponent);
-
-
-/*
-<WindowScroller>
-            {({ height, isScrolling, scrollTop }) => (
-              <AutoSizer disableHeight>
-                {({ width }) => (
-                  <List
-                    autoHeight
-                    width={width}
-                    height={height}
-                    isScrolling={isScrolling}
-                    scrollTop={scrollTop}
-                    rowCount={this.renderData.length}
-                    rowHeight={25}
-                    rowRenderer={this.rowRenderer}
-                    overscanRowCount={2}
-                  />
-                )}
-              </AutoSizer>
-            )}
-          </WindowScroller>
-          */
-
-/*
-<AutoSizer >
-            {({ width, height }) => (
-              <List
-                width={width}
-                height={height}
-                rowCount={this.state.itemCount}
-                rowHeight={25}
-                rowRenderer={this.rowRenderer}
-                className={treeStyles.container}
-                containerStyle={{"overflowX": "auto"}}
-                overscanRowCount={2}
-              />
-            )}
-          </AutoSizer>
-          */

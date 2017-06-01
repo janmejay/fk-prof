@@ -2,17 +2,22 @@
   border-bottom: 1px solid rgba(158, 158, 158, 0.28);
 }
 
+.statContainer:hover {
+    background-color: #f0f0f0;  
+}
+
 .pill {
-  display: inline-block;
+  display: flex;
   width: 150px;
   font-weight: bold;
+  height: 25px;
+  align-items: center;
 }
 
 .percentage {
   text-align: center;
-  display: inline-block;
+  flex: 0 0 70%;
   position: relative;
-  width: 70%;
   .shade {
     position: absolute;
     left: 0;
@@ -26,8 +31,7 @@
 
 .number {
   text-align: left;
-  display: inline-block;
-  width: 30%;
+  flex: 0 0 30%;
 }
 
 .highlight, .highlight div {
