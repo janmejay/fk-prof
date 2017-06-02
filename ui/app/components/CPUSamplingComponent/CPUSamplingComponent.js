@@ -7,8 +7,6 @@ import Loader from 'components/LoaderComponent';
 import MethodTree from 'components/MethodTreeComponent';
 import Tabs from 'components/Tabs';
 import styles from './CPUSamplingComponent.css';
-import SampleComponent from 'components/SampleComponent';
-
 
 export class CPUSamplingComponent extends Component {
   constructor (props) {
@@ -131,17 +129,20 @@ export class CPUSamplingComponent extends Component {
             </div>
           </div>
           <div>
-            <div>
-              Call Tree
-            </div>
-            <div>
-              {/*<MethodTree
-                allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
-                nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'children'])}
-                nextNodesAccessorField="children"
-                methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
-                filterKey="cs_ct_filter"
-              />*/}
+            <div>Call Tree</div>
+            <div style={{display: "flex", flex: "1 1 auto"}}>
+              <AutoSizer disableHeight>
+                {({ width }) => (
+                  <MethodTree
+                    allNodes={safeTraverse(this.props, ['tree', 'data', 'allNodes'])}
+                    nodeIndexes={safeTraverse(this.props, ['tree', 'data', 'treeRoot', 'children'])}
+                    nextNodesAccessorField="children"
+                    methodLookup={safeTraverse(this.props, ['tree', 'data', 'methodLookup'])}
+                    filterKey="cs_ct_filter"
+                    containerWidth={width}
+                  />
+                )}
+              </AutoSizer>
             </div>
           </div>
         </Tabs>

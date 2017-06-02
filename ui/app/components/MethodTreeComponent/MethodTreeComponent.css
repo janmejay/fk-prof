@@ -22,15 +22,6 @@ input:focus {
   outline-color: rgb(63,81,181);
 }
 
-table {
-  border-spacing: 0;
-  border-collapse: collapse;
-  margin-bottom: 0;
-  width: 100%;
-  max-width: 100%;  
-}
-
-
 .GridRow {
   position: relative;
   display: flex;
@@ -62,7 +53,7 @@ table {
   align-items: center;
   label {
     font-weight: bold;
-    color: #3f51b5;
+    color: rgb(63,81,181);
   }
 }
 

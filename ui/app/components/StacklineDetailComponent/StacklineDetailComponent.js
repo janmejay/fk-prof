@@ -42,11 +42,11 @@ class StacklineDetailComponent extends Component {
           <div className={`material-icons mdl-color-text--primary ${styles.nodeIcon}`} onClick={this.props.onHighlight}>
             {this.getIconForHighlight()}
           </div>
-          <div className={styles.stacklineText} onClick={this.props.onClick}>
+          <div className={styles.stacklineInner} onClick={this.props.onClick}>
             <div className={`material-icons ${this.getStyleAndIconForNode()[0]} ${styles.nodeIcon}`}>
               {this.getStyleAndIconForNode()[1]}
             </div>
-            <div style={{flex: "1 1 auto", whiteSpace: "nowrap"}}>{this.props.stackline}</div>
+            <div className={styles.stacklineText} style={{flex: "1 1 auto", whiteSpace: "nowrap"}}>{this.props.stackline}</div>
           </div>
         </div>
       </div>

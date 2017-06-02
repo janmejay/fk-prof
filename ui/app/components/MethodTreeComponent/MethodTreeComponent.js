@@ -3,17 +3,18 @@ import StacklineDetail from 'components/StacklineDetailComponent';
 import StacklineStats from 'components/StacklineStatsComponent';
 import { withRouter } from 'react-router';
 import { ScrollSync, AutoSizer, Grid } from 'react-virtualized';
-import memoize from 'utils/memoize';
 import debounce from 'utils/debounce';
 
 import styles from './MethodTreeComponent.css';
 import HotMethodNode from '../../pojos/HotMethodNode';
 import 'react-virtualized/styles.css';
 
-//TODO: use monospace font for stack line to simplify width calculation
-
 const noop = () => {};
-const filterPaths = (pathSubset, k) => k.indexOf(pathSubset) === 0;
+
+const rightColumnWidth = 150;
+const everythingOnTopHeight = 270;
+const filterBoxHeight = 87;
+const stackEntryHeight = 25;
 
 //Input is expected to be Array of (nodeIndex, callCount)   and
 //output returned is an array of objects of type HotMethodNode
@@ -45,32 +46,34 @@ const dedupeNodes = (allNodes) => (nodesWithCallCount) => {
 };
 
 const getTextWidth = function(text, font) {
-    // re-use canvas object for better performance
-    var canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement("canvas"));
-    var context = canvas.getContext("2d");
-    context.font = font;
-    var metrics = context.measureText(text);
-    return metrics.width;
+  // re-use canvas object for better performance
+  var canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement("canvas"));
+  var context = canvas.getContext("2d");
+  context.font = font;
+  var metrics = context.measureText(text);
+  return metrics.width;
 }
 
 class MethodTreeComponent extends Component {
   constructor (props) {
     super(props);
     this.state = {
-      itemCount: 0,
-      highlighted: {}, // keeps track of all highlighted nodes
+      itemCount: 0
     };
 
     this.containerWidth = 0;
     this.opened = {}; // keeps track of all opened/closed nodes
+    this.highlighted = {}; //keeps track of all highlighted nodes
 
     this.stacklineDetailCellRenderer = this.stacklineDetailCellRenderer.bind(this);
     this.stacklineStatCellRenderer = this.stacklineStatCellRenderer.bind(this);
-    this.getMaxWidthOfRenderedStacklines = this.getMaxWidthOfRenderedStacklines.bind(this);
+
     this.toggle = this.toggle.bind(this);
     this.handleFilterChange = this.handleFilterChange.bind(this);
     this.highlight = this.highlight.bind(this);
     this.debouncedHandleFilterChange = debounce(this.handleFilterChange, 250);
+
+    this.getMaxWidthOfRenderedStacklines = this.getMaxWidthOfRenderedStacklines.bind(this);
     this.getRenderedDescendantCountForListItem = this.getRenderedDescendantCountForListItem.bind(this);
     this.getRenderedChildrenCountForListItem = this.getRenderedChildrenCountForListItem.bind(this);
     this.isNodeHavingChildren = this.isNodeHavingChildren.bind(this);
@@ -100,39 +103,42 @@ class MethodTreeComponent extends Component {
       }
     }
     maxWidthOfRenderedStacklines += 10; //added some buffer
-    const minGridWidth = this.containerWidth - 165;
+    const minGridWidth = this.containerWidth - rightColumnWidth - 15;
     return maxWidthOfRenderedStacklines < minGridWidth ? minGridWidth : maxWidthOfRenderedStacklines;
   }
 
   highlight (path) {
-    if (path in this.state.highlighted) {
-      const state = Object.assign({}, this.state);
-      delete state.highlighted[path];
-      this.setState(state);
-      return;
-    }
-    // so no exact path matches
-    // what if click was on a parent node
-    const partialMatchedPaths = Object.keys(this.state.highlighted)
-      .filter(filterPaths.bind(null, path));
+    if (path in this.highlighted) {
+      //highlighted node, remove highlight
+      delete this.highlighted[path];
+    } else {
+      // identifying already highlighted children of path
+      const highlightedChildren = Object.keys(this.highlighted)
+      .filter(highlight => highlight.startsWith(path));
+      if (highlightedChildren.length) {
+        // delete highlighted children
+        highlightedChildren.forEach((p) => {
+          delete this.highlighted[p];
+        });
+      }
 
-    if (partialMatchedPaths.length) {
-      // delete the partial matches from state,
-      // so that new tree would get highlighted
-      let state = Object.assign({}, this.state);
-      partialMatchedPaths.forEach((p) => {
-        delete state.highlighted[p];
-      });
-      this.setState(state);
+      // identifying already highlighted parents of path, this will always be 1 at max
+      const highlightedParents = Object.keys(this.highlighted)
+      .filter(highlight => path.startsWith(highlight));
+      if (highlightedParents.length) {
+        // delete highlighted parents
+        highlightedParents.forEach((p) => {
+          delete this.highlighted[p];
+        });
+      }
+
+      this.highlighted[path] = true;
     }
 
-    // all good, highlight!
-    this.setState({
-      highlighted: {
-        ...this.state.highlighted,
-        [path]: true,
-      },
-    });
+    if(this.stacklineDetailGrid && this.stacklineStatGrid) {
+      this.stacklineDetailGrid.forceUpdate();
+      this.stacklineStatGrid.forceUpdate();
+    }
   }
 
   handleFilterChange (e) {
@@ -155,18 +161,18 @@ class MethodTreeComponent extends Component {
     return this.getRenderData(nodeIndexes, filterText, '', false, 0);
   }
 
-  render () {    
-    const filterText = this.props.location.query[this.props.filterKey];
-    console.log("render of methodtree called", this.containerWidth, filterText);
-    
-    const { nextNodesAccessorField } = this.props;
+  render () {
     if(this.containerWidth == 0) {
       return null;
     }
-    let containerHeight = window.innerHeight - 270; //subtracting height of everything above the container
-    let gridHeight = containerHeight - 87; //subtracting height of filter box
+
+    const filterText = this.props.location.query[this.props.filterKey];    
+    const { nextNodesAccessorField } = this.props;
+    const containerHeight = window.innerHeight - everythingOnTopHeight; //subtracting height of everything above the container
+    const gridHeight = containerHeight - filterBoxHeight; //subtracting height of filter box
+
     return (
-      <div style={{display: "flex", width: this.containerWidth}}>
+      <div style={{display: "flex", flexDirection: "column", width: this.containerWidth}}>
         <div style={{flex: "1 1 auto", height: containerHeight + "px"}}>
           <ScrollSync>
             {({ clientHeight, clientWidth, onScroll, scrollHeight, scrollLeft, scrollTop, scrollWidth }) => (
@@ -196,11 +202,12 @@ class MethodTreeComponent extends Component {
                           height={gridHeight}
                           width={width}
                           rowCount={this.state.itemCount}
-                          rowHeight={25}
+                          rowHeight={stackEntryHeight}
                           cellRenderer={this.stacklineDetailCellRenderer}
                           className={styles.LeftGrid}
                           overscanRowCount={2}
                           onScroll={onScroll}
+                          ref={el => this.stacklineDetailGrid = el}
                         />
                       )}
                     </AutoSizer>
@@ -213,15 +220,16 @@ class MethodTreeComponent extends Component {
                   <div className={styles.GridBody}>
                     <Grid
                       columnCount={1}
-                      columnWidth={150}
+                      columnWidth={rightColumnWidth}
                       height={gridHeight}
-                      width={150}
+                      width={rightColumnWidth}
                       rowCount={this.state.itemCount}
-                      rowHeight={25}
+                      rowHeight={stackEntryHeight}
                       cellRenderer={this.stacklineStatCellRenderer}
                       className={styles.RightGrid}
                       overscanRowCount={2}
                       scrollTop={scrollTop}
+                      ref={el => this.stacklineStatGrid = el}                      
                     />
                   </div>
                 </div>
@@ -230,27 +238,17 @@ class MethodTreeComponent extends Component {
           </ScrollSync>
         </div>
         {!this.state.itemCount && (
-          <p className={styles.alert}>No results</p>
+          <div style={{flex: "1 1 auto", marginTop: "-" + (gridHeight) + "px"}} className={styles.alert}>No results</div>
         )}
       </div>
     );
   }
 
   stacklineDetailCellRenderer (params) {
-    let newstyle = {display: "flex", flexDirection: "row", alignItems: "center"};
-    let rowstyle = Object.assign({}, params.style);
-    //rowstyle.width = "auto";
-    // rowstyle.position = "relative";
-    //rowstyle.right = "0px";
-    rowstyle.height = "25px";
-    rowstyle.whiteSpace = "nowrap";
     let rowdata = this.renderData[params.rowIndex];
     let n = rowdata[1], uniqueId = rowdata[0];
 
-    //TODO: optimize, move below assignment to lifecycle method when properties are received by component
-    const percentageDenominator = (this.props.allNodes.length > 0) ? this.props.allNodes[0].onStack : 1;
-
-    let countToDisplay, newNodeIndexes;
+    let newNodeIndexes;
     let displayName = this.props.methodLookup[n.name][0];
     let displayNameWithArgs = this.props.methodLookup[n.name][0] + this.props.methodLookup[n.name][1];
 
@@ -262,31 +260,28 @@ class MethodTreeComponent extends Component {
       const lineNoOrNot = (n.belongsToTopLayer)? '' : ':' + n.lineNo;
       displayName = displayName + lineNoOrNot;
       displayNameWithArgs = displayNameWithArgs + lineNoOrNot;
-      countToDisplay = n.sampledCallCount;
     } else {
       // using the index i because in call tree the name of sibling nodes
       // can be same, react will throw up, argh!
       newNodeIndexes = n.children;
       displayName = displayName + ':' + n.lineNo;
       displayNameWithArgs = displayNameWithArgs + ':' + n.lineNo;
-      countToDisplay = n.onStack;
     }
-    const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
-    const isHighlighted = Object.keys(this.state.highlighted)
-      .filter(filterPaths.bind(null, uniqueId));
+    const isHighlighted = Object.keys(this.highlighted)
+      .filter(highlight => highlight.startsWith(uniqueId));
 
     return (
         <StacklineDetail
           key={uniqueId}
-          style={{...params.style, height: 25, whiteSpace: 'nowrap'}}
-          nodename={displayNameWithArgs}
+          style={{...params.style, height: stackEntryHeight, whiteSpace: 'nowrap'}}
           listIdx={params.rowIndex}
+          nodename={displayNameWithArgs}
           stackline={displayName}
           indent={rowdata[2]}
           nodestate={this.opened[uniqueId]}
           highlight={isHighlighted.length}
           subdued={rowdata[3] == 1 ? true : false}
-          onHighlight={noop}
+          onHighlight={this.highlight.bind(this, uniqueId)}
           onClick={newNodeIndexes ? this.toggle.bind(this, params.rowIndex) : noop}>
         </StacklineDetail> 
       
@@ -310,12 +305,14 @@ class MethodTreeComponent extends Component {
       countToDisplay = n.onStack;
     }
     const onStackPercentage = Number((countToDisplay * 100) / percentageDenominator).toFixed(2);
-    const isHighlighted = Object.keys(this.state.highlighted)
-      .filter(filterPaths.bind(null, uniqueId));
+    const isHighlighted = Object.keys(this.highlighted)
+      .filter(highlight => highlight.startsWith(uniqueId));
+
     return (
       <StacklineStats
         key={uniqueId}
         style={style}
+        listIdx={rowIndex}
         samples={countToDisplay}
         samplesPct={onStackPercentage}
         highlight={isHighlighted.length}
@@ -337,7 +334,7 @@ class MethodTreeComponent extends Component {
 
     if(!this.opened[uniqueId]) {
       //expand
-      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3], rowdata[2]);
+      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3] > 1, rowdata[2]);
       var postarr = this.renderData.splice(listIdx + 1);
       this.renderData = this.renderData.concat(childRenderData, postarr);            
     } else {
@@ -375,7 +372,7 @@ class MethodTreeComponent extends Component {
           //Cannot rely on childNodeIndexes(calculated in isNodeHavingChildren method) to get count of children because actual rendered children can be lesser after deduping of nodes for hot method tree          
           let child_rowdata = this.renderData[listIdx + 1];
           if(child_rowdata) {
-            return child_rowdata[3];
+            return child_rowdata[3]; //this is siblings count of child node which implies children count for parent node
           } else {
             console.error("This should never happen. If list item is expanded and its childNodeIndexes > 0, then at least one more item should be present in renderdata list")
           }
@@ -482,8 +479,9 @@ class MethodTreeComponent extends Component {
         if(se.node.dn.length == 1 || newNodeIndexes.length == 0) {
           this.opened[uniqueId] = true;
         }
-
-        const nodeData = [uniqueId, n, se.node.ind, se.node.dn.length, getTextWidth(displayName, "14px Arial") + 28 + se.node.ind];
+        
+        const stackEntryWidth = getTextWidth(displayName, "14px Arial") + 28 + se.node.ind; //28 is space taken up by icons
+        const nodeData = [uniqueId, n, se.node.ind, se.node.dn.length, stackEntryWidth];
         renderData.push(nodeData);
 
         if(this.opened[uniqueId] && newNodeIndexes) {
