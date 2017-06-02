@@ -17,7 +17,7 @@ void MRegion::Parser::populate_rules() {
 
     dev_ %= hex >> lit(":") >> hex;
 
-    region_ %= range_ >> perms_ >> ulong_ >> dev_ >> ulong_ >> +(char_);
+    region_ %= range_ >> perms_ >> ulong_ >> dev_ >> ulong_ >> *(char_);
 }
 
 MRegion::Parser::Parser(std::function<bool(const Event&)> _handler) : Parser::base_type(region_), handler(_handler) {

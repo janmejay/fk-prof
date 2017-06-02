@@ -6,6 +6,10 @@
 #include "mapping_parser.hh"
 #include <fstream>
 
+#define UNKNOWN_SYMBOL "*unknown symbol*"
+#define UNKNOWN_MAPPING "*unknown mapping*"
+#define ANONYMOUS_MAPPING "*anonymous mapping*"
+
 bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener) {
     jint error;
     JvmtiScopedPtr<char> methodName(jvmti);
@@ -163,20 +167,23 @@ public:
     }
 };
 
-SiteResolver::MappedRegion::MappedRegion(Addr start, Addr end, std::string file): start_(start), end_(end), file_(file) {
-    ElfFile elf_file(file_);
-    load_elf(elf_file.get());
+SiteResolver::MappedRegion::MappedRegion(Addr start, Addr v_addr_start, Addr end, std::string file, bool index_symbols): start_(start), v_addr_start_(v_addr_start), end_(end), file_(file) {
+    if (index_symbols) {
+        ElfFile elf_file(file_);
+        load_elf(elf_file.get());
+    }
 }
 
 SiteResolver::MappedRegion::~MappedRegion() {}
 
 const bool SiteResolver::MappedRegion::site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const {
-    if (end_ < addr) {
-        fn_name = "*unknown symbol*";
-        pc_offset = 0;
-        return false;
+    auto beyond_end = (end_ < addr);
+    if (beyond_end || symbols_.empty()) {
+        fn_name = UNKNOWN_SYMBOL;
+        pc_offset = addr - v_addr_start_;
+        return ! beyond_end;
     }
-    auto unrelocated_address = addr - start_;
+    auto unrelocated_address = addr - v_addr_start_;
     auto it = symbols_.lower_bound(unrelocated_address);
     it--;
     fn_name = it->second;
@@ -275,6 +282,11 @@ void SiteResolver::MappedRegion::load_elf(Elf* elf) {
 
 SiteResolver::SymInfo::It SiteResolver::SymInfo::region_for(Addr addr) const {
     auto it = mapped.lower_bound(addr);
+    if (it == std::begin(mapped)) {
+        if (it->first > addr) return std::end(mapped);
+        return it;
+    }
+    if (it->first == addr) return it;
     it--;
     return it;
 }
@@ -284,17 +296,18 @@ SiteResolver::SymInfo::SymInfo() {
     update_mapped_ranges();
 }
 
-void SiteResolver::SymInfo::index(const char* path, Addr start, Addr end) {
-    mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, end, path));
+void SiteResolver::SymInfo::index(const char* path, Addr start, Addr v_addr_start, Addr end, bool index_symbols) {
+    mapped[start] = std::unique_ptr<MappedRegion>(new MappedRegion(start, v_addr_start, end, path, index_symbols));
 }
 
 void SiteResolver::SymInfo::site_for(Addr addr, std::string& file_name, std::string& fn_name, Addr& pc_offset) const {
     auto it = region_for(addr);
-    if (it == std::end(mapped)) throw std::runtime_error("can't resolve addresss " + std::to_string(addr));
-    if (it->second->site_for(addr, fn_name, pc_offset)) {
+    if (it != std::end(mapped) &&
+        it->second->site_for(addr, fn_name, pc_offset)) {
         file_name = it->second->file_;
     } else {
-        file_name = "*unknown mapping*";
+        fn_name = UNKNOWN_SYMBOL;
+        file_name = UNKNOWN_MAPPING;
     }
 }
 
@@ -316,10 +329,10 @@ public:
 
 struct LinkHandler {
     SiteResolver::SymInfo& sym_info_;
-    const std::vector<Mapping>& mapping_;
+    std::vector<Mapping>& mapping_;
     const char* executable_path_;
 
-    LinkHandler(SiteResolver::SymInfo& sym_info, const std::vector<Mapping>& mapping, const char* executable_path) :
+    LinkHandler(SiteResolver::SymInfo& sym_info, std::vector<Mapping>& mapping, const char* executable_path) :
         sym_info_(sym_info), mapping_(mapping), executable_path_(executable_path) {}
 };
 
@@ -329,7 +342,9 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
     auto& mapping = lh->mapping_;
     auto executable_path = lh->executable_path_;
 
+    //this (start and end) will be incorrect in case of a map <-> unmap <-> parse <-> dl_iterate_phdr race, but its a very narrow corner-case
     Addr end = 0;
+    Addr start = info->dlpi_addr;
 
     const char* exec_path = (strlen(info->dlpi_name) == 0) ? executable_path : info->dlpi_name;
     Mapping key{0, info->dlpi_addr, ""};
@@ -339,9 +354,18 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
 
     if (it != std::end(mapping)) {
         end = it->end_;
+        start = it->start_;
+        mapping.erase(it);
     }
 
-    if (strstr(exec_path, "linux-vdso.so") != exec_path) si.index(exec_path, info->dlpi_addr, end);
+    auto do_index = true;
+
+    if (strstr(exec_path, "linux-vdso.so") == exec_path) {
+        exec_path = "[vdso]";
+        do_index = false;
+    }
+
+    si.index(exec_path, start, info->dlpi_addr, end, do_index);
 
     return 0;
 }
@@ -373,4 +397,7 @@ void SiteResolver::SymInfo::update_mapped_ranges() {
     executable_path[path_len] = '\0';
     LinkHandler h{*this, mapped, executable_path};
     dl_iterate_phdr(dyn_link_handler, &h);
+    for (auto& m : mapped) {
+        index(m.path_.empty() ? ANONYMOUS_MAPPING : m.path_.c_str(), m.start_, m.start_, m.end_, false);
+    }
 }

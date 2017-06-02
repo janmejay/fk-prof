@@ -9,6 +9,7 @@
 #include <site_resolver.hh>
 #include "test_helpers.hh"
 #include <set>
+#include <linux/limits.h>
 
 #include <fstream>
 #include <sys/mman.h>
@@ -155,33 +156,16 @@ TEST(SiteResolver__TestUtil__mappable_range_finder) {
 
     CHECK_EQUAL(1, mappable.size());
     CHECK_EQUAL(499, mappable[401]);
-
-    for (auto& m : mappable) {
-        std::cout << "Can map [" << m.first << ", " << m.second << "]\n";
-    }
 }
 
-TEST(SiteResolver__should_call_out_unknown_mapping) {
-    TestEnv _;
-    const std::uint32_t buff_sz = 100;
-    NativeFrame buff[buff_sz];
-    std::uint32_t bt_len;
-    some_λ_caller([&]() {
-            bt_len = caller_of_foo(buff, buff_sz);
-        });
-    CHECK(bt_len > 4);
+std::string my_executable() {
+    char link_path[PATH_MAX];
+    auto path_len = readlink("/proc/self/exe", link_path, PATH_MAX);
+    link_path[path_len] = '\0';
+    return {link_path};
+}
 
-    auto max_path_sz = 1024;
-    std::unique_ptr<char[]> link_path(new char[max_path_sz]);
-    auto path_len = readlink("/proc/self/exe", link_path.get(), max_path_sz);
-    CHECK((path_len > 0) && (path_len < max_path_sz));//ensure we read link correctly
-    link_path.get()[path_len] = '\0';
-    std::string path = link_path.get();
-
-    auto pid = getpid();
-    auto dir = path.substr(0, path.rfind("/"));
-    std::pair<SiteResolver::Addr, SiteResolver::Addr> test_bin, test_util_lib;
-    CurrMappings curr_mappings;
+void iterate_mapping(std::function<void(SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e)> cb) {
     MRegion::Parser parser([&](const MRegion::Event& e) {
             std::stringstream ss;
             std::uint64_t start, end;
@@ -193,17 +177,27 @@ TEST(SiteResolver__should_call_out_unknown_mapping) {
             ss << e.range.end;
             ss >> std::hex >> end;
 
+            cb(start, end, e);
+
+            return true;
+        });
+    auto pid = getpid();
+    std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
+    parser.feed(f_maps);
+}
+
+void map_one_anon_executable_page_between_executable_and_testlib(void **mmap_region, long& pg_sz, std::string path) {
+    auto dir = path.substr(0, path.rfind("/"));
+    std::pair<SiteResolver::Addr, SiteResolver::Addr> test_bin, test_util_lib;
+    CurrMappings curr_mappings;
+    iterate_mapping([&](SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e) {
             curr_mappings.push_back({start, end});
 
             if (e.perms.find('x') != std::string::npos) {
                 if (e.path == path) test_bin = {start, end};
                 if (e.path == (dir + LIB_TEST_UTIL)) test_util_lib = {start, end};
             }
-
-            return true;
         });
-    std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
-    parser.feed(f_maps);
 
     SiteResolver::Addr desired_anon_exec_map_lowerb, desired_anon_exec_map_upperb;
 
@@ -218,20 +212,36 @@ TEST(SiteResolver__should_call_out_unknown_mapping) {
     MappableRanges mappable;
     find_mappable_ranges_between(curr_mappings, desired_anon_exec_map_lowerb, desired_anon_exec_map_upperb, mappable);
 
-    long pg_sz = sysconf(_SC_PAGESIZE);
+    pg_sz = sysconf(_SC_PAGESIZE);
 
     CHECK(mappable.size() > 0); //otherwise this test can't proceed (unlucky shot, please try again)
     auto buff_mapped = false;
-    void* mmap_region = nullptr;
+    *mmap_region = nullptr;
     for (const auto& m : mappable) {
-        if ((m.second - m.first) >= (2 * pg_sz)) {
-            mmap_region = reinterpret_cast<void*>(m.first - (m.first % pg_sz) + pg_sz);
-            mmap_region = mmap(mmap_region, pg_sz, PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0, 0);
-            buff_mapped = (mmap_region != MAP_FAILED);
+        if ((m.second - m.first) >= (3 * pg_sz)) {
+            *mmap_region = reinterpret_cast<void*>(m.first - (m.first % pg_sz) + pg_sz);
+            *mmap_region = mmap(*mmap_region, pg_sz, PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0, 0);
+            buff_mapped = (*mmap_region != MAP_FAILED);
             break;
         }
     }
     CHECK(buff_mapped); //otherwise this test can't proceed (unlucky shot, please try again)
+}
+
+TEST(SiteResolver__should_call_out_unknown_mapping) {
+    TestEnv _;
+    const std::uint32_t buff_sz = 100;
+    NativeFrame buff[buff_sz];
+    std::uint32_t bt_len;
+    some_λ_caller([&]() {
+            bt_len = caller_of_foo(buff, buff_sz);
+        });
+    CHECK(bt_len > 4);
+
+    long pg_sz;
+    void* mmap_region;
+    auto path = my_executable();
+    map_one_anon_executable_page_between_executable_and_testlib(&mmap_region, pg_sz, path);
 
     SiteResolver::SymInfo s_info;
     std::string fn_name;
@@ -246,10 +256,84 @@ TEST(SiteResolver__should_call_out_unknown_mapping) {
 
     s_info.site_for(buff[1], file_name, fn_name, pc_offset);
     CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("*anonymous mapping*", file_name);
+
+    buff[2] = reinterpret_cast<SiteResolver::Addr>(mmap_region) + pg_sz + (pg_sz / 2); //addr outside any mapped region
+
+    s_info.site_for(buff[2], file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
     CHECK_EQUAL("*unknown mapping*", file_name);
 
-    if (buff_mapped) {
+    if (mmap_region != nullptr) {
         CHECK_EQUAL(0, munmap(mmap_region, pg_sz));
     }
 }
 
+TEST(SiteResolver__should_handle_unknown_mapping_at__head__and__tail__gracefully) {
+    TestEnv _;
+
+    SiteResolver::Addr lowest_exe = std::numeric_limits<SiteResolver::Addr>::max(), highest_exe = std::numeric_limits<SiteResolver::Addr>::min();
+    iterate_mapping([&](SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e) {
+            if (e.perms.find('x') == std::string::npos) return;
+            if (lowest_exe > start) lowest_exe = start;
+            if (highest_exe < end) highest_exe = end;
+        });
+
+    SiteResolver::SymInfo s_info;
+    std::string fn_name;
+    std::string file_name;
+    SiteResolver::Addr pc_offset;
+
+    CHECK(lowest_exe > 0);
+    CHECK(highest_exe < std::numeric_limits<SiteResolver::Addr>::max());//otherwise this test won't be able to test what it wants anyway
+
+    s_info.site_for(lowest_exe - 1, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("*unknown mapping*", file_name);
+
+    s_info.site_for(highest_exe + 1, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("*unknown mapping*", file_name);
+}
+
+TEST(SiteResolver__should_handle_vdso_and_vsyscall_addresses) {
+    TestEnv _;
+
+    std::pair<SiteResolver::Addr, SiteResolver::Addr> vdso{0, 0}, vsyscall{0, 0};
+
+    iterate_mapping([&](SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e) {
+            if (e.perms.find('x') == std::string::npos) return;
+            if (e.path == "[vsyscall]") vsyscall = {start, end};
+            if (e.path == "[vdso]") vdso = {start, end};
+        });
+
+    CHECK(vdso.first < (vdso.second - 1));
+    CHECK(vsyscall.first < (vsyscall.second - 1));//something is wrong with the way we identify the 2 special mappings if this goes wrong
+
+    SiteResolver::SymInfo s_info;
+    std::string fn_name;
+    std::string file_name;
+    SiteResolver::Addr pc_offset;
+
+    s_info.site_for(vsyscall.first , file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("[vsyscall]", file_name);
+    CHECK_EQUAL(0, pc_offset);
+
+    s_info.site_for(vdso.first, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("[vdso]", file_name);
+    CHECK_EQUAL(0, pc_offset);
+
+    s_info.site_for(vsyscall.first + 1, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("[vsyscall]", file_name);
+    CHECK_EQUAL(1, pc_offset);
+
+    s_info.site_for(vdso.first + 1, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL("[vdso]", file_name);
+    CHECK_EQUAL(1, pc_offset);
+}
+
+// write a test where we site_lookup address from a lib that was unmapped between call to mapping parser and dl_iterate_phdr

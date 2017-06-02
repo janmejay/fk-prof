@@ -32,11 +32,12 @@ namespace SiteResolver {
 
     struct MappedRegion {
         Addr start_;
+        Addr v_addr_start_;
         Addr end_;
         const std::string file_;
         std::map<Addr, std::string> symbols_;
 
-        MappedRegion(Addr start, Addr end, std::string file);
+        MappedRegion(Addr start, Addr v_addr_start, Addr end, std::string file, bool index_symbols);
 
         ~MappedRegion();
 
@@ -65,7 +66,7 @@ namespace SiteResolver {
     public:
         SymInfo();
 
-        void index(const char* path, Addr start, Addr end);
+        void index(const char* path, Addr start, Addr v_addr_start, Addr end, bool index_symbols);
 
         const std::string& file_for(Addr addr) const;
 
