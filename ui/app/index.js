@@ -22,16 +22,6 @@ import AggregatedProfileDataContainer from 'components/AggregatedProfileDataCont
 
 import './assets/styles/global.css';
 
-window.fetchprofile = function() {
-  fetch("http://localhost:3001/api/profile/fk-prof/nfr_cluster_fk-prof-nfr-wheezy1-475145/load-gen-app/cpu-sampling/json-ser-de-ctx_0%20%3E%20hashmap-create-ctx?start=2017-05-06T09%3A30%3A56.638Z")
-    .then(a => {console.log("yo", a); window.pr = a;})
-    .catch(e => console.log("lo", e));
-};
-
-window.parseprofile = function() {
-  window.pr.json().then(a => console.log(a)).catch(e => console.error(e));
-}
-
 const routes = (
   <Route path="/" component={Root}>
     <IndexRedirect to="/profiler" />

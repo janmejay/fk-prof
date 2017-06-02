@@ -95,72 +95,6 @@ class MethodTreeComponent extends Component {
     }
   }
 
-  getMaxWidthOfRenderedStacklines() {
-    let maxWidthOfRenderedStacklines = 0;
-    for(let i = 0;i < this.renderData.length;i++) {
-      if (maxWidthOfRenderedStacklines < this.renderData[i][4]) {
-        maxWidthOfRenderedStacklines = this.renderData[i][4];
-      }
-    }
-    maxWidthOfRenderedStacklines += 10; //added some buffer
-    const minGridWidth = this.containerWidth - rightColumnWidth - 15;
-    return maxWidthOfRenderedStacklines < minGridWidth ? minGridWidth : maxWidthOfRenderedStacklines;
-  }
-
-  highlight (path) {
-    if (path in this.highlighted) {
-      //highlighted node, remove highlight
-      delete this.highlighted[path];
-    } else {
-      // identifying already highlighted children of path
-      const highlightedChildren = Object.keys(this.highlighted)
-      .filter(highlight => highlight.startsWith(path));
-      if (highlightedChildren.length) {
-        // delete highlighted children
-        highlightedChildren.forEach((p) => {
-          delete this.highlighted[p];
-        });
-      }
-
-      // identifying already highlighted parents of path, this will always be 1 at max
-      const highlightedParents = Object.keys(this.highlighted)
-      .filter(highlight => path.startsWith(highlight));
-      if (highlightedParents.length) {
-        // delete highlighted parents
-        highlightedParents.forEach((p) => {
-          delete this.highlighted[p];
-        });
-      }
-
-      this.highlighted[path] = true;
-    }
-
-    if(this.stacklineDetailGrid && this.stacklineStatGrid) {
-      this.stacklineDetailGrid.forceUpdate();
-      this.stacklineStatGrid.forceUpdate();
-    }
-  }
-
-  handleFilterChange (e) {
-    const { pathname, query } = this.props.location;
-    this.props.router.push({ pathname, query: { ...query, [this.props.filterKey]: e.target.value } });
-    this.renderData = this.getInitialRenderData(e.target.value);
-    this.setState({
-      itemCount: this.renderData.length
-    });
-  }
-
-  getInitialRenderData(filterText) {
-    const { nextNodesAccessorField } = this.props;
-    let nodeIndexes;
-    if (nextNodesAccessorField === 'parent') {
-      nodeIndexes = this.props.nodeIndexes.map((nodeIndex) => [nodeIndex, undefined]);
-    } else {
-      nodeIndexes = this.props.nodeIndexes;
-    }
-    return this.getRenderData(nodeIndexes, filterText, '', false, 0);
-  }
-
   render () {
     if(this.containerWidth == 0) {
       return null;
@@ -244,6 +178,78 @@ class MethodTreeComponent extends Component {
     );
   }
 
+  toggle (listIdx) {
+    const rowdata = this.renderData[listIdx];
+    const uniqueId = rowdata[0];
+
+    let nodeIndexes;
+    if (this.props.nextNodesAccessorField === 'parent') {
+      nodeIndexes = rowdata[1].parentsWithSampledCallCount;
+    } else {
+      nodeIndexes = rowdata[1].children;
+    }
+
+    if(!this.opened[uniqueId]) {
+      //expand
+      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3] > 1, rowdata[2]);
+      var postarr = this.renderData.splice(listIdx + 1);
+      this.renderData = this.renderData.concat(childRenderData, postarr);            
+    } else {
+      //collapse
+      const descendants = this.getRenderedDescendantCountForListItem(listIdx);
+      if(descendants > 0) {
+        this.renderData.splice(listIdx + 1, descendants);
+      }
+    }
+    this.opened[uniqueId] = !this.opened[uniqueId];
+    this.setState({
+      itemCount: this.renderData.length
+    });
+  }
+
+  highlight (path) {
+    if (path in this.highlighted) {
+      //highlighted node, remove highlight
+      delete this.highlighted[path];
+    } else {
+      // identifying already highlighted children of path
+      const highlightedChildren = Object.keys(this.highlighted)
+      .filter(highlight => highlight.startsWith(path));
+      if (highlightedChildren.length) {
+        // delete highlighted children
+        highlightedChildren.forEach((p) => {
+          delete this.highlighted[p];
+        });
+      }
+
+      // identifying already highlighted parents of path, this will always be 1 at max
+      const highlightedParents = Object.keys(this.highlighted)
+      .filter(highlight => path.startsWith(highlight));
+      if (highlightedParents.length) {
+        // delete highlighted parents
+        highlightedParents.forEach((p) => {
+          delete this.highlighted[p];
+        });
+      }
+
+      this.highlighted[path] = true;
+    }
+
+    if(this.stacklineDetailGrid && this.stacklineStatGrid) {
+      this.stacklineDetailGrid.forceUpdate();
+      this.stacklineStatGrid.forceUpdate();
+    }
+  }
+
+  handleFilterChange (e) {
+    const { pathname, query } = this.props.location;
+    this.props.router.push({ pathname, query: { ...query, [this.props.filterKey]: e.target.value } });
+    this.renderData = this.getInitialRenderData(e.target.value);
+    this.setState({
+      itemCount: this.renderData.length
+    });
+  }
+
   stacklineDetailCellRenderer (params) {
     let rowdata = this.renderData[params.rowIndex];
     let n = rowdata[1], uniqueId = rowdata[0];
@@ -319,90 +325,6 @@ class MethodTreeComponent extends Component {
         subdued={rowdata[3] == 1 ? true : false}>
       </StacklineStats>
     );
-  }
-
-  toggle (listIdx) {
-    const rowdata = this.renderData[listIdx];
-    const uniqueId = rowdata[0];
-
-    let nodeIndexes;
-    if (this.props.nextNodesAccessorField === 'parent') {
-      nodeIndexes = rowdata[1].parentsWithSampledCallCount;
-    } else {
-      nodeIndexes = rowdata[1].children;
-    }
-
-    if(!this.opened[uniqueId]) {
-      //expand
-      var childRenderData = this.getRenderData(nodeIndexes, null, uniqueId, rowdata[3] > 1, rowdata[2]);
-      var postarr = this.renderData.splice(listIdx + 1);
-      this.renderData = this.renderData.concat(childRenderData, postarr);            
-    } else {
-      //collapse
-      const descendants = this.getRenderedDescendantCountForListItem(listIdx);
-      if(descendants > 0) {
-        this.renderData.splice(listIdx + 1, descendants);
-      }
-    }
-    this.opened[uniqueId] = !this.opened[uniqueId];
-    this.setState({
-      itemCount: this.renderData.length
-    });
-  }
-
-  getRenderedDescendantCountForListItem(listIdx) {
-    let currIdx = listIdx;
-    let toVisit = this.getRenderedChildrenCountForListItem(currIdx);
-    while(toVisit > 0) {
-      toVisit--;
-      currIdx++;
-      toVisit += this.getRenderedChildrenCountForListItem(currIdx);
-    }
-    return currIdx - listIdx;
-  }
-
-  getRenderedChildrenCountForListItem(listIdx) {
-    let children = 0;
-    let rowdata = this.renderData[listIdx];
-    if(rowdata) {
-      const uniqueId = rowdata[0];
-      if(this.opened[uniqueId]) {
-        if(this.isNodeHavingChildren(rowdata[1])) {
-          //At least one rendered child item is going to be present for this item
-          //Cannot rely on childNodeIndexes(calculated in isNodeHavingChildren method) to get count of children because actual rendered children can be lesser after deduping of nodes for hot method tree          
-          let child_rowdata = this.renderData[listIdx + 1];
-          if(child_rowdata) {
-            return child_rowdata[3]; //this is siblings count of child node which implies children count for parent node
-          } else {
-            console.error("This should never happen. If list item is expanded and its childNodeIndexes > 0, then at least one more item should be present in renderdata list")
-          }
-        }
-      }
-    }
-    return children;
-  }
-
-  isNodeHavingChildren(node) {
-    if(this.props.nextNodesAccessorField === 'parent') {
-      let childNodeIndexes = node.parentsWithSampledCallCount;
-      if(childNodeIndexes && childNodeIndexes.length > 0) {
-        if(childNodeIndexes.length != 1) {
-          return true;
-        } else {
-          //If this has only one childnodeindex and that is "0" node => corresponds to root node which is not rendered in UI
-          //"if(! node.hasParent()) break;" condition in dedupeNodes method ensure above node is not rendered
-          if(childNodeIndexes[0][0] === 0) {
-            return false;
-          } else {
-            return true;
-          }
-        }
-      } else {
-        return false;
-      }
-    } else {
-      return (node.children && node.children.length > 0);
-    }
   }
 
   getRenderData (nodeIndexes = [], filterText, parentPath, parentHasSiblings, parentIndent) {
@@ -497,6 +419,84 @@ class MethodTreeComponent extends Component {
       }
     }
     return renderData;
+  }
+
+  getInitialRenderData(filterText) {
+    const { nextNodesAccessorField } = this.props;
+    let nodeIndexes;
+    if (nextNodesAccessorField === 'parent') {
+      nodeIndexes = this.props.nodeIndexes.map((nodeIndex) => [nodeIndex, undefined]);
+    } else {
+      nodeIndexes = this.props.nodeIndexes;
+    }
+    return this.getRenderData(nodeIndexes, filterText, '', false, 0);
+  }
+
+  getRenderedDescendantCountForListItem(listIdx) {
+    let currIdx = listIdx;
+    let toVisit = this.getRenderedChildrenCountForListItem(currIdx);
+    while(toVisit > 0) {
+      toVisit--;
+      currIdx++;
+      toVisit += this.getRenderedChildrenCountForListItem(currIdx);
+    }
+    return currIdx - listIdx;
+  }
+
+  getRenderedChildrenCountForListItem(listIdx) {
+    let children = 0;
+    let rowdata = this.renderData[listIdx];
+    if(rowdata) {
+      const uniqueId = rowdata[0];
+      if(this.opened[uniqueId]) {
+        if(this.isNodeHavingChildren(rowdata[1])) {
+          //At least one rendered child item is going to be present for this item
+          //Cannot rely on childNodeIndexes(calculated in isNodeHavingChildren method) to get count of children because actual rendered children can be lesser after deduping of nodes for hot method tree          
+          let child_rowdata = this.renderData[listIdx + 1];
+          if(child_rowdata) {
+            return child_rowdata[3]; //this is siblings count of child node which implies children count for parent node
+          } else {
+            console.error("This should never happen. If list item is expanded and its childNodeIndexes > 0, then at least one more item should be present in renderdata list")
+          }
+        }
+      }
+    }
+    return children;
+  }
+
+  isNodeHavingChildren(node) {
+    if(this.props.nextNodesAccessorField === 'parent') {
+      let childNodeIndexes = node.parentsWithSampledCallCount;
+      if(childNodeIndexes && childNodeIndexes.length > 0) {
+        if(childNodeIndexes.length != 1) {
+          return true;
+        } else {
+          //If this has only one childnodeindex and that is "0" node => corresponds to root node which is not rendered in UI
+          //"if(! node.hasParent()) break;" condition in dedupeNodes method ensure above node is not rendered
+          if(childNodeIndexes[0][0] === 0) {
+            return false;
+          } else {
+            return true;
+          }
+        }
+      } else {
+        return false;
+      }
+    } else {
+      return (node.children && node.children.length > 0);
+    }
+  }
+
+  getMaxWidthOfRenderedStacklines() {
+    let maxWidthOfRenderedStacklines = 0;
+    for(let i = 0;i < this.renderData.length;i++) {
+      if (maxWidthOfRenderedStacklines < this.renderData[i][4]) {
+        maxWidthOfRenderedStacklines = this.renderData[i][4];
+      }
+    }
+    maxWidthOfRenderedStacklines += 10; //added some buffer
+    const minGridWidth = this.containerWidth - rightColumnWidth - 15;
+    return maxWidthOfRenderedStacklines < minGridWidth ? minGridWidth : maxWidthOfRenderedStacklines;
   }
 }
 

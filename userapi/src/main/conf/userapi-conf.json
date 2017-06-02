@@ -7,12 +7,12 @@
     }
   },
   "profile.retention.duration.min": 30,
-  "aggregation_window.duration.secs": 300,
+  "aggregation_window.duration.secs": 1800,
   "storage": {
     "s3": {
-      "endpoint": "http://10.47.2.33:80",
-      "access.key": "J1WVRCCMIZ5L3DVFSQKD",
-      "secret.key": "HyfECCbRz2BTkxASvoM5tRQiD/OaaPsVdaF0uPtH",
+      "endpoint": "http://127.0.0.1:13031",
+      "access.key": "",
+      "secret.key": "",
       "list.objects.timeout.ms": 30000
     },
     "thread.pool": {

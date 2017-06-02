@@ -9,13 +9,6 @@ import Tabs from 'components/Tabs';
 import styles from './CPUSamplingComponent.css';
 
 export class CPUSamplingComponent extends Component {
-  constructor (props) {
-    super(props);
-    this.state = {
-      hmContainerWidth: null
-    };
-  }
-
   componentDidMount () {
     const { app, cluster, proc, workType, profileStart, selectedWorkType } = this.props.location.query;
     const { traceName } = this.props.params;
