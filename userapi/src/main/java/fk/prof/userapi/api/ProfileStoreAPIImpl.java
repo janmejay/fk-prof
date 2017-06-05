@@ -114,8 +114,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     @Override
     public void getProfilesInTimeWindow(Future<List<AggregatedProfileNamingStrategy>> profiles, String baseDir, String appId, String clusterId, String proc, ZonedDateTime startTime, int durationInSeconds) {
-        ZonedDateTime startTimes = ZonedDateTime.ofInstant(startTime.toInstant(), ZoneId.of("UTC"));
-        LocalDate startDate = startTimes.toLocalDate();
+        LocalDate startDate = ZonedDateTime.ofInstant(startTime.toInstant(), ZoneId.of("UTC")).toLocalDate();
         LocalDate endDate = ZonedDateTime.ofInstant(startTime.plusSeconds(durationInSeconds).toInstant(), ZoneId.of("UTC")).toLocalDate();
         LocalDate currentDate = startDate;
         String prefix = baseDir + DELIMITER + VERSION + DELIMITER + encode(appId)
