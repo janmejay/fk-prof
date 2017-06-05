@@ -130,7 +130,7 @@ public class HttpVerticle extends AbstractVerticle {
             startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
             duration = Integer.parseInt(routingContext.request().getParam("duration"));
             if (duration > MAX_TIME_WINDOW) { // Seconds in seven days
-                throw new RuntimeException("Max window size supported = " + MAX_TIME_WINDOW + " seconds, requested window size = " + duration + " seconds");
+                throw new IllegalArgumentException("Max window size supported = " + MAX_TIME_WINDOW + " seconds, requested window size = " + duration + " seconds");
             }
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
@@ -271,13 +271,7 @@ public class HttpVerticle extends AbstractVerticle {
     private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
                                                           AggregatedProfileModel.WorkType workType, String startTime, String duration) {
         ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        int windowDuration;
-        try {
-            windowDuration = Integer.parseInt(duration);
-        } catch (Exception e) {
-            windowDuration = aggregationWindowDurationInSecs;
-        }
-        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, windowDuration, workType);
+        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, Integer.parseInt(duration), workType);
     }
 
     private boolean safeContains(String str, String subStr) {

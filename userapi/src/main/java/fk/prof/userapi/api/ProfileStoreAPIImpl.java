@@ -120,12 +120,11 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
         String prefix = baseDir + DELIMITER + VERSION + DELIMITER + encode(appId)
                 + DELIMITER + encode(clusterId) + DELIMITER + encode(proc) + DELIMITER;
 
-        List<Future> allDatesProfilesFutures = new ArrayList<>();
+        List<Future> allResults = new ArrayList<>();
         while (!currentDate.isAfter(endDate)) {
             String prefixWithDate = prefix + currentDate.toString();
-            System.out.println(startDate + " " + currentDate);
-            Future<List<AggregatedProfileNamingStrategy>> currentDateProfilesFuture = Future.future();
-            allDatesProfilesFutures.add(currentDateProfilesFuture);
+            Future<List<AggregatedProfileNamingStrategy>> currResult = Future.future();
+            allResults.add(currResult);
             asyncStorage.listAsync(prefixWithDate, true).thenApply(allObjects ->
                     allObjects.stream()
                             .map(AggregatedProfileNamingStrategy::fromFileName)
@@ -133,21 +132,21 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
                             .filter(s -> s.isSummaryFile &&
                                     s.startTime.isAfter(startTime.minusSeconds(1)) &&
                                     s.startTime.isBefore(startTime.plusSeconds(durationInSeconds))).collect(Collectors.toList())
-            ).whenComplete((result, error) -> completeFuture(result, error, currentDateProfilesFuture));
+            ).whenComplete((result, error) -> completeFuture(result, error, currResult));
             currentDate = currentDate.plus(1, ChronoUnit.DAYS);
         }
 
-        CompositeFuture.all(allDatesProfilesFutures).setHandler(compositeFutureAsyncResult -> {
-            if (compositeFutureAsyncResult.succeeded()) {
-                List<List<AggregatedProfileNamingStrategy>> allDatesProfiles = compositeFutureAsyncResult.result().list();
-                List<AggregatedProfileNamingStrategy> allDatesProfilesCombined = allDatesProfiles.stream().reduce(new ArrayList<>(), (list1, list2) -> {
+        CompositeFuture.all(allResults).setHandler(ar -> {
+            if (ar.succeeded()) {
+                List<List<AggregatedProfileNamingStrategy>> allProfiles = ar.result().list();
+                List<AggregatedProfileNamingStrategy> flattenedProfiles = allProfiles.stream().reduce(new ArrayList<>(), (list1, list2) -> {
                     list1.addAll(list2);
                     return list1;
                 });
-                allDatesProfilesCombined.sort(Comparator.comparing(agg -> agg.startTime));
-                profiles.complete(allDatesProfilesCombined);
+                flattenedProfiles.sort(Comparator.comparing(agg -> agg.startTime));
+                profiles.complete(flattenedProfiles);
             } else {
-                profiles.fail(compositeFutureAsyncResult.cause());
+                profiles.fail(ar.cause());
             }
         });
     }
