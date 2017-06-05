@@ -11,7 +11,7 @@ import styles from './CPUSamplingComponent.css';
 
 export class CPUSamplingComponent extends Component {
   componentDidMount () {
-    const { app, cluster, proc, workType, profileStart, selectedWorkType } = this.props.location.query;
+    const {app, cluster, proc, workType, profileStart, selectedWorkType, profileDuration} = this.props.location.query;
     const { traceName } = this.props.params;
     this.props.fetchCPUSampling({
       app,
@@ -20,12 +20,15 @@ export class CPUSamplingComponent extends Component {
       workType,
       selectedWorkType,
       traceName,
-      query: { start: profileStart },
+      query: {
+        start: profileStart,
+        duration: profileDuration
+      },
     });
   }
 
   componentWillReceiveProps (nextProps) {
-    const { app, cluster, proc, workType, profileStart, selectedWorkType } = nextProps.location.query;
+    const {app, cluster, proc, workType, profileStart, selectedWorkType, profileDuration} = nextProps.location.query;
     const didTraceNameChange = this.props.params.traceName !== nextProps.params.traceName;
     const didProfileChange = profileStart !== this.props.location.query.profileStart;
     if (didTraceNameChange || didProfileChange) {
@@ -37,7 +40,10 @@ export class CPUSamplingComponent extends Component {
         workType,
         selectedWorkType,
         traceName,
-        query: { start: profileStart },
+        query: {
+          start: profileStart,
+          duration: profileDuration
+        },
       });
     }
   }
@@ -158,6 +164,7 @@ CPUSamplingComponent.propTypes = {
       workType: PropTypes.string,
       profileStart: PropTypes.string,
       selectedWorkType: PropTypes.string,
+      profileDuration: PropTypes.string
     }),
   }),
 };
