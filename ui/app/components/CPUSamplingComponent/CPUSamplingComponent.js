@@ -1,17 +1,17 @@
-import React, { Component, PropTypes } from 'react';
-import { connect } from 'react-redux';
+import React, {Component, PropTypes} from "react";
+import {connect} from "react-redux";
 
-import fetchCPUSamplingAction from 'actions/AggregatedProfileDataActions';
-import safeTraverse from 'utils/safeTraverse';
-import Loader from 'components/LoaderComponent';
-import MethodTree from 'components/MethodTreeComponent';
-import Tabs from 'components/Tabs';
-import styles from './CPUSamplingComponent.css';
+import fetchCPUSamplingAction from "actions/AggregatedProfileDataActions";
+import safeTraverse from "utils/safeTraverse";
+import Loader from "components/LoaderComponent";
+import MethodTree from "components/MethodTreeComponent";
+import Tabs from "components/Tabs";
+import styles from "./CPUSamplingComponent.css";
 
 
 export class CPUSamplingComponent extends Component {
   componentDidMount () {
-    const { app, cluster, proc, workType, profileStart, selectedWorkType } = this.props.location.query;
+    const {app, cluster, proc, workType, profileStart, selectedWorkType, profileDuration} = this.props.location.query;
     const { traceName } = this.props.params;
     this.props.fetchCPUSampling({
       app,
@@ -20,14 +20,17 @@ export class CPUSamplingComponent extends Component {
       workType,
       selectedWorkType,
       traceName,
-      query: { start: profileStart },
+      query: {
+        start: profileStart,
+        duration: profileDuration
+      },
     });
   }
 
   componentWillReceiveProps (nextProps) {
-    const { app, cluster, proc, workType, profileStart, selectedWorkType } = nextProps.location.query;
+    const {app, cluster, proc, workType, profileStart, selectedWorkType, profileDuration} = nextProps.location.query;
     const didTraceNameChange = this.props.params.traceName !== nextProps.params.traceName;
-    const didProfileChange = profileStart !== this.props.location.query.profileStart;
+    const didProfileChange = profileStart !== this.props.location.query.profileStart || profileDuration !== this.props.location.query.profileDuration;
     if (didTraceNameChange || didProfileChange) {
       const { traceName } = nextProps.params;
       this.props.fetchCPUSampling({
@@ -37,7 +40,10 @@ export class CPUSamplingComponent extends Component {
         workType,
         selectedWorkType,
         traceName,
-        query: { start: profileStart },
+        query: {
+          start: profileStart,
+          duration: profileDuration
+        },
       });
     }
   }
@@ -158,6 +164,7 @@ CPUSamplingComponent.propTypes = {
       workType: PropTypes.string,
       profileStart: PropTypes.string,
       selectedWorkType: PropTypes.string,
+      profileDuration: PropTypes.number
     }),
   }),
 };
