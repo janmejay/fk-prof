@@ -40,15 +40,15 @@ public class HttpVerticle extends AbstractVerticle {
     private static Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
     private String baseDir;
-    private final int maxAggregationWindowDurationInDays;
+    private final int maxListProfilesDurationInSecs;
     private Configuration.HttpConfig httpConfig;
     private ProfileStoreAPI profileStoreAPI;
 
-    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int maxAggregationWindowDurationInDays) {
+    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int maxListProfilesDurationInDays) {
         this.httpConfig = httpConfig;
         this.profileStoreAPI = profileStoreAPI;
         this.baseDir = baseDir;
-        this.maxAggregationWindowDurationInDays = maxAggregationWindowDurationInDays;
+        this.maxListProfilesDurationInSecs = maxListProfilesDurationInDays*24*60*60;
     }
 
     private Router configureRouter() {
@@ -130,8 +130,8 @@ public class HttpVerticle extends AbstractVerticle {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
         }
-        if (duration > maxAggregationWindowDurationInDays*24*60*60) {
-            setResponse(Future.failedFuture(new IllegalArgumentException("Max window size supported = " + maxAggregationWindowDurationInDays*24*60*60 + " seconds, requested window size = " + duration + " seconds")), routingContext);
+        if (duration > maxListProfilesDurationInSecs) {
+            setResponse(Future.failedFuture(new IllegalArgumentException("Max window size supported = " + maxListProfilesDurationInSecs + " seconds, requested window size = " + duration + " seconds")), routingContext);
             return;
         }
 

@@ -22,8 +22,8 @@ public class Configuration {
     @JsonProperty("profile.retention.duration.min")
     private Integer profileRetentionDurationMin = 30;
 
-    @JsonProperty("max.aggregation_window.duration.days")
-    private Integer maxAggregationWindowDurationDays = 7;
+    @JsonProperty("max.list_profiles.duration.days")
+    private Integer maxListProfilesDurationInDays = 7;
 
     @JsonProperty("load.timeout")
     private Integer loadTimeout = 10000;
@@ -57,8 +57,8 @@ public class Configuration {
         return profileRetentionDurationMin;
     }
 
-    public Integer getMaxAggregationWindowDurationDays() {
-        return maxAggregationWindowDurationDays;
+    public Integer getMaxListProfilesDurationInDays() {
+        return maxListProfilesDurationInDays;
     }
 
     public Integer getLoadTimeout() {
