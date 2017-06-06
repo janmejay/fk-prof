@@ -77,7 +77,7 @@ public class UserapiManager {
         registerSerializers(Json.mapper);
         registerSerializers(Json.prettyMapper);
 
-        ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, config.getProfileRetentionDurationMin(), config.getLoadTimeout(), config.getVertxWorkerPoolSize());
+        ProfileStoreAPI profileStoreAPI = new ProfileStoreAPIImpl(vertx, this.storage, config.getProfileRetentionDurationMin(), config.getProfileLoadTimeout(), config.getVertxWorkerPoolSize());
         VerticleDeployer userapiHttpVerticleDeployer = new UserapiHttpVerticleDeployer(vertx, config, profileStoreAPI);
 
         userapiHttpVerticleDeployer.deploy().setHandler(verticleDeployCompositeResult -> {

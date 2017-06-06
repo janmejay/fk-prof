@@ -7,7 +7,7 @@
     }
   },
   "profile.retention.duration.min": 30,
-  "load.timeout": 10000,
+  "profile.load.timeout": 10000,
   "storage": {
     "s3": {
       "endpoint": "http://127.0.0.1:13031",

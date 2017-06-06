@@ -32,8 +32,8 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
 
     private static final String DELIMITER = "/";
     private static final String WORKER_POOL_NAME = "aggregation.loader.pool";
-    private final String VERSION = "v0001";
-    private final int loadTimeout;
+    private static final String VERSION = "v0001";
+    private final int profileLoadTimeout;
 
     private Vertx vertx;
     private AsyncStorage asyncStorage;
@@ -48,11 +48,11 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     * is in progress, this map will contain its corresponding key */
     private Map<String, FuturesList<Object>> futuresForLoadingFiles;
 
-    public ProfileStoreAPIImpl(Vertx vertx, AsyncStorage asyncStorage, int maxIdleRetentionInMin, Integer loadTimeout, Integer workerPoolSize) {
+    public ProfileStoreAPIImpl(Vertx vertx, AsyncStorage asyncStorage, int maxIdleRetentionInMin, Integer profileLoadTimeout, Integer workerPoolSize) {
         this.vertx = vertx;
         this.asyncStorage = asyncStorage;
         this.profileLoader = new AggregatedProfileLoader(this.asyncStorage);
-        this.loadTimeout = loadTimeout;
+        this.profileLoadTimeout = profileLoadTimeout;
 
         this.workerExecutor = vertx.createSharedWorkerExecutor(WORKER_POOL_NAME, workerPoolSize);
 
@@ -157,7 +157,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             // save the future, so that it can be notified when the loading visit finishes
             saveRequestedFuture(fileNameKey, future);
             // set the timeout for this future
-            vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
+            vertx.setTimer(profileLoadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
 
             if (!fileLoadInProgress) {
                 workerExecutor.executeBlocking((Future<AggregatedProfileInfo> f) -> profileLoader.load(f, filename),
@@ -185,7 +185,7 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
             // save the future, so that it can be notified when the loading visit finishes
             saveRequestedFuture(fileNameKey, future);
             // set the timeout for this future
-            vertx.setTimer(loadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
+            vertx.setTimer(profileLoadTimeout, timerId -> timeoutRequestedFuture(fileNameKey, future));
 
             if (!fileLoadInProgress) {
                 workerExecutor.executeBlocking((Future<AggregationWindowSummary> f) -> profileLoader.loadSummary(f, filename),

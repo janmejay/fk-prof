@@ -30,7 +30,7 @@ export class CPUSamplingComponent extends Component {
   componentWillReceiveProps (nextProps) {
     const {app, cluster, proc, workType, profileStart, selectedWorkType, profileDuration} = nextProps.location.query;
     const didTraceNameChange = this.props.params.traceName !== nextProps.params.traceName;
-    const didProfileChange = profileStart !== this.props.location.query.profileStart;
+    const didProfileChange = profileStart !== this.props.location.query.profileStart || profileDuration !== this.props.location.query.profileDuration;
     if (didTraceNameChange || didProfileChange) {
       const { traceName } = nextProps.params;
       this.props.fetchCPUSampling({

@@ -25,8 +25,8 @@ public class Configuration {
     @JsonProperty("max.list_profiles.duration.days")
     private Integer maxListProfilesDurationInDays = 7;
 
-    @JsonProperty("load.timeout")
-    private Integer loadTimeout = 10000;
+    @JsonProperty("profile.load.timeout")
+    private Integer profileLoadTimeout = 10000;
 
     @JsonProperty("vertx.worker.pool.size")
     private Integer vertxWorkerPoolSize;
@@ -61,8 +61,8 @@ public class Configuration {
         return maxListProfilesDurationInDays;
     }
 
-    public Integer getLoadTimeout() {
-        return loadTimeout;
+    public Integer getProfileLoadTimeout() {
+        return profileLoadTimeout;
     }
 
     public Integer getVertxWorkerPoolSize() {

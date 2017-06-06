@@ -85,7 +85,7 @@ public class ProfileDiscoveryAPITest {
         vertx = Vertx.vertx();
         asyncStorage = mock(AsyncStorage.class);
         config = UserapiConfigManager.loadConfig(ParseProfileTest.class.getClassLoader().getResource("userapi-conf.json").getFile());
-        profileDiscoveryAPI = new ProfileStoreAPIImpl(vertx, asyncStorage, 30, config.getLoadTimeout(), config.getVertxWorkerPoolSize());
+        profileDiscoveryAPI = new ProfileStoreAPIImpl(vertx, asyncStorage, 30, config.getProfileLoadTimeout(), config.getVertxWorkerPoolSize());
 
         when(asyncStorage.listAsync(anyString(), anyBoolean())).thenAnswer(invocation -> {
             String path1 = invocation.getArgument(0);
