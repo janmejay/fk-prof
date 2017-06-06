@@ -26,6 +26,6 @@ public class UserapiHttpVerticleDeployer extends VerticleDeployer {
     @Override
     protected Verticle buildVerticle() {
         Configuration config = getConfig();
-        return new HttpVerticle(config.getHttpConfig(), profileStoreAPI, config.getProfilesBaseDir(), config.getAggregationWindowDurationSec());
+        return new HttpVerticle(config.getHttpConfig(), profileStoreAPI, config.getProfilesBaseDir(), config.getMaxAggregationWindowDurationDays());
     }
 }

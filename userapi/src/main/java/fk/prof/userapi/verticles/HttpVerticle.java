@@ -40,18 +40,15 @@ public class HttpVerticle extends AbstractVerticle {
     private static Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
     private String baseDir;
-    private int aggregationWindowDurationInSecs;
+    private final int maxAggregationWindowDurationInDays;
     private Configuration.HttpConfig httpConfig;
-
     private ProfileStoreAPI profileStoreAPI;
-    private static final Long MAX_TIME_WINDOW = 604800L; //seconds in 7 days
 
-
-    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int aggregationWindowDurationInSecs) {
+    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int maxAggregationWindowDurationInDays) {
         this.httpConfig = httpConfig;
         this.profileStoreAPI = profileStoreAPI;
         this.baseDir = baseDir;
-        this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
+        this.maxAggregationWindowDurationInDays = maxAggregationWindowDurationInDays;
     }
 
     private Router configureRouter() {
@@ -129,11 +126,12 @@ public class HttpVerticle extends AbstractVerticle {
         try {
             startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
             duration = Integer.parseInt(routingContext.request().getParam("duration"));
-            if (duration > MAX_TIME_WINDOW) { // Seconds in seven days
-                throw new IllegalArgumentException("Max window size supported = " + MAX_TIME_WINDOW + " seconds, requested window size = " + duration + " seconds");
-            }
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
+            return;
+        }
+        if (duration > maxAggregationWindowDurationInDays*24*60*60) {
+            setResponse(Future.failedFuture(new IllegalArgumentException("Max window size supported = " + maxAggregationWindowDurationInDays*24*60*60 + " seconds, requested window size = " + duration + " seconds")), routingContext);
             return;
         }
 
@@ -197,12 +195,20 @@ public class HttpVerticle extends AbstractVerticle {
         AggregatedProfileModel.WorkType workType = AggregatedProfileModel.WorkType.cpu_sample_work;
         String traceName = routingContext.request().getParam("traceName");
 
-        String startTime = routingContext.request().getParam("start");
-        String duration = routingContext.request().getParam("duration");
+        ZonedDateTime startTime;
+        int duration;
+
+        try {
+            startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            duration = Integer.parseInt(routingContext.request().getParam("duration"));
+        } catch (Exception e) {
+            setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
+            return;
+        }
 
         AggregatedProfileNamingStrategy filename;
         try {
-            filename = buildFileName(appId, clusterId, procId, workType, startTime, duration);
+            filename = new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, startTime, duration, workType);
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
@@ -266,12 +272,6 @@ public class HttpVerticle extends AbstractVerticle {
                 response.end(encodedResponse);
             }
         }
-    }
-
-    private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
-                                                          AggregatedProfileModel.WorkType workType, String startTime, String duration) {
-        ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, Integer.parseInt(duration), workType);
     }
 
     private boolean safeContains(String str, String subStr) {

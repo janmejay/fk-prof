@@ -9,6 +9,7 @@ import fk.prof.storage.AsyncStorage;
 import fk.prof.userapi.model.AggregatedProfileInfo;
 import fk.prof.userapi.model.AggregationWindowSummary;
 import io.vertx.core.*;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
@@ -27,21 +28,16 @@ import java.util.stream.Collectors;
  * Created by rohit.patiyal on 19/01/17.
  */
 public class ProfileStoreAPIImpl implements ProfileStoreAPI {
+    private static Logger LOGGER = LoggerFactory.getLogger(ProfileStoreAPIImpl.class);
 
-    private static final String VERSION = "v0001";
     private static final String DELIMITER = "/";
-
-    public static final String WORKER_POOL_NAME = "aggregation.loader.pool";
-    public static final int WORKER_POOL_SIZE = 50;
-    public static final int DEFAULT_LOAD_TIMEOUT = 10000;   // in ms
-    private int loadTimeout = DEFAULT_LOAD_TIMEOUT;
-
-    private static org.slf4j.Logger LOGGER = LoggerFactory.getLogger(ProfileStoreAPIImpl.class);
+    private static final String WORKER_POOL_NAME = "aggregation.loader.pool";
+    private final String VERSION = "v0001";
+    private final int loadTimeout;
 
     private Vertx vertx;
     private AsyncStorage asyncStorage;
     private AggregatedProfileLoader profileLoader;
-    private int maxIdleRetentionInMin;
 
     private WorkerExecutor workerExecutor;
 
@@ -52,22 +48,22 @@ public class ProfileStoreAPIImpl implements ProfileStoreAPI {
     * is in progress, this map will contain its corresponding key */
     private Map<String, FuturesList<Object>> futuresForLoadingFiles;
 
-    public ProfileStoreAPIImpl(Vertx vertx, AsyncStorage asyncStorage, int maxIdleRetentionInMin) {
+    public ProfileStoreAPIImpl(Vertx vertx, AsyncStorage asyncStorage, int maxIdleRetentionInMin, Integer loadTimeout, Integer workerPoolSize) {
         this.vertx = vertx;
         this.asyncStorage = asyncStorage;
         this.profileLoader = new AggregatedProfileLoader(this.asyncStorage);
-        this.maxIdleRetentionInMin = maxIdleRetentionInMin;
+        this.loadTimeout = loadTimeout;
 
-        this.workerExecutor = vertx.createSharedWorkerExecutor(WORKER_POOL_NAME, WORKER_POOL_SIZE);
+        this.workerExecutor = vertx.createSharedWorkerExecutor(WORKER_POOL_NAME, workerPoolSize);
 
         this.cache = CacheBuilder.newBuilder()
                 .maximumSize(50)
-                .expireAfterAccess(this.maxIdleRetentionInMin, TimeUnit.MINUTES)
+                .expireAfterAccess(maxIdleRetentionInMin, TimeUnit.MINUTES)
                 .build();
 
         this.summaryCache = CacheBuilder.newBuilder()
                 .maximumSize(500)
-                .expireAfterAccess(this.maxIdleRetentionInMin, TimeUnit.MINUTES)
+                .expireAfterAccess(maxIdleRetentionInMin, TimeUnit.MINUTES)
                 .build();
 
         this.futuresForLoadingFiles = new HashMap<>();

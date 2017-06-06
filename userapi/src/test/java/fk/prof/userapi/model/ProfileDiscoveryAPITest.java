@@ -2,6 +2,8 @@ package fk.prof.userapi.model;
 
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.storage.AsyncStorage;
+import fk.prof.userapi.Configuration;
+import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPI;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
 import fk.prof.userapi.model.json.ProtoSerializers;
@@ -56,6 +58,7 @@ public class ProfileDiscoveryAPITest {
     };
 
     AggregatedProfileNamingStrategy[] filenames = Stream.of(objects).map(AggregatedProfileNamingStrategy::fromFileName).toArray(AggregatedProfileNamingStrategy[]::new);
+    private Configuration config;
 
     private Set<String> getObjList(String prefix, boolean recursive) {
 
@@ -81,7 +84,8 @@ public class ProfileDiscoveryAPITest {
     public void setUp() throws Exception {
         vertx = Vertx.vertx();
         asyncStorage = mock(AsyncStorage.class);
-        profileDiscoveryAPI = new ProfileStoreAPIImpl(vertx, asyncStorage, 30);
+        config = UserapiConfigManager.loadConfig(ParseProfileTest.class.getClassLoader().getResource("userapi-conf.json").getFile());
+        profileDiscoveryAPI = new ProfileStoreAPIImpl(vertx, asyncStorage, 30, config.getLoadTimeout(), config.getVertxWorkerPoolSize());
 
         when(asyncStorage.listAsync(anyString(), anyBoolean())).thenAnswer(invocation -> {
             String path1 = invocation.getArgument(0);
