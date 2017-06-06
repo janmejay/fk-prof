@@ -11,15 +11,15 @@
 namespace SiteResolver {
     class MethodListener {
     public:
-        virtual void recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char* method_signature) = 0;
+        virtual int64_t recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char* method_signature) = 0;
         virtual ~MethodListener() { }
     };
 
-    typedef bool (*MethodInfoResolver)(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener);
-    bool method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener);
+    typedef bool (*MethodInfoResolver)(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener, std::int64_t& assigned_id);
+    bool method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener, std::int64_t& assigned_id);
 
-    typedef jint (*LineNoResolver)(jint bci, jmethodID method_id, jvmtiEnv* jvmti);
-    jint line_no(jint bci, jmethodID method_id, jvmtiEnv* jvmti);
+    typedef jint (*LineNoResolver)(const jint bci, const jmethodID method_id, jvmtiEnv* jvmti);
+    jint line_no(const jint bci, const jmethodID method_id, jvmtiEnv* jvmti);
 
     class SymInfoError : std::runtime_error {
     public:
@@ -72,11 +72,7 @@ namespace SiteResolver {
 
         void index(const char* path, Addr start, Addr v_addr_start, Addr end, bool index_symbols);
 
-        const std::string& file_for(Addr addr) const;
-
         void site_for(Addr addr, std::string& file_name, std::string& fn_name, Addr& pc_offset) const;
-
-        void print_frame(Addr pc) const;
     };
 }
 

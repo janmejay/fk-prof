@@ -32,11 +32,11 @@ typedef std::unordered_map<std::tuple<std::int64_t, jint>, jint> LineNoStub;
 FnStub method_lookup_stub;
 LineNoStub line_no_lookup_stub;
 
-bool test_mthd_info_resolver(const jmethodID method_id, jvmtiEnv* jvmti, SiteResolver::MethodListener& listener) {
+bool test_mthd_info_resolver(const jmethodID method_id, jvmtiEnv* jvmti, SiteResolver::MethodListener& listener, std::int64_t& assigned_id) {
     auto t = method_lookup_stub.find(reinterpret_cast<std::int64_t>(method_id));
     if (t != method_lookup_stub.end()) {
         const auto& identity = t->second;
-        listener.recordNewMethod(method_id, std::get<1>(identity), std::get<2>(identity), std::get<3>(identity), std::get<4>(identity));
+        assigned_id = listener.recordNewMethod(method_id, std::get<1>(identity), std::get<2>(identity), std::get<3>(identity), std::get<4>(identity));
         return true;
     }
     return false;
@@ -137,7 +137,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
         auto i = 0;                                                     \
         for (auto it = frames.begin(); it != frames.end(); it++, i++) { \
             auto f = ss.frame(i);                                       \
-            CHECK_EQUAL(std::get<0>(*it), f.method_id());               \
+            CHECK_EQUAL(std::get<0>(*it), f.method_id());             \
             CHECK_EQUAL(std::get<1>(*it), f.bci());                     \
             CHECK_EQUAL(std::get<2>(*it), f.line_no());                 \
         }                                                               \
@@ -161,7 +161,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
     
-    std::int64_t y = 1, c = 2, d = 3, e = 4, f = 5;
+    std::int64_t d = 1, c = 2, y = 3, e = 4, f = 5;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -207,7 +207,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
 
@@ -228,7 +228,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ThreadBucket tmain(42, "main thread", 10, false);
     tmain.ctx_tracker.enter(ctx_bar);
     tmain.ctx_tracker.enter(ctx_baz);
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&tmain));
     tmain.ctx_tracker.exit(ctx_baz);
 
     frames[0].method_id = mid(c);
@@ -244,13 +244,13 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[5].method_id = mid(y);
     frames[5].lineno = 30;
     ct.num_frames = 6;
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&tmain));
     
     tmain.ctx_tracker.exit(ctx_bar);
 
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
-    q.push(ct, CT_JVMPI, nullptr);
+    q.push(ct, BacktraceError::Fkp_no_error, nullptr);
 
     CHECK(q.pop());
     CHECK(q.pop());
@@ -294,12 +294,13 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(1), 4, "main thread", 10, false, 42);
 
-    CHECK_EQUAL(5, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), e, "x/E.class", "x.E", "fn_e", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), f, "x/F.class", "x.F", "fn_f", "(J)I");
+    CHECK_EQUAL(6, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), e, "x/E.class", "x.E", "fn_e", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(5), f, "x/F.class", "x.F", "fn_f", "(J)I");
 
     CHECK_EQUAL(4, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 15, 0, false);
@@ -334,7 +335,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
 
-    std::int64_t y = 1, c = 2;
+    std::int64_t y = 2, c = 1;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
 
@@ -371,7 +372,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
 
@@ -383,7 +384,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     t25.ctx_tracker.enter(ctx_bar);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     t25.ctx_tracker.exit(ctx_bar);
 
@@ -416,9 +417,10 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     CHECK_EQUAL(1, idx_data.thread_info_size());
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
 
-    CHECK_EQUAL(2, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    CHECK_EQUAL(3, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
     CHECK_EQUAL(3, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -447,7 +449,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
 
-    std::int64_t y = 1, c = 2;
+    std::int64_t y = 2, c = 1;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
 
@@ -481,13 +483,13 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     for (auto i = 0; i < 10; i++) {
-        q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+        q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
         CHECK(q.pop());
 
         std::uint8_t tmp;
         CHECK_EQUAL(0, buff.read(&tmp, 0, 1, false));
     }
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     CHECK(q.pop());
 
@@ -516,9 +518,10 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     CHECK_EQUAL(1, idx_data.thread_info_size());
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
 
-    CHECK_EQUAL(2, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    CHECK_EQUAL(3, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
     CHECK_EQUAL(2, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -544,7 +547,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
 
-    std::int64_t y = 1, c = 2, d = 3;
+    std::int64_t y = 2, c = 1, d = 3;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -595,9 +598,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
             ps.flush();//check manual flush interleving
         }
         if (i < 15) {
-            q.push(ct0, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
         } else {
-            q.push(ct1, CT_JVMPI, ThreadBucket::acq_bucket(&t10));
+            q.push(ct1, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t10));
         }
         CHECK(q.pop());
     }
@@ -658,9 +661,10 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     CHECK_EQUAL(1, idx_data0.thread_info_size());
     ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
 
-    CHECK_EQUAL(2, idx_data0.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    CHECK_EQUAL(3, idx_data0.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
     CHECK_EQUAL(2, idx_data0.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -740,8 +744,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     ct.frames = frames;
 
     for (auto i = 0; i < 11; i++) {
-        ct.num_frames = -1 * i;
-        q.push(ct, CT_JVMPI, nullptr);
+        ct.num_frames = 0;
+        q.push(ct, static_cast<BacktraceError>(i), nullptr);
         CHECK(q.pop());
     }
 
@@ -767,7 +771,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     auto idx_data = wse.indexed_data();
     CHECK_EQUAL(0, idx_data.monitor_info_size());
     CHECK_EQUAL(0, idx_data.thread_info_size());
-    CHECK_EQUAL(0, idx_data.method_info_size());
+    CHECK_EQUAL(1, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
     CHECK_EQUAL(1, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
 
@@ -793,7 +798,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
     
-    std::int64_t y = 1, c = 2, d = 3, e = 4, f = 5;
+    std::int64_t y = 3, c = 2, d = 1, e = 4, f = 5;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -834,7 +839,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
 
     ThreadBucket t25(25, "Thread No. 25", 5, true);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
 
     CHECK(q.pop());
@@ -875,9 +880,10 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     CHECK_EQUAL(1, idx_data.thread_info_size());
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
 
-    CHECK_EQUAL(2, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    CHECK_EQUAL(3, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I");
 
     CHECK_EQUAL(2, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -899,7 +905,7 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
 
-    std::int64_t y = 1, c = 2, d = 3;
+    std::int64_t y = 2, c = 1, d = 3;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -950,7 +956,7 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
         CircularQueue q(ps, 10);
 
         for (auto i = 0; i < 10 + additional_traces; i++) {
-            q.push(ct0, CT_JVMPI, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
             CHECK(q.pop());
         }
         if (additional_traces == 0) {
@@ -1008,9 +1014,10 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
     CHECK_EQUAL(1, idx_data0.thread_info_size());
     ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
 
-    CHECK_EQUAL(2, idx_data0.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    CHECK_EQUAL(3, idx_data0.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
 
     CHECK_EQUAL(2, idx_data0.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -1037,7 +1044,7 @@ TEST(ProfileSerializer__should_report_unflushed_trace__and_EOF_after_last_flush)
     //duplicating entire test is no more readable, and returning these variables or
     //passing them in for re-use hurts readability too.
     //Anyway, we are better off with tests that are more readable than DRY.
-    std::int64_t y = 1, c = 2;
+    std::int64_t y = 2, c = 1;
     auto s0 = {fr(c, 10, 1), fr(y, 20, 2)};
     auto s0_ctxs = {5};
 

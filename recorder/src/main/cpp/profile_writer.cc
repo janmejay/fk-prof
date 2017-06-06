@@ -74,24 +74,8 @@ ProfileWriter::~ProfileWriter() {
     flush();
 }
 
-recording::StackSample::Error translate_forte_error(jint num_frames_error) {
-    /** copied form forte.cpp, this is error-table we are trying to translate
-        enum {
-          ticks_no_Java_frame         =  0,
-          ticks_no_class_load         = -1,
-          ticks_GC_active             = -2,
-          ticks_unknown_not_Java      = -3,
-          ticks_not_walkable_not_Java = -4,
-          ticks_unknown_Java          = -5,
-          ticks_not_walkable_Java     = -6,
-          ticks_unknown_state         = -7,
-          ticks_thread_exit           = -8,
-          ticks_deopt                 = -9,
-          ticks_safepoint             = -10
-        };
-    **/
-    assert(num_frames_error <= 0);
-    return static_cast<recording::StackSample::Error>(-1 * num_frames_error);
+recording::StackSample::Error translate_backtrace_error(BacktraceError error) {
+    return static_cast<recording::StackSample::Error>(error);
 }
 
 ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::TracePt trace_pt) {
@@ -122,15 +106,6 @@ ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::Tr
 }
 
 void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
-    if (trace.flags & CT_NATIVE) {
-        std::cout << "\n**********************************\n";
-        for (auto i = 0; i < trace.num_frames; i++) {
-            std::cout << "\t";
-            syms.print_frame(trace.frames[i].native_frame);
-        }
-        return;
-    }
-
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
     
@@ -159,8 +134,8 @@ void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info
         }
         info->release();
     }
-    if (trace.num_frames <= 0) {
-        ss->set_error(translate_forte_error(trace.num_frames));
+    if (trace.error != BacktraceError::Fkp_no_error) {//TODO: move me down
+        ss->set_error(translate_backtrace_error(trace.error));
     }
 
     SPDLOG_DEBUG(logger, "Ctx-len count: {}", ctx_len);
@@ -175,7 +150,7 @@ void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info
     if (snipped) s_c_frame_snipped.inc();
     ss->set_snipped(snipped);
 
-    if (trace.num_frames <= 0) {
+    if (trace.error != BacktraceError::Fkp_no_error) {
         s_m_stack_sample_err.mark();
         return;
     }
@@ -183,35 +158,74 @@ void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info
         ss->add_trace_id(NOCTX_ID);
     }
 
+    auto bt_type = trace.type;
+
     for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
         auto f = ss->add_frame();
-        auto& jvmpi_cf = trace.frames[i].jvmpi_frame;
-        //find method
-        auto mth_id = jvmpi_cf.method_id;
-        if (known_methods.count(reinterpret_cast<MthId>(mth_id)) == 0) {
-            if (fir(mth_id, jvmti, *this)) {
-                s_c_new_mthd_info.inc();
-            } else {
-                recordNewMethod(mth_id, "?", "?", "?", "?");
-            }
-            s_c_total_mthd_info.inc();
+        switch (bt_type) {
+        case BacktraceType::Java:
+            fill_frame(trace.frames[i].jvmpi_frame, f);
+            break;
+        case BacktraceType::Native:
+            fill_frame(trace.frames[i].native_frame, f);
+            break;
+        default:
+            assert(false);
         }
-        //end find method
-        f->set_method_id(reinterpret_cast<std::int64_t>(mth_id));
-        f->set_bci(jvmpi_cf.lineno);//turns out its actually BCI
-        auto line_no = lnr(jvmpi_cf.lineno, mth_id, jvmti);
-        if (line_no < 0) s_c_bad_lineno.inc();
-        f->set_line_no(line_no);
     }
 
     s_m_cpu_sample_add.mark();
 }
 
-void ProfileSerializingWriter::recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char *method_signature) {
-    known_methods.insert(reinterpret_cast<MthId>(method_id));
+void ProfileSerializingWriter::fill_frame(const JVMPI_CallFrame& jvmpi_cf, recording::Frame* f) {
+    auto mth_id = jvmpi_cf.method_id;
+    MthId my_id;
+    auto it = known_methods.find(reinterpret_cast<MthId>(mth_id));
+    if (it == std::end(known_methods)) {
+        if (fir(mth_id, jvmti, *this, my_id)) {
+            s_c_new_mthd_info.inc();
+        } else {
+            my_id = 0;
+        }
+    } else {
+        my_id = it->second;
+    }
+    f->set_method_id(my_id);
+    f->set_bci(jvmpi_cf.lineno);//turns out its actually BCI
+    auto line_no = lnr(jvmpi_cf.lineno, mth_id, jvmti);
+    if (line_no < 0) s_c_bad_lineno.inc();
+    f->set_line_no(line_no);
+}
+
+void ProfileSerializingWriter::fill_frame(const NativeFrame& pc, recording::Frame* f) {
+    MthId my_id;
+    PcOffset pc_offset;
+    auto it = known_symbols.find(pc);
+    if (it == std::end(known_symbols)) {
+        std::string fn_name, file_name;
+        SiteResolver::Addr offset;
+        syms.site_for(pc, file_name, fn_name, offset);
+        my_id = report_new_mthd_info(file_name.c_str(), "", fn_name.c_str(), "", BacktraceType::Native);
+        pc_offset = static_cast<std::int32_t>(offset);
+        known_symbols[pc] = {my_id, pc_offset};
+        s_c_new_pc.inc();
+    } else {
+        const auto& fn_offset = it->second;
+        my_id = fn_offset.first;
+        pc_offset = fn_offset.second;
+    }
+    f->set_method_id(my_id);
+    f->set_bci(pc_offset);
+    f->set_line_no(0);
+}
+
+ProfileSerializingWriter::MthId ProfileSerializingWriter::report_new_mthd_info(const char *file_name, const char *class_name, const char *method_name, const char *method_signature, const BacktraceType bt_type) {
+    MthId my_id = next_mthd_id++;
+
     auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
     auto mi = idx_dat->add_method_info();
-    mi->set_method_id(reinterpret_cast<std::int64_t>(method_id));
+
+    mi->set_method_id(my_id);
 
     assert(file_name != nullptr);
     mi->set_file_name(file_name);
@@ -224,6 +238,29 @@ void ProfileSerializingWriter::recordNewMethod(const jmethodID method_id, const 
 
     assert(method_signature != nullptr);
     mi->set_signature(method_signature);
+
+    switch (bt_type) {
+    case BacktraceType::Java:
+        mi->set_c_cls(recording::MethodInfo_CodeClass_java);
+        break;
+    case BacktraceType::Native:
+        mi->set_c_cls(recording::MethodInfo_CodeClass_native);
+        break;
+    default:
+        assert(false);
+    }
+
+    s_c_total_mthd_info.inc();
+
+    return my_id;
+}
+
+ProfileSerializingWriter::MthId ProfileSerializingWriter::recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char *method_signature) {
+    auto my_id = report_new_mthd_info(file_name, class_name, method_name, method_signature, BacktraceType::Java);
+
+    known_methods[reinterpret_cast<MthId>(method_id)] = my_id;
+
+    return my_id;
 }
 
 void ProfileSerializingWriter::flush() {
@@ -239,13 +276,15 @@ void ProfileSerializingWriter::flush() {
 ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
                                                    PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,
                                                    std::uint8_t _noctx_cov_pct) :
-    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
+    jvmti(_jvmti), w(_w), fir(_fir), lnr(_lnr), reg(_reg), next_mthd_id(0), next_thd_id(3), next_ctx_id(5), sft(_sft), cpu_samples_flush_ctr(0),
     trunc_thresholds(_trunc_thresholds),
 
     s_c_new_thd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "thd_rpt", "new"})),
     s_c_new_ctx_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "ctx_rpt", "new"})),
     s_c_total_mthd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "total"})),
     s_c_new_mthd_info(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "mthd_rpt", "new"})),
+    s_c_new_pc(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "pc_rpt", "new"})),
+
 
     s_c_bad_lineno(get_metrics_registry().new_counter({METRICS_DOMAIN, METRIC_TYPE, "line_rpt", "bad"})),
 
@@ -258,6 +297,7 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
     s_c_new_ctx_info.clear();
     s_c_total_mthd_info.clear();
     s_c_new_mthd_info.clear();
+    s_c_new_pc.clear();
 
     s_c_bad_lineno.clear();
 
@@ -270,6 +310,8 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
     new_ctx->set_coverage_pct(_noctx_cov_pct);
     new_ctx->set_merge(recording::TraceContext_MergeSemantics::TraceContext_MergeSemantics_parent);
     new_ctx->set_trace_name(NOCTX_NAME);
+
+    report_new_mthd_info("?", "?", "?", "?", BacktraceType::Java);
 }
 
 ProfileSerializingWriter::~ProfileSerializingWriter() {

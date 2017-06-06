@@ -10,7 +10,7 @@
 #define UNKNOWN_MAPPING "*unknown mapping*"
 #define ANONYMOUS_MAPPING "*anonymous mapping*"
 
-bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener) {
+bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, MethodListener& listener, std::int64_t& assigned_id) {
     jint error;
     JvmtiScopedPtr<char> methodName(jvmti);
     JvmtiScopedPtr<char> methodSig(jvmti);
@@ -56,12 +56,12 @@ bool SiteResolver::method_info(const jmethodID method_id, jvmtiEnv* jvmti, Metho
         fileName = source_name_ptr.Get();
     }
 
-    listener.recordNewMethod(method_id, fileName, signature_ptr2.Get(), methodName.Get(), methodSig.Get());
+    assigned_id = listener.recordNewMethod(method_id, fileName, signature_ptr2.Get(), methodName.Get(), methodSig.Get());
 
     return true;
 }
 
-static jint bci2line(jint bci, jvmtiLineNumberEntry *table, jint entry_count) {
+static jint bci2line(const jint bci, jvmtiLineNumberEntry *table, jint entry_count) {
 	jint line_number = -101;
 	if ( entry_count == 0 ) {
 		return line_number;
@@ -98,7 +98,7 @@ static jint bci2line(jint bci, jvmtiLineNumberEntry *table, jint entry_count) {
     return line_number;
 }
 
-jint SiteResolver::line_no(jint bci, jmethodID method_id, jvmtiEnv* jvmti_) {
+jint SiteResolver::line_no(const jint bci, const jmethodID method_id, jvmtiEnv* jvmti_) {
     if(bci <= 0) {
         return bci;
     }
@@ -316,13 +316,6 @@ void SiteResolver::SymInfo::site_for(Addr addr, std::string& file_name, std::str
         fn_name = UNKNOWN_SYMBOL;
         file_name = UNKNOWN_MAPPING;
     }
-}
-
-void SiteResolver::SymInfo::print_frame(Addr pc) const {
-    std::string file_name, fn_name;
-    Addr pc_offset;
-    site_for(pc, file_name, fn_name, pc_offset);
-    std::cout << "0x" << std::hex << pc << " > " << fn_name << " +" << pc_offset << " @ " << file_name <<'\n';
 }
 
 struct Mapping {

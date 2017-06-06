@@ -1,5 +1,5 @@
 #include "test.hh"
-#include "../../main/cpp/circular_queue.hh"
+#include <circular_queue.hh>
 
 #ifndef FIXTURES_H
 #define FIXTURES_H
@@ -10,7 +10,7 @@ public:
 
     virtual void record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
         CHECK_EQUAL(2, trace.num_frames);
-        CHECK_EQUAL(CT_JVMPI, trace.flags);
+        CHECK_EQUAL(BacktraceType::Java, trace.type);
 
         JVMPI_CallFrame frame0 = trace.frames[0].jvmpi_frame;
 

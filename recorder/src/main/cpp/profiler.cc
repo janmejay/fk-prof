@@ -38,7 +38,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         }
     }
 
-    std::uint8_t bt_flags = 0;
+    BacktraceError err = BacktraceError::Fkp_no_error;
 
     if (jniEnv != NULL) {
         STATIC_ARRAY(frames, JVMPI_CallFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
@@ -48,23 +48,22 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         ASGCTType asgct = Asgct::GetAsgct();
         (*asgct)(&trace, capture_stack_depth(), context);
         if (trace.num_frames > 0) {
-            bt_flags |= CT_JVMPI;
-            buffer->push(trace, bt_flags, thread_info);
+            buffer->push(trace, err, thread_info);
             return; // we got java trace, so bail-out
         }
         if (trace.num_frames <= 0) {
-            bt_flags |= CT_JVMPI_ERROR;
+            err = static_cast<BacktraceError>(-1 * trace.num_frames);
             s_c_cpu_samp_err_unexpected.inc();
         }
     } else {
-        bt_flags |= CT_NO_JNI_ENV;
+        err = BacktraceError::Fkp_no_jni_env;
         s_c_cpu_samp_err_no_jni.inc();
     }
 
     STATIC_ARRAY(native_trace, NativeFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
     auto bt_len = Stacktraces::fill_backtrace(native_trace, capture_stack_depth());
-    buffer->push(native_trace, bt_len, bt_flags | CT_NATIVE, thread_info);
+    buffer->push(native_trace, bt_len, err, thread_info);
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {

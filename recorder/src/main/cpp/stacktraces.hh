@@ -33,22 +33,54 @@ typedef struct {
     JVMPI_CallFrame *frames;
 } JVMPI_CallTrace;
 
+enum class BacktraceError {
+    /** copied form forte.cpp, this is error-table we are trying to translate
+        enum {
+        ticks_no_Java_frame         =  0,
+        ticks_no_class_load         = -1,
+        ticks_GC_active             = -2,
+        ticks_unknown_not_Java      = -3,
+        ticks_not_walkable_not_Java = -4,
+        ticks_unknown_Java          = -5,
+        ticks_not_walkable_Java     = -6,
+        ticks_unknown_state         = -7,
+        ticks_thread_exit           = -8,
+        ticks_deopt                 = -9,
+        ticks_safepoint             = -10
+        };
+        We may eventually have more errors, but because we do multiply with -1 translation, we need to keep room for more.
+    **/
+    Forte_no_Java_frame         = 0,
+    Forte_no_class_load         = 1,
+    Forte_GC_active             = 2,
+    Forte_unknown_not_Java      = 3,
+    Forte_not_walkable_not_Java = 4,
+    Forte_unknown_Java          = 5,
+    Forte_not_walkable_Java     = 6,
+    Forte_unknown_state         = 7,
+    Forte_thread_exit           = 8,
+    Forte_deopt                 = 9,
+    Forte_safepoint             = 10,  //range [0, 100) is reserved for Forte
+    Fkp_no_error                = 100,
+    Fkp_no_jni_env              = 101
+};
+
+enum class BacktraceType {
+    Java = 0,
+    Native = 1
+    // jruby, clojure, scala etc should go here
+};
+
 typedef struct {
-    // flags that identify frame-type and error-conditions
-    std::uint8_t flags;
-    // < 0 if the frame isn't walkable
-    jint num_frames;
-    // The frames, callee first
-    StackFrame* frames;
+    BacktraceType type;
+    BacktraceError error;
+
+    uint16_t num_frames;
+    StackFrame* frames;     // The frames, callee first
     // Frame may be one of:
     // - The frames, callee first: JVMPI_CallFrame *frames;
     // - native frames (PC):  std::uint64_t *frames;
 } Backtrace;
-
-#define CT_JVMPI 0x1
-#define CT_JVMPI_ERROR 0x2
-#define CT_NO_JNI_ENV 0x4
-#define CT_NATIVE 0x8
 
 typedef void (*ASGCTType)(JVMPI_CallTrace *, jint, void *);
 typedef int (*IsGCActiveType)();
