@@ -177,7 +177,7 @@ SiteResolver::MappedRegion::MappedRegion(Addr start, Addr v_addr_start, Addr end
 SiteResolver::MappedRegion::~MappedRegion() {}
 
 const bool SiteResolver::MappedRegion::site_for(Addr addr, std::string& fn_name, Addr& pc_offset) const {
-    auto beyond_end = (end_ < addr);
+    auto beyond_end = (end_ > 0 && end_ < addr);
     if (beyond_end || symbols_.empty()) {
         fn_name = UNKNOWN_SYMBOL;
         pc_offset = addr - v_addr_start_;
@@ -185,8 +185,12 @@ const bool SiteResolver::MappedRegion::site_for(Addr addr, std::string& fn_name,
     }
     auto unrelocated_address = addr - v_addr_start_;
     auto it = symbols_.lower_bound(unrelocated_address);
-    it--;
+    auto last_symbol = (it == std::end(symbols_));
+    if (unrelocated_address != it->first) it--;
     fn_name = it->second;
+    if (last_symbol && end_ == 0) {
+        fn_name += " [last symbol, end unknown]";
+    }
     pc_offset = unrelocated_address - it->first;
     return true;
 }
@@ -292,8 +296,11 @@ SiteResolver::SymInfo::It SiteResolver::SymInfo::region_for(Addr addr) const {
 }
 
 SiteResolver::SymInfo::SymInfo() {
-    elf_version(EV_CURRENT);
     update_mapped_ranges();
+}
+
+SiteResolver::SymInfo::SymInfo(std::function<void()> post_parse_cb) {
+    update_mapped_ranges(post_parse_cb);
 }
 
 void SiteResolver::SymInfo::index(const char* path, Addr start, Addr v_addr_start, Addr end, bool index_symbols) {
@@ -352,7 +359,17 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
             return one.end_ < other.end_;
         });
 
-    if (it != std::end(mapping)) {
+    SiteResolver::Addr dlpi_end_addr = 0;
+    for (auto i = 0; i < info->dlpi_phnum; i++) {
+        auto& phdr = info->dlpi_phdr[i];
+        auto phdr_end = info->dlpi_addr + phdr.p_vaddr + phdr.p_memsz;
+        if (phdr_end > dlpi_end_addr) dlpi_end_addr = phdr_end;
+    }
+
+    auto found_mapped_region = (it != std::end(mapping)) &&
+        (it->end_ > info->dlpi_addr) && (dlpi_end_addr >= it->start_);
+
+    if (found_mapped_region) {
         end = it->end_;
         start = it->start_;
         mapping.erase(it);
@@ -370,7 +387,8 @@ static int dyn_link_handler(struct dl_phdr_info* info, size_t size, void* data) 
     return 0;
 }
 
-void SiteResolver::SymInfo::update_mapped_ranges() {
+void SiteResolver::SymInfo::update_mapped_ranges(std::function<void()> post_parse_cb) {
+    elf_version(EV_CURRENT);
     std::vector<Mapping> mapped;
     MRegion::Parser parser([&mapped](const MRegion::Event& e) {
             if (e.perms.find('x') == std::string::npos) return true;
@@ -392,6 +410,7 @@ void SiteResolver::SymInfo::update_mapped_ranges() {
     auto pid = getpid();
     std::fstream f_maps("/proc/" + std::to_string(pid) + "/maps", std::ios::in);
     parser.feed(f_maps);
+    post_parse_cb();
     char executable_path[PATH_MAX];
     auto path_len = readlink("/proc/self/exe", executable_path, PATH_MAX);
     executable_path[path_len] = '\0';

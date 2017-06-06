@@ -92,10 +92,12 @@ else()
     include_directories(${unittest++_INCLUDE_DIRS})
 endif()
 
-find_package(Boost 1.49.0 COMPONENTS spirit)
+find_package(Boost 1.49 REQUIRED)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
+
+check_include_file("valgrind/valgrind.h" HAS_VALGRIND_H)
 
 # include of gcc 4.8 headers specifically to work around
 # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=729933
@@ -179,6 +181,9 @@ set(TEST_UTIL_FILES
     ${SRC_TEST}/test_helpers.hh
     ${SRC_TEST}/test_helpers.cc)
 
+set(SYMINFO_TEST_EXT_FILES
+    ${SRC_TEST}/syminfo_test_ext.cc)
+
 set(TEST_JNI_FILES
     ${SRC_TEST}/test_jni.hh
     ${SRC_TEST}/test_jni.cc)
@@ -190,7 +195,7 @@ set(GLOBAL_WARNINGS "-Wall -Wformat-security -Wno-char-subscripts")
 set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wno-sign-compare -Wno-strict-overflow -Wwrite-strings")
 set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wnon-virtual-dtor -Woverloaded-virtual")
 
-set(GLOBAL_COPTS "-fdiagnostics-show-option -fno-omit-frame-pointer -fno-strict-aliasing")
+set(GLOBAL_COPTS "-fdiagnostics-show-option -fno-omit-frame-pointer -fno-strict-aliasing -DHAS_VALGRIND=${HAS_VALGRIND_H}")
 set(GLOBAL_COPTS "${GLOBAL_COPTS} -funsigned-char -fno-asynchronous-unwind-tables -msse2 -g -D__STDC_FORMAT_MACROS -O2 -fPIC")
 
 # Platform Specific
@@ -242,6 +247,7 @@ add_library(testutil SHARED ${TEST_UTIL_FILES})
 add_library(testbase STATIC ${TEST_BASE_FILES})
 add_executable(tests ${TEST_FILES} ${SRC_TEST}/main.cc)
 add_library(testjni SHARED ${TEST_JNI_FILES})
+add_library(syminfo_test_ext SHARED ${SYMINFO_TEST_EXT_FILES})
 
 if (DEFINED ENV{UNITTEST_LIBRARIES})
   message("User has configured " $ENV{UNITTEST_LIBRARIES} " as the unit test libraries")

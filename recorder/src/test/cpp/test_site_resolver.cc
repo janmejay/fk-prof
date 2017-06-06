@@ -10,9 +10,17 @@
 #include "test_helpers.hh"
 #include <set>
 #include <linux/limits.h>
+#include <dlfcn.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <sys/mman.h>
+
+#ifdef HAS_VALGRIND
+#include <valgrind/valgrind.h>
+#endif
 
 __attribute__ ((noinline)) int foo(NativeFrame* buff, std::uint32_t sz) {
     return Stacktraces::fill_backtrace(buff, sz);
@@ -85,7 +93,7 @@ void find_mappable_ranges_between(const CurrMappings& curr_mappings, SiteResolve
             //std::cout << "x [" << start << ", " << end << "]\n";
             if (start <= cm.second &&
                 cm.first <= end) { //overlap
-                mappable.erase(it);
+                it = mappable.erase(it);
                 //std::cout << "- [" << start << ", " << end << "]\n";
                 if (start < cm.first) {
                     mappable[start] = cm.first - 1;
@@ -95,8 +103,9 @@ void find_mappable_ranges_between(const CurrMappings& curr_mappings, SiteResolve
                     mappable[cm.second + 1] = end;
                     //std::cout << "+ [" << cm.second + 1 << ", " << end << "]\n";
                 }
+            } else {
+                it++;
             }
-            it++;
         }
     }
 }
@@ -307,8 +316,10 @@ TEST(SiteResolver__should_handle_vdso_and_vsyscall_addresses) {
             if (e.path == "[vdso]") vdso = {start, end};
         });
 
-    CHECK(vdso.first < (vdso.second - 1));
-    CHECK(vsyscall.first < (vsyscall.second - 1));//something is wrong with the way we identify the 2 special mappings if this goes wrong
+    if (! RUNNING_ON_VALGRIND) { //valgrind does it own thing for vDSO, so don't worry about this
+        CHECK(vdso.first + 1< vdso.second);
+    }
+    CHECK(vsyscall.first + 1 < vsyscall.second);//something is wrong with the way we identify the 2 special mappings if this goes wrong
 
     SiteResolver::SymInfo s_info;
     std::string fn_name;
@@ -320,20 +331,137 @@ TEST(SiteResolver__should_handle_vdso_and_vsyscall_addresses) {
     CHECK_EQUAL("[vsyscall]", file_name);
     CHECK_EQUAL(0, pc_offset);
 
-    s_info.site_for(vdso.first, file_name, fn_name, pc_offset);
-    CHECK_EQUAL("*unknown symbol*", fn_name);
-    CHECK_EQUAL("[vdso]", file_name);
-    CHECK_EQUAL(0, pc_offset);
-
     s_info.site_for(vsyscall.first + 1, file_name, fn_name, pc_offset);
     CHECK_EQUAL("*unknown symbol*", fn_name);
     CHECK_EQUAL("[vsyscall]", file_name);
     CHECK_EQUAL(1, pc_offset);
 
-    s_info.site_for(vdso.first + 1, file_name, fn_name, pc_offset);
-    CHECK_EQUAL("*unknown symbol*", fn_name);
-    CHECK_EQUAL("[vdso]", file_name);
-    CHECK_EQUAL(1, pc_offset);
+    if (! RUNNING_ON_VALGRIND) { //valgrind does it own thing for vDSO, so don't worry about this
+        s_info.site_for(vdso.first, file_name, fn_name, pc_offset);
+        CHECK_EQUAL("*unknown symbol*", fn_name);
+        CHECK_EQUAL("[vdso]", file_name);
+        CHECK_EQUAL(0, pc_offset);
+
+        s_info.site_for(vdso.first + 1, file_name, fn_name, pc_offset);
+        CHECK_EQUAL("*unknown symbol*", fn_name);
+        CHECK_EQUAL("[vdso]", file_name);
+        CHECK_EQUAL(1, pc_offset);
+    }
 }
 
-// write a test where we site_lookup address from a lib that was unmapped between call to mapping parser and dl_iterate_phdr
+
+TEST(SiteResolver__should_handle_mapping_changes_between___mmap_parse___and___dl_iterate_phdr___gracefully) {
+    TestEnv _;
+    //scenarios
+    // - map [x,z] > parse > unmap [x,z] > dl_itr > test
+    //   * test x => unknown sym but correct mapping
+    //   * test z => unknown sym but correct mapping
+    //   * DON'T worry about z + 1, because it has already been tested
+    // - parse > map [x,z] > dl_itr > test
+    //   * test x => correct sym and mapping
+    //   * test z => correct sym and mapping
+    //   * test z + 1 => last sym but warning in mapping
+
+    auto pg_sz = sysconf(_SC_PAGESIZE);
+    auto pg_count = 2;
+
+    std::unique_ptr<char, std::function<void(char*)>> dir{get_current_dir_name(), free};
+
+    auto mt1 = "mt1.tmp";
+    {
+        std::fstream map_target_1(mt1, std::ios_base::out | std::ios_base::trunc);
+        for (int i = 0; i <= (pg_sz * pg_count); i++) {
+            map_target_1 << '0';
+        }
+    }
+    auto mt1_path = std::string(dir.get()) + "/" + mt1;
+
+    auto mt1_fd = open(mt1_path.c_str(), O_RDONLY);
+    CHECK(fchmod(mt1_fd, S_IRUSR | S_IXUSR) == 0);
+
+    auto mt1_sz = pg_sz * pg_count;
+
+    auto mt1_map = mmap(0, mt1_sz, PROT_EXEC, MAP_PRIVATE, mt1_fd, 0);
+    auto mt1_mapped = (mt1_map != MAP_FAILED);
+    CHECK(mt1_mapped);
+
+    SiteResolver::SymInfo s_info_1{[&]() {
+            if (mt1_mapped) munmap(mt1_map, mt1_sz);
+        }};
+
+    void* handle = nullptr;
+    auto path = my_executable();
+    auto parent_path = path.substr(0, path.rfind("/"));
+    auto lib_path = parent_path + "/libsyminfo_test_ext.so";
+    struct stat lib_stat;
+    CHECK(stat(lib_path.c_str(), &lib_stat) == 0);
+    SiteResolver::SymInfo s_info_2{[&]() {
+            handle = dlopen(lib_path.c_str(), RTLD_NOW);
+        }};
+    CHECK(handle != nullptr);
+
+    void* sym_ptr = dlsym(handle, "foo_bar_baz");
+    CHECK(sym_ptr != nullptr);
+    auto sym = reinterpret_cast<SiteResolver::Addr>(sym_ptr);
+
+    CurrMappings mapping_with_m2;
+    SiteResolver::Addr post_m2_start = std::numeric_limits<SiteResolver::Addr>::max(), post_m2_end;
+    iterate_mapping([&](SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e) {
+            if (e.perms.find('x') == std::string::npos) return;
+            mapping_with_m2.push_back({start, end});
+            if ((start > sym) && start < post_m2_start) {
+                post_m2_start = start;
+                post_m2_end = end;
+            }
+        });
+    CHECK(post_m2_start > sym);
+    CHECK(post_m2_end > post_m2_start);
+
+    MappableRanges mappable;
+    find_mappable_ranges_between(mapping_with_m2, sym, (post_m2_start - 1), mappable);
+    CHECK(mappable.size() > 0);
+
+    dlclose(handle); //This can happen in real world, where an app maps something, we start profiling, but it unmaps it later (while profile is still being recorded).
+    // In such a scenario, it is possible for the app to then map something else to the same address and end up with wrong symbols being recorded.
+    // This is detectable and preventable, but it comes at a performance overhead of checking mapping when we resolve symbols.
+    // A faster impl that reduces the window of error (down to a second or lower, by polling /proc/<pid>/maps at regular interval) and such an impl can be written,
+    //       but it is unlikely to be worth it (not many applications do this kind of thing with libs, so why check for it?).
+    // So keeping it simple (racy, error-prone, you name it!) for now, because practical value in making it perfect just doesn't seem worth wrt perf hit and dev-time.
+    // Its not unstable, but it is functionally incorrect (it will show you were in function foo in libfoo, when you were actually in bar in libbar,
+    //       because you unmapped libfoo in favor of libbar and mapped it at the same virtual address as libfoo.
+    // -jj
+
+
+    std::string fn_name;
+    std::string file_name;
+    SiteResolver::Addr pc_offset;
+
+    s_info_1.site_for(reinterpret_cast<SiteResolver::Addr>(mt1_map), file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL(mt1_path, file_name);
+    CHECK_EQUAL(0, pc_offset);
+
+    s_info_1.site_for(reinterpret_cast<SiteResolver::Addr>(mt1_map) + pg_sz / 2, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL(mt1_path, file_name);
+    CHECK_EQUAL(pg_sz / 2, pc_offset);
+
+    s_info_1.site_for(reinterpret_cast<SiteResolver::Addr>(mt1_map) + pg_sz * pg_count, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("*unknown symbol*", fn_name);
+    CHECK_EQUAL(mt1_path, file_name);
+    CHECK_EQUAL(pg_sz * pg_count, pc_offset);
+
+    s_info_2.site_for(sym, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("foo_bar_baz", fn_name);
+    CHECK_EQUAL(lib_path, file_name);
+    CHECK_EQUAL(0, pc_offset);
+
+    s_info_2.site_for(sym + 1, file_name, fn_name, pc_offset);
+    CHECK_EQUAL("foo_bar_baz", fn_name);
+    CHECK_EQUAL(lib_path, file_name);
+    CHECK_EQUAL(1, pc_offset);
+
+    s_info_2.site_for(mappable.begin()->second - 1, file_name, fn_name, pc_offset);
+    CHECK(fn_name.find("[last symbol, end unknown]") != std::string::npos);
+    CHECK_EQUAL(lib_path, file_name);
+}

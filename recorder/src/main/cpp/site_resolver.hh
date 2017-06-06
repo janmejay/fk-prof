@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <gelf.h>
+#include <functional>
 
 namespace SiteResolver {
     class MethodListener {
@@ -61,10 +62,13 @@ namespace SiteResolver {
 
         It region_for(Addr addr) const;
 
-        void update_mapped_ranges();
+        void update_mapped_ranges(std::function<void()> post_parse_cb = []{});
 
     public:
         SymInfo();
+
+        // This constructor is meant for _tests_ and should never actually be used in production code
+        SymInfo(std::function<void()> post_parse_cb);
 
         void index(const char* path, Addr start, Addr v_addr_start, Addr end, bool index_symbols);
 
