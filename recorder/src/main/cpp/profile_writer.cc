@@ -152,14 +152,13 @@ void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info
 
     if (trace.error != BacktraceError::Fkp_no_error) {
         s_m_stack_sample_err.mark();
-        return;
     }
+
     if (ctx_len == 0) {
         ss->add_trace_id(NOCTX_ID);
     }
 
     auto bt_type = trace.type;
-
     for (auto i = 0; i < Util::min(static_cast<TruncationCap>(trace.num_frames), trunc_thresholds.cpu_samples_max_stack_sz); i++) {
         auto f = ss->add_frame();
         switch (bt_type) {
@@ -205,7 +204,14 @@ void ProfileSerializingWriter::fill_frame(const NativeFrame& pc, recording::Fram
         std::string fn_name, file_name;
         SiteResolver::Addr offset;
         syms.site_for(pc, file_name, fn_name, offset);
-        my_id = report_new_mthd_info(file_name.c_str(), "", fn_name.c_str(), "", BacktraceType::Native);
+        auto sym_start = pc - offset;
+        it = known_symbols.find(sym_start);
+        if (it == std::end(known_symbols)) {
+            my_id = report_new_mthd_info(file_name.c_str(), "", fn_name.c_str(), "", BacktraceType::Native);
+            known_symbols[sym_start] = {my_id, 0};
+        } else {
+            my_id = it->second.first;
+        }
         pc_offset = static_cast<std::int32_t>(offset);
         known_symbols[pc] = {my_id, pc_offset};
         s_c_new_pc.inc();

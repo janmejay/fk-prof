@@ -3,16 +3,18 @@
 #include <iostream>
 #include <cstdint>
 #include "test.hh"
-#include "../../main/cpp/profiler.hh"
+#include <profiler.hh>
 #include "fixtures.hh"
 #include <unordered_map>
-#include "../../main/cpp/blocking_ring_buffer.hh"
-#include "../../main/cpp/circular_queue.hh"
+#include <blocking_ring_buffer.hh>
+#include <circular_queue.hh>
 #include <memory>
 #include <tuple>
-#include "../../main/cpp/checksum.hh"
+#include <checksum.hh>
 #include <google/protobuf/io/coded_stream.h>
-#include "../../main/cpp/thread_map.hh"
+#include <thread_map.hh>
+#include <random>
+#include "test_helpers.hh"
 
 namespace std {
     template <> struct hash<std::tuple<std::int64_t, jint>> {
@@ -86,13 +88,17 @@ jmethodID mid(std::uint64_t id) {
         CHECK_EQUAL(thd_tid, thd_info.tid());                           \
     }
 
-#define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig) \
+#define Java_Sym recording::MethodInfo_CodeClass_java
+#define Native_Sym recording::MethodInfo_CodeClass_native
+
+#define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig, code_cls) \
     {                                                                   \
         CHECK_EQUAL(mthd_id, mthd_info.method_id());                    \
         CHECK_EQUAL(kls_file, mthd_info.file_name());                   \
         CHECK_EQUAL(kls_fqdn, mthd_info.class_fqdn());                  \
         CHECK_EQUAL(fn_name, mthd_info.method_name());                  \
         CHECK_EQUAL(fn_sig, mthd_info.signature());                     \
+        CHECK_EQUAL(code_cls, mthd_info.c_cls()); \
     }
 
 #define ASSERT_TRACE_CTX_INFO_WITHOUT_CTXID_IS(trace_ctx, ctx_name, cov_pct, merge_semantics, is_gen) \
@@ -150,8 +156,62 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
         CHECK_EQUAL(is_snipped, ss.snipped());                          \
     }
 
+//[#]  calling convention will take a few instructions
+//[##] just a guess, these functions are fairly small, so won't have more than 100 bytes worth of text
+#define ASSERT_NATIVE_STACK_SAMPLE_IS(ss, time_offset, thd_id, frames, ctx_ids, is_snipped) \
+    {                                                                   \
+        CHECK_EQUAL(time_offset, ss.start_offset_micros());             \
+        if (thd_id == NO_THD) {                                         \
+            CHECK_EQUAL(false, ss.has_thread_id());                     \
+        } else {                                                        \
+            CHECK_EQUAL(thd_id, ss.thread_id());                        \
+        }                                                               \
+        CHECK_EQUAL(frames.size(), ss.frame_size());                    \
+        auto i = 0;                                                     \
+        for (auto it = frames.begin(); it != frames.end(); it++, i++) { \
+            auto f = ss.frame(i);                                       \
+            CHECK_EQUAL((*it), f.method_id());                          \
+            CHECK(f.bci() > 0); /* [#] */                              \
+            CHECK(f.bci() < 100); /* [##] */                            \
+        }                                                               \
+        CHECK_EQUAL(frames.size(), i);                                  \
+        CHECK_EQUAL(ctx_ids.size(), ss.trace_id_size());                \
+        i = 0;                                                          \
+        for (auto it = ctx_ids.begin(); it != ctx_ids.end(); it++, i++) { \
+            CHECK_EQUAL(*it, ss.trace_id(i));                           \
+        }                                                               \
+        CHECK_EQUAL(is_snipped, ss.snipped());                          \
+    }
 
-TEST(ProfileSerializer__should_write_cpu_samples) {
+
+CircularQueue* bt_q = nullptr;
+ThreadBucket* bt_tinfo = nullptr;
+BacktraceError bt_err;
+std::uint32_t native_bt_max_depth = 6;
+
+std::random_device rd;
+std::uniform_int_distribution<int> dist(0, 10000);
+
+void bt_pusher() {
+    STATIC_ARRAY(frames, NativeFrame, native_bt_max_depth, native_bt_max_depth);
+    auto len = Stacktraces::fill_backtrace(frames, native_bt_max_depth);
+    bt_q->push(frames, len, bt_err, bt_tinfo);
+}
+
+void push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket* t, BacktraceError err, CircularQueue& q, int capture_bt_at = 4) {
+    bt_q = &q;
+    bt_err = err;
+    bt_tinfo = t;
+    native_bt_max_depth = capture_bt_at + 2;
+
+    fn_corge(dist(rd), dist(rd), capture_bt_at);
+
+    bt_q = nullptr;
+    bt_err = BacktraceError::Fkp_no_error;
+    bt_tinfo = nullptr;
+}
+
+TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
     TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
@@ -161,7 +221,8 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     method_lookup_stub.clear();
     line_no_lookup_stub.clear();
     
-    std::int64_t d = 1, c = 2, y = 3, e = 4, f = 5;
+    std::int64_t d = 1, c = 2, y = 3, e = 10, f = 11;
+    std::int64_t bt_pusher = 4, fn_c_foo = 5, fn_bar = 6, fn_baz = 7, fn_quux = 8, fn_corge = 9;
     stub(method_lookup_stub, line_no_lookup_stub, y, "x/Y.class", "x.Y", "fn_y", "(I)J");
     stub(method_lookup_stub, line_no_lookup_stub, c, "x/C.class", "x.C", "fn_c", "(F)I");
     stub(method_lookup_stub, line_no_lookup_stub, d, "x/D.class", "x.D", "fn_d", "(J)I");
@@ -209,6 +270,7 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     t25.ctx_tracker.enter(ctx_bar);
     q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
+    push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);
     t25.ctx_tracker.exit(ctx_foo);
 
     frames[0].method_id = mid(d);
@@ -251,12 +313,15 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
     q.push(ct, BacktraceError::Fkp_no_error, nullptr);
+    push_native_foo_bar_baz_quux_corge_native_backtrace(nullptr, BacktraceError::Fkp_no_jni_env, q, 2);
 
     CHECK(q.pop());
     CHECK(q.pop());
     CHECK(q.pop());
     CHECK(q.pop());
-    CHECK(! q.pop());//because only 4 samples were pushed
+    CHECK(q.pop());
+    CHECK(q.pop());
+    CHECK(! q.pop());//because only 6 samples were pushed
 
     ps.flush();
 
@@ -294,13 +359,21 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(1), 4, "main thread", 10, false, 42);
 
-    CHECK_EQUAL(6, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), e, "x/E.class", "x.E", "fn_e", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(5), f, "x/F.class", "x.F", "fn_f", "(J)I");
+    CHECK_EQUAL(12, idx_data.method_info_size());
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(3), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
+    auto test_executable = my_executable();
+    auto test_helper_lib = my_test_helper_lib();
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(4), bt_pusher, test_executable, "", "bt_pusher()", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(5), fn_c_foo, test_helper_lib, "", "fn_c_foo", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(6), fn_bar, test_helper_lib, "", "Bar::fn_bar(int)", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(7), fn_baz, test_helper_lib, "", "fn_baz(int)", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(8), fn_quux, test_helper_lib, "", "fn_quux(int, int)", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(9), fn_corge, test_helper_lib, "", "fn_corge(int, int, int)", "", Native_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(10), e, "x/E.class", "x.E", "fn_e", "(J)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(11), f, "x/F.class", "x.F", "fn_f", "(J)I", Java_Sym);
 
     CHECK_EQUAL(4, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 15, 0, false);
@@ -310,19 +383,25 @@ TEST(ProfileSerializer__should_write_cpu_samples) {
 
     auto cse = wse.cpu_sample_entry();
 
-    CHECK_EQUAL(4, cse.stack_sample_size());
+    CHECK_EQUAL(6, cse.stack_sample_size());
     auto s1 = {fr(d, 10, 1), fr(c, 10, 1), fr(d, 20, 2), fr(c, 20, 2), fr(y, 30, 3)};
     auto s1_ctxs = {5};
     ASSERT_STACK_SAMPLE_IS(cse.stack_sample(0), 0, 3, s1, s1_ctxs, false); //TODO: fix this to actually record time-offset, right now we are using zero
+    auto sn1 = {bt_pusher, fn_c_foo, fn_bar, fn_baz, fn_quux, fn_corge};
+    auto sn1_ctxs = {5};
+    ASSERT_NATIVE_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 3, sn1, sn1_ctxs, false);
     auto s2 = {fr(d, 10, 1), fr(c, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s2_ctxs = {6, 7};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(1), 0, 4, s2, s2_ctxs, false);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s2, s2_ctxs, false);
     auto s3 = {fr(c, 10, 1), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s3_ctxs = {6};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(2), 0, 4, s3, s3_ctxs, false);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(3), 0, 4, s3, s3_ctxs, false);
     auto s4 = {fr(c, 40, 4), fr(f, 10, 1), fr(e, 20, 2), fr(d, 20, 2), fr(c, 30, 3), fr(y, 30, 3)};
     auto s4_ctxs = {0};
-    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(3), 0, NO_THD, s4, s4_ctxs, false);
+    ASSERT_STACK_SAMPLE_IS(cse.stack_sample(4), 0, NO_THD, s4, s4_ctxs, false);
+    auto sn2 = {bt_pusher, fn_baz, fn_quux, fn_corge};
+    auto sn2_ctxs = {0};
+    ASSERT_NATIVE_STACK_SAMPLE_IS(cse.stack_sample(5), 0, NO_THD, sn2, sn2_ctxs, false);
 }
 
 TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
@@ -418,9 +497,9 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
 
     CHECK_EQUAL(3, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
     CHECK_EQUAL(3, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -519,9 +598,9 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "some thread", 8, false, 25);
 
     CHECK_EQUAL(3, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
     CHECK_EQUAL(2, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -662,9 +741,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
 
     CHECK_EQUAL(3, idx_data0.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
     CHECK_EQUAL(2, idx_data0.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -698,7 +777,7 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     ASSERT_THREAD_INFO_IS(idx_data2.thread_info(0), 4, "some other thread", 6, true, 10);
 
     CHECK_EQUAL(1, idx_data2.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data2.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I");
+    ASSERT_METHOD_INFO_IS(idx_data2.method_info(0), d, "x/D.class", "x.D", "fn_d", "(J)I", Java_Sym);
 
     CHECK_EQUAL(1, idx_data2.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data2.trace_ctx(0), 6, "bar", 30, 0, false);
@@ -772,7 +851,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     CHECK_EQUAL(0, idx_data.monitor_info_size());
     CHECK_EQUAL(0, idx_data.thread_info_size());
     CHECK_EQUAL(1, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
     CHECK_EQUAL(1, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
 
@@ -881,9 +960,9 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     ASSERT_THREAD_INFO_IS(idx_data.thread_info(0), 3, "Thread No. 25", 5, true, 25);
 
     CHECK_EQUAL(3, idx_data.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I");
-    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I");
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
 
     CHECK_EQUAL(2, idx_data.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
@@ -1015,9 +1094,9 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
     ASSERT_THREAD_INFO_IS(idx_data0.thread_info(0), 3, "some thread", 8, false, 25);
 
     CHECK_EQUAL(3, idx_data0.method_info_size());
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I");
-    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J");
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
+    ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
     CHECK_EQUAL(2, idx_data0.trace_ctx_size());
     ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);

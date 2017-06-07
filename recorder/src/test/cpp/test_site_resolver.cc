@@ -30,8 +30,6 @@ __attribute__ ((noinline)) int caller_of_foo(NativeFrame* buff, std::uint32_t sz
     return foo(buff, sz);
 }
 
-#define LIB_TEST_UTIL "/libtestutil.so"
-
 TEST(SiteResolver__should_resolve_backtrace) {
     TestEnv _;
     const std::uint32_t buff_sz = 100;
@@ -71,7 +69,7 @@ TEST(SiteResolver__should_resolve_backtrace) {
 
     auto dir = path.substr(0, path.rfind("/"));
     CHECK_EQUAL(0, it->second.find(dir));
-    CHECK_EQUAL(LIB_TEST_UTIL, it->second.substr(dir.length()));
+    CHECK_EQUAL(my_test_helper_lib(), it->second);
 }
 
 typedef std::vector<std::pair<SiteResolver::Addr, SiteResolver::Addr>> CurrMappings;
@@ -167,13 +165,6 @@ TEST(SiteResolver__TestUtil__mappable_range_finder) {
     CHECK_EQUAL(499, mappable[401]);
 }
 
-std::string my_executable() {
-    char link_path[PATH_MAX];
-    auto path_len = readlink("/proc/self/exe", link_path, PATH_MAX);
-    link_path[path_len] = '\0';
-    return {link_path};
-}
-
 void iterate_mapping(std::function<void(SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e)> cb) {
     MRegion::Parser parser([&](const MRegion::Event& e) {
             std::stringstream ss;
@@ -204,7 +195,7 @@ void map_one_anon_executable_page_between_executable_and_testlib(void **mmap_reg
 
             if (e.perms.find('x') != std::string::npos) {
                 if (e.path == path) test_bin = {start, end};
-                if (e.path == (dir + LIB_TEST_UTIL)) test_util_lib = {start, end};
+                if (e.path == my_test_helper_lib()) test_util_lib = {start, end};
             }
         });
 

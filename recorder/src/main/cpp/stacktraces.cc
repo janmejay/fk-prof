@@ -1,6 +1,6 @@
 #include "stacktraces.hh"
 
-std::uint32_t Stacktraces::fill_backtrace(NativeFrame* buff, std::uint32_t capacity) {
+std::uint32_t Stacktraces::fill_backtrace(NativeFrame* buff, std::uint32_t capacity) {//TODO: write me 3 tests { (capacity > stack), (stack > capacity) and (stack == capacity) }
     std::uint64_t rbp, rpc;
     asm("movq %%rbp, %%rax;"
         "movq %%rax, %0;"
