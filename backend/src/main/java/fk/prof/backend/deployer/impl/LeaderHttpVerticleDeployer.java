@@ -27,7 +27,7 @@ public class LeaderHttpVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected DeploymentOptions getDeploymentOptions() {
-    return getConfig().leaderDeploymentOpts;
+    return getConfig().getLeaderDeploymentOpts();
   }
 
   @Override

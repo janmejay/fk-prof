@@ -60,14 +60,14 @@ public class BackendManager {
     ConfigManager.setDefaultSystemProperties();
     this.config = Preconditions.checkNotNull(config);
 
-    VertxOptions vertxOptions = new VertxOptions(config.vertxOptions);
+    VertxOptions vertxOptions = new VertxOptions(config.getVertxOptions());
     vertxOptions.setMetricsOptions(buildMetricsOptions());
     this.vertx = Vertx.vertx(vertxOptions);
     this.metricRegistry = SharedMetricRegistries.getOrCreate(ConfigManager.METRIC_REGISTRY);
 
     this.curatorClient = createCuratorClient();
     curatorClient.start();
-    curatorClient.blockUntilConnected(config.curatorConfig.connectionTimeoutMs, TimeUnit.MILLISECONDS);
+    curatorClient.blockUntilConnected(config.getCuratorConfig().getConnectionTimeoutMs(), TimeUnit.MILLISECONDS);
     ensureRequiredZkNodesPresent();
 
     initStorage();
@@ -91,11 +91,11 @@ public class BackendManager {
 
   public Future<Void> launch() {
     Future result = Future.future();
-    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort());
+    InMemoryLeaderStore leaderStore = new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort());
     ActiveAggregationWindows activeAggregationWindows = new ActiveAggregationWindowsImpl();
-    AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(config.recorderDefunctThresholdSecs);
-    WorkSlotPool workSlotPool = new WorkSlotPool(config.scheduleSlotPoolCapacity);
-    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(config.profilesBaseDir, storage, bufferPool, metricRegistry);
+    AssociatedProcessGroups associatedProcessGroups = new AssociatedProcessGroupsImpl(config.getRecorderDefunctThresholdSecs());
+    WorkSlotPool workSlotPool = new WorkSlotPool(config.getScheduleSlotPoolCapacity());
+    AggregationWindowStorage aggregationWindowStorage = new AggregationWindowStorage(config.getProfilesBaseDir(), storage, bufferPool, metricRegistry);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, leaderStore, activeAggregationWindows, associatedProcessGroups);
     VerticleDeployer backendDaemonVerticleDeployer = new BackendDaemonVerticleDeployer(vertx, config, leaderStore, associatedProcessGroups, activeAggregationWindows, workSlotPool, aggregationWindowStorage);
@@ -139,43 +139,43 @@ public class BackendManager {
   }
 
   private void initStorage() {
-    Configuration.StorageConfig.S3Config s3Config = config.storageConfig.s3Config;
-    Configuration.StorageConfig.FixedSizeThreadPoolConfig threadPoolConfig = config.storageConfig.tpConfig;
+    Configuration.StorageConfig.S3Config s3Config = config.getStorageConfig().getS3Config();
+    Configuration.StorageConfig.FixedSizeThreadPoolConfig threadPoolConfig = config.getStorageConfig().getTpConfig();
     Meter threadPoolRejectionsMtr = metricRegistry.meter(MetricName.S3_Threadpool_Rejection.get());
 
     // thread pool with bounded queue for s3 io.
-    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.queueMaxSize);
+    BlockingQueue ioTaskQueue = new LinkedBlockingQueue(threadPoolConfig.getQueueMaxSize());
     ExecutorService storageExecSvc = new InstrumentedExecutorService(
-        new ThreadPoolExecutor(threadPoolConfig.coreSize, threadPoolConfig.maxSize, threadPoolConfig.idleTimeSec, TimeUnit.SECONDS, ioTaskQueue,
+        new ThreadPoolExecutor(threadPoolConfig.getCoreSize(), threadPoolConfig.getMaxSize(), threadPoolConfig.getIdleTimeSec(), TimeUnit.SECONDS, ioTaskQueue,
                 new AbortPolicy("s3ExectorSvc", threadPoolRejectionsMtr)),
         metricRegistry, "executors.fixed_thread_pool.storage");
 
-    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.endpoint, s3Config.accessKey, s3Config.secretKey),
-        storageExecSvc, s3Config.listObjectsTimeoutMs);
+    this.storage = new S3AsyncStorage(S3ClientFactory.create(s3Config.getEndpoint(), s3Config.getAccessKey(), s3Config.getSecretKey()),
+        storageExecSvc, s3Config.getListObjectsTimeoutMs());
 
     // buffer pool to temporarily store serialized bytes
-    Configuration.BufferPoolConfig bufferPoolConfig = config.bufferPoolConfig;
+    Configuration.BufferPoolConfig bufferPoolConfig = config.getBufferPoolConfig();
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
-    poolConfig.setMaxTotal(bufferPoolConfig.maxTotal);
-    poolConfig.setMaxIdle(bufferPoolConfig.maxIdle);
+    poolConfig.setMaxTotal(bufferPoolConfig.getMaxTotal());
+    poolConfig.setMaxIdle(bufferPoolConfig.getMaxIdle());
 
-    this.bufferPool = new GenericObjectPool<>(new ByteBufferPoolFactory(bufferPoolConfig.bufferSize, false), poolConfig);
+    this.bufferPool = new GenericObjectPool<>(new ByteBufferPoolFactory(bufferPoolConfig.getBufferSize(), false), poolConfig);
   }
 
   private CuratorFramework createCuratorClient() {
-    Configuration.CuratorConfig curatorConfig = config.curatorConfig;
+    Configuration.CuratorConfig curatorConfig = config.getCuratorConfig();
     return CuratorFrameworkFactory.builder()
-        .connectString(curatorConfig.connectionUrl)
-        .retryPolicy(new ExponentialBackoffRetry(1000, curatorConfig.maxRetries))
-        .connectionTimeoutMs(curatorConfig.connectionTimeoutMs)
-        .sessionTimeoutMs(curatorConfig.sessionTineoutMs)
-        .namespace(curatorConfig.namespace)
+        .connectString(curatorConfig.getConnectionUrl())
+        .retryPolicy(new ExponentialBackoffRetry(1000, curatorConfig.getMaxRetries()))
+        .connectionTimeoutMs(curatorConfig.getConnectionTimeoutMs())
+        .sessionTimeoutMs(curatorConfig.getSessionTineoutMs())
+        .namespace(curatorConfig.getNamespace())
         .build();
   }
 
   private void ensureRequiredZkNodesPresent() throws  Exception {
     try {
-      curatorClient.create().forPath(config.associationsConfig.associationPath);
+      curatorClient.create().forPath(config.getAssociationsConfig().getAssociationPath());
     } catch (KeeperException.NodeExistsException ex) {
       logger.warn(ex);
     }
@@ -184,9 +184,9 @@ public class BackendManager {
   private BackendAssociationStore createBackendAssociationStore(
       Vertx vertx, CuratorFramework curatorClient)
       throws Exception {
-    int loadReportIntervalInSeconds = config.loadReportItvlSecs;
-    String backendAssociationPath = config.associationsConfig.associationPath;
-    int loadMissTolerance = config.associationsConfig.loadMissTolerance;
+    int loadReportIntervalInSeconds = config.getLoadReportItvlSecs();
+    String backendAssociationPath = config.getAssociationsConfig().getAssociationPath();
+    int loadMissTolerance = config.getAssociationsConfig().getLoadMissTolerance();
     return new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath,
         loadReportIntervalInSeconds, loadMissTolerance, new ProcessGroupCountBasedBackendComparator());
   }

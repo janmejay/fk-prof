@@ -67,9 +67,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
                              AggregationWindowDiscoveryContext aggregationWindowDiscoveryContext,
                              ProcessGroupDiscoveryContext processGroupDiscoveryContext) {
     this.config = config;
-    this.backendHttpPort = config.backendHttpServerOpts.getPort();
-    this.ipAddress = config.ipAddress;
-    this.backendVersion = config.backendVersion;
+    this.backendHttpPort = config.getBackendHttpServerOpts().getPort();
+    this.ipAddress = config.getIpAddress();
+    this.backendVersion = config.getBackendVersion();
 
     this.leaderReadContext = leaderReadContext;
     this.aggregationWindowDiscoveryContext = aggregationWindowDiscoveryContext;
@@ -78,14 +78,14 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
   @Override
   public void start(Future<Void> fut) {
-    Configuration.HttpClientConfig httpClientConfig = config.httpClientConfig;
+    Configuration.HttpClientConfig httpClientConfig = config.getHttpClientConfig();
     httpClient = ProfHttpClient.newBuilder().setConfig(httpClientConfig).build(vertx);
 
     Router router = setupRouting();
     workIdsInPipeline = vertx.sharedData().getLocalMap("WORK_ID_PIPELINE");
-    vertx.createHttpServer(config.backendHttpServerOpts)
+    vertx.createHttpServer(config.getBackendHttpServerOpts())
         .requestHandler(router::accept)
-        .listen(config.backendHttpServerOpts.getPort(), http -> completeStartup(http, fut));
+        .listen(config.getBackendHttpServerOpts().getPort(), http -> completeStartup(http, fut));
   }
 
   private Router setupRouting() {

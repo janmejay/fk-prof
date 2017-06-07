@@ -58,16 +58,16 @@ public class LeaderAPILoadAndAssociationTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
 
     config = ConfigManager.loadConfig(LeaderAPILoadAndAssociationTest.class.getClassLoader().getResource("config.json").getFile());
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
-    port = config.leaderHttpServerOpts.getPort();
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
+    port = config.getLeaderHttpServerOpts().getPort();
 
-    String backendAssociationPath = config.associationsConfig.associationPath;
+    String backendAssociationPath = config.getAssociationsConfig().getAssociationPath();
     curatorClient.create().forPath(backendAssociationPath);
 
     BackendAssociationStore backendAssociationStore = new ZookeeperBasedBackendAssociationStore(
         vertx, curatorClient, backendAssociationPath,
-        config.loadReportItvlSecs,
-        config.associationsConfig.loadMissTolerance,
+        config.getLoadReportItvlSecs(),
+        config.getAssociationsConfig().getLoadMissTolerance(),
         new ProcessGroupCountBasedBackendComparator());
     PolicyStore policyStore = new PolicyStore(curatorClient);
 

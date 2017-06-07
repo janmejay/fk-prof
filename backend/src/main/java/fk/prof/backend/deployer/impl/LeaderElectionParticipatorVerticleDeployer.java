@@ -26,7 +26,7 @@ public class LeaderElectionParticipatorVerticleDeployer extends VerticleDeployer
 
   @Override
   protected DeploymentOptions getDeploymentOptions() {
-    return getConfig().leaderElectionDeploymentOpts;
+    return getConfig().getLeaderElectionDeploymentOpts();
   }
 
   @Override
