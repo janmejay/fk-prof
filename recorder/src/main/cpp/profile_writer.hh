@@ -11,8 +11,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#define NOCTX_NAME "~ OTHERS ~"
-
 class RawWriter {
 public:
     RawWriter() {}
@@ -124,6 +122,10 @@ private:
 
     MthId report_new_mthd_info(const char *file_name, const char *class_name, const char *method_name, const char *method_signature, const BacktraceType bt_type);
 
+    CtxId report_new_ctx(const std::string& name, const bool is_generated, const std::uint8_t coverage_pct, const PerfCtx::MergeSemantic m_sem);
+
+    void report_new_ctx(const CtxId ctx_id, const std::string& name, const bool is_generated, const std::uint8_t coverage_pct, const PerfCtx::MergeSemantic m_sem);
+
 public:
     ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWriter& _w, SiteResolver::MethodInfoResolver _fir, SiteResolver::LineNoResolver _lnr,
                              PerfCtx::Registry& _reg, const SerializationFlushThresholds& _sft, const TruncationThresholds& _trunc_thresholds,
@@ -131,7 +133,7 @@ public:
 
     ~ProfileSerializingWriter();
 
-    virtual void record(const Backtrace &trace, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr);
+    virtual void record(const Backtrace &trace, ThreadBucket *info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr, bool default_ctx = false);
 
     virtual MthId recordNewMethod(const jmethodID method_id, const char *file_name, const char *class_name, const char *method_name, const char *method_signature);
 

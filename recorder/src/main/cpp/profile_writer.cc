@@ -5,8 +5,6 @@
 
 //for buff, no one uses read-end here, so it is inconsistent
 
-#define NOCTX_ID 0
-
 void ProfileWriter::flush() {
     w->write_unbuffered(data.buff, data.write_end, 0); //TODO: err-check me!
     data.write_end = 0;
@@ -78,34 +76,55 @@ recording::StackSample::Error translate_backtrace_error(BacktraceError error) {
     return static_cast<recording::StackSample::Error>(error);
 }
 
-ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::TracePt trace_pt) {
+void ProfileSerializingWriter::report_new_ctx(const ProfileSerializingWriter::CtxId ctx_id, const std::string& name, const bool is_generated, const std::uint8_t coverage_pct, const PerfCtx::MergeSemantic m_sem) {
     auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
+    auto new_ctx = idx_dat->add_trace_ctx();
+    new_ctx->set_trace_id(ctx_id);
+    new_ctx->set_is_generated(is_generated);
+    if (! is_generated) {
+        new_ctx->set_coverage_pct(coverage_pct);
+        new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
+    }
+    new_ctx->set_trace_name(name);
+    s_c_new_ctx_info.inc();
+}
+
+ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_new_ctx(const std::string& name, const bool is_generated, const std::uint8_t coverage_pct, const PerfCtx::MergeSemantic m_sem) {
+    CtxId ctx_id = next_ctx_id++;
+    report_new_ctx(ctx_id, name, is_generated, coverage_pct, m_sem);
+    return ctx_id;
+}
+
+ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::TracePt trace_pt) {
     auto known_ctx = known_ctxs.find(trace_pt);
     if (known_ctx == known_ctxs.end()) {
-        CtxId ctx_id = next_ctx_id++;
-        known_ctxs.insert({trace_pt, ctx_id});
-        auto new_ctx = idx_dat->add_trace_ctx();
-        new_ctx->set_trace_id(ctx_id);
         std::string name;
         bool is_generated;
         std::uint8_t coverage_pct;
         PerfCtx::MergeSemantic m_sem;
         reg.resolve(trace_pt, name, is_generated, coverage_pct, m_sem);
-        new_ctx->set_is_generated(is_generated);
-        if (! is_generated) {
-            new_ctx->set_coverage_pct(coverage_pct);
-            new_ctx->set_merge(static_cast<recording::TraceContext_MergeSemantics>(static_cast<int>(m_sem)));
-        }
-        new_ctx->set_trace_name(name);
+        CtxId ctx_id = report_new_ctx(name, is_generated, coverage_pct, m_sem);
+        known_ctxs.insert({trace_pt, ctx_id});
         SPDLOG_DEBUG(logger, "Reporting trace named '{}', cov {}% as ctx-id: {}", name, coverage_pct, ctx_id);
-        s_c_new_ctx_info.inc();
         return ctx_id;
     } else {
         return known_ctx->second;
     }
 }
 
-void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx) {
+// std::uint8_t load_ctx(PerfCtx::ThreadTracker::EffectiveCtx& ctx, ThreadBucket* info, bool default_ctx) {//TODO: test me!
+//     if (default_ctx) {
+//         ctx[0] = DEFAULT_CTX_ID;
+//         return 1;
+//     } else if (info == nullptr) {
+//         ctx[0] = UNKNOWN_CTX_ID;
+//         return 1;
+//     } else {
+//         return info->ctx_tracker.current(ctx);
+//     }
+// }
+
+void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx, bool default_ctx) {
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
     
@@ -153,9 +172,12 @@ void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info
     if (trace.error != BacktraceError::Fkp_no_error) {
         s_m_stack_sample_err.mark();
     }
-
-    if (ctx_len == 0) {
-        ss->add_trace_id(NOCTX_ID);
+    
+    if (default_ctx) {
+        assert(ctx_len == 0);
+        ss->add_trace_id(DEFAULT_CTX_ID);
+    } else if (ctx_len == 0) {
+        ss->add_trace_id(UNKNOWN_CTX_ID);
     }
 
     auto bt_type = trace.type;
@@ -309,13 +331,8 @@ ProfileSerializingWriter::ProfileSerializingWriter(jvmtiEnv* _jvmti, ProfileWrit
 
     s_c_frame_snipped.clear();
 
-    auto idx_dat = cpu_sample_accumulator.mutable_indexed_data();
-    auto new_ctx = idx_dat->add_trace_ctx();
-    new_ctx->set_trace_id(NOCTX_ID);
-    new_ctx->set_is_generated(false);
-    new_ctx->set_coverage_pct(_noctx_cov_pct);
-    new_ctx->set_merge(recording::TraceContext_MergeSemantics::TraceContext_MergeSemantics_parent);
-    new_ctx->set_trace_name(NOCTX_NAME);
+    report_new_ctx(DEFAULT_CTX_ID, DEFAULT_CTX_NAME, false, _noctx_cov_pct, PerfCtx::MergeSemantic::to_parent);
+    report_new_ctx(UNKNOWN_CTX_ID, UNKNOWN_CTX_NAME, true, 0, PerfCtx::MergeSemantic::to_parent);
 
     report_new_mthd_info("?", "?", "?", "?", BacktraceType::Java);
 }

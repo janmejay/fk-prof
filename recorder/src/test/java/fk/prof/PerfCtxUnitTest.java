@@ -153,7 +153,7 @@ public class PerfCtxUnitTest {
 
     @Test
     public void shouldNotAllowContext_withNameSimilarTo_NOCTX_NAME() {
-        String noCtxName = testJni.getNoCtxName();
+        String noCtxName = testJni.getDefaultCtxName();
         try {
             new PerfCtx(noCtxName);
             fail("Should not allow creation of perf-ctx with noctx-name");

@@ -21,7 +21,7 @@ const size_t Capacity = Size + 1;
 
 class QueueListener {
 public:
-    virtual void record(const Backtrace& item, ThreadBucket* info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr) = 0;
+    virtual void record(const Backtrace& item, ThreadBucket* info = nullptr, std::uint8_t ctx_len = 0, PerfCtx::ThreadTracker::EffectiveCtx* ctx = nullptr, bool default_ctx = false) = 0;
 
     virtual ~QueueListener() { }
 };
@@ -35,6 +35,7 @@ struct TraceHolder {
     ThreadBucket *info;
     PerfCtx::ThreadTracker::EffectiveCtx ctx;
     std::uint8_t ctx_len;
+    bool default_ctx;
 };
 
 class CircularQueue {
@@ -46,9 +47,9 @@ public:
     // We tolerate following obnoxious push overloads (and write overloads) for performance reasons
     //      (this is already a 1-copy impl, the last thing we want is make it 2-copy, just to make it pretty).
     // Yuck! I know...
-    bool push(const JVMPI_CallTrace &item, const BacktraceError error, ThreadBucket *info = nullptr);
+    bool push(const JVMPI_CallTrace &item, const BacktraceError error, bool default_ctx, ThreadBucket *info = nullptr);
 
-    bool push(const NativeFrame* item, const std::uint32_t num_frames, const BacktraceError error, ThreadBucket *info = nullptr);
+    bool push(const NativeFrame* item, const std::uint32_t num_frames, const BacktraceError error, bool default_ctx, ThreadBucket *info = nullptr);
 
     bool pop();
 
@@ -66,11 +67,11 @@ private:
 
     bool acquire_write_slot(size_t& slot);
 
-    void update_trace_info(StackFrame* fb, const BacktraceType type, const size_t slot, const std::uint32_t num_frames, ThreadBucket* info, const BacktraceError error);
+    void update_trace_info(StackFrame* fb, const BacktraceType type, const size_t slot, const std::uint32_t num_frames, ThreadBucket* info, const BacktraceError error, bool default_ctx);
 
-    void write(const JVMPI_CallTrace& item, const size_t slot, ThreadBucket* info, const BacktraceError error);
+    void write(const JVMPI_CallTrace& item, const size_t slot, ThreadBucket* info, const BacktraceError error, bool default_ctx);
 
-    void write(const NativeFrame* trace, const std::uint32_t num_frames, const size_t slot, ThreadBucket* info, const BacktraceError error);
+    void write(const NativeFrame* trace, const std::uint32_t num_frames, const size_t slot, ThreadBucket* info, const BacktraceError error, bool default_ctx);
 
     void mark_committed(const size_t slot);
 };

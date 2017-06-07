@@ -171,7 +171,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
         for (auto it = frames.begin(); it != frames.end(); it++, i++) { \
             auto f = ss.frame(i);                                       \
             CHECK_EQUAL((*it), f.method_id());                          \
-            CHECK(f.bci() > 0); /* [#] */                              \
+            CHECK(f.bci() > 0); /* [#] */                               \
             CHECK(f.bci() < 100); /* [##] */                            \
         }                                                               \
         CHECK_EQUAL(frames.size(), i);                                  \
@@ -188,6 +188,7 @@ CircularQueue* bt_q = nullptr;
 ThreadBucket* bt_tinfo = nullptr;
 BacktraceError bt_err;
 std::uint32_t native_bt_max_depth = 6;
+bool mark_default_ctx = false;
 
 std::random_device rd;
 std::uniform_int_distribution<int> dist(0, 10000);
@@ -195,23 +196,26 @@ std::uniform_int_distribution<int> dist(0, 10000);
 void bt_pusher() {
     STATIC_ARRAY(frames, NativeFrame, native_bt_max_depth, native_bt_max_depth);
     auto len = Stacktraces::fill_backtrace(frames, native_bt_max_depth);
-    bt_q->push(frames, len, bt_err, bt_tinfo);
+    bt_q->push(frames, len, bt_err, mark_default_ctx, bt_tinfo);
 }
 
-void push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket* t, BacktraceError err, CircularQueue& q, int capture_bt_at = 4) {
+void push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket* t, BacktraceError err, CircularQueue& q, bool default_ctx = false, int capture_bt_at = 4) {
     bt_q = &q;
     bt_err = err;
     bt_tinfo = t;
     native_bt_max_depth = capture_bt_at + 2;
+    mark_default_ctx = default_ctx;
 
     fn_corge(dist(rd), dist(rd), capture_bt_at);
 
+    native_bt_max_depth = 6;
+    mark_default_ctx = false;
     bt_q = nullptr;
     bt_err = BacktraceError::Fkp_no_error;
     bt_tinfo = nullptr;
 }
 
-TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
+TEST(ProfileSerializer__should_write_cpu_samples_native_and_java) {
     TestEnv _;
     BlockingRingBuffer buff(1024 * 1024);
     std::shared_ptr<RawWriter> raw_w_ptr(new AccumulatingRawWriter(buff));
@@ -268,7 +272,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
 
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);
     t25.ctx_tracker.exit(ctx_foo);
@@ -290,7 +294,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
     ThreadBucket tmain(42, "main thread", 10, false);
     tmain.ctx_tracker.enter(ctx_bar);
     tmain.ctx_tracker.enter(ctx_baz);
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&tmain));
     tmain.ctx_tracker.exit(ctx_baz);
 
     frames[0].method_id = mid(c);
@@ -306,14 +310,14 @@ TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
     frames[5].method_id = mid(y);
     frames[5].lineno = 30;
     ct.num_frames = 6;
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&tmain));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&tmain));
     
     tmain.ctx_tracker.exit(ctx_bar);
 
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
-    q.push(ct, BacktraceError::Fkp_no_error, nullptr);
-    push_native_foo_bar_baz_quux_corge_native_backtrace(nullptr, BacktraceError::Fkp_no_jni_env, q, 2);
+    q.push(ct, BacktraceError::Fkp_no_error, true, nullptr);
+    push_native_foo_bar_baz_quux_corge_native_backtrace(nullptr, BacktraceError::Fkp_no_jni_env, q, true, 2);
 
     CHECK(q.pop());
     CHECK(q.pop());
@@ -375,11 +379,12 @@ TEST(ProfileSerializer__should_write_cpu_samples__both_native_and_java) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(10), e, "x/E.class", "x.E", "fn_e", "(J)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data.method_info(11), f, "x/F.class", "x.F", "fn_f", "(J)I", Java_Sym);
 
-    CHECK_EQUAL(4, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 15, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 6, "bar", 30, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(3), 7, "baz", 40, 4, false);
+    CHECK_EQUAL(5, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, DEFAULT_CTX_NAME, 15, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 5, "foo", 20, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(3), 6, "bar", 30, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(4), 7, "baz", 40, 4, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -451,7 +456,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
 
@@ -463,7 +468,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
 
     t25.ctx_tracker.enter(ctx_bar);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     t25.ctx_tracker.exit(ctx_bar);
 
@@ -501,10 +506,11 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
-    CHECK_EQUAL(3, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo > bar", 0, 0, true);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 6, "bar", 30, 1, false);
+    CHECK_EQUAL(4, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 5, "foo > bar", 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(3), 6, "bar", 30, 1, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -562,13 +568,13 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     for (auto i = 0; i < 10; i++) {
-        q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+        q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
         CHECK(q.pop());
 
         std::uint8_t tmp;
         CHECK_EQUAL(0, buff.read(&tmp, 0, 1, false));
     }
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
     CHECK(q.pop());
 
@@ -602,9 +608,10 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
-    CHECK_EQUAL(2, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(3, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 5, "foo", 20, 0, false);
 
     auto cse = wse.cpu_sample_entry();
     CHECK_EQUAL(10, cse.stack_sample_size());
@@ -677,9 +684,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
             ps.flush();//check manual flush interleving
         }
         if (i < 15) {
-            q.push(ct0, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
         } else {
-            q.push(ct1, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t10));
+            q.push(ct1, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t10));
         }
         CHECK(q.pop());
     }
@@ -745,9 +752,10 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
-    CHECK_EQUAL(2, idx_data0.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(3, idx_data0.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(2), 5, "foo", 20, 0, false);
 
     auto cse0 = wse0.cpu_sample_entry();
     CHECK_EQUAL(10, cse0.stack_sample_size());
@@ -824,7 +832,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
 
     for (auto i = 0; i < 11; i++) {
         ct.num_frames = 0;
-        q.push(ct, static_cast<BacktraceError>(i), nullptr);
+        q.push(ct, static_cast<BacktraceError>(i), (i % 2) == 0, nullptr);
         CHECK(q.pop());
     }
 
@@ -852,8 +860,9 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
     CHECK_EQUAL(0, idx_data.thread_info_size());
     CHECK_EQUAL(1, idx_data.method_info_size());
     ASSERT_METHOD_INFO_IS(idx_data.method_info(0), 0, "?", "?", "?", "?", Java_Sym);
-    CHECK_EQUAL(1, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
+    CHECK_EQUAL(2, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -862,7 +871,8 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
         auto ss = cse.stack_sample(i);
         CHECK_EQUAL(false, ss.has_thread_id());
         CHECK_EQUAL(0, ss.frame_size());
-        CHECK_EQUAL(0, ss.trace_id_size());
+        CHECK_EQUAL(1, ss.trace_id_size());
+        CHECK_EQUAL((i % 2 == 0) ? DEFAULT_CTX_ID : UNKNOWN_CTX_ID, ss.trace_id(0));
         CHECK_EQUAL(static_cast<recording::StackSample::Error>(i), ss.error());
     }
 }
@@ -918,7 +928,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
 
     ThreadBucket t25(25, "Thread No. 25", 5, true);
     t25.ctx_tracker.enter(ctx_foo);
-    q.push(ct, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+    q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_foo);
 
     CHECK(q.pop());
@@ -964,9 +974,10 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     ASSERT_METHOD_INFO_IS(idx_data.method_info(1), d, "x/D.class", "x.D", "fn_d", "(J)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data.method_info(2), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
 
-    CHECK_EQUAL(2, idx_data.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(3, idx_data.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data.trace_ctx(2), 5, "foo", 20, 0, false);
 
     auto cse = wse.cpu_sample_entry();
 
@@ -1035,7 +1046,7 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
         CircularQueue q(ps, 10);
 
         for (auto i = 0; i < 10 + additional_traces; i++) {
-            q.push(ct0, BacktraceError::Fkp_no_error, ThreadBucket::acq_bucket(&t25));
+            q.push(ct0, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
             CHECK(q.pop());
         }
         if (additional_traces == 0) {
@@ -1098,9 +1109,10 @@ void play_last_flush_scenario(recording::Wse& wse1, int additional_traces) {
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(1), c, "x/C.class", "x.C", "fn_c", "(F)I", Java_Sym);
     ASSERT_METHOD_INFO_IS(idx_data0.method_info(2), y, "x/Y.class", "x.Y", "fn_y", "(I)J", Java_Sym);
 
-    CHECK_EQUAL(2, idx_data0.trace_ctx_size());
-    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, NOCTX_NAME, 0, 0, false);
-    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 5, "foo", 20, 0, false);
+    CHECK_EQUAL(3, idx_data0.trace_ctx_size());
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(0), 0, DEFAULT_CTX_NAME, 0, 0, false);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(1), 1, UNKNOWN_CTX_NAME, 0, 0, true);
+    ASSERT_TRACE_CTX_INFO_IS(idx_data0.trace_ctx(2), 5, "foo", 20, 0, false);
 
     auto cse0 = wse0.cpu_sample_entry();
     CHECK_EQUAL(10, cse0.stack_sample_size());

@@ -119,6 +119,10 @@ JNIEXPORT jboolean JNICALL Java_fk_prof_TestJni_isGenerated(JNIEnv* jni, jobject
     return static_cast<jboolean>(is_gen);
 }
 
-JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getNoCtxName(JNIEnv* jni, jobject self) {
-    return jni->NewStringUTF(NOCTX_NAME);
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getDefaultCtxName(JNIEnv* jni, jobject self) {
+    return jni->NewStringUTF(DEFAULT_CTX_NAME);
+}
+
+JNIEXPORT jstring JNICALL Java_fk_prof_TestJni_getUnknownCtxName(JNIEnv* jni, jobject self) {
+    return jni->NewStringUTF(UNKNOWN_CTX_NAME);
 }

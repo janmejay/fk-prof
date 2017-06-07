@@ -26,12 +26,18 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     ThreadBucket *thread_info = nullptr;
     PerfCtx::ThreadTracker* ctx_tracker = nullptr;
     auto current_sampling_attempt = sampling_attempts.fetch_add(1, std::memory_order_relaxed);
+    bool default_ctx = false;
     if (jniEnv != nullptr) {
         thread_info = thread_map.get(jniEnv);
         bool do_record = true;
         if (thread_info != nullptr) {//TODO: increment a counter here to monitor freq of this, it could be GC thd or compiler-broker etc
             ctx_tracker = &(thread_info->ctx_tracker);
-            do_record = ctx_tracker->in_ctx() ? ctx_tracker->should_record() : get_prob_pct().on(current_sampling_attempt, noctx_cov_pct);
+            if (ctx_tracker->in_ctx()) {
+                do_record = ctx_tracker->should_record();
+            } else {
+                do_record = get_prob_pct().on(current_sampling_attempt, noctx_cov_pct);
+                default_ctx = true;
+            }
         }
         if (! do_record) {
             return;
@@ -48,7 +54,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
         ASGCTType asgct = Asgct::GetAsgct();
         (*asgct)(&trace, capture_stack_depth(), context);
         if (trace.num_frames > 0) {
-            buffer->push(trace, err, thread_info);
+            buffer->push(trace, err, default_ctx, thread_info);
             return; // we got java trace, so bail-out
         }
         if (trace.num_frames <= 0) {
@@ -63,7 +69,7 @@ void Profiler::handle(int signum, siginfo_t *info, void *context) {
     STATIC_ARRAY(native_trace, NativeFrame, capture_stack_depth(), MAX_FRAMES_TO_CAPTURE);
 
     auto bt_len = Stacktraces::fill_backtrace(native_trace, capture_stack_depth());
-    buffer->push(native_trace, bt_len, err, thread_info);
+    buffer->push(native_trace, bt_len, err, default_ctx, thread_info);
 }
 
 bool Profiler::start(JNIEnv *jniEnv) {

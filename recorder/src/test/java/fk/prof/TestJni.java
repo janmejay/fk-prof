@@ -25,5 +25,6 @@ public class TestJni {
     public native int getCtxCov(long ctxid);
     public native int getCtxMergeSemantic(long ctxid);
     public native boolean isGenerated(long ctxid);
-    public native String getNoCtxName();
+    public native String getDefaultCtxName();
+    public native String getUnknownCtxName();
 }
