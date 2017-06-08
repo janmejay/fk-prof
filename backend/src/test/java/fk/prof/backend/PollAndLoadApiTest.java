@@ -83,7 +83,7 @@ public class PollAndLoadApiTest {
     config.getJsonObject("curatorOptions").put("session.timeout.ms", 1000);
 
     this.config = ConfigManager.loadConfig(config);
-    String backendAssociationPath = this.config.associationsConfig.associationPath;
+    String backendAssociationPath = this.config.getAssociationsConfig().getAssociationPath();
 
     testingServer = new TestingServer();
     curatorClient = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), 500, 500, new RetryOneTime(1));
@@ -91,12 +91,12 @@ public class PollAndLoadApiTest {
     curatorClient.blockUntilConnected(10, TimeUnit.SECONDS);
     curatorClient.create().forPath(backendAssociationPath);
 
-    vertx = Vertx.vertx(new VertxOptions(this.config.vertxOptions));
+    vertx = Vertx.vertx(new VertxOptions(this.config.getVertxOptions()));
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, backendAssociationPath, 1, 1, new ProcessGroupCountBasedBackendComparator());
-    leaderStore = spy(new InMemoryLeaderStore(this.config.ipAddress, this.config.leaderHttpServerOpts.getPort()));
+    leaderStore = spy(new InMemoryLeaderStore(this.config.getIpAddress(), this.config.getLeaderHttpServerOpts().getPort()));
     when(leaderStore.isLeader()).thenReturn(false);
-    associatedProcessGroups = new AssociatedProcessGroupsImpl(this.config.recorderDefunctThresholdSecs);
-    workSlotPool = new WorkSlotPool(this.config.scheduleSlotPoolCapacity);
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(this.config.getRecorderDefunctThresholdSecs());
+    workSlotPool = new WorkSlotPool(this.config.getScheduleSlotPoolCapacity());
     activeAggregationWindows = new ActiveAggregationWindowsImpl();
     policyStore = spy(new PolicyStore(curatorClient));
     aggregationWindowStorage = mock(AggregationWindowStorage.class);
@@ -156,7 +156,7 @@ public class PollAndLoadApiTest {
     //this test can be brittle because teardown of zk in previous running test, causes delay in setting up of leader when zk is setup again for this test
     //mocking leader address here so that association does not return 503
     when(leaderStore.getLeader())
-        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(config.leaderHttpServerOpts.getPort()).build());
+        .thenReturn(BackendDTO.LeaderDetail.newBuilder().setHost("127.0.0.1").setPort(config.getLeaderHttpServerOpts().getPort()).build());
     try {
       makeRequestPostAssociation(buildRecorderInfoFromProcessGroup(processGroup)).setHandler(ar -> {
         if (ar.failed()) {
@@ -246,7 +246,7 @@ public class PollAndLoadApiTest {
         .setRecorderInfo(buildRecorderInfo(processGroup, 1))
         .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
         .build();
-    Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(config.ipAddress).setPort(config.backendHttpServerOpts.getPort()).build();
+    Recorder.AssignedBackend assignedBackend = Recorder.AssignedBackend.newBuilder().setHost(config.getIpAddress()).setPort(config.getBackendHttpServerOpts().getPort()).build();
     makePollRequest(assignedBackend, pollReq).setHandler(ar1 -> {
       if(ar1.failed()) {
         context.fail(ar1.cause());
@@ -294,7 +294,7 @@ public class PollAndLoadApiTest {
                                 context.assertEquals(200, ar4.result().getStatusCode());
                                 Recorder.PollRes pollRes2 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar4.result().getResponse());
                                 context.assertNotNull(pollRes2.getAssignment());
-                                context.assertEquals(BitOperationUtil.constructLongFromInts(config.backendId, 1),
+                                context.assertEquals(BitOperationUtil.constructLongFromInts(config.getBackendId(), 1),
                                     pollRes2.getAssignment().getWorkId());
                                 async.complete();
                               } catch (Exception ex) {
@@ -332,7 +332,7 @@ public class PollAndLoadApiTest {
       throws IOException {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .post(config.backendHttpServerOpts.getPort(), "localhost", "/association")
+        .post(config.getBackendHttpServerOpts().getPort(), "localhost", "/association")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {

@@ -39,7 +39,7 @@ public class ProcessGroupDetailTest {
 
     ConfigManager.setDefaultSystemProperties();
     config = ConfigManager.loadConfig(ProcessGroupDetailTest.class.getClassLoader().getResource("config.json").getFile());
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
   }
 
   @Test

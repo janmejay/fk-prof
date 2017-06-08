@@ -47,9 +47,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
   @Override
   public void start(Future<Void> fut) {
     Router router = setupRouting();
-    vertx.createHttpServer(config.leaderHttpServerOpts)
+    vertx.createHttpServer(config.getLeaderHttpServerOpts())
         .requestHandler(router::accept)
-        .listen(config.leaderHttpServerOpts.getPort(),
+        .listen(config.getLeaderHttpServerOpts().getPort(),
             http -> completeStartup(http, fut));
   }
 

@@ -67,13 +67,13 @@ public class AssociationApiTest {
     curatorClient.create().forPath(backendAssociationPath);
 
     config = ConfigManager.loadConfig(AssociationApiTest.class.getClassLoader().getResource("config.json").getFile());
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
-    port = config.backendHttpServerOpts.getPort();
-    leaderPort = config.leaderHttpServerOpts.getPort();
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
+    port = config.getBackendHttpServerOpts().getPort();
+    leaderPort = config.getLeaderHttpServerOpts().getPort();
 
     backendAssociationStore = new ZookeeperBasedBackendAssociationStore(vertx, curatorClient, "/assoc", 1, 1, new ProcessGroupCountBasedBackendComparator());
-    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort()));
-    associatedProcessGroups = new AssociatedProcessGroupsImpl(config.recorderDefunctThresholdSecs);
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort()));
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(config.getRecorderDefunctThresholdSecs());
     policyStore = new PolicyStore(curatorClient);
 
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), associatedProcessGroups);

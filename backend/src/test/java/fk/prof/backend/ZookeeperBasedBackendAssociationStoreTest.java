@@ -48,7 +48,7 @@ public class ZookeeperBasedBackendAssociationStoreTest {
     ConfigManager.setDefaultSystemProperties();
     config = ConfigManager.loadConfig(ZookeeperBasedBackendAssociationStoreTest.class.getClassLoader().getResource("config.json").getFile());
 
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
   }
 
   @AfterClass

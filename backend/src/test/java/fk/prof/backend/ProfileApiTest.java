@@ -58,11 +58,11 @@ public class ProfileApiTest {
     ConfigManager.setDefaultSystemProperties();
     Configuration config = spy(ConfigManager.loadConfig(ProfileApiTest.class.getClassLoader().getResource("config.json").getFile()));
 
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
     activeAggregationWindows = new ActiveAggregationWindowsImpl();
-    leaderReadContext = new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort());
-    associatedProcessGroups = new AssociatedProcessGroupsImpl(config.recorderDefunctThresholdSecs);
-    port = config.backendHttpServerOpts.getPort();
+    leaderReadContext = new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort());
+    associatedProcessGroups = new AssociatedProcessGroupsImpl(config.getRecorderDefunctThresholdSecs());
+    port = config.getBackendHttpServerOpts().getPort();
 
     VerticleDeployer backendVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, leaderReadContext, activeAggregationWindows, associatedProcessGroups);
     backendVerticleDeployer.deploy();
