@@ -62,7 +62,8 @@ public class CpuSamplingTest {
             "poll_itvl=1," +
             "log_lvl=trace," +
             "stats_syslog_tag=foobar";
-    private static final String NOCTX_NAME = "~ OTHERS ~";
+    private static final String DEFAULT_CTX_NAME = "~ OTHERS ~";
+    private static final String UNKNOWN_CTX_NAME = "~ UNKNOWN ~";
     private TestBackendServer server;
     private Function<byte[], byte[]>[] association = new Function[2];
     private Function<byte[], byte[]>[] poll = new Function[18];
@@ -147,7 +148,8 @@ public class CpuSamplingTest {
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
 
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), zeroSampleRoot());
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
             put(wrap("inferno"), rootMatcher(childrenMatcher(
                     nodeMatcher(Burn20And80PctCpu.class, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
                             nodeMatcher(Burn20And80PctCpu.class, "burnCpu", "()V", 0, 1, childrenMatcher(
@@ -227,7 +229,8 @@ public class CpuSamplingTest {
         HashMap<String, SampledStackNode> aggregations = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = Burn50And50PctCpu.class;
-            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), zeroSampleRoot());
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
             put(wrap("100_pct_single_inferno"), generate_Main_Burn_Immolate_BacktraceMatcher(66, klass, 25));
             put(wrap("50_pct_duplicate_inferno"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
             put(wrap("50_pct_duplicate_inferno_child"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
@@ -353,7 +356,8 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnCpuScoped.class;
-            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), zeroSampleRoot());
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
             put(wrap("p100"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
             put(wrap("p100 > c1"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
             put(wrap("p100 > c1 > c2"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
@@ -395,7 +399,8 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnCpuStacked.class;
-            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), zeroSampleRoot());
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
             put(wrap("p50"), generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 25));
             put(wrap("c100"), generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 25));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
@@ -439,11 +444,12 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnHalfInHalfOut.class;
-            put(wrap(NOCTX_NAME), generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 20));
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 20));
             put(wrap("c100"), generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 20));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
         assertThat(traceInfoMap.values(), hasItems(
-                new TraceInfo(NOCTX_NAME, 50, MergeSemantics.MERGE_TO_PARENT),
+                new TraceInfo(DEFAULT_CTX_NAME, 50, MergeSemantics.MERGE_TO_PARENT),
                 new TraceInfo("c100", 100, MergeSemantics.MERGE_TO_PARENT)));
     }
 
@@ -474,7 +480,8 @@ public class CpuSamplingTest {
 
         HashMap<String, SampledStackNode> aggregation = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap(UNKNOWN_CTX_NAME), zeroSampleRoot());
+            put(wrap(DEFAULT_CTX_NAME), zeroSampleRoot());
             put(wrap("inferno"), rootMatcher(childrenMatcher(
                     nodeMatcher(CpuBurningRunnable.class, "run", "()V", 0, 1, childrenMatcher(
                             nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 100, 10, Collections.emptySet()))))));
@@ -737,7 +744,7 @@ public class CpuSamplingTest {
                 String name = thdEntry.getThreadName();
                 thdInfoMap.put(id, new ThreadInfo(name, thdEntry.getPriority(), thdEntry.getIsDaemon()));
                 if (pivotResolver.aggregateByThd())
-                    aggregations.put(name, makeRootNode());
+                    aggregations.put(wrap(name), makeRootNode());
             }
 
             for (Recorder.TraceContext traceEntry : idxData.getTraceCtxList()) {
@@ -783,7 +790,7 @@ public class CpuSamplingTest {
         }
 
         //debug aid, the thing is almost a json, just a little top-level key-massaging is necessary (massage and use 'jq')
-        System.out.println("aggregations = " + aggregations);
+        //System.out.println("aggregations = " + aggregations);
 
         //now let us match it
         for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {

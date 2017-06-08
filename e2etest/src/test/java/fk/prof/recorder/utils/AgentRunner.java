@@ -42,6 +42,8 @@ public class AgentRunner {
     private static final Logger logger = LoggerFactory.getLogger(AgentRunner.class);
     public static final String DEFAULT_AGENT_INTERVAL = "interval=100";
     private static final String PERFCTX_JAR_BASE_NAME_PATTERN = "^perfctx-.+\\.jar$";
+    private static final String RECORDER_BUILD_DIR = "../recorder/build";
+    private static final String EXT = Platforms.getDynamicLibraryExtension();
 
     private final String fqdn;
     private final String args;
@@ -83,7 +85,7 @@ public class AgentRunner {
     
     private void startProcess() throws IOException {
         String finalArgs = (args == null) ? perfCtxArgFrag() : args + "," + perfCtxArgFrag(); 
-        String agentArg = "-agentpath:../recorder/build/libfkpagent" + Platforms.getDynamicLibraryExtension() + "=" + finalArgs;
+        String agentArg = "-agentpath:" + RECORDER_BUILD_DIR + "/libfkpagent" + EXT + "=" + finalArgs;
 
         List<String> classpath = Util.discoverClasspath(getClass());
 
@@ -115,6 +117,7 @@ public class AgentRunner {
         for (Map.Entry<Object, Object> envProp : prop.entrySet()) {
             env.put(envProp.getKey().toString(), envProp.getValue().toString());
         }
+        env.put("LD_PRELOAD", RECORDER_BUILD_DIR + "/libprefkp.so");
     }
 
     public boolean stop() {

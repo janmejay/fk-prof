@@ -49,6 +49,7 @@ add_definitions("-DBUILD_ENV='${BUILD_ENV}'")
 ##########################################################
 # Paths
 set(SRC "src/main/cpp")
+set(SRC_PRELOAD "src/main/c")
 set(INCLUDE_VENDOR_CONCQUEUE "vendor/concurrentqueue")
 set(INCLUDE_VENDOR_SPDLOG "vendor/spdlog/include")
 set(SRC_TEST "src/test/cpp")
@@ -153,6 +154,9 @@ set(SOURCE_FILES
     ${SRC}/metric_formatter.cc
     ${SRC}/unique_readsafe_ptr.hh)
 
+set(PRELOAD_SOURCE_FILES
+    ${SRC_PRELOAD}/preload.c)
+
 set(TI_SRC_FILES
     ${SRC}/agent.cc)
 
@@ -242,6 +246,7 @@ else()
     target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
 target_link_libraries(${OUTPUT} ${BASE_OUTPUT})
+add_library(prefkp SHARED ${PRELOAD_SOURCE_FILES})
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
 add_library(testbase STATIC ${TEST_BASE_FILES})
