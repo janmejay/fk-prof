@@ -181,11 +181,11 @@ public class CpuSamplingTest {
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
 
         //debug aid
-        Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
-        Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
-        Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
-        Map<String, SampledStackNode> aggregations = new HashMap<>();
-        makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
+        //Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        //Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
+        //Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
+        //Map<String, SampledStackNode> aggregations = new HashMap<>();
+        //makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
 
         assertOnStackPctIsAbove("ParallelScavengeHeap::mem_allocate", 90.0, profileEntries);
     }
@@ -217,7 +217,6 @@ public class CpuSamplingTest {
         }
 
         double pct = ((double) matchCount * 100) / totalCount;
-        System.out.println("pct = " + pct);
         assertThat(pct, greaterThan(minPct));
     }
 
