@@ -162,6 +162,66 @@ public class CpuSamplingTest {
     }
 
     @Test
+    public void should_Report_Alloc_Burn() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, WorkHandlingTest.CPU_SAMPLING_MAX_FRAMES);
+
+        runner = new AgentRunner(AllocBurner.class.getCanonicalName(), USUAL_RECORDER_ARGS + ",noctx_cov_pct=50");
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
+
+        //debug aid
+        Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
+        Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
+        Map<String, SampledStackNode> aggregations = new HashMap<>();
+        makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
+
+        assertOnStackPctIsAbove("ParallelScavengeHeap::mem_allocate", 90.0, profileEntries);
+    }
+
+    private void assertOnStackPctIsAbove(String methodPattern, double minPct, List<Recorder.Wse> entries) {
+        Long methodId = null;
+        long matchCount = 0;
+        long totalCount = 0;
+        for (Recorder.Wse entry : entries) {
+            assertThat(entry.hasCpuSampleEntry(), is(true));
+            for (Recorder.MethodInfo methodInfo : entry.getIndexedData().getMethodInfoList()) {
+                if (methodInfo.getMethodName().contains(methodPattern)) {
+                    assertThat("Too many methods seem to match target pattern " + methodPattern, methodId, is(nullValue()));
+                    methodId = methodInfo.getMethodId();
+                }
+            }
+            assertThat(methodId, not(nullValue()));
+            assert(methodId != null);//just to silence the warning
+            Recorder.StackSampleWse cpuSampleEntry = entry.getCpuSampleEntry();
+            for (Recorder.StackSample sample : cpuSampleEntry.getStackSampleList()) {
+                totalCount++;
+                for (Recorder.Frame frame : sample.getFrameList()) {
+                    if (frame.getMethodId() == methodId) {
+                        matchCount++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        double pct = ((double) matchCount * 100) / totalCount;
+        System.out.println("pct = " + pct);
+        assertThat(pct, greaterThan(minPct));
+    }
+
+    @Test
     public void should_ShutdownCleanly_On_SIGTERM_WhileProfiling() throws ExecutionException, InterruptedException, IOException, TimeoutException {
         List<Recorder.Wse> profileEntries = new ArrayList<>();
         MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
@@ -729,6 +789,18 @@ public class CpuSamplingTest {
 
     private void assertCpuProfileEntriesAre(List<Recorder.Wse> entries, Map<String, StackNodeMatcher> expected, final boolean ignoreOtherWseTypes, final PivotResolver pivotResolver, final Map<Integer, TraceInfo> traceInfoMap, final Map<Integer, ThreadInfo> thdInfoMap, final Map<Long, MthdInfo> mthdInfoMap, final Map<String, SampledStackNode> aggregations) {
         //first let us build the tree
+        int totalSamples = makeTree(entries, ignoreOtherWseTypes, pivotResolver, traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
+
+        //now let us match it
+        for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {
+            SampledStackNode node = aggregations.get(expectedEntry.getKey());
+            assertThat(node, notNullValue());
+            assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
+        }
+        assertThat(aggregations.size(), is(expected.size()));
+    }
+
+    private int makeTree(List<Recorder.Wse> entries, boolean ignoreOtherWseTypes, PivotResolver pivotResolver, Map<Integer, TraceInfo> traceInfoMap, Map<Integer, ThreadInfo> thdInfoMap, Map<Long, MthdInfo> mthdInfoMap, Map<String, SampledStackNode> aggregations) {
         int totalSamples = 0;
         for (Recorder.Wse entry : entries) {
             if (!ignoreOtherWseTypes) {
@@ -791,14 +863,7 @@ public class CpuSamplingTest {
 
         //debug aid, the thing is almost a json, just a little top-level key-massaging is necessary (massage and use 'jq')
         //System.out.println("aggregations = " + aggregations);
-
-        //now let us match it
-        for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {
-            SampledStackNode node = aggregations.get(expectedEntry.getKey());
-            assertThat(node, notNullValue());
-            assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
-        }
-        assertThat(aggregations.size(), is(expected.size()));
+        return totalSamples;
     }
 
     private String wrap(String name) {

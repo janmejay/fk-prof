@@ -93,7 +93,7 @@ public class AgentRunner {
         ProcessBuilder pb = new ProcessBuilder();
         populateEnvVars(pb);
         process = pb
-                .command("java", "-XX:+PreserveFramePointer", agentArg, "-cp", String.join(":", classpath), fqdn)
+                .command("java", "-XX:+PreserveFramePointer", agentArg, "-verbose:gc", "-XX:+PrintGCDateStamps", "-XX:+PrintGCTimeStamps", "-XX:+PrintGCDetails", "-Xloggc:/tmp/fkprof_gc.log", "-cp", String.join(":", classpath), fqdn)
                 .redirectError(new File("/tmp/fkprof_stderr.log"))
                 .redirectOutput(new File("/tmp/fkprof_stdout.log"))
                 .start();
@@ -124,7 +124,8 @@ public class AgentRunner {
         process.destroy();
         while (true) {
             try {
-                return process.waitFor(5, TimeUnit.SECONDS);
+                if (process.waitFor(5, TimeUnit.SECONDS)) return true;
+                else { process.destroyForcibly(); }
             } catch (InterruptedException e) {
                 logger.info(e.getMessage(), e);
             }
