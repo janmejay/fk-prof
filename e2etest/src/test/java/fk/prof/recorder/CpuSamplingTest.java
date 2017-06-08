@@ -147,8 +147,8 @@ public class CpuSamplingTest {
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
 
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            put(NOCTX_NAME, zeroSampleRoot());
-            put("inferno", rootMatcher(childrenMatcher(
+            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap("inferno"), rootMatcher(childrenMatcher(
                     nodeMatcher(Burn20And80PctCpu.class, "main", "([Ljava/lang/String;)V", 0, 1, childrenMatcher(
                             nodeMatcher(Burn20And80PctCpu.class, "burnCpu", "()V", 0, 1, childrenMatcher(
                                     nodeMatcher(Burn20Of100.class, "burn", "()V", 0, 1, childrenMatcher(
@@ -227,10 +227,10 @@ public class CpuSamplingTest {
         HashMap<String, SampledStackNode> aggregations = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = Burn50And50PctCpu.class;
-            put(NOCTX_NAME, zeroSampleRoot());
-            put("100_pct_single_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(66, klass, 25));
-            put("50_pct_duplicate_inferno", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
-            put("50_pct_duplicate_inferno_child", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap("100_pct_single_inferno"), generate_Main_Burn_Immolate_BacktraceMatcher(66, klass, 25));
+            put(wrap("50_pct_duplicate_inferno"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put(wrap("50_pct_duplicate_inferno_child"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), aggregations);
 
         assertThat(traceInfoMap.values(), hasItems(new TraceInfo("100_pct_single_inferno", 100, MergeSemantics.MERGE_TO_PARENT), new TraceInfo("50_pct_duplicate_inferno", 50, MergeSemantics.MERGE_TO_PARENT), new TraceInfo("50_pct_duplicate_inferno_child", 50, MergeSemantics.DUPLICATE)));
@@ -316,8 +316,8 @@ public class CpuSamplingTest {
         HashMap<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
         HashMap<Long, MthdInfo> mthdInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            put("foo-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
-            put("bar-the-thd", generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
+            put(wrap("foo-the-thd"), generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
+            put(wrap("bar-the-thd"), generate_Thread_Runnable_Immolate_BacktraceMatcher(50));
         }}, new ThreadIdPivotResolver(), new HashMap<Integer, TraceInfo>(), thdInfoMap, mthdInfoMap, new HashMap<String, SampledStackNode>());
 
         assertThat(thdInfoMap.values(), hasItems(new ThreadInfo("foo-the-thd", 6, false), new ThreadInfo("bar-the-thd", 5, true)));
@@ -353,12 +353,12 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnCpuScoped.class;
-            put(NOCTX_NAME, zeroSampleRoot());
-            put("p100", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
-            put("p100 > c1", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
-            put("p100 > c1 > c2", generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
-            put("c1", rootMatcher(Collections.emptySet()));
-            put("c2", rootMatcher(Collections.emptySet()));
+            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap("p100"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put(wrap("p100 > c1"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put(wrap("p100 > c1 > c2"), generate_Main_Burn_Immolate_BacktraceMatcher(33, klass, 25));
+            put(wrap("c1"), rootMatcher(Collections.emptySet()));
+            put(wrap("c2"), rootMatcher(Collections.emptySet()));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
         assertThat(traceInfoMap.values(), hasItems(
                 new TraceInfo("p100", 100, MergeSemantics.STACK_UP),
@@ -395,9 +395,9 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnCpuStacked.class;
-            put(NOCTX_NAME, zeroSampleRoot());
-            put("p50", generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 25));
-            put("c100", generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 25));
+            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap("p50"), generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 25));
+            put(wrap("c100"), generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 25));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
         assertThat(traceInfoMap.values(), hasItems(
                 new TraceInfo("p50", 50, MergeSemantics.PARENT_SCOPED),
@@ -439,8 +439,8 @@ public class CpuSamplingTest {
         HashMap<Integer, TraceInfo> traceInfoMap = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
             Class klass = BurnHalfInHalfOut.class;
-            put(NOCTX_NAME, generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 20));
-            put("c100", generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 20));
+            put(wrap(NOCTX_NAME), generate_Main_Burn_Immolate_BacktraceMatcher(25, klass, 20));
+            put(wrap("c100"), generate_Main_Burn_Immolate_BacktraceMatcher(50, klass, 20));
         }}, new TraceIdPivotResolver(), traceInfoMap, new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), new HashMap<String, SampledStackNode>());
         assertThat(traceInfoMap.values(), hasItems(
                 new TraceInfo(NOCTX_NAME, 50, MergeSemantics.MERGE_TO_PARENT),
@@ -474,8 +474,8 @@ public class CpuSamplingTest {
 
         HashMap<String, SampledStackNode> aggregation = new HashMap<>();
         assertProfileCallAndContent(profileCalledSecondTime, profileEntries, new HashMap<String, StackNodeMatcher>() {{
-            put(NOCTX_NAME, zeroSampleRoot());
-            put("inferno", rootMatcher(childrenMatcher(
+            put(wrap(NOCTX_NAME), zeroSampleRoot());
+            put(wrap("inferno"), rootMatcher(childrenMatcher(
                     nodeMatcher(CpuBurningRunnable.class, "run", "()V", 0, 1, childrenMatcher(
                             nodeMatcher(Blackhole.class, "consumeCPU", "(J)V", 100, 10, Collections.emptySet()))))));
         }}, new TraceIdPivotResolver(), new HashMap<>(), new HashMap<Integer, ThreadInfo>(), new HashMap<Long, MthdInfo>(), aggregation);
@@ -751,7 +751,7 @@ public class CpuSamplingTest {
                 }
 
                 if (pivotResolver.aggregateByCtx())
-                    aggregations.put(name, makeRootNode());
+                    aggregations.put(wrap(name), makeRootNode());
             }
             for (Recorder.MethodInfo mthdEntry : idxData.getMethodInfoList()) {
                 long id = mthdEntry.getMethodId();
@@ -763,7 +763,7 @@ public class CpuSamplingTest {
                 Recorder.StackSample stackSample = e.getStackSample(i);
                 for (Integer pivotId : pivotResolver.getAggregatingPivotIds(stackSample)) {
                     String name = pivotResolver.getAggregatingPivotName(traceInfoMap, thdInfoMap, pivotId);
-                    SampledStackNode currentNode = aggregations.get(name);
+                    SampledStackNode currentNode = aggregations.get(wrap(name));
                     for (int j = stackSample.getFrameCount(); j > 0; j--) {
                         Recorder.Frame frame = stackSample.getFrame(j - 1);
                         long methodId = frame.getMethodId();
@@ -783,7 +783,7 @@ public class CpuSamplingTest {
         }
 
         //debug aid, the thing is almost a json, just a little top-level key-massaging is necessary (massage and use 'jq')
-        //System.out.println("aggregations = " + aggregations);
+        System.out.println("aggregations = " + aggregations);
 
         //now let us match it
         for (Map.Entry<String, StackNodeMatcher> expectedEntry : expected.entrySet()) {
@@ -792,6 +792,10 @@ public class CpuSamplingTest {
             assertTreesMatch(node, expectedEntry.getValue(), totalSamples);
         }
         assertThat(aggregations.size(), is(expected.size()));
+    }
+
+    private String wrap(String name) {
+        return '"' + name + '"';
     }
 
     private MergeSemantics translateMergeSemantic(Recorder.TraceContext traceEntry) {
