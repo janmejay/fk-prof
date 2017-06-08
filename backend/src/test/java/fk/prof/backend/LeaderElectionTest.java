@@ -201,7 +201,7 @@ public class LeaderElectionTest {
     CompositeFuture f = populateAssociationAndPolicies(pg1, pg2, policy);
     f.setHandler(res -> {
       if(res.failed()) {
-        context.fail("failed to populate policies and associations. Reason: " + res.cause().toString());
+        context.fail(res.cause());
       }
       else {
         CompositeFuture cf =  res.result();

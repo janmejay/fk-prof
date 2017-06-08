@@ -68,6 +68,7 @@ public class PollAndLoadApiTest {
   private PolicyStore policyStore;
   private AggregationWindowStorage aggregationWindowStorage;
 
+  private final int thresholdForDefunctRecorderInSecs = 4;
   private String backendDaemonVerticleDeployment;
   private List<String> backendHttpVerticleDeployments;
 
@@ -79,6 +80,7 @@ public class PollAndLoadApiTest {
     JsonObject config = new JsonObject(Files.toString(
         new File(PollAndLoadApiTest.class.getClassLoader().getResource("config.json").getFile()), StandardCharsets.UTF_8));
     config.put("load.report.interval.secs", 1);
+    config.put("recorder.defunct.threshold.secs", thresholdForDefunctRecorderInSecs);
     config.getJsonObject("curatorOptions").put("connection.timeout.ms", 1000);
     config.getJsonObject("curatorOptions").put("session.timeout.ms", 1000);
 
@@ -112,18 +114,26 @@ public class PollAndLoadApiTest {
       try {
         backendHttpVerticleDeployments = ((CompositeFuture)ar.result().list().get(0)).list();
         backendDaemonVerticleDeployment = (String)((CompositeFuture)ar.result().list().get(0)).list().get(0);
-
         VerticleDeployer leaderHttpVerticleDeployer = new LeaderHttpVerticleDeployer(vertx, this.config, backendAssociationStore, policyStore);
+
+        CountDownLatch latch = new CountDownLatch(1);
         Runnable leaderElectedTask = LeaderElectedTask.newBuilder().build(vertx, leaderHttpVerticleDeployer, backendAssociationStore, policyStore);
+        Runnable leaderElectedTaskWithLatch = () -> {
+          leaderElectedTask.run();
+          latch.countDown();
+        };
         VerticleDeployer leaderElectionParticipatorVerticleDeployer = new LeaderElectionParticipatorVerticleDeployer(
-            vertx, this.config, curatorClient, leaderElectedTask);
+            vertx, this.config, curatorClient, leaderElectedTaskWithLatch);
         VerticleDeployer leaderElectionWatcherVerticleDeployer = new LeaderElectionWatcherVerticleDeployer(vertx, this.config, curatorClient, leaderStore);
         CompositeFuture.all(leaderElectionParticipatorVerticleDeployer.deploy(), leaderElectionWatcherVerticleDeployer.deploy()).setHandler(ar1 -> {
           if(ar1.failed()) {
             context.fail(ar1.cause());
           }
           try {
-            System.out.println("Setup completed");
+            boolean released = latch.await(5, TimeUnit.SECONDS);
+            if (!released) {
+              context.fail("Latch timed out but leader election task was not run");
+            }
             async.complete();
           } catch (Exception ex) {
             context.fail(ex);
@@ -210,8 +220,9 @@ public class PollAndLoadApiTest {
             context.fail(ar.cause());
           }
           context.assertEquals(200, ar.result().getStatusCode());
-          //wait for one more load report, so that backend receives assignment of process group
-          vertx.setTimer(1200, timerId1 -> {
+          // wait for load report to happen so that backend receives association.
+          // additionally wait for threshold for defunct recorder, so that work is fetched and first window is setup
+          vertx.setTimer(1200 + (thresholdForDefunctRecorderInSecs * 1000), timerId1 -> {
             try {
               boolean released = latch.await(1, TimeUnit.SECONDS);
               if(!released) {
@@ -235,12 +246,6 @@ public class PollAndLoadApiTest {
     final Async async = context.async();
     Recorder.ProcessGroup processGroup = Recorder.ProcessGroup.newBuilder().setAppId("1").setCluster("1").setProcName("1").build();
     policyStore.put(processGroup, buildRecordingPolicy(1));
-    CountDownLatch latch = new CountDownLatch(1);
-    when(policyStore.get(processGroup)).then(invocationOnMock -> {
-      //Induce delay here so that before work is fetched, poll request of recorder succeeds and it gets marked healthy
-      latch.await(8, TimeUnit.SECONDS);
-      return invocationOnMock.callRealMethod();
-    });
 
     Recorder.PollReq pollReq = Recorder.PollReq.newBuilder()
         .setRecorderInfo(buildRecorderInfo(processGroup, 1))
@@ -263,8 +268,8 @@ public class PollAndLoadApiTest {
               }
               context.assertEquals(200, ar2.result().getStatusCode());
               try {
-                //wait for some time so that backend reports load
-                vertx.setTimer(2500, timerId1 -> {
+                //wait for some time so that backend reports load and fetches new associations
+                vertx.setTimer(2000, timerId1 -> {
                   try {
                     Recorder.PollReq pollReq1 = Recorder.PollReq.newBuilder()
                         .setRecorderInfo(buildRecorderInfo(processGroup, 2))
@@ -278,13 +283,12 @@ public class PollAndLoadApiTest {
                         context.assertEquals(200, ar3.result().getStatusCode());
                         Recorder.PollRes pollRes1 = ProtoUtil.buildProtoFromBuffer(Recorder.PollRes.parser(), ar3.result().getResponse());
                         context.assertEquals(Recorder.WorkAssignment.getDefaultInstance(), pollRes1.getAssignment());
-                        //countdown latch, so that work is returned by leader and aggregation window is setup, waiting for 1 sec before making another poll request
-                        latch.countDown();
                         Recorder.PollReq pollReq2 = Recorder.PollReq.newBuilder()
                             .setRecorderInfo(buildRecorderInfo(processGroup, 3))
                             .setWorkLastIssued(buildWorkResponse(0, Recorder.WorkResponse.WorkState.complete))
                             .build();
-                        vertx.setTimer(4500, timerId2 -> {
+                        //wait for recorder defunct threshold time post which backend would have fetched work from leader and setup aggregation window
+                        vertx.setTimer(thresholdForDefunctRecorderInSecs * 1000, timerId2 -> {
                           try {
                             makePollRequest(assignedBackend, pollReq2).setHandler(ar4 -> {
                               if(ar4.failed()) {

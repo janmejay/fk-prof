@@ -93,6 +93,7 @@ public class BackendDaemon extends AbstractVerticle {
         daemonConfig.getAggrWindowDurationSecs(),
         daemonConfig.getAggrWindowEndToleranceSecs(),
         daemonConfig.getPolicyRefreshOffsetSecs(),
+        config.getRecorderDefunctThresholdSecs(),
         daemonConfig.getSchedulingBufferSecs(),
         daemonConfig.getWorkAssignmentMaxDelaySecs(),
         workSlotPool,
