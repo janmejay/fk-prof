@@ -28,7 +28,7 @@ public class BackendHttpVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected DeploymentOptions getDeploymentOptions() {
-    return getConfig().backendDeploymentOpts;
+    return getConfig().getBackendDeploymentOpts();
   }
 
   @Override

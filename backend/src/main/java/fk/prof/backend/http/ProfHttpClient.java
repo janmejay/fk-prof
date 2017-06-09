@@ -128,11 +128,11 @@ public class ProfHttpClient {
     }
 
     public Builder setConfig(Configuration.HttpClientConfig httpClientConfig) {
-      keepAlive(httpClientConfig.keepAlive);
-      useCompression(httpClientConfig.supportCompression);
-      setConnectTimeoutInMs(httpClientConfig.connectTimeoutMs);
-      setIdleTimeoutInSeconds(httpClientConfig.idleTimeoutSecs);
-      setMaxAttempts(httpClientConfig.maxAttempts);
+      keepAlive(httpClientConfig.getKeepAlive());
+      useCompression(httpClientConfig.getSupportCompression());
+      setConnectTimeoutInMs(httpClientConfig.getConnectTimeoutMs());
+      setIdleTimeoutInSeconds(httpClientConfig.getIdleTimeoutSecs());
+      setMaxAttempts(httpClientConfig.getMaxAttempts());
       return this;
     }
 
