@@ -130,11 +130,11 @@ message MethodInfo {
   required string method_name = 4;
   required string signature = 5;
   enum CodeClass {
-    java               = 0;
-    native             = 1;
+    cls_java                = 0;
+    cls_native              = 1;
     // jruby, clojure etc can all go here
   }
-  optional CodeClass c_cls = 6 [default = java];
+  optional CodeClass c_cls = 6 [default = cls_java];
 }
 
 message ThreadInfo {

@@ -269,10 +269,10 @@ ProfileSerializingWriter::MthId ProfileSerializingWriter::report_new_mthd_info(c
 
     switch (bt_type) {
     case BacktraceType::Java:
-        mi->set_c_cls(recording::MethodInfo_CodeClass_java);
+        mi->set_c_cls(recording::MethodInfo_CodeClass_cls_java);
         break;
     case BacktraceType::Native:
-        mi->set_c_cls(recording::MethodInfo_CodeClass_native);
+        mi->set_c_cls(recording::MethodInfo_CodeClass_cls_native);
         break;
     default:
         assert(false);

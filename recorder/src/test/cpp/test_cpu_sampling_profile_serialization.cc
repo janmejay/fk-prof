@@ -89,8 +89,8 @@ jmethodID mid(std::uint64_t id) {
         CHECK_EQUAL(thd_tid, thd_info.tid());                           \
     }
 
-#define Java_Sym recording::MethodInfo_CodeClass_java
-#define Native_Sym recording::MethodInfo_CodeClass_native
+#define Java_Sym recording::MethodInfo_CodeClass_cls_java
+#define Native_Sym recording::MethodInfo_CodeClass_cls_native
 
 #define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig, code_cls) \
     {                                                                   \
@@ -200,7 +200,7 @@ void bt_pusher() {
     bt_q->push(frames, len, bt_err, mark_default_ctx, bt_tinfo);
 }
 
-void push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket* t, BacktraceError err, CircularQueue& q, bool default_ctx = false, int capture_bt_at = 4) {
+void push_native_backtrace(ThreadBucket* t, BacktraceError err, CircularQueue& q, bool default_ctx = false, int capture_bt_at = 4) {
     bt_q = &q;
     bt_err = err;
     bt_tinfo = t;
@@ -275,7 +275,7 @@ TEST(ProfileSerializer__should_write_cpu_samples_native_and_java) {
     t25.ctx_tracker.enter(ctx_bar);
     q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
-    push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);
+    push_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);
     t25.ctx_tracker.exit(ctx_foo);
 
     frames[0].method_id = mid(d);
@@ -318,7 +318,7 @@ TEST(ProfileSerializer__should_write_cpu_samples_native_and_java) {
     frames[0].method_id = mid(c);
     frames[0].lineno = 40;
     q.push(ct, BacktraceError::Fkp_no_error, true, nullptr);
-    push_native_foo_bar_baz_quux_corge_native_backtrace(nullptr, BacktraceError::Fkp_no_jni_env, q, true, 2);
+    push_native_backtrace(nullptr, BacktraceError::Fkp_no_jni_env, q, true, 2);
 
     CHECK(q.pop());
     CHECK(q.pop());
@@ -458,7 +458,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_scoped_ctx) {
     ThreadBucket t25(25, "some thread", 8, false);
     t25.ctx_tracker.enter(ctx_foo);
     t25.ctx_tracker.enter(ctx_bar);
-    push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
+    push_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
     q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
     t25.ctx_tracker.exit(ctx_bar);
     t25.ctx_tracker.exit(ctx_foo);
@@ -583,7 +583,7 @@ TEST(ProfileSerializer__should_auto_flush__at_buffering_threshold) {
         if (i < 5) {
             q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
         } else {
-            push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
+            push_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
         }
         CHECK(q.pop());
 
@@ -865,9 +865,9 @@ TEST(ProfileSerializer__should_auto_flush_correctly__after_first_flush___and_sho
             ps.flush();//check manual flush interleving
         }
         if (i < 15) {
-            push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
+            push_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q, false, 0);
         } else {
-            push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t10), BacktraceError::Fkp_no_error, q, false, 1);
+            push_native_backtrace(ThreadBucket::acq_bucket(&t10), BacktraceError::Fkp_no_error, q, false, 1);
         }
         CHECK(q.pop());
     }
@@ -1021,7 +1021,7 @@ TEST(ProfileSerializer__should_write_cpu_samples__with_forte_error) {
         if (i < 5) {
             q.push(ct, static_cast<BacktraceError>(i), default_ctx, nullptr);
         } else {
-            push_native_foo_bar_baz_quux_corge_native_backtrace(nullptr, static_cast<BacktraceError>(i), q, default_ctx, 0);
+            push_native_backtrace(nullptr, static_cast<BacktraceError>(i), q, default_ctx, 0);
         }
         CHECK(q.pop());
     }
@@ -1129,7 +1129,7 @@ TEST(ProfileSerializer__should_snip_short__very_long_cpu_sample_backtraces) {
     ThreadBucket t25(25, "Thread No. 25", 5, true);
     t25.ctx_tracker.enter(ctx_foo);
     q.push(ct, BacktraceError::Fkp_no_error, false, ThreadBucket::acq_bucket(&t25));
-    push_native_foo_bar_baz_quux_corge_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);//default is 6 frames
+    push_native_backtrace(ThreadBucket::acq_bucket(&t25), BacktraceError::Fkp_no_error, q);//default is 6 frames
     t25.ctx_tracker.exit(ctx_foo);
 
     CHECK(q.pop());
