@@ -2,6 +2,7 @@ package fk.prof.userapi.verticles;
 
 import fk.prof.aggregation.AggregatedProfileNamingStrategy;
 import fk.prof.aggregation.proto.AggregatedProfileModel;
+import fk.prof.userapi.Configuration;
 import fk.prof.userapi.UserapiConfigManager;
 import fk.prof.userapi.api.ProfileStoreAPIImpl;
 import fk.prof.userapi.deployer.VerticleDeployer;
@@ -23,13 +24,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import java.net.ServerSocket;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -71,8 +70,6 @@ public class RouterVerticleTest {
     private Vertx vertx;
     private HttpClient client;
     private int port = 8082;
-    @InjectMocks
-    private HttpVerticle routerVerticle;
 
     @Mock
     private ProfileStoreAPIImpl profileDiscoveryAPI;
@@ -81,17 +78,13 @@ public class RouterVerticleTest {
     public void setUp(TestContext testContext) throws Exception {
         ProtoSerializers.registerSerializers(Json.mapper);
 
-        ServerSocket socket = new ServerSocket(0);
-        port = socket.getLocalPort();
-        socket.close();
-
-      UserapiConfigManager.setDefaultSystemProperties();
-        UserapiConfigManager userapiConfigManager = new UserapiConfigManager(ProfileStoreAPIImpl.class.getClassLoader().getResource("userapi-conf.json").getFile());
-      vertx = Vertx.vertx();
-      port = userapiConfigManager.getUserapiHttpPort();
+        UserapiConfigManager.setDefaultSystemProperties();
+        Configuration config = UserapiConfigManager.loadConfig(ProfileStoreAPIImpl.class.getClassLoader().getResource("userapi-conf.json").getFile());
+        vertx = Vertx.vertx();
+        port = config.getHttpConfig().getHttpPort();
         client = vertx.createHttpClient();
 
-        VerticleDeployer verticleDeployer = new UserapiHttpVerticleDeployer(vertx, userapiConfigManager, profileDiscoveryAPI);
+        VerticleDeployer verticleDeployer = new UserapiHttpVerticleDeployer(vertx, config, profileDiscoveryAPI);
         verticleDeployer.deploy();
     }
 
