@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static fk.prof.recorder.AssociationTest.assertRecorderInfoAllGood_AndGetTick;
 import static fk.prof.recorder.WorkHandlingTest.*;
@@ -36,6 +37,7 @@ import static fk.prof.recorder.utils.Matchers.approximatelyBetween;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 public class CpuSamplingTest {
@@ -168,7 +170,7 @@ public class CpuSamplingTest {
         MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
         String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
 
-        PollReqWithTime[] pollReqs = stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, WorkHandlingTest.CPU_SAMPLING_MAX_FRAMES);
+        stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, WorkHandlingTest.CPU_SAMPLING_MAX_FRAMES);
 
         runner = new AgentRunner(AllocBurner.class.getCanonicalName(), USUAL_RECORDER_ARGS + ",noctx_cov_pct=50");
         runner.start();
@@ -187,28 +189,56 @@ public class CpuSamplingTest {
         //Map<String, SampledStackNode> aggregations = new HashMap<>();
         //makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
 
-        assertOnStackPctIsAbove("ParallelScavengeHeap::mem_allocate", 90.0, profileEntries);
+        assertOnStackPctIsAbove(Pattern.compile(".*ParallelScavengeHeap::mem_allocate.*"), 90.0, profileEntries);
     }
 
-    private void assertOnStackPctIsAbove(String methodPattern, double minPct, List<Recorder.Wse> entries) {
-        Long methodId = null;
+    @Test
+    public void should_Report_Intrinsic_Burn() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+        List<Recorder.Wse> profileEntries = new ArrayList<>();
+        MutableObject<Recorder.RecordingHeader> hdr = new MutableObject<>();
+        MutableBoolean profileCalledSecondTime = new MutableBoolean(false);
+        String cpuSamplingWorkIssueTime = ISODateTimeFormat.dateTime().print(DateTime.now());
+
+        stubRecorderInteraction(profileEntries, hdr, profileCalledSecondTime, cpuSamplingWorkIssueTime, WorkHandlingTest.CPU_SAMPLING_MAX_FRAMES);
+
+        runner = new AgentRunner(IntrinsicBurner.class.getCanonicalName(), USUAL_RECORDER_ARGS + ",noctx_cov_pct=50");
+        runner.start();
+
+        assocAction[0].get(4, TimeUnit.SECONDS);
+
+        assertThat(assocAction[0].isDone(), is(true));
+        pollAction[poll.length - 1].get(poll.length + 4, TimeUnit.SECONDS); //some grace time
+
+        assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
+
+        //debug aid
+        //Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        //Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
+        //Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
+        //Map<String, SampledStackNode> aggregations = new HashMap<>();
+        //makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
+
+        assertOnStackPctIsAbove(Pattern.compile(".*(sin|cos).*"), 2.0, profileEntries);
+    }
+
+    private void assertOnStackPctIsAbove(Pattern pattern, double minPct, List<Recorder.Wse> entries) {
+        Set<Long> methodIds = new TreeSet<>();
         long matchCount = 0;
         long totalCount = 0;
         for (Recorder.Wse entry : entries) {
             assertThat(entry.hasCpuSampleEntry(), is(true));
             for (Recorder.MethodInfo methodInfo : entry.getIndexedData().getMethodInfoList()) {
-                if (methodInfo.getMethodName().contains(methodPattern)) {
-                    assertThat("Too many methods seem to match target pattern " + methodPattern, methodId, is(nullValue()));
-                    methodId = methodInfo.getMethodId();
+                String methodName = methodInfo.getMethodName();
+                if (pattern.matcher(methodName).matches()) {
+                    methodIds.add(methodInfo.getMethodId());
                 }
             }
-            assertThat(methodId, not(nullValue()));
-            assert(methodId != null);//just to silence the warning
+            assertThat(methodIds.size(), greaterThan(0));
             Recorder.StackSampleWse cpuSampleEntry = entry.getCpuSampleEntry();
             for (Recorder.StackSample sample : cpuSampleEntry.getStackSampleList()) {
                 totalCount++;
                 for (Recorder.Frame frame : sample.getFrameList()) {
-                    if (frame.getMethodId() == methodId) {
+                    if (methodIds.contains(frame.getMethodId())) {
                         matchCount++;
                         break;
                     }
@@ -217,6 +247,7 @@ public class CpuSamplingTest {
         }
 
         double pct = ((double) matchCount * 100) / totalCount;
+        //System.out.println("pct = " + pct);
         assertThat(pct, greaterThan(minPct));
     }
 
