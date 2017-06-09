@@ -1,12 +1,13 @@
 package fk.prof.backend.util;
 
 import io.vertx.core.Future;
-import javafx.util.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.KeeperException;
 
+import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 
 public class ZookeeperUtil {
     public static final String DELIMITER = "/";
@@ -16,13 +17,13 @@ public class ZookeeperUtil {
     return curatorClient.getData().forPath(zNodePath);
   }
 
-    public static Pair<String, byte[]> readLatestSeqZNodeChild(CuratorFramework curatorClient, String zNodePath) throws Exception {
+    public static Map.Entry<String, byte[]> readLatestSeqZNodeChild(CuratorFramework curatorClient, String zNodePath) throws Exception {
         List<String> sortedPolicyNodes = ZKPaths.getSortedChildren(curatorClient.getZookeeperClient().getZooKeeper(), zNodePath);
         if (sortedPolicyNodes.isEmpty()) {
             return null;
         }
         zNodePath = zNodePath + DELIMITER + sortedPolicyNodes.get(sortedPolicyNodes.size() - 1);
-        return new Pair<>(ZKPaths.getNodeFromPath(zNodePath), readZNode(curatorClient, zNodePath));
+        return new AbstractMap.SimpleEntry<>(ZKPaths.getNodeFromPath(zNodePath), readZNode(curatorClient, zNodePath));
   }
 
     public static String getLatestSeqZNodeChildName(CuratorFramework curatorClient, String zNodePath) throws Exception {

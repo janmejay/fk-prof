@@ -10,7 +10,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import javafx.util.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
@@ -37,7 +36,7 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
     private final String policyVersion;
     private final Vertx vertx;
     private final Map<Recorder.ProcessGroup, PolicyDTO.VersionedPolicyDetails> policyCache = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, ConcurrentHashMap.KeySetView<String, Boolean>>> processGroupAsTree = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, ConcurrentHashMap.KeySetView<String, Boolean>>> processGroupHierarchy = new ConcurrentHashMap<>();
     private boolean initialized;
 
 
@@ -91,37 +90,35 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
                             .setCluster(PathNamingUtil.decode32(clusterId))
                             .setProcName(PathNamingUtil.decode32(procName)).build();
 
-                    Pair<String, byte[]> policyNode = ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, procNamePath);
+                    Map.Entry<String, byte[]> policyNode = ZookeeperUtil.readLatestSeqZNodeChild(curatorClient, procNamePath);
                     PolicyDTO.PolicyDetails policyDetails = PolicyDTO.PolicyDetails.parseFrom(policyNode.getValue());
                     int version = Integer.parseInt(policyNode.getKey());
                     PolicyDTO.VersionedPolicyDetails versionedPolicyDetails = PolicyDTO.VersionedPolicyDetails.newBuilder().setPolicyDetails(policyDetails).setVersion(version).build();
 
                     policyCache.put(processGroup, versionedPolicyDetails);
-                    putInProcessGroupAsTree(processGroup);
+                    updateProcessGroupHierarchy(processGroup);
                 }
             }
         }
     }
 
-    void init() throws Exception {
-        synchronized (this) {
+    synchronized void init() throws Exception {
             if (!initialized) {
                 populateCacheFromZK();
                 initialized = true;
             }
-        }
     }
 
     public Set<String> getAppIds(String prefix) throws Exception {
-        return processGroupAsTree.keySet().stream().filter(appIds -> appIds.startsWith(prefix)).collect(Collectors.toSet());
+        return processGroupHierarchy.keySet().stream().filter(appIds -> appIds.startsWith(prefix)).collect(Collectors.toSet());
     }
 
     public Set<String> getClusterIds(String appId, String prefix) throws Exception {
-        return processGroupAsTree.get(appId).keySet().stream().filter(clusterIds -> clusterIds.startsWith(prefix)).collect(Collectors.toSet());
+        return processGroupHierarchy.get(appId).keySet().stream().filter(clusterIds -> clusterIds.startsWith(prefix)).collect(Collectors.toSet());
     }
 
     public Set<String> getProcNames(String appId, String clusterId, String prefix) throws Exception {
-        return processGroupAsTree.get(appId).get(clusterId).stream().filter(procNames -> procNames.startsWith(prefix)).collect(Collectors.toSet());
+        return processGroupHierarchy.get(appId).get(clusterId).stream().filter(procNames -> procNames.startsWith(prefix)).collect(Collectors.toSet());
     }
 
     @Override
@@ -165,13 +162,13 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
                         throw new PolicyException("Failing update of policy, policy version mismatch, current version = " + v.getVersion() + ", your version = " + requestedVersionedPolicyDetails.getVersion() + ", for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup), true);
                     }
                     try {
-                        String res = curatorClient.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL).
+                        String policyNodePathWithNodeName = curatorClient.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL).
                                 forPath(policyNodePath, requestedVersionedPolicyDetails.getPolicyDetails().toByteArray());
-                        res = ZKPaths.getNodeFromPath(res);
-                        Integer newVersion = Integer.parseInt(res);
+                        String policyNodeName = ZKPaths.getNodeFromPath(policyNodePathWithNodeName);
+                        Integer newVersion = Integer.parseInt(policyNodeName);      //Policy Node names are incrementing numbers (the versions)
 
                         PolicyDTO.VersionedPolicyDetails updated = requestedVersionedPolicyDetails.toBuilder().setVersion(newVersion).build();
-                        putInProcessGroupAsTree(processGroup);
+                        updateProcessGroupHierarchy(processGroup);
                         return updated;
                     } catch (Exception e) {
                         throw new PolicyException("Exception thrown by ZK while writing policy for ProcessGroup = " + RecorderProtoUtil.processGroupCompactRepr(processGroup), e, true);
@@ -181,13 +178,13 @@ public class ZookeeperBasedPolicyStoreAPI implements PolicyStoreAPI {
             } catch (Exception e) {
                 fut.fail(e);
             }
-        }, true, future.completer());
+        }, false, future.completer());
         return future;
     }
 
-    private void putInProcessGroupAsTree(Recorder.ProcessGroup processGroup) {
-        processGroupAsTree.putIfAbsent(processGroup.getAppId(), new ConcurrentHashMap<>());
-        processGroupAsTree.get(processGroup.getAppId()).putIfAbsent(processGroup.getCluster(), ConcurrentHashMap.newKeySet());
-        processGroupAsTree.get(processGroup.getAppId()).get(processGroup.getCluster()).add(processGroup.getProcName());
+    private void updateProcessGroupHierarchy(Recorder.ProcessGroup processGroup) {
+        processGroupHierarchy.putIfAbsent(processGroup.getAppId(), new ConcurrentHashMap<>());
+        processGroupHierarchy.get(processGroup.getAppId()).putIfAbsent(processGroup.getCluster(), ConcurrentHashMap.newKeySet());
+        processGroupHierarchy.get(processGroup.getAppId()).get(processGroup.getCluster()).add(processGroup.getProcName());
     }
 }
