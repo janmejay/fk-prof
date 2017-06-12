@@ -5,6 +5,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.primitives.Ints;
+import com.google.protobuf.util.JsonFormat;
 import fk.prof.backend.ConfigManager;
 import fk.prof.backend.Configuration;
 import fk.prof.backend.aggregator.AggregationWindow;
@@ -97,6 +98,9 @@ public class BackendHttpVerticle extends AbstractVerticle {
 
     HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_ASSOCIATION,
         BodyHandler.create().setBodyLimit(1024 * 10), this::handlePostAssociation);
+
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, ApiPathConstants.BACKEND_GET_ASSOCIATIONS,
+        this::handleGetAssociations);
 
     HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.BACKEND_POST_POLL,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handlePostPoll);
@@ -233,6 +237,42 @@ public class BackendHttpVerticle extends AbstractVerticle {
     }
   }
 
+  // /associations API is requested over ELB, routed to some backend which in turns proxies it to a leader
+  private void handleGetAssociations(RoutingContext context) {
+    BackendDTO.LeaderDetail leaderDetail = verifyLeaderAvailabilityOrFail(context.response());
+    if (leaderDetail != null) {
+      try {
+        //Proxy request to leader
+        makeRequestGetAssociations(leaderDetail).setHandler(ar -> {
+          if(ar.failed()) {
+            HttpFailure httpFailure = HttpFailure.failure(ar.cause());
+            HttpHelper.handleFailure(context, httpFailure);
+            return;
+          }
+
+          int statusCode = ar.result().getStatusCode();
+          if(statusCode != 200) {
+            context.response().setStatusCode(statusCode);
+            context.response().end(ar.result().getResponse());
+            return;
+          }
+
+          try {
+            Recorder.BackendAssociations associations = ProtoUtil.buildProtoFromBuffer(Recorder.BackendAssociations.parser(), ar.result().getResponse());
+            context.response().putHeader("Content-Type", "application/json");
+            context.response().end(JsonFormat.printer().print(associations));
+          } catch (Exception ex) {
+            HttpFailure httpFailure = HttpFailure.failure(ex);
+            HttpHelper.handleFailure(context, httpFailure);
+          }
+        });
+      } catch (Exception ex) {
+        HttpFailure httpFailure = HttpFailure.failure(ex);
+        HttpHelper.handleFailure(context, httpFailure);
+      }
+    }
+  }
+
   private BackendDTO.LeaderDetail verifyLeaderAvailabilityOrFail(HttpServerResponse response) {
     if (leaderReadContext.isLeader()) {
       ctrLeaderSelfReq.inc();
@@ -257,6 +297,13 @@ public class BackendHttpVerticle extends AbstractVerticle {
         HttpMethod.POST,
         leaderDetail.getHost(), leaderDetail.getPort(), ApiPathConstants.LEADER_POST_ASSOCIATION,
         payloadAsBuffer);
+  }
+
+  private Future<ProfHttpClient.ResponseWithStatusTuple> makeRequestGetAssociations(BackendDTO.LeaderDetail leaderDetail)
+      throws IOException {
+    return httpClient.requestAsyncWithRetry(
+        HttpMethod.GET,
+        leaderDetail.getHost(), leaderDetail.getPort(), ApiPathConstants.LEADER_GET_ASSOCIATIONS, null);
   }
 
   private void handleGetHealthCheck(RoutingContext routingContext) {

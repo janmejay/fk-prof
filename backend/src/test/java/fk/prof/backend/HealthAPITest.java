@@ -79,13 +79,14 @@ public class HealthAPITest {
     vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
     inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort()));
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), mock(AssociatedProcessGroups.class));
-    backendHttpVerticleDeployer.deploy();
-    getHealthRequest().setHandler(ar -> {
-      if(ar.failed()) {
-        context.fail(ar.cause());
-      }
-      context.assertEquals(200, ar.result().getStatusCode());
-      async.complete();
+    backendHttpVerticleDeployer.deploy().setHandler(ar1 -> {
+      getHealthRequest().setHandler(ar -> {
+        if(ar.failed()) {
+          context.fail(ar.cause());
+        }
+        context.assertEquals(200, ar.result().getStatusCode());
+        async.complete();
+      });
     });
   }
 
