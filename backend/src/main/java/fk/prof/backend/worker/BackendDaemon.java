@@ -61,8 +61,8 @@ public class BackendDaemon extends AbstractVerticle {
                        WorkSlotPool workSlotPool,
                        AggregationWindowStorage aggregationWindowStorage) {
     this.config = config;
-    this.ipAddress = config.ipAddress;
-    this.backendHttpPort = config.backendHttpServerOpts.getPort();
+    this.ipAddress = config.getIpAddress();
+    this.backendHttpPort = config.getBackendHttpServerOpts().getPort();
 
     this.leaderReadContext = leaderReadContext;
     this.associatedProcessGroups = associatedProcessGroups;
@@ -77,24 +77,25 @@ public class BackendDaemon extends AbstractVerticle {
     aggregationWindowPlannerStore = buildAggregationWindowPlannerStore();
 
     serializationWorkerExecutor = vertx.createSharedWorkerExecutor("aggregation.window.serialization.threadpool",
-            config.serializationWorkerPoolConfig.size, config.serializationWorkerPoolConfig.timeoutSecs * 1000);
+            config.getSerializationWorkerPoolConfig().getSize(), config.getSerializationWorkerPoolConfig().getTimeoutSecs() * 1000);
     postLoadToLeader();
   }
 
   private ProfHttpClient buildHttpClient() {
-    return ProfHttpClient.newBuilder().setConfig(config.httpClientConfig).build(vertx);
+    return ProfHttpClient.newBuilder().setConfig(config.getHttpClientConfig()).build(vertx);
   }
 
   private AggregationWindowPlannerStore buildAggregationWindowPlannerStore() {
-    Configuration.DaemonVerticleConfig daemonConfig = config.daemonVerticleConfig;
+    Configuration.DaemonVerticleConfig daemonConfig = config.getDaemonVerticleConfig();
     return new AggregationWindowPlannerStore(
         vertx,
-        config.backendId,
-        daemonConfig.aggrWindowDurationSecs,
-        daemonConfig.aggrWindowEndToleranceSecs,
-        daemonConfig.policyRefreshOffsetSecs,
-        daemonConfig.schedulingBufferSecs,
-        daemonConfig.workAssignmentMaxDelaySecs,
+        config.getBackendId(),
+        daemonConfig.getAggrWindowDurationSecs(),
+        daemonConfig.getAggrWindowEndToleranceSecs(),
+        daemonConfig.getPolicyRefreshOffsetSecs(),
+        config.getRecorderDefunctThresholdSecs(),
+        daemonConfig.getSchedulingBufferSecs(),
+        daemonConfig.getWorkAssignmentMaxDelaySecs(),
         workSlotPool,
         activeAggregationWindows,
         this::getWorkFromLeader,
@@ -169,7 +170,7 @@ public class BackendDaemon extends AbstractVerticle {
   }
 
   private void setupTimerForReportingLoad() {
-    vertx.setTimer(config.loadReportItvlSecs * 1000, timerId -> postLoadToLeader());
+    vertx.setTimer(config.getLoadReportItvlSecs() * 1000, timerId -> postLoadToLeader());
   }
 
   private Future<BackendDTO.RecordingPolicy> getWorkFromLeader(Recorder.ProcessGroup processGroup, Meter mtrSuccess, Meter mtrFailure) {
@@ -180,8 +181,8 @@ public class BackendDaemon extends AbstractVerticle {
         String requestPath = URLUtil.buildPathWithRequestParams(ApiPathConstants.LEADER_GET_WORK,
             processGroup.getAppId(), processGroup.getCluster(), processGroup.getProcName());
         Map<String, String> queryParams = new HashMap<>();
-        queryParams.put("ip", config.ipAddress);
-        queryParams.put("port", Integer.toString(config.backendHttpServerOpts.getPort()));
+        queryParams.put("ip", config.getIpAddress());
+        queryParams.put("port", Integer.toString(config.getBackendHttpServerOpts().getPort()));
         requestPath = URLUtil.buildPathWithQueryParams(requestPath, queryParams);
 
         //TODO: Support configuring max retries at request level because this request should definitely be retried on failure while other requests like posting load to backend need not be

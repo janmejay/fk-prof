@@ -40,16 +40,15 @@ public class HttpVerticle extends AbstractVerticle {
     private static Logger LOGGER = LoggerFactory.getLogger(HttpVerticle.class);
 
     private String baseDir;
-    private int aggregationWindowDurationInSecs;
+    private final int maxListProfilesDurationInSecs;
     private Configuration.HttpConfig httpConfig;
-
     private ProfileStoreAPI profileStoreAPI;
 
-    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int aggregationWindowDurationInSecs) {
+    public HttpVerticle(Configuration.HttpConfig httpConfig, ProfileStoreAPI profileStoreAPI, String baseDir, int maxListProfilesDurationInDays) {
         this.httpConfig = httpConfig;
         this.profileStoreAPI = profileStoreAPI;
         this.baseDir = baseDir;
-        this.aggregationWindowDurationInSecs = aggregationWindowDurationInSecs;
+        this.maxListProfilesDurationInSecs = maxListProfilesDurationInDays*24*60*60;
     }
 
     private Router configureRouter() {
@@ -127,16 +126,18 @@ public class HttpVerticle extends AbstractVerticle {
         try {
             startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
             duration = Integer.parseInt(routingContext.request().getParam("duration"));
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
+            return;
+        }
+        if (duration > maxListProfilesDurationInSecs) {
+            setResponse(Future.failedFuture(new IllegalArgumentException("Max window size supported = " + maxListProfilesDurationInSecs + " seconds, requested window size = " + duration + " seconds")), routingContext);
             return;
         }
 
         Future<List<AggregatedProfileNamingStrategy>> foundProfiles = Future.future();
         foundProfiles.setHandler(result -> {
             List<Future> profileSummaries = new ArrayList<>();
-
             for (AggregatedProfileNamingStrategy filename: result.result()) {
                 Future<AggregationWindowSummary> summary = Future.future();
 
@@ -194,11 +195,20 @@ public class HttpVerticle extends AbstractVerticle {
         AggregatedProfileModel.WorkType workType = AggregatedProfileModel.WorkType.cpu_sample_work;
         String traceName = routingContext.request().getParam("traceName");
 
-        String startTime = routingContext.request().getParam("start");
+        ZonedDateTime startTime;
+        int duration;
+
+        try {
+            startTime = ZonedDateTime.parse(routingContext.request().getParam("start"), DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            duration = Integer.parseInt(routingContext.request().getParam("duration"));
+        } catch (Exception e) {
+            setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
+            return;
+        }
 
         AggregatedProfileNamingStrategy filename;
         try {
-            filename = buildFileName(appId, clusterId, procId, workType, startTime);
+            filename = new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, startTime, duration, workType);
         } catch (Exception e) {
             setResponse(Future.failedFuture(new IllegalArgumentException(e)), routingContext);
             return;
@@ -262,12 +272,6 @@ public class HttpVerticle extends AbstractVerticle {
                 response.end(encodedResponse);
             }
         }
-    }
-
-    private AggregatedProfileNamingStrategy buildFileName(String appId, String clusterId, String procId,
-                                                          AggregatedProfileModel.WorkType workType, String startTime) {
-        ZonedDateTime zonedStartTime = ZonedDateTime.parse(startTime, DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        return new AggregatedProfileNamingStrategy(baseDir, 1, appId, clusterId, procId, zonedStartTime, aggregationWindowDurationInSecs, workType);
     }
 
     private boolean safeContains(String str, String subStr) {

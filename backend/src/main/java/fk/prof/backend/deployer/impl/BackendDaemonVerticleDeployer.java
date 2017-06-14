@@ -38,7 +38,7 @@ public class BackendDaemonVerticleDeployer extends VerticleDeployer {
 
   @Override
   protected DeploymentOptions getDeploymentOptions() {
-    return getConfig().daemonDeploymentOpts;
+    return getConfig().getDaemonDeploymentOpts();
   }
 
   @Override

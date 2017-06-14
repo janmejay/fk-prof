@@ -1,6 +1,5 @@
 package fk.prof.backend;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import fk.prof.backend.leader.election.KillBehavior;
 import io.vertx.core.DeploymentOptions;
@@ -16,366 +15,582 @@ import java.util.Map;
  * Created by gaurav.ashok on 21/05/17.
  */
 public class Configuration {
-    @JsonCreator
-    public Configuration(@JsonProperty("ip.address") String ipAddress,
-                         @JsonProperty("backend.version") Integer backendVersion,
-                         @JsonProperty("backend.id") Integer backendId,
-                         @JsonProperty("load.report.interval.secs") Integer loadReportItvlSecs,
-                         @JsonProperty("recorder.defunct.threshold.secs") Integer recorderDefunctThresholdSecs,
-                         @JsonProperty("slot.pool.capacity") Integer scheduleSlotPoolCapacity,
-                         @JsonProperty("backend.http.server") Map<String, Object> backendHttpServerCfgMap,
-                         @JsonProperty("leader.http.server") Map<String, Object> leaderHttpServerCfgMap,
-                         @JsonProperty("http.client") HttpClientConfig httpClientConfig,
-                         @JsonProperty("vertxOptions") Map<String, Object> vertxOptionsMap,
-                         @JsonProperty("backendHttpOptions") Map<String, Object> backendDeploymentOptsMap,
-                         @JsonProperty("leaderElectionOptions") Map<String, Object> leaderElectionDeploymentOptsMap,
-                         @JsonProperty("curatorOptions") CuratorConfig curatorConfig,
-                         @JsonProperty("backendAssociations") BackendAssociationsConfig associationsConfig,
-                         @JsonProperty("daemonOptions") Map<String, Object> daemonDeploymentOptsMap,
-                         @JsonProperty("serializationWorkerPool") SerializationWorkerPoolConfig serializationWorkerPoolConfig,
-                         @JsonProperty("storage") StorageConfig storageConfig,
-                         @JsonProperty("bufferPoolOptions") BufferPoolConfig bufferPoolConfig,
-                         @JsonProperty("aggregatedProfiles.baseDir") String profilesBaseDir) {
-        this.ipAddress = ipAddress;
-        this.backendVersion = backendVersion;
-        this.backendId = backendId;
-        this.loadReportItvlSecs = loadReportItvlSecs;
-        this.recorderDefunctThresholdSecs = recorderDefunctThresholdSecs;
-        this.scheduleSlotPoolCapacity = scheduleSlotPoolCapacity;
+    @NotNull
+    @JsonProperty("ip.address")
+    private String ipAddress;
+
+    @NotNull
+    @JsonProperty("backend.version")
+    private Integer backendVersion;
+
+    @NotNull
+    @JsonProperty("backend.id")
+    private Integer backendId;
+
+    @NotNull
+    @JsonProperty("load.report.interval.secs")
+    private Integer loadReportItvlSecs;
+
+    @NotNull
+    @JsonProperty("recorder.defunct.threshold.secs")
+    private Integer recorderDefunctThresholdSecs;
+
+    @NotNull
+    @JsonProperty("slot.pool.capacity")
+    private Integer scheduleSlotPoolCapacity;
+
+    @NotNull
+    @Valid
+    @JsonProperty("backend.http.server")
+    private HttpServerOptions backendHttpServerOpts;
+
+    private void setBackendHttpServerOpts(Map<String, Object> backendHttpServerCfgMap) {
         this.backendHttpServerOpts = toHttpServerOptions(backendHttpServerCfgMap);
+    }
+
+    @NotNull
+    @Valid
+    @JsonProperty("leader.http.server")
+    private HttpServerOptions leaderHttpServerOpts;
+
+    private void setLeaderHttpServerOpts(Map<String, Object> leaderHttpServerCfgMap) {
         this.leaderHttpServerOpts = toHttpServerOptions(leaderHttpServerCfgMap);
-        this.httpClientConfig = httpClientConfig;
+    }
 
-        this.vertxOptions = vertxOptionsMap != null ? new VertxOptions(new JsonObject(vertxOptionsMap)) : null;
+    @NotNull
+    @Valid
+    @JsonProperty("http.client")
+    private HttpClientConfig httpClientConfig;
 
+    @NotNull
+    @JsonProperty("vertxOptions")
+    private VertxOptions vertxOptions = new VertxOptions();
+
+    private void setVertxOptions(Map<String, Object> vertxOptionsMap) {
+        this.vertxOptions = new VertxOptions(new JsonObject(vertxOptionsMap));
+    }
+
+    @NotNull
+    @JsonProperty("backendHttpOptions")
+    private DeploymentOptions backendDeploymentOpts;
+
+    @NotNull
+    @Valid
+    private BackendHttpVerticleConfig backendHttpVerticleConfig;
+
+    private void setBackendDeploymentOpts(Map<String, Object> backendDeploymentOptsMap) {
         this.backendDeploymentOpts = toDeploymentOptions(backendDeploymentOptsMap);
         this.backendHttpVerticleConfig = toVerticleConfig(this.backendDeploymentOpts, BackendHttpVerticleConfig.class);
+    }
 
+    @NotNull
+    private DeploymentOptions leaderDeploymentOpts = new DeploymentOptions().setConfig(new JsonObject());
+
+    @NotNull
+    @JsonProperty("leaderElectionOptions")
+    private DeploymentOptions leaderElectionDeploymentOpts;
+
+    @NotNull
+    @Valid
+    private LeaderElectionVerticleConfig leaderElectionVerticleConfig;
+
+    private void setLeaderElectionDeploymentOpts(Map<String, Object> leaderElectionDeploymentOptsMap) {
         this.leaderElectionDeploymentOpts = toDeploymentOptions(leaderElectionDeploymentOptsMap);
         this.leaderElectionVerticleConfig = toVerticleConfig(this.leaderElectionDeploymentOpts, LeaderElectionVerticleConfig.class);
+    }
 
-        this.curatorConfig = curatorConfig;
-        this.associationsConfig = associationsConfig;
+    @NotNull
+    @Valid
+    @JsonProperty("curatorOptions")
+    private CuratorConfig curatorConfig;
 
+    @NotNull
+    @Valid
+    @JsonProperty("backendAssociations")
+    private BackendAssociationsConfig associationsConfig;
+
+    @NotNull
+    @JsonProperty("daemonOptions")
+    private DeploymentOptions daemonDeploymentOpts;
+
+    @NotNull
+    @Valid
+    private DaemonVerticleConfig daemonVerticleConfig;
+
+    private void setDaemonDeploymentOpts(Map<String, Object> daemonDeploymentOptsMap) {
         this.daemonDeploymentOpts = toDeploymentOptions(daemonDeploymentOptsMap);
         //Backend daemon should never be deployed more than once, so hardcoding verticle count to 1, to protect from illegal configuration
         this.daemonDeploymentOpts.getConfig().put("verticle.count", 1);
         this.daemonVerticleConfig = toVerticleConfig(this.daemonDeploymentOpts, DaemonVerticleConfig.class);
-
-        this.serializationWorkerPoolConfig = serializationWorkerPoolConfig;
-        this.storageConfig = storageConfig;
-        this.bufferPoolConfig = bufferPoolConfig;
-
-        //default config for now
-        this.leaderDeploymentOpts = new DeploymentOptions().setConfig(new JsonObject());
-
-        this.profilesBaseDir = profilesBaseDir;
     }
 
     @NotNull
-    public final String ipAddress;
-    @NotNull
-    public final Integer backendVersion;
-    @NotNull
-    public final Integer backendId;
-    @NotNull
-    public final Integer loadReportItvlSecs;
-    @NotNull
-    public final Integer recorderDefunctThresholdSecs;
-    @NotNull
-    public final Integer scheduleSlotPoolCapacity;
-    @NotNull
     @Valid
-    public final HttpServerOptions backendHttpServerOpts;
-    @NotNull
-    @Valid
-    public final HttpServerOptions leaderHttpServerOpts;
-    @NotNull
-    @Valid
-    public final HttpClientConfig httpClientConfig;
-    @NotNull
-    public final VertxOptions vertxOptions;
-
-    @NotNull
-    public final DeploymentOptions backendDeploymentOpts;
-    @NotNull
-    @Valid
-    public final BackendHttpVerticleConfig backendHttpVerticleConfig;
-
-    @NotNull
-    public final DeploymentOptions leaderDeploymentOpts;
-
-    @NotNull
-    public final DeploymentOptions leaderElectionDeploymentOpts;
-    @NotNull
-    @Valid
-    public final LeaderElectionVerticleConfig leaderElectionVerticleConfig;
+    @JsonProperty("serializationWorkerPool")
+    private SerializationWorkerPoolConfig serializationWorkerPoolConfig;
 
     @NotNull
     @Valid
-    public final CuratorConfig curatorConfig;
-    @NotNull
-    @Valid
-    public final BackendAssociationsConfig associationsConfig;
-
-    @NotNull
-    public final DeploymentOptions daemonDeploymentOpts;
-    @NotNull
-    @Valid
-    public final DaemonVerticleConfig daemonVerticleConfig;
+    @JsonProperty("storage")
+    private StorageConfig storageConfig;
 
     @NotNull
     @Valid
-    public final SerializationWorkerPoolConfig serializationWorkerPoolConfig;
+    @JsonProperty("bufferPoolOptions")
+    private BufferPoolConfig bufferPoolConfig;
+
     @NotNull
-    @Valid
-    public final StorageConfig storageConfig;
-    @NotNull
-    @Valid
-    public final BufferPoolConfig bufferPoolConfig;
-    @NotNull
-    public final String profilesBaseDir;
+    @JsonProperty("aggregatedProfiles.baseDir")
+    private String profilesBaseDir;
+
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public Integer getBackendVersion() {
+        return backendVersion;
+    }
+
+    public Integer getBackendId() {
+        return backendId;
+    }
+
+    public Integer getLoadReportItvlSecs() {
+        return loadReportItvlSecs;
+    }
+
+    public Integer getRecorderDefunctThresholdSecs() {
+        return recorderDefunctThresholdSecs;
+    }
+
+    public Integer getScheduleSlotPoolCapacity() {
+        return scheduleSlotPoolCapacity;
+    }
+
+    public HttpServerOptions getBackendHttpServerOpts() {
+        return backendHttpServerOpts;
+    }
+
+    public HttpServerOptions getLeaderHttpServerOpts() {
+        return leaderHttpServerOpts;
+    }
+
+    public HttpClientConfig getHttpClientConfig() {
+        return httpClientConfig;
+    }
+
+    public VertxOptions getVertxOptions() {
+        return vertxOptions;
+    }
+
+    public DeploymentOptions getBackendDeploymentOpts() {
+        return backendDeploymentOpts;
+    }
+
+    public BackendHttpVerticleConfig getBackendHttpVerticleConfig() {
+        return backendHttpVerticleConfig;
+    }
+
+    public DeploymentOptions getLeaderDeploymentOpts() {
+        return leaderDeploymentOpts;
+    }
+
+    public DeploymentOptions getLeaderElectionDeploymentOpts() {
+        return leaderElectionDeploymentOpts;
+    }
+
+    public LeaderElectionVerticleConfig getLeaderElectionVerticleConfig() {
+        return leaderElectionVerticleConfig;
+    }
+
+    public CuratorConfig getCuratorConfig() {
+        return curatorConfig;
+    }
+
+    public BackendAssociationsConfig getAssociationsConfig() {
+        return associationsConfig;
+    }
+
+    public DeploymentOptions getDaemonDeploymentOpts() {
+        return daemonDeploymentOpts;
+    }
+
+    public DaemonVerticleConfig getDaemonVerticleConfig() {
+        return daemonVerticleConfig;
+    }
+
+    public SerializationWorkerPoolConfig getSerializationWorkerPoolConfig() {
+        return serializationWorkerPoolConfig;
+    }
+
+    public StorageConfig getStorageConfig() {
+        return storageConfig;
+    }
+
+    public BufferPoolConfig getBufferPoolConfig() {
+        return bufferPoolConfig;
+    }
+
+    public String getProfilesBaseDir() {
+        return profilesBaseDir;
+    }
 
     public static class HttpClientConfig {
-        @JsonCreator
-        public HttpClientConfig(@JsonProperty("connect.timeout.ms") Integer connectTimeoutMs,
-                                @JsonProperty("idle.timeout.secs") Integer idleTimeoutSecs,
-                                @JsonProperty("max.attempts") Integer maxAttempts,
-                                @JsonProperty("keepalive") Boolean keepAlive,
-                                @JsonProperty("compression") Boolean supportCompression) {
-            this.connectTimeoutMs = getOrDefault(connectTimeoutMs, 5000);
-            this.idleTimeoutSecs = getOrDefault(idleTimeoutSecs, 120);
-            this.maxAttempts = getOrDefault(maxAttempts, 3);
-            this.keepAlive = getOrDefault(keepAlive, true);
-            this.supportCompression = getOrDefault(supportCompression, true);
+        @JsonProperty("connect.timeout.ms")
+        private Integer connectTimeoutMs = 5000;
+
+        @JsonProperty("idle.timeout.secs")
+        private Integer idleTimeoutSecs = 120;
+
+        @JsonProperty("max.attempts")
+        private Integer maxAttempts = 3;
+
+        @JsonProperty("keepalive")
+        private Boolean keepAlive = true;
+
+        @JsonProperty("compression")
+        private Boolean supportCompression = true;
+
+        public Integer getConnectTimeoutMs() {
+            return connectTimeoutMs;
         }
 
-        public final Integer connectTimeoutMs;
-        public final Integer idleTimeoutSecs;
-        public final Integer maxAttempts;
-        public final Boolean keepAlive;
-        public final Boolean supportCompression;
+        public Integer getIdleTimeoutSecs() {
+            return idleTimeoutSecs;
+        }
+
+        public Integer getMaxAttempts() {
+            return maxAttempts;
+        }
+
+        public Boolean getKeepAlive() {
+            return keepAlive;
+        }
+
+        public Boolean getSupportCompression() {
+            return supportCompression;
+        }
     }
 
     public static class BackendHttpVerticleConfig {
-        @JsonCreator
-        public BackendHttpVerticleConfig(@JsonProperty("verticle.count") Integer verticleCount,
-                                         @JsonProperty("report.load") Boolean reportLoad,
-                                         @JsonProperty("parser") ParserConfig parserConfig) {
-            this.verticleCount = verticleCount;
-            this.reportLoad = getOrDefault(reportLoad, true);
-            this.parserConfig = parserConfig;
-        }
+        @NotNull
+        @JsonProperty("verticle.count")
+        private Integer verticleCount;
 
         @NotNull
-        public final Integer verticleCount;
-        @NotNull
-        public final Boolean reportLoad;
+        @JsonProperty("report.load")
+        private Boolean reportLoad;
+
         @NotNull
         @Valid
-        public final ParserConfig parserConfig;
+        @JsonProperty("parser")
+        private ParserConfig parserConfig;
+
+        public Integer getVerticleCount() {
+            return verticleCount;
+        }
+
+        public Boolean getReportLoad() {
+            return reportLoad;
+        }
+
+        public ParserConfig getParserConfig() {
+            return parserConfig;
+        }
 
         public static class ParserConfig {
-            @JsonCreator
-            public ParserConfig(@JsonProperty("recordingheader.max.bytes") Integer recordingHeaderMaxSizeBytes,
-                                @JsonProperty("wse.max.bytes") Integer wseMaxSizeBytes) {
-                this.recordingHeaderMaxSizeBytes = recordingHeaderMaxSizeBytes;
-                this.wseMaxSizeBytes = wseMaxSizeBytes;
-            }
+            @NotNull
+            @JsonProperty("recordingheader.max.bytes")
+            private Integer recordingHeaderMaxSizeBytes;
 
             @NotNull
-            public final Integer recordingHeaderMaxSizeBytes;
-            @NotNull
-            public final Integer wseMaxSizeBytes;
+            @JsonProperty("wse.max.bytes")
+            private Integer wseMaxSizeBytes;
+
+            public Integer getRecordingHeaderMaxSizeBytes() {
+                return recordingHeaderMaxSizeBytes;
+            }
+
+            public Integer getWseMaxSizeBytes() {
+                return wseMaxSizeBytes;
+            }
         }
     }
 
     public static class LeaderElectionVerticleConfig {
-        @JsonCreator
-        public LeaderElectionVerticleConfig(@JsonProperty("aggregation.enabled") Boolean aggregationEnabled,
-                                            @JsonProperty("leader.watching.path") String leaderWatchPath,
-                                            @JsonProperty("leader.mutex.path") String leaderMutexPath,
-                                            @JsonProperty("kill.behavior") KillBehavior killBehaviour) {
-            this.aggregationEnabled = getOrDefault(aggregationEnabled, false);
-            this.leaderWatchPath = leaderWatchPath;
-            this.leaderMutexPath = leaderMutexPath;
-            this.killBehaviour = getOrDefault(killBehaviour, KillBehavior.DO_NOTHING);
-        }
+        @NotNull
+        @JsonProperty("aggregation.enabled")
+        private Boolean aggregationEnabled;
 
         @NotNull
-        public final Boolean aggregationEnabled;
+        @JsonProperty("leader.watching.path")
+        private String leaderWatchPath;
+
         @NotNull
-        public final String leaderWatchPath;
+        @JsonProperty("leader.mutex.path")
+        private String leaderMutexPath;
+
         @NotNull
-        public final String leaderMutexPath;
-        @NotNull
-        public final KillBehavior killBehaviour;
+        @JsonProperty("kill.behavior")
+        private KillBehavior killBehaviour;
+
+        public Boolean getAggregationEnabled() {
+            return aggregationEnabled;
+        }
+
+        public String getLeaderWatchPath() {
+            return leaderWatchPath;
+        }
+
+        public String getLeaderMutexPath() {
+            return leaderMutexPath;
+        }
+
+        public KillBehavior getKillBehaviour() {
+            return killBehaviour;
+        }
     }
 
     public static class CuratorConfig {
-        @JsonCreator
-        public CuratorConfig(@JsonProperty("connection.url") String connectionUrl,
-                             @JsonProperty("namespace") String namespace,
-                             @JsonProperty("connection.timeout.ms") Integer connectionTimeoutMs,
-                             @JsonProperty("session.timeout.ms") Integer sessionTineoutMs,
-                             @JsonProperty("max.retries") Integer maxRetries) {
-            this.connectionUrl = connectionUrl;
-            this.namespace = namespace;
-            this.connectionTimeoutMs = connectionTimeoutMs;
-            this.sessionTineoutMs = sessionTineoutMs;
-            this.maxRetries = maxRetries;
-        }
+        @NotNull
+        @JsonProperty("connection.url")
+        private String connectionUrl;
 
         @NotNull
-        public final String connectionUrl;
+        @JsonProperty("namespace")
+        private String namespace;
+
         @NotNull
-        public final String namespace;
+        @JsonProperty("connection.timeout.ms")
+        private Integer connectionTimeoutMs;
+
         @NotNull
-        public final Integer connectionTimeoutMs;
+        @JsonProperty("session.timeout.ms")
+        private Integer sessionTineoutMs;
+
         @NotNull
-        public final Integer sessionTineoutMs;
-        @NotNull
-        public final Integer maxRetries;
+        @JsonProperty("max.retries")
+        private Integer maxRetries;
+
+        public String getConnectionUrl() {
+            return connectionUrl;
+        }
+
+        public String getNamespace() {
+            return namespace;
+        }
+
+        public Integer getConnectionTimeoutMs() {
+            return connectionTimeoutMs;
+        }
+
+        public Integer getSessionTineoutMs() {
+            return sessionTineoutMs;
+        }
+
+        public Integer getMaxRetries() {
+            return maxRetries;
+        }
     }
 
     public static class BackendAssociationsConfig {
-        @JsonCreator
-        public BackendAssociationsConfig(@JsonProperty("backend.association.path") String associationPath,
-                                         @JsonProperty("load.miss.tolerance") Integer loadMissTolerance) {
-            this.associationPath = associationPath;
-            this.loadMissTolerance = loadMissTolerance;
-        }
+        @NotNull
+        @JsonProperty("backend.association.path")
+        private String associationPath;
 
         @NotNull
-        public final String associationPath;
-        @NotNull
-        public final Integer loadMissTolerance;
+        @JsonProperty("load.miss.tolerance")
+        private Integer loadMissTolerance;
+
+        public String getAssociationPath() {
+            return associationPath;
+        }
+
+        public Integer getLoadMissTolerance() {
+            return loadMissTolerance;
+        }
     }
 
     public static class DaemonVerticleConfig {
-        @JsonCreator
-        public DaemonVerticleConfig(@JsonProperty("aggregation.window.duration.secs") Integer aggrWindowDurationSecs,
-                                    @JsonProperty("aggregation.window.end.tolerance.secs") Integer aggrWindowEndToleranceSecs,
-                                    @JsonProperty("policy.refresh.offset.secs") Integer policyRefreshOffsetSecs,
-                                    @JsonProperty("scheduling.buffer.secs") Integer schedulingBufferSecs,
-                                    @JsonProperty("work.assignment.max.delay.secs") Integer workAssignmentMaxDelaySecs,
-                                    @JsonProperty("verticle.count") Integer verticleCount) {
-            this.aggrWindowDurationSecs = aggrWindowDurationSecs;
-            this.aggrWindowEndToleranceSecs = aggrWindowEndToleranceSecs;
-            this.policyRefreshOffsetSecs = policyRefreshOffsetSecs;
-            this.schedulingBufferSecs = schedulingBufferSecs;
-            this.workAssignmentMaxDelaySecs = workAssignmentMaxDelaySecs;
-            this.verticleCount = verticleCount;
-        }
+        @NotNull
+        @JsonProperty("aggregation.window.duration.secs")
+        private Integer aggrWindowDurationSecs;
 
         @NotNull
-        public final Integer aggrWindowDurationSecs;
+        @JsonProperty("aggregation.window.end.tolerance.secs")
+        private Integer aggrWindowEndToleranceSecs;
+
         @NotNull
-        public final Integer aggrWindowEndToleranceSecs;
+        @JsonProperty("policy.refresh.offset.secs")
+        private Integer policyRefreshOffsetSecs;
+
         @NotNull
-        public final Integer policyRefreshOffsetSecs;
+        @JsonProperty("scheduling.buffer.secs")
+        private Integer schedulingBufferSecs;
+
         @NotNull
-        public final Integer schedulingBufferSecs;
+        @JsonProperty("work.assignment.max.delay.secs")
+        private Integer workAssignmentMaxDelaySecs;
+
         @NotNull
-        public final Integer workAssignmentMaxDelaySecs;
-        @NotNull
-        public final Integer verticleCount;
+        @JsonProperty("verticle.count")
+        private Integer verticleCount;
+
+        public Integer getAggrWindowDurationSecs() {
+            return aggrWindowDurationSecs;
+        }
+
+        public Integer getAggrWindowEndToleranceSecs() {
+            return aggrWindowEndToleranceSecs;
+        }
+
+        public Integer getPolicyRefreshOffsetSecs() {
+            return policyRefreshOffsetSecs;
+        }
+
+        public Integer getSchedulingBufferSecs() {
+            return schedulingBufferSecs;
+        }
+
+        public Integer getWorkAssignmentMaxDelaySecs() {
+            return workAssignmentMaxDelaySecs;
+        }
+
+        public Integer getVerticleCount() {
+            return verticleCount;
+        }
     }
 
     public static class SerializationWorkerPoolConfig {
-        @JsonCreator
-        public SerializationWorkerPoolConfig(@JsonProperty("size") Integer size,
-                                             @JsonProperty("timeout.secs") Integer timeoutSecs) {
-            this.size = size;
-            this.timeoutSecs = timeoutSecs;
-        }
+        @NotNull
+        @JsonProperty("size")
+        private Integer size;
 
         @NotNull
-        public final Integer size;
-        @NotNull
-        public final Integer timeoutSecs;
+        @JsonProperty("timeout.secs")
+        private Integer timeoutSecs;
+
+        public Integer getSize() {
+            return size;
+        }
+
+        public Integer getTimeoutSecs() {
+            return timeoutSecs;
+        }
     }
 
     public static class StorageConfig {
-        @JsonCreator
-        public StorageConfig(@JsonProperty("s3") S3Config s3Config,
-                             @JsonProperty("thread.pool") FixedSizeThreadPoolConfig tpConfig) {
-            this.s3Config = s3Config;
-            this.tpConfig = tpConfig;
+        @NotNull
+        @Valid
+        @JsonProperty("s3")
+        private S3Config s3Config;
+
+        @NotNull
+        @Valid
+        @JsonProperty("thread.pool")
+        private FixedSizeThreadPoolConfig tpConfig;
+
+        public S3Config getS3Config() {
+            return s3Config;
         }
 
-        @NotNull
-        @Valid
-        public final S3Config s3Config;
-        @NotNull
-        @Valid
-        public final FixedSizeThreadPoolConfig tpConfig;
+        public FixedSizeThreadPoolConfig getTpConfig() {
+            return tpConfig;
+        }
 
         public static class S3Config {
-            @JsonCreator
-            public S3Config(@JsonProperty("endpoint") String endpoint,
-                            @JsonProperty("access.key") String accessKey,
-                            @JsonProperty("secret.key") String secretKey,
-                            @JsonProperty("list.objects.timeout.ms") Long listObjectsTimeoutMs) {
-                this.endpoint = endpoint;
-                this.accessKey = accessKey;
-                this.secretKey = secretKey;
-                this.listObjectsTimeoutMs = listObjectsTimeoutMs;
-            }
+            @NotNull
+            @JsonProperty("endpoint")
+            private String endpoint;
 
             @NotNull
-            public final String endpoint;
+            @JsonProperty("access.key")
+            private String accessKey;
+
             @NotNull
-            public final String accessKey;
+            @JsonProperty("secret.key")
+            private String secretKey;
+
             @NotNull
-            public final String secretKey;
-            @NotNull
-            public final Long listObjectsTimeoutMs;
+            @JsonProperty("list.objects.timeout.ms")
+            private Long listObjectsTimeoutMs;
+
+            public String getEndpoint() {
+                return endpoint;
+            }
+
+            public String getAccessKey() {
+                return accessKey;
+            }
+
+            public String getSecretKey() {
+                return secretKey;
+            }
+
+            public Long getListObjectsTimeoutMs() {
+                return listObjectsTimeoutMs;
+            }
         }
 
         public static class FixedSizeThreadPoolConfig {
-            @JsonCreator
-            public FixedSizeThreadPoolConfig(@JsonProperty("coresize") Integer coreSize,
-                                             @JsonProperty("maxsize") Integer maxSize,
-                                             @JsonProperty("idletime.secs") Integer idleTimeSec,
-                                             @JsonProperty("queue.maxsize") Integer queueMaxSize) {
-                this.coreSize = coreSize;
-                this.maxSize = maxSize;
-                this.idleTimeSec = idleTimeSec;
-                this.queueMaxSize = queueMaxSize;
-            }
+            @NotNull
+            @JsonProperty("coresize")
+            private Integer coreSize;
 
             @NotNull
-            public final Integer coreSize;
+            @JsonProperty("maxsize")
+            private Integer maxSize;
+
             @NotNull
-            public final Integer maxSize;
+            @JsonProperty("idletime.secs")
+            private Integer idleTimeSec;
+
             @NotNull
-            public final Integer idleTimeSec;
-            @NotNull
-            public final Integer queueMaxSize;
+            @JsonProperty("queue.maxsize")
+            private Integer queueMaxSize;
+
+            public Integer getCoreSize() {
+                return coreSize;
+            }
+
+            public Integer getMaxSize() {
+                return maxSize;
+            }
+
+            public Integer getIdleTimeSec() {
+                return idleTimeSec;
+            }
+
+            public Integer getQueueMaxSize() {
+                return queueMaxSize;
+            }
         }
     }
 
     public static class BufferPoolConfig {
-        @JsonCreator
-        public BufferPoolConfig(@JsonProperty("max.total") Integer maxTotal,
-                                @JsonProperty("max.idle") Integer maxIdle,
-                                @JsonProperty("buffer.size") Integer bufferSize) {
-            this.maxTotal = maxTotal;
-            this.maxIdle = maxIdle;
-            this.bufferSize = bufferSize;
+        @NotNull
+        @JsonProperty("max.total")
+        private Integer maxTotal;
+
+        @NotNull
+        @JsonProperty("max.idle")
+        private Integer maxIdle;
+
+        @NotNull
+        @JsonProperty("buffer.size")
+        private Integer bufferSize;
+
+        public Integer getMaxTotal() {
+            return maxTotal;
         }
 
-        @NotNull
-        public final Integer maxTotal;
-        @NotNull
-        public final Integer maxIdle;
-        @NotNull
-        public final Integer bufferSize;
-    }
+        public Integer getMaxIdle() {
+            return maxIdle;
+        }
 
-    private static <T> T getOrDefault(T value, T defaultValue) {
-        return (value == null ? defaultValue : value);
+        public Integer getBufferSize() {
+            return bufferSize;
+        }
     }
 
     private static DeploymentOptions toDeploymentOptions(Map<String, Object> map) {

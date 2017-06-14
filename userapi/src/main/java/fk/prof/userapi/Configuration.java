@@ -22,8 +22,14 @@ public class Configuration {
     @JsonProperty("profile.retention.duration.min")
     private Integer profileRetentionDurationMin = 30;
 
-    @JsonProperty("aggregation_window.duration.secs")
-    private Integer aggregationWindowDurationSec = 1800;
+    @JsonProperty("max.list_profiles.duration.days")
+    private Integer maxListProfilesDurationInDays = 7;
+
+    @JsonProperty("profile.load.timeout")
+    private Integer profileLoadTimeout = 10000;
+
+    @JsonProperty("vertx.worker.pool.size")
+    private Integer vertxWorkerPoolSize;
 
     @NotNull
     @JsonProperty("userapiHttpOptions")
@@ -51,8 +57,16 @@ public class Configuration {
         return profileRetentionDurationMin;
     }
 
-    public Integer getAggregationWindowDurationSec() {
-        return aggregationWindowDurationSec;
+    public Integer getMaxListProfilesDurationInDays() {
+        return maxListProfilesDurationInDays;
+    }
+
+    public Integer getProfileLoadTimeout() {
+        return profileLoadTimeout;
+    }
+
+    public Integer getVertxWorkerPoolSize() {
+        return vertxWorkerPoolSize;
     }
 
     public DeploymentOptions getHttpVerticleConfig() {

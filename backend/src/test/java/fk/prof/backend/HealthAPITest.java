@@ -76,24 +76,25 @@ public class HealthAPITest {
   @Test
   public void testBackendIsHealthy(TestContext context) throws Exception {
     final Async async = context.async();
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
-    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort()));
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort()));
     VerticleDeployer backendHttpVerticleDeployer = new BackendHttpVerticleDeployer(vertx, config, inMemoryLeaderStore, new ActiveAggregationWindowsImpl(), mock(AssociatedProcessGroups.class));
-    backendHttpVerticleDeployer.deploy();
-    getHealthRequest().setHandler(ar -> {
-      if(ar.failed()) {
-        context.fail(ar.cause());
-      }
-      context.assertEquals(200, ar.result().getStatusCode());
-      async.complete();
+    backendHttpVerticleDeployer.deploy().setHandler(ar1 -> {
+      getHealthRequest().setHandler(ar -> {
+        if(ar.failed()) {
+          context.fail(ar.cause());
+        }
+        context.assertEquals(200, ar.result().getStatusCode());
+        async.complete();
+      });
     });
   }
 
   @Test
   public void testHealthCheckUnavailableWhenBackendIsLeader(TestContext context) throws Exception {
     final Async async = context.async();
-    vertx = Vertx.vertx(new VertxOptions(config.vertxOptions));
-    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.ipAddress, config.leaderHttpServerOpts.getPort()));
+    vertx = Vertx.vertx(new VertxOptions(config.getVertxOptions()));
+    inMemoryLeaderStore = spy(new InMemoryLeaderStore(config.getIpAddress(), config.getLeaderHttpServerOpts().getPort()));
     BackendAssociationStore backendAssociationStore = mock(BackendAssociationStore.class);
     AssociatedProcessGroups associatedProcessGroups = mock(AssociatedProcessGroups.class);
     ActiveAggregationWindows activeAggregationWindows = mock(ActiveAggregationWindows.class);
@@ -145,7 +146,7 @@ public class HealthAPITest {
   private Future<ProfHttpClient.ResponseWithStatusTuple> getHealthRequest() {
     Future<ProfHttpClient.ResponseWithStatusTuple> future = Future.future();
     HttpClientRequest request = vertx.createHttpClient()
-        .get(config.backendHttpServerOpts.getPort(), "localhost", "/health")
+        .get(config.getBackendHttpServerOpts().getPort(), "localhost", "/health")
         .handler(response -> {
           response.bodyHandler(buffer -> {
             try {
