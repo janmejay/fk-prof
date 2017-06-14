@@ -7,7 +7,8 @@ std::uint32_t Stacktraces::fill_backtrace(NativeFrame* buff, std::uint32_t capac
         "lea (%%rip), %%rax;"
         "movq %%rax, %1;"
         : "=r"(rbp), "=r"(rpc)
-        :);
+        :
+        : "rax");
 
     //not adding current PC, because we are anyway not interested in showing ourselves on the backtrace
     std::uint32_t i = 0;
