@@ -139,7 +139,7 @@ class MethodTreeComponent extends Component {
                           rowHeight={stackEntryHeight}
                           cellRenderer={this.stacklineDetailCellRenderer}
                           className={styles.LeftGrid}
-                          overscanRowCount={2}
+                          overscanRowCount={10}
                           onScroll={onScroll}
                           ref={el => this.stacklineDetailGrid = el}
                         />
@@ -161,7 +161,7 @@ class MethodTreeComponent extends Component {
                       rowHeight={stackEntryHeight}
                       cellRenderer={this.stacklineStatCellRenderer}
                       className={styles.RightGrid}
-                      overscanRowCount={2}
+                      overscanRowCount={10}
                       scrollTop={scrollTop}
                       ref={el => this.stacklineStatGrid = el}                      
                     />
