@@ -167,15 +167,11 @@ TEST(SiteResolver__TestUtil__mappable_range_finder) {
 
 void iterate_mapping(std::function<void(SiteResolver::Addr start, SiteResolver::Addr end, const MRegion::Event& e)> cb) {
     MRegion::Parser parser([&](const MRegion::Event& e) {
-            std::stringstream ss;
-            std::uint64_t start, end;
-
-            ss << e.range.start;
-            ss >> std::hex >> start;
-
-            ss.clear();
-            ss << e.range.end;
-            ss >> std::hex >> end;
+            std::size_t pos;
+            std::uint64_t start = std::stoull(e.range.start, &pos, 16);
+            assert(pos == e.range.start.length());
+            std::uint64_t end = std::stoull(e.range.end, &pos, 16);
+            assert(pos == e.range.end.length());
 
             cb(start, end, e);
 

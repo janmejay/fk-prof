@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "mapping_parser.hh"
 #include <fstream>
+#include <string>
 
 #define UNKNOWN_SYMBOL "*unknown symbol*"
 #define UNKNOWN_MAPPING "*unknown mapping*"
@@ -386,15 +387,11 @@ void SiteResolver::SymInfo::update_mapped_ranges(std::function<void()> post_pars
     MRegion::Parser parser([&mapped](const MRegion::Event& e) {
             if (e.perms.find('x') == std::string::npos) return true;
 
-            std::stringstream ss;
-            Addr start, end;
-
-            ss << e.range.start;
-            ss >> std::hex >> start;
-
-            ss.clear();
-            ss << e.range.end;
-            ss >> std::hex >> end;
+            std::size_t pos;
+            Addr start = std::stoull(e.range.start, &pos, 16);
+            assert(pos == e.range.start.length());
+            Addr end = std::stoull(e.range.end, &pos, 16);
+            assert(pos == e.range.end.length());
 
             mapped.emplace_back(start, end, e.path);
 

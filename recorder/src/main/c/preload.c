@@ -20,9 +20,12 @@ int JLI_Launch(int argc, char ** argv,
     ) {
 
     sigset_t set;
-    assert(sigemptyset(&set) == 0);
-    assert(sigaddset(&set, SIGPROF) == 0);
-    assert(pthread_sigmask(SIG_BLOCK, &set, NULL) == 0);
+    auto err = sigemptyset(&set);
+    assert(err == 0);
+    err = sigaddset(&set, SIGPROF);
+    assert(err == 0);
+    err = pthread_sigmask(SIG_BLOCK, &set, NULL);
+    assert(err == 0);
 
     typedef int (*jli_launch_t)(int argc, char ** argv,
                         int jargc, const char** jargv,
