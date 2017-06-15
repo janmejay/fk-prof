@@ -16,6 +16,12 @@
 #ifndef PERF_CTX_H
 #define PERF_CTX_H
 
+// special context IDs
+#define DEFAULT_CTX_ID 0
+#define DEFAULT_CTX_NAME "~ OTHERS ~"
+#define UNKNOWN_CTX_ID 1
+#define UNKNOWN_CTX_NAME "~ UNKNOWN ~"
+
 namespace PerfCtx {
     typedef std::uint64_t TracePt;
     /*
