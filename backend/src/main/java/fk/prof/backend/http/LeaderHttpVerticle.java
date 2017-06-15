@@ -63,6 +63,9 @@ public class LeaderHttpVerticle extends AbstractVerticle {
     HttpHelper.attachHandlersToRoute(router, HttpMethod.POST, ApiPathConstants.LEADER_POST_ASSOCIATION,
         BodyHandler.create().setBodyLimit(1024 * 10), this::handlePostAssociation);
 
+    HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, ApiPathConstants.LEADER_GET_ASSOCIATIONS,
+        this::handleGetAssociations);
+
     String apiPathForGetWork = ApiPathConstants.LEADER_GET_WORK + "/:appId/:clusterId/:procName";
     HttpHelper.attachHandlersToRoute(router, HttpMethod.GET, apiPathForGetWork,
         BodyHandler.create().setBodyLimit(1024 * 100), this::handleGetWork);
@@ -197,6 +200,15 @@ public class LeaderHttpVerticle extends AbstractVerticle {
       context.response().end();
     }
     catch (Exception ex) {
+      HttpFailure httpFailure = HttpFailure.failure(ex);
+      HttpHelper.handleFailure(context, httpFailure);
+    }
+  }
+
+  private void handleGetAssociations(RoutingContext context) {
+    try {
+      context.response().end(ProtoUtil.buildBufferFromProto(backendAssociationStore.getAssociations()));
+    } catch (Exception ex) {
       HttpFailure httpFailure = HttpFailure.failure(ex);
       HttpHelper.handleFailure(context, httpFailure);
     }

@@ -226,3 +226,12 @@ message ProcessGroup {
 message ProcessGroups {
   repeated ProcessGroup processGroup = 1;
 }
+
+message BackendAssociation {
+  required AssignedBackend backend = 1;
+  repeated ProcessGroup processGroups = 2;
+}
+
+message BackendAssociations {
+  repeated BackendAssociation associations = 1;
+}
