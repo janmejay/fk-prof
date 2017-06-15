@@ -55,7 +55,7 @@ set(INCLUDE_VENDOR_SPDLOG "vendor/spdlog/include")
 set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(BASE_OUTPUT "bagent")
-set(OUTPUT "fkpagent")
+set(AGENT_LIB "fkpagent")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN})
 #protobuf idl setup
 add_subdirectory(src/idl)
@@ -238,14 +238,14 @@ set(CMAKE_CXX_FLAGS "-I${INCLUDE_VENDOR_SPDLOG} -I${INCLUDE_VENDOR_CONCQUEUE} -I
 # Build
 
 add_library(${BASE_OUTPUT} STATIC ${SOURCE_FILES})
-add_library(${OUTPUT} SHARED ${TI_SRC_FILES})
+add_library(${AGENT_LIB} SHARED ${TI_SRC_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
     target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
 else()
     target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
-target_link_libraries(${OUTPUT} ${BASE_OUTPUT})
+target_link_libraries(${AGENT_LIB} ${BASE_OUTPUT})
 add_library(prefkp SHARED ${PRELOAD_SOURCE_FILES})
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
@@ -268,5 +268,5 @@ endif()
 add_test(tests ${BIN}/tests)
 
 # install
-install(TARGETS  ${OUTPUT}
+install(TARGETS  ${AGENT_LIB}
 LIBRARY DESTINATION lib)
