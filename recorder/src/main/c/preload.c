@@ -20,7 +20,7 @@ int JLI_Launch(int argc, char ** argv,
     ) {
 
     sigset_t set;
-    auto err = sigemptyset(&set);
+    int err = sigemptyset(&set);
     assert(err == 0);
     err = sigaddset(&set, SIGPROF);
     assert(err == 0);

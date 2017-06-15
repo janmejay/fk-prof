@@ -112,18 +112,6 @@ ProfileSerializingWriter::CtxId ProfileSerializingWriter::report_ctx(PerfCtx::Tr
     }
 }
 
-// std::uint8_t load_ctx(PerfCtx::ThreadTracker::EffectiveCtx& ctx, ThreadBucket* info, bool default_ctx) {//TODO: test me!
-//     if (default_ctx) {
-//         ctx[0] = DEFAULT_CTX_ID;
-//         return 1;
-//     } else if (info == nullptr) {
-//         ctx[0] = UNKNOWN_CTX_ID;
-//         return 1;
-//     } else {
-//         return info->ctx_tracker.current(ctx);
-//     }
-// }
-
 void ProfileSerializingWriter::record(const Backtrace &trace, ThreadBucket *info, std::uint8_t ctx_len, PerfCtx::ThreadTracker::EffectiveCtx* ctx, bool default_ctx) {
     if (cpu_samples_flush_ctr >= sft.cpu_samples) flush();
     cpu_samples_flush_ctr++;
