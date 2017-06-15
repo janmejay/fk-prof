@@ -294,6 +294,17 @@ public class ZookeeperBasedBackendAssociationStore implements BackendAssociation
   }
 
   @Override
+  public Recorder.BackendAssociations getAssociations() {
+    Recorder.BackendAssociations.Builder builder = Recorder.BackendAssociations.newBuilder();
+    this.backendDetailLookup.entrySet().forEach(backendEntry ->
+      builder.addAssociations(
+          Recorder.BackendAssociation.newBuilder()
+              .setBackend(backendEntry.getKey())
+              .addAllProcessGroups(backendEntry.getValue().getAssociatedProcessGroups())));
+    return builder.build();
+  }
+
+  @Override
   public void init() throws Exception {
     synchronized (this) {
       if(!initialized) {
