@@ -3,7 +3,7 @@
 #include <fstream>
 #include <libgen.h>
 
-__attribute__ ((noinline)) void some_λ_caller(std::function<void()> fn) {
+__attribute__ ((noinline)) void some_lambda_caller(std::function<void()> fn) {
     fn();
 }
 

@@ -35,7 +35,7 @@ TEST(SiteResolver__should_resolve_backtrace) {
     const std::uint32_t buff_sz = 100;
     NativeFrame buff[buff_sz];
     std::uint32_t bt_len;
-    some_λ_caller([&]() {
+    some_lambda_caller([&]() {
             bt_len = caller_of_foo(buff, buff_sz);
         });
     CHECK(bt_len > 4);
@@ -64,7 +64,7 @@ TEST(SiteResolver__should_resolve_backtrace) {
         fn_files[fn_name] = file_name;
     }
 
-    auto it = fn_files.find("some_λ_caller(std::function<void ()>)");
+    auto it = fn_files.find("some_lambda_caller(std::function<void ()>)");
     CHECK(it != std::end(fn_files));//this symbol comes from a shared-lib (aim is to ensure it works well with relocatable symbols)
 
     auto dir = path.substr(0, path.rfind("/"));
@@ -229,7 +229,7 @@ TEST(SiteResolver__should_call_out_unknown_mapping) {
     const std::uint32_t buff_sz = 100;
     NativeFrame buff[buff_sz];
     std::uint32_t bt_len;
-    some_λ_caller([&]() {
+    some_lambda_caller([&]() {
             bt_len = caller_of_foo(buff, buff_sz);
         });
     CHECK(bt_len > 4);

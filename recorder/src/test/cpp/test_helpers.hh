@@ -4,7 +4,7 @@
 #include <string>
 #include <stacktraces.hh>
 
-__attribute__ ((noinline)) void some_λ_caller(std::function<void()> fn);
+__attribute__ ((noinline)) void some_lambda_caller(std::function<void()> fn);
 
 void bt_pusher(); //defined in serializer test
 
