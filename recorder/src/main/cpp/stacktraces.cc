@@ -1,23 +1,18 @@
 #include "stacktraces.hh"
 
-std::uint32_t Stacktraces::fill_backtrace(NativeFrame* buff, std::uint32_t capacity) {//TODO: write me 3 tests { (capacity > stack), (stack > capacity) and (stack == capacity) }
-    std::uint64_t rbp, rpc;
-    asm("movq %%rbp, %%rax;"
-        "movq %%rax, %0;"
-        "lea (%%rip), %%rax;"
-        "movq %%rax, %1;"
-        : "=r"(rbp), "=r"(rpc)
-        :
-        : "rax");
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
 
-    //not adding current PC, because we are anyway not interested in showing ourselves on the backtrace
+std::uint32_t Stacktraces::fill_backtrace(NativeFrame* buff, std::uint32_t capacity) {
+    unw_cursor_t cursor; unw_context_t uc;
+    unw_word_t ip;
+
+    unw_getcontext(&uc);
+    unw_init_local(&cursor, &uc);
     std::uint32_t i = 0;
-    while ((capacity - i) > 0) {
-        rpc = *reinterpret_cast<std::uint64_t*>(rbp + 8);
-        //if (rpc == 0) break;
-        buff[i] = rpc;
-        rbp = *reinterpret_cast<std::uint64_t*>(rbp);
-        if (rbp == 0) break;
+    while ((unw_step(&cursor) > 0) && i < capacity) {
+        unw_get_reg(&cursor, UNW_REG_IP, &ip);
+        buff[i] = ip;
         i++;
     }
     return i;

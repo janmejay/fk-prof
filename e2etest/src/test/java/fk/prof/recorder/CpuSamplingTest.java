@@ -183,11 +183,11 @@ public class CpuSamplingTest {
         assertRecordingHeaderIsGood(cpuSamplingWorkIssueTime, hdr, CPU_SAMPLING_MAX_FRAMES);
 
         //debug aid
-        //Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
-        //Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
-        //Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
-        //Map<String, SampledStackNode> aggregations = new HashMap<>();
-        //makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
+        Map<Integer, TraceInfo> traceInfoMap = new HashMap<>();
+        Map<Integer, ThreadInfo> thdInfoMap = new HashMap<>();
+        Map<Long, MthdInfo> mthdInfoMap = new HashMap<>();
+        Map<String, SampledStackNode> aggregations = new HashMap<>();
+        makeTree(profileEntries, false, new TraceIdPivotResolver(), traceInfoMap, thdInfoMap, mthdInfoMap, aggregations);
 
         assertOnStackPctIsAbove(Pattern.compile(".*ParallelScavengeHeap::mem_allocate.*"), 90.0, profileEntries);
     }
@@ -892,7 +892,7 @@ public class CpuSamplingTest {
         }
 
         //debug aid, the thing is almost a json, just a little top-level key-massaging is necessary (massage and use 'jq')
-        //System.out.println("aggregations = " + aggregations);
+        System.out.println("aggregations = " + aggregations);
         return totalSamples;
     }
 
