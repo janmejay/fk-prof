@@ -464,6 +464,7 @@ public class E2EIntegrationTest {
         recorderParams.put("backoff_max", "5");
         recorderParams.put("log_lvl", "trace");
         recorderParams.put("poll_itvl", "10");
+        recorderParams.put("stats_syslog_tag", "foobar");
     }
 
     private static Map<String, String> getRecorderArgs(int processGroupVariant, int recorderVariant) {
