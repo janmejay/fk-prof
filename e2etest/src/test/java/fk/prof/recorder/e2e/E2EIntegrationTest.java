@@ -197,7 +197,7 @@ public class E2EIntegrationTest {
 
         ListProfilesMatcher responseMatcher = new ListProfilesMatcher()
                 .hasAggrWindows(2)
-                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~");
+                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~", "~ UNKNOWN ~");
 
         assertThat(res, responseMatcher);
 
@@ -345,7 +345,7 @@ public class E2EIntegrationTest {
         assertThat(res1, new ListProfilesMatcher()
                 .hasAggrWindows(1)
                 .latestAggrWindowHasWorkCount(2)                        // 1 for each recorder
-                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~"));
+                .latestAggrWindowHasTraces("inferno", "~ OTHERS ~", "~ UNKNOWN ~"));
 
         assertThat(res2, new ListProfilesMatcher()
                 .hasAggrWindows(1)
