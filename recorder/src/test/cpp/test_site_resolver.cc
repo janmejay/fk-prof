@@ -67,9 +67,7 @@ TEST(SiteResolver__should_resolve_backtrace) {
     auto it = fn_files.find("some_lambda_caller(std::function<void ()>)");
     CHECK(it != std::end(fn_files));//this symbol comes from a shared-lib (aim is to ensure it works well with relocatable symbols)
 
-    auto dir = path.substr(0, path.rfind("/"));
-    CHECK_EQUAL(0, it->second.find(dir));
-    CHECK_EQUAL(my_test_helper_lib(), it->second);
+    CHECK_EQUAL(my_test_helper_lib(), abs_path(it->second));
 }
 
 typedef std::vector<std::pair<SiteResolver::Addr, SiteResolver::Addr>> CurrMappings;

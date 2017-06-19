@@ -26,4 +26,6 @@ std::string my_executable();
 
 std::string my_test_helper_lib();
 
+std::string abs_path(const std::string& path);
+
 #endif /* TEST_HELPERS_H */
