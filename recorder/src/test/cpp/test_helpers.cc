@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sstream>
+#include <list>
 
 __attribute__ ((noinline)) void some_lambda_caller(std::function<void()> fn) {
     fn();
@@ -98,8 +99,8 @@ static void dereference_symlink(std::stringstream& path) {
     auto curr_path = path.str();
     auto ret = readlink(curr_path.c_str(), dest, PATH_MAX);
     assert(ret > 0);
+    path.str(dest);
     path.clear();
-    path << dest;
 }
 
 std::string abs_path(const std::string& path) {
@@ -113,6 +114,7 @@ std::string abs_path(const std::string& path) {
         if (is_symlink(curr_path.str())) {
             dereference_symlink(curr_path);
             fragment_path(curr_path.str(), frags);
+            curr_path.str("");
             curr_path.clear();
         }
     }
