@@ -88,7 +88,7 @@ public class AgentRunner {
         String agentArg = "-agentpath:" + RECORDER_BUILD_DIR + "/libfkpagent" + EXT + "=" + finalArgs;
 
         List<String> classpath = Util.discoverClasspath(getClass());
-
+        //System.out.println("AGENT ARG: " + agentArg);
         //System.out.println("classpath = " + classpath);
         ProcessBuilder pb = new ProcessBuilder();
         populateEnvVars(pb);

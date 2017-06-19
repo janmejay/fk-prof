@@ -77,7 +77,7 @@ public class ParseProfileTest {
         vertx.close(context.asyncAssertSuccess());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testAggregatedProfileStoreS3Impl(TestContext context) throws Exception {
         Async async = context.async();
 
