@@ -56,6 +56,7 @@ set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(BASE_OUTPUT "bagent")
 set(AGENT_LIB "fkpagent")
+set(PRELOAD_LIB "prefkp")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN})
 #protobuf idl setup
 add_subdirectory(src/idl)
@@ -247,7 +248,7 @@ else()
     target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${UNWIND_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
 target_link_libraries(${AGENT_LIB} ${BASE_OUTPUT})
-add_library(prefkp SHARED ${PRELOAD_SOURCE_FILES})
+add_library(${PRELOAD_LIB} SHARED ${PRELOAD_SOURCE_FILES})
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
 add_library(testbase STATIC ${TEST_BASE_FILES})
@@ -270,4 +271,6 @@ add_test(tests ${BIN}/tests)
 
 # install
 install(TARGETS  ${AGENT_LIB}
+LIBRARY DESTINATION lib)
+install(TARGETS  ${PRELOAD_LIB}
 LIBRARY DESTINATION lib)
