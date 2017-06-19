@@ -99,6 +99,7 @@ static void dereference_symlink(std::stringstream& path) {
     auto curr_path = path.str();
     auto ret = readlink(curr_path.c_str(), dest, PATH_MAX);
     assert(ret > 0);
+    dest[ret] = '\0';
     path.str(dest);
     path.clear();
 }

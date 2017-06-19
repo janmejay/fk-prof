@@ -95,7 +95,8 @@ jmethodID mid(std::uint64_t id) {
 #define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig, code_cls) \
     {                                                                   \
         CHECK_EQUAL(mthd_id, mthd_info.method_id());                    \
-        CHECK_EQUAL(kls_file, mthd_info.file_name());                   \
+        auto mthd_file = mthd_info.file_name();                         \
+        CHECK_EQUAL(kls_file, (mthd_file[0] == "/") ? abs_path(mthd_file) : mthd_file); \
         CHECK_EQUAL(kls_fqdn, mthd_info.class_fqdn());                  \
         CHECK_EQUAL(fn_name, mthd_info.method_name());                  \
         CHECK_EQUAL(fn_sig, mthd_info.signature());                     \

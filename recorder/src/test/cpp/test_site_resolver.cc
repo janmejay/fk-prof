@@ -359,7 +359,7 @@ TEST(SiteResolver__should_handle_mapping_changes_between___mmap_parse___and___dl
             map_target_1 << '0';
         }
     }
-    auto mt1_path = std::string(dir.get()) + "/" + mt1;
+    auto mt1_path = abs_path(std::string(dir.get()) + "/" + mt1);
 
     auto mt1_fd = open(mt1_path.c_str(), O_RDONLY);
     CHECK(fchmod(mt1_fd, S_IRUSR | S_IXUSR) == 0);
