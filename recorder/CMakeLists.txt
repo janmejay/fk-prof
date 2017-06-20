@@ -56,6 +56,7 @@ set(SRC_TEST "src/test/cpp")
 set(BIN "build")
 set(BASE_OUTPUT "bagent")
 set(AGENT_LIB "fkpagent")
+set(PRELOAD_LIB "prefkp")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN})
 #protobuf idl setup
 add_subdirectory(src/idl)
@@ -79,6 +80,7 @@ pkg_check_modules(ZLIB REQUIRED zlib)
 pkg_check_modules(CURL REQUIRED libcurl)
 pkg_check_modules(MEDIDA REQUIRED libmedida>=1.0.0)
 pkg_check_modules(ELF REQUIRED libelf)
+pkg_check_modules(UNWIND REQUIRED libunwind)
 include_directories(${MEDIDA_INCLUDE_DIRS})
 
 if (DEFINED ENV{UNITTEST_INCLUDE_DIRS})
@@ -200,7 +202,7 @@ set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wno-sign-compare -Wno-strict-overflow -
 set(GLOBAL_WARNINGS "${GLOBAL_WARNINGS} -Wnon-virtual-dtor -Woverloaded-virtual")
 
 set(GLOBAL_COPTS "-fdiagnostics-show-option -fno-omit-frame-pointer -fno-strict-aliasing -DHAS_VALGRIND=${HAS_VALGRIND_H}")
-set(GLOBAL_COPTS "${GLOBAL_COPTS} -funsigned-char -fno-asynchronous-unwind-tables -msse2 -g -D__STDC_FORMAT_MACROS -O2 -fPIC")
+set(GLOBAL_COPTS "${GLOBAL_COPTS} -funsigned-char -fno-asynchronous-unwind-tables -msse2 -g -D__STDC_FORMAT_MACROS -fPIC")
 
 # Platform Specific
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -225,8 +227,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(GLOBAL_WARNINGS, "${GLOBAL_WARNINGS} -Wno-unknown-pragmas -Wno-builtin-macro-redefined -Wl,-fatal_warnings")
 endif()
 
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-g3 -ggdb")
-set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O0") # -fsanitize=address when needed
+set(CMAKE_CXX_FLAGS_RELWITHDEBUGINFO  "-O2 -g3 -ggdb")
+set(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g3 -ggdb") # -fsanitize=address when needed
 SET(VERBOSE_LOGS "n" CACHE STRING "'Enable Verbose Logging' flag, turns on compile-time controlled debug and trace logs, defaults to 'n'")
 if (${VERBOSE_LOGS} MATCHES "y")
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DSPDLOG_TRACE_ON -DSPDLOG_DEBUG_ON")
@@ -241,12 +243,12 @@ add_library(${BASE_OUTPUT} STATIC ${SOURCE_FILES})
 add_library(${AGENT_LIB} SHARED ${TI_SRC_FILES})
 
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD") 
-    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
+    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${UNWIND_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB})
 else()
-    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
+    target_link_libraries(${BASE_OUTPUT} proto ${PROTOBUF_LIBRARY} ${ZLIB_LDFLAGS} ${CURL_LDFLAGS} ${MEDIDA_LDFLAGS} ${ELF_LDFLAGS} ${UNWIND_LDFLAGS} ${LIBCUCKOO_CITY_HASH_LIB} dl)
 endif()
 target_link_libraries(${AGENT_LIB} ${BASE_OUTPUT})
-add_library(prefkp SHARED ${PRELOAD_SOURCE_FILES})
+add_library(${PRELOAD_LIB} SHARED ${PRELOAD_SOURCE_FILES})
 
 add_library(testutil SHARED ${TEST_UTIL_FILES})
 add_library(testbase STATIC ${TEST_BASE_FILES})
@@ -269,4 +271,6 @@ add_test(tests ${BIN}/tests)
 
 # install
 install(TARGETS  ${AGENT_LIB}
+LIBRARY DESTINATION lib)
+install(TARGETS  ${PRELOAD_LIB}
 LIBRARY DESTINATION lib)

@@ -95,7 +95,8 @@ jmethodID mid(std::uint64_t id) {
 #define ASSERT_METHOD_INFO_IS(mthd_info, mthd_id, kls_file, kls_fqdn, fn_name, fn_sig, code_cls) \
     {                                                                   \
         CHECK_EQUAL(mthd_id, mthd_info.method_id());                    \
-        CHECK_EQUAL(kls_file, mthd_info.file_name());                   \
+        auto mthd_file = mthd_info.file_name();                         \
+        CHECK_EQUAL(kls_file, (mthd_file[0] == '/') ? abs_path(mthd_file) : mthd_file); \
         CHECK_EQUAL(kls_fqdn, mthd_info.class_fqdn());                  \
         CHECK_EQUAL(fn_name, mthd_info.method_name());                  \
         CHECK_EQUAL(fn_sig, mthd_info.signature());                     \
@@ -158,7 +159,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
     }
 
 //[#]  calling convention will take a few instructions
-//[##] just a guess, these functions are fairly small, so won't have more than 100 bytes worth of text
+//[##] just a guess, these functions are fairly small, so won't have more than 200 bytes worth of text
 #define ASSERT_NATIVE_STACK_SAMPLE_IS(ss, time_offset, thd_id, frames, ctx_ids, is_snipped) \
     {                                                                   \
         CHECK_EQUAL(time_offset, ss.start_offset_micros());             \
@@ -173,7 +174,7 @@ std::tuple<F_mid, F_bci, F_line> fr(F_mid mid, F_bci bci, F_line line) {
             auto f = ss.frame(i);                                       \
             CHECK_EQUAL((*it), f.method_id());                          \
             CHECK(f.bci() > 0); /* [#] */                               \
-            CHECK(f.bci() < 100); /* [##] */                            \
+            CHECK(f.bci() < 200); /* [##] */                            \
         }                                                               \
         CHECK_EQUAL(frames.size(), i);                                  \
         CHECK_EQUAL(ctx_ids.size(), ss.trace_id_size());                \
