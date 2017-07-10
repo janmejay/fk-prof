@@ -6,7 +6,6 @@
 #include "util.hh"
 #include <mutex>
 #include <cuckoohash_map.hh>
-#include <city_hasher.hh>
 #include <concurrentqueue.h>
 #include "prob_pct.hh"
 #include <unordered_map>
@@ -97,8 +96,8 @@ namespace PerfCtx {
     };
     
     class Registry {
-        typedef cuckoohash_map<std::string, TracePt, CityHasher<std::string> > NameToPt;
-        typedef cuckoohash_map<TracePt, std::string, CityHasher<TracePt> > PtToName;
+        typedef cuckoohash_map<std::string, TracePt, std::hash<std::string> > NameToPt;
+        typedef cuckoohash_map<TracePt, std::string, std::hash<TracePt> > PtToName;
 
         moodycamel::ConcurrentQueue<std::uint32_t> unused_prime_nos;
         NameToPt name_to_pt;    //contains only user-created trace-pts
